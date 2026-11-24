@@ -1,6 +1,6 @@
 # D-034 `T-储.01`｜测试套件生产库零写入 · 测试目标 check list
 
-**为什么单独立项**：已闭合·已归档 只收口了 `kv_meta` 一处。
+**为什么单独立项**：`TASK-183` 只收口了 `kv_meta` 一处。
 
 **一次全量实测**：主库 `PRAGMA data_version` 由 **2 → 187**（**185 次提交**，
 
@@ -24,7 +24,7 @@
 
 2. `app_runtime/web/control_panel_liquidation_discovery.py:156/158` 写 `kv_meta.schema_migrations`
 
-   （**与 已闭合·已归档 收口的 `schema_version` 是不同的键**）
+   （**与 `TASK-183` 收口的 `schema_version` 是不同的键**）
 
 3. `core/db/builders.py:50` 等模块**按名导入** `delete_rows` ⇒ **绕过**了
 

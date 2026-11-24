@@ -13,6 +13,7 @@ alloy-primitives.workspace = true
 candidate-edge-pool-manager = { path = "../candidate_edge_pool_manager" }
 candidate-exchange-pool-manager = { path = "../candidate_exchange_pool_manager" }
 chrono.workspace = true
+directional-pool-manager = { path = "../directional_pool_manager" }
 hex.workspace = true
 manager-contracts = { path = "../manager_contracts" }
 pool-manager = { path = "../pool_manager" }

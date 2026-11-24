@@ -17,6 +17,7 @@ mod live_refresh;
 mod migration;
 mod native_pool_registry;
 mod pool_index;
+mod review_publish;
 mod runtime_config;
 mod runtime_core;
 mod schema;

@@ -1371,6 +1371,7 @@ dependencies = [
  "candidate-edge-pool-manager",
  "candidate-exchange-pool-manager",
  "chrono",
+ "directional-pool-manager",
  "hex",
  "manager-contracts",
  "manager-db",

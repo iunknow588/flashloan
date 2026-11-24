@@ -621,6 +621,31 @@ pub fn load_manager_closed_loop_rows(
     )
 }
 
+/// The generation the closed-loop Manager published for one chain.
+///
+/// The catalog rows and the generation they belong to are read **together**,
+/// because a review that was measured against one generation may not be
+/// filed against another.  The scope is the same scope the closed-loop
+/// Manager itself reads: the V4 protocol under the `core4` scope key.
+///
+/// A library that holds no closed-loop state at all yields nothing, and the
+/// caller then publishes without a generation to compare against.
+pub fn load_manager_closed_loop_generation(
+    connection: &Connection,
+    network: &str,
+    chain_id: u64,
+) -> Result<Option<Value>, String> {
+    let found = rows(
+        connection,
+        "SELECT closed_loop_version, materialized_checksum \
+         FROM manager_v4_closed_loop_library_state \
+         WHERE network = ?1 AND chain_id = ?2 AND protocol = 'uniswap_v4' \
+           AND scope_key = 'core4'",
+        &[&network.to_string(), &(chain_id as i64)],
+    )?;
+    Ok(found.into_iter().next())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

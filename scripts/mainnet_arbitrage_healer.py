@@ -1079,6 +1079,30 @@ def diag_type(message: str) -> str:
     return "quote_failed" if code == "pool_key_unavailable" else code
 
 
+def review_row_execution_verdict(row: dict[str, Any]) -> bool:
+    """The execution verdict the reviewed row itself recorded.
+
+    The verdict belongs to the layer that executed the route, never to the
+    caller that converts the record:
+
+    * a **Review Manager** row carries the kernel's own
+      ``runArbitrage.executable`` flag, and
+    * a **legacy** row carries the outcome of the attempt under its
+      ``category`` column, where ``executable`` marks the rows the chain
+      accepted.
+
+    The verdict is therefore **copied** from the record and never declared
+    here.  A caller that writes its own verdict decides the two execution
+    gates of the Review Manager by itself, and the gates then never run -
+    which is exactly how the review library came to hold 164 rows that no
+    execution ever saw.
+    """
+    run = row.get("runArbitrage") or row.get("run_arbitrage")
+    if isinstance(run, dict) and isinstance(run.get("executable"), bool):
+        return bool(run["executable"])
+    return str(row.get("category") or "").strip().lower() == "executable"
+
+
 def review_evidence(row: dict[str, Any], resolved_loop_key: str | None = None) -> dict[str, Any]:
     payload = as_json(row.get("payload_json"))
     route = row_route_addresses(row)
@@ -1140,7 +1164,7 @@ def review_evidence(row: dict[str, Any], resolved_loop_key: str | None = None) -
     return {"loopKey": loop_key,
         "staticPreview": static_preview,
         "runArbitrage": {"ok": signed is not None,
-                         "executable": False,
+                         "executable": review_row_execution_verdict(row),
                          "blockNumber": None, "signedPnl": signed, "diagnostics": diagnostics},
         "diagnostics": [], "reviewedAt": row.get("created_at") or now()}
 

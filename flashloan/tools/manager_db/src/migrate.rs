@@ -25,6 +25,8 @@ pub const POOL_STATUS_REASON_MIGRATION_ID: &str = "20261119_013_pool_status_reas
 pub const REVIEW_CLOSED_LOOP_IDENTITY_MIGRATION_ID: &str =
     "20261121_014_review_closed_loop_identity_schema";
 pub const DIRECTIONAL_POOL_MIGRATION_ID: &str = "20261123_015_directional_pool_schema";
+pub const CLOSED_LOOP_DIRECTIONAL_MIGRATION_ID: &str =
+    "20261124_016_closed_loop_directional_wiring";
 pub const MIGRATION_IDS: &[&str] = &[
     MIGRATION_ID,
     CANDIDATE_EDGE_MIGRATION_ID,
@@ -42,8 +44,9 @@ pub const MIGRATION_IDS: &[&str] = &[
     POOL_STATUS_REASON_MIGRATION_ID,
     REVIEW_CLOSED_LOOP_IDENTITY_MIGRATION_ID,
     DIRECTIONAL_POOL_MIGRATION_ID,
+    CLOSED_LOOP_DIRECTIONAL_MIGRATION_ID,
 ];
-pub const LATEST_MIGRATION_ID: &str = DIRECTIONAL_POOL_MIGRATION_ID;
+pub const LATEST_MIGRATION_ID: &str = CLOSED_LOOP_DIRECTIONAL_MIGRATION_ID;
 
 const PREFERRED_LEDGER: &str = "schema_migrations";
 const FALLBACK_LEDGER: &str = "manager_schema_migrations";
@@ -117,6 +120,10 @@ const MIGRATIONS: &[MigrationDefinition] = &[
     MigrationDefinition {
         id: DIRECTIONAL_POOL_MIGRATION_ID,
         sql: include_str!("../migrations/20261123_015_directional_pool_schema.sql"),
+    },
+    MigrationDefinition {
+        id: CLOSED_LOOP_DIRECTIONAL_MIGRATION_ID,
+        sql: include_str!("../migrations/20261124_016_closed_loop_directional_wiring.sql"),
     },
 ];
 
@@ -219,6 +226,52 @@ const CLOSED_LOOP_TABLES: &[&str] = &[
     "manager_v4_closed_loop_optimizations",
     "manager_v4_closed_loop_runtime_state",
     "manager_v4_closed_loop_skipped_tokens",
+];
+
+/// The tables the closed-loop wiring migration touches.
+///
+/// The migration adds the depth capacity to the directional projection and
+/// carries the projection's identity into the closed loop rows, so both
+/// sides of the wire are part of its compatibility contract.
+const CLOSED_LOOP_DIRECTIONAL_TABLES: &[&str] = &[
+    "manager_v4_directional_exchange_pools",
+    "manager_v4_closed_loop_library_state",
+    "manager_v4_closed_loops",
+    "manager_v4_closed_loop_hops",
+];
+
+/// The columns each `ALTER TABLE` migration adds.
+///
+/// The global `required_columns` list is the compatibility contract of a
+/// table **as it is before** a migration runs, so a column that the
+/// migration itself adds cannot be part of it: the check would fail before
+/// the column exists, and the preflight report would call a database
+/// unmigratable when it is merely unmigrated.  These lists are the
+/// migration's own contract instead, and they are verified **after** the
+/// migration has been applied.
+const MIGRATION_ADDED_COLUMNS: &[(&str, &[(&str, &str)])] = &[
+    (
+        CLOSED_LOOP_DIRECTIONAL_MIGRATION_ID,
+        &[
+            (
+                "manager_v4_directional_exchange_pools",
+                "depth_capacity_raw",
+            ),
+            ("manager_v4_closed_loop_hops", "directional_pool_id"),
+            ("manager_v4_closed_loop_hops", "hop_direction"),
+            ("manager_v4_closed_loop_hops", "directional_scope_key"),
+            ("manager_v4_closed_loop_hops", "directional_pool_rank"),
+            ("manager_v4_closed_loops", "directional_pool_ids_json"),
+            (
+                "manager_v4_closed_loop_library_state",
+                "directional_pool_version",
+            ),
+            (
+                "manager_v4_closed_loop_library_state",
+                "directional_pool_checksum",
+            ),
+        ],
+    ),
 ];
 
 const SINGLE_TICK_CAPACITY_TABLES: &[&str] = &[
@@ -443,6 +496,7 @@ pub fn migrate(database_path: &Path) -> Result<MigrationReport, MigrationError> 
 
         ensure_migration_tables_compatible(&transaction, migration.id)?;
         transaction.execute_batch(migration.sql)?;
+        ensure_migration_added_columns(&transaction, migration.id)?;
         transaction.execute(
             &format!(
                 "INSERT INTO {ledger} (migration_id, checksum, applied_at, result_json)
@@ -652,6 +706,7 @@ fn ensure_migration_tables_compatible(
         POOL_STATUS_REASON_MIGRATION_ID => POOL_STATUS_REASON_TABLES,
         REVIEW_CLOSED_LOOP_IDENTITY_MIGRATION_ID => REVIEW_CLOSED_LOOP_IDENTITY_TABLES,
         DIRECTIONAL_POOL_MIGRATION_ID => DIRECTIONAL_POOL_TABLES,
+        CLOSED_LOOP_DIRECTIONAL_MIGRATION_ID => CLOSED_LOOP_DIRECTIONAL_TABLES,
         _ => unreachable!("migration id is a fixed internal enum"),
     };
     for table in tables {
@@ -682,6 +737,40 @@ fn missing_required_columns(
         .filter(|required| !names.iter().any(|name| name == *required))
         .map(|required| (*required).to_owned())
         .collect())
+}
+
+/// Verify that the columns a migration adds are really there.
+///
+/// The check runs **after** the migration has been applied, so it can name
+/// the columns the migration itself creates.  A migration that was applied
+/// to a database whose table was rebuilt in the meantime would otherwise
+/// leave a column missing with nothing to report it.
+fn ensure_migration_added_columns(
+    connection: &Connection,
+    migration_id: &str,
+) -> Result<(), MigrationError> {
+    let Some((_, columns)) = MIGRATION_ADDED_COLUMNS
+        .iter()
+        .find(|(id, _)| *id == migration_id)
+    else {
+        return Ok(());
+    };
+    for (table, column) in columns.iter() {
+        if !table_exists(connection, table)? {
+            continue;
+        }
+        let mut statement = connection.prepare(&format!("PRAGMA table_info({table})"))?;
+        let names = statement
+            .query_map([], |row| row.get::<_, String>(1))?
+            .collect::<Result<Vec<_>, _>>()?;
+        if !names.iter().any(|name| name == column) {
+            return Err(MigrationError::TargetTableIncompatible {
+                table: (*table).to_owned(),
+                missing_columns: vec![(*column).to_owned()],
+            });
+        }
+    }
+    Ok(())
 }
 
 fn required_columns(table: &str) -> &'static [&'static str] {

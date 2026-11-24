@@ -1,9 +1,13 @@
 use directional_pool_manager::{
     materialize_directional_pools, materialize_directional_pools_write,
     read_directional_pool_snapshot, read_directional_pool_status,
+    candidate_tier_size, max_direction_candidate_pools, tier_of_rank,
+    DirectionalPoolTier, DEFAULT_MAX_DIRECTION_CANDIDATE_POOLS,
+    MAX_DIRECTION_CANDIDATE_POOLS_ENV,
     DirectionalPoolError, DirectionalPoolWriteRequest, ExpectedUpstream,
     MATERIALIZE_OPERATION,
 };
+use candidate_edge_pool_manager::{price_directional_output, DirectionalPriceInput};
 use rusqlite::{params, Connection};
 
 const NETWORK: &str = "robinhood";
@@ -608,4 +612,447 @@ fn an_expected_upstream_mismatch_stops_the_write() {
         outcome,
         Err(DirectionalPoolError::InvalidRequest(_))
     ));
+}
+
+/// The reference observation of the fixture pools.
+///
+/// The fixture publishes `sqrt_price_x96 = 2^96`, `tick = 0` and a
+/// `tick_spacing` of 60, so the price of every fixture pool sits in the
+/// middle of its tick range and a reference trade of a fraction of the
+/// pool's own capacity stays inside that range.
+const FIXTURE_SQRT_PRICE_X96: &str = "79228162514264337593543950336";
+
+/// The key id of one fixture token.
+fn token_key_id(address: &str) -> String {
+    format!("{NETWORK}:{CHAIN_ID}:{address}")
+}
+
+/// The pool id the fixture gives to a salt.
+fn pool_id_of(salt: &str) -> String {
+    format!("0x{}", salt.repeat(64))
+}
+
+/// T-D-3: the rank of a direction follows the **candidate edge
+/// recommendation order**.
+///
+/// The candidate edge pool manager ranks the pools of one hop by
+///
+///   1. the exact single-tick output, descending,
+///   2. the tick ordering rank, descending,
+///   3. the fee, ascending,
+///   4. the pool id, ascending.
+///
+/// The directional layer ranks the rows of one `(pair_key_id, direction)`
+/// group by the very same key.  Both take the output from the **same**
+/// function: `price_directional_output` is the public wrapper around the
+/// `exact_directional_output` that `recommend_direction` sorts on, and it
+/// reports the very same tick ordering rank.  The order of the directional
+/// table and the order of the recommendation list are therefore equal row
+/// by row, and the closed loop can switch over without moving a pool.
+///
+/// The test recomputes the expected order from that public function and
+/// compares it with the published ranks, so it fails as soon as either
+/// side changes its ordering key.
+#[test]
+fn the_rank_follows_the_candidate_edge_recommendation_order() {
+    let fixture = fixture();
+    let connection = Connection::open(&fixture.path).unwrap();
+    // Three pools of the same pair with three different depths.  A deeper
+    // pool absorbs a larger reference trade inside its tick range, so it
+    // pays a better rate and has to rank first.
+    let specs = [("a", "100000000"), ("b", "1000000"), ("c", "100000")];
+    for (salt, liquidity) in specs {
+        insert_pool(
+            &connection,
+            &PoolSpec {
+                liquidity,
+                ..PoolSpec::default()
+            },
+            salt,
+        );
+    }
+    drop(connection);
+    materialize_directional_pools(&fixture.path, NETWORK, CHAIN_ID, SCOPE_KEY, true).unwrap();
+
+    let snapshot =
+        read_directional_pool_snapshot(&fixture.path, NETWORK, CHAIN_ID, SCOPE_KEY, None, 10)
+            .unwrap();
+    let token0_key_id = token_key_id(TOKEN0);
+    let token1_key_id = token_key_id(TOKEN1);
+
+    for direction in [0, 1] {
+        // Direction 0 spends token1, direction 1 spends token0.
+        let input_key_id = if direction == 0 {
+            token1_key_id.as_str()
+        } else {
+            token0_key_id.as_str()
+        };
+
+        // The expected order, recomputed from the same price function the
+        // candidate edge manager sorts on.
+        let mut expected: Vec<(f64, i64, i64, String)> = Vec::new();
+        for (salt, liquidity) in specs {
+            let pool_id = pool_id_of(salt);
+            let price = price_directional_output(
+                &DirectionalPriceInput {
+                    pool_id: pool_id.clone(),
+                    token0_key_id: token0_key_id.clone(),
+                    token1_key_id: token1_key_id.clone(),
+                    fee: 3_000,
+                    tick_spacing: 60,
+                    sqrt_price_x96: Some(FIXTURE_SQRT_PRICE_X96.to_owned()),
+                    tick: Some(0),
+                    liquidity: Some(liquidity.to_owned()),
+                },
+                input_key_id,
+                18,
+                18,
+            )
+            .expect("the fixture pools are priceable");
+            expected.push((
+                price.output_rate,
+                price.tick_ordering_rank.unwrap_or(i64::MIN),
+                3_000,
+                pool_id,
+            ));
+        }
+        expected.sort_by(|left, right| {
+            right
+                .0
+                .partial_cmp(&left.0)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| right.1.cmp(&left.1))
+                .then_with(|| left.2.cmp(&right.2))
+                .then_with(|| left.3.cmp(&right.3))
+        });
+
+        for (position, (_, _, _, pool_id)) in expected.iter().enumerate() {
+            let row = snapshot
+                .rows
+                .iter()
+                .find(|row| row.direction == direction && row.base_pool_id == *pool_id)
+                .expect("the pool is projected onto both directions");
+            assert_eq!(
+                row.pair_direction_rank,
+                Some(position as i64 + 1),
+                "direction {direction} ranks {pool_id} at {:?}, but the candidate edge recommendation order puts it at {}",
+                row.pair_direction_rank,
+                position + 1
+            );
+        }
+    }
+}
+
+/// T-D-14: the published capacity is **recomputed**, never read from the
+/// stored `single_tick_max_token*_raw` column.
+///
+/// The stored bound belongs to the observation the pool manager published
+/// **with** it.  A row whose price came from a different observation would
+/// therefore carry a bound of another on-chain moment.  The directional
+/// layer recomputes the bound from the observation the row itself holds, so
+/// a drifted stored column can never reach the closed loop.
+#[test]
+fn the_capacity_is_recomputed_and_not_read_from_the_stored_column() {
+    let fixture = fixture();
+    let connection = Connection::open(&fixture.path).unwrap();
+    // The stored bounds deliberately disagree with the observation the row
+    // carries: they are the leftovers of an earlier on-chain moment.
+    insert_pool(
+        &connection,
+        &PoolSpec {
+            token0_capacity: Some("999999999"),
+            token1_capacity: Some("888888888"),
+            ..PoolSpec::default()
+        },
+        "a",
+    );
+    drop(connection);
+    materialize_directional_pools(&fixture.path, NETWORK, CHAIN_ID, SCOPE_KEY, true).unwrap();
+
+    let snapshot =
+        read_directional_pool_snapshot(&fixture.path, NETWORK, CHAIN_ID, SCOPE_KEY, None, 10)
+            .unwrap();
+    let expected = pool_manager::depth::recompute_single_tick_bounds(
+        79_228_162_514_264_337_593_543_950_336,
+        1_000_000,
+        3_000,
+        60,
+        0,
+    );
+    let direction0 = snapshot.rows.iter().find(|row| row.direction == 0).unwrap();
+    let direction1 = snapshot.rows.iter().find(|row| row.direction == 1).unwrap();
+
+    // Direction 0 spends token1, so it carries the token1 bound; direction
+    // 1 spends token0.
+    assert_eq!(
+        direction0.input_capacity_raw.as_deref(),
+        expected.1.map(|value| value.to_string()).as_deref()
+    );
+    assert_eq!(
+        direction1.input_capacity_raw.as_deref(),
+        expected.0.map(|value| value.to_string()).as_deref()
+    );
+    // The drifted stored columns are not what was published.
+    assert_ne!(direction0.input_capacity_raw.as_deref(), Some("888888888"));
+    assert_ne!(direction1.input_capacity_raw.as_deref(), Some("999999999"));
+}
+
+/// T-D-12 / I-10: the in-memory rows and the table rows are the **same
+/// set**.
+///
+/// The closed loop reads the directional pool layer from the in-memory
+/// objects, so a row that is in the table but not in memory (or the other
+/// way round) is a pool the closed loop cannot see or a pool it would see
+/// twice.  The test reads the table back directly and compares the two
+/// sets, and it also checks that every base pool appears exactly twice.
+#[test]
+fn the_in_memory_rows_and_the_table_rows_are_the_same_set() {
+    let fixture = fixture();
+    let connection = Connection::open(&fixture.path).unwrap();
+    insert_pool(&connection, &PoolSpec::default(), "a");
+    insert_pool(
+        &connection,
+        &PoolSpec {
+            liquidity: "100000",
+            ..PoolSpec::default()
+        },
+        "b",
+    );
+    // A pool that carries no rank still belongs to the layer: "not ranked"
+    // is not "not published".
+    insert_pool(
+        &connection,
+        &PoolSpec {
+            pool_status: "blocked",
+            ..PoolSpec::default()
+        },
+        "c",
+    );
+    drop(connection);
+    let result =
+        materialize_directional_pools(&fixture.path, NETWORK, CHAIN_ID, SCOPE_KEY, true).unwrap();
+
+    let snapshot =
+        read_directional_pool_snapshot(&fixture.path, NETWORK, CHAIN_ID, SCOPE_KEY, None, 10)
+            .unwrap();
+
+    // The table is the source of truth, so read it back directly.
+    let connection = Connection::open(&fixture.path).unwrap();
+    let mut statement = connection
+        .prepare(
+            "SELECT base_pool_id, direction
+             FROM manager_v4_directional_exchange_pools
+             WHERE network = ?1 AND chain_id = ?2 AND protocol = 'uniswap_v4'
+               AND scope_key = ?3
+             ORDER BY base_pool_id, direction",
+        )
+        .unwrap();
+    let table_rows: Vec<(String, i64)> = statement
+        .query_map(params![NETWORK, CHAIN_ID, SCOPE_KEY], |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })
+        .unwrap()
+        .map(|row| row.unwrap())
+        .collect();
+    drop(statement);
+    drop(connection);
+
+    let mut memory_rows: Vec<(String, i64)> = snapshot
+        .rows
+        .iter()
+        .map(|row| (row.base_pool_id.clone(), row.direction))
+        .collect();
+    memory_rows.sort();
+
+    // No row is missing and none is extra.
+    assert_eq!(memory_rows, table_rows);
+    // Every base pool appears exactly twice, once per direction.
+    assert_eq!(table_rows.len(), result.base_pool_count * 2);
+    assert_eq!(snapshot.rows.len(), result.directional_pool_count);
+    assert_eq!(snapshot.status.directional_pool_count, result.directional_pool_count);
+}
+
+/// DPO-9 / T-D-13: only an admissible base pool may carry a **rank**.
+///
+/// The standing convention of the system is that the off-chain arithmetic
+/// may only price a **fixed rate** pool without a **hook**.  The pool
+/// manager owns that verdict and publishes it in `pool_status`; the
+/// directional layer inherits it.
+///
+/// The layer projects a little more than it ranks: a pool that is not
+/// active is still published, so that the coverage gap is visible, but it
+/// carries **no rank**.  A rank is the only thing the closed loop selects
+/// by, so "no rank" is what keeps an inadmissible pool out of the
+/// selection.
+///
+/// The test therefore pins the invariant that actually protects the closed
+/// loop: every ranked row comes from an active, hook-free, non-dynamic-fee
+/// base pool.
+#[test]
+fn only_an_admissible_base_pool_may_carry_a_rank() {
+    let fixture = fixture();
+    let connection = Connection::open(&fixture.path).unwrap();
+    // The admissible pool: active, fixed fee, no hook.
+    insert_pool(&connection, &PoolSpec::default(), "a");
+    // A dynamic fee pool and a hook pool are not projected at all.
+    insert_pool(
+        &connection,
+        &PoolSpec {
+            fee: DYNAMIC_FEE_FLAG,
+            ..PoolSpec::default()
+        },
+        "b",
+    );
+    insert_pool(
+        &connection,
+        &PoolSpec {
+            hooks: HOOK.to_owned(),
+            ..PoolSpec::default()
+        },
+        "c",
+    );
+    // A pool that is not active is published but never ranked.
+    insert_pool(
+        &connection,
+        &PoolSpec {
+            pool_status: "blocked",
+            ..PoolSpec::default()
+        },
+        "d",
+    );
+    insert_pool(
+        &connection,
+        &PoolSpec {
+            pool_status: "invalid",
+            ..PoolSpec::default()
+        },
+        "e",
+    );
+    drop(connection);
+    materialize_directional_pools(&fixture.path, NETWORK, CHAIN_ID, SCOPE_KEY, true).unwrap();
+
+    let snapshot =
+        read_directional_pool_snapshot(&fixture.path, NETWORK, CHAIN_ID, SCOPE_KEY, None, 20)
+            .unwrap();
+
+    let mut ranked = 0usize;
+    for row in &snapshot.rows {
+        if row.pair_direction_rank.is_none() {
+            continue;
+        }
+        ranked += 1;
+        assert_eq!(
+            row.pool_status, "active",
+            "a ranked row must come from an active base pool"
+        );
+        assert!(
+            hooks_is_absent(&row.hooks),
+            "a ranked row must come from a pool without a hook"
+        );
+        assert_eq!(
+            row.fee & DYNAMIC_FEE_FLAG,
+            0,
+            "a ranked row must come from a pool with a fixed fee"
+        );
+        assert!(
+            row.fee > 0 && row.fee <= 30_000,
+            "a ranked row must come from a pool inside the fixed rate \
+             candidate window, got fee {}",
+            row.fee
+        );
+    }
+    // Only the one admissible pool is ranked, on both of its directions.
+    assert_eq!(ranked, 2);
+}
+
+/// Whether a pool carries a hook.
+///
+/// The mirror of the layer's own helper, so the assertion reads the same
+/// way the rule does.
+fn hooks_is_absent(hooks: &str) -> bool {
+    let normalized = hooks.trim().to_ascii_lowercase();
+    normalized.is_empty() || normalized == "0x0000000000000000000000000000000000000000"
+}
+
+#[test]
+fn the_candidate_capacity_is_a_knob_and_not_a_threshold() {
+    // The capacity is the one knob of the layer: it decides how many pools
+    // of a group are **candidates**, and everything behind that count is a
+    // backup.  It is read from the environment, so an operator can widen
+    // the candidate list without a rebuild.
+    assert_eq!(
+        MAX_DIRECTION_CANDIDATE_POOLS_ENV, "FLASHLOAN_MAX_DIRECTION_CANDIDATE_POOLS",
+        "the knob has a stable name"
+    );
+    assert_eq!(
+        DEFAULT_MAX_DIRECTION_CANDIDATE_POOLS, 5,
+        "the default capacity is five pools per direction"
+    );
+    assert!(
+        max_direction_candidate_pools() > 0,
+        "the capacity is always a positive number of pools"
+    );
+}
+
+#[test]
+fn the_candidate_tier_is_never_wider_than_the_group_it_belongs_to() {
+    let capacity = max_direction_candidate_pools();
+    for eligible in 0..=16usize {
+        let tier_size = candidate_tier_size(eligible);
+        assert_eq!(
+            tier_size,
+            eligible.min(capacity),
+            "the tier of a group of {eligible} pools holds {tier_size} pools"
+        );
+        assert!(
+            tier_size <= eligible,
+            "the tier is never wider than the group"
+        );
+    }
+}
+
+#[test]
+fn the_ranks_split_the_group_into_a_candidate_and_a_backup_tier() {
+    // The split is a **layering** and not a truncation: every pool of the
+    // group keeps a tier, and the backup tier stays reachable.
+    for eligible in 1..=16usize {
+        let tier_size = candidate_tier_size(eligible);
+        for rank in 1..=eligible as i64 {
+            let tier = tier_of_rank(rank, eligible);
+            if rank <= tier_size as i64 {
+                assert_eq!(
+                    tier,
+                    DirectionalPoolTier::Candidate,
+                    "rank {rank} of a group of {eligible} is a candidate"
+                );
+            } else {
+                assert_eq!(
+                    tier,
+                    DirectionalPoolTier::Backup,
+                    "rank {rank} of a group of {eligible} is a backup"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_rank_outside_the_group_is_a_backup() {
+    // A rank that the group does not hold is never a candidate: the tier
+    // of a row is decided by the group it belongs to.
+    assert_eq!(
+        tier_of_rank(0, 4),
+        DirectionalPoolTier::Backup,
+        "the rank zero is not a rank"
+    );
+    assert_eq!(
+        tier_of_rank(-1, 4),
+        DirectionalPoolTier::Backup,
+        "a negative rank is not a rank"
+    );
+    assert_eq!(
+        tier_of_rank(99, 4),
+        DirectionalPoolTier::Backup,
+        "a rank beyond the group is a backup"
+    );
 }

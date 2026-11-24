@@ -1,0 +1,8 @@
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 49.42s
+     Running unittests src\lib.rs (target\debug\deps\broadcast_manager-0c1ef65cb2a506a5.exe)
+     Running unittests src\lib.rs (target\debug\deps\manager_db-84cf3b15956ebc7f.exe)
+     Running unittests src\main.rs (target\debug\deps\manager_db-225997f70a2fc514.exe)
+     Running tests\migration_smoke.rs (target\debug\deps\migration_smoke-7556b8197763666f.exe)
+     Running unittests src\lib.rs (target\debug\deps\review_manager-db2c16b42b7ae5f0.exe)
+error: test failed, to rerun pass `-p review-manager --lib`

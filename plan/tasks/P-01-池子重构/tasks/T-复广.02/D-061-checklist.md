@@ -96,8 +96,8 @@
 
 
 
-- [ ] 架构守卫全量通过（基线 **62 passed**，新增后**只增不减**）
+- [ ] 架构守卫全量通过（基线 **74 passed**（2026-11-24 实测），新增后**只增不减**）
 
-- [ ] Python 全量 **3208 passed / 3 skipped**、Rust `rs-src` **202 passed / 0 failed**、
+- [ ] Python 全量 **全绿**（基线见 [`D-014`](../../docs/D-014-未完成任务清单_20261123.md) §5：第 84 轮 **2743 passed / 3 skipped**）、Rust `rs-src` **203 passed / 0 failed**、
 
       Rust `tools` **0 failed**、`cargo build --offline --workspace` **exit 0**

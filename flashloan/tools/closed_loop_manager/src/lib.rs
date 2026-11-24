@@ -1,6 +1,7 @@
 ﻿use candidate_edge_pool_manager::CandidateEdgeStatus;
 use candidate_exchange_pool_manager::CandidateExchangeStatus;
-use manager_contracts::{RouteKeyId, TokenKeyId};
+use directional_pool_manager::{tier_of_rank, DirectionalPoolTier};
+use manager_contracts::{DirectionalPool, PoolDirection, RouteKeyId, TokenKeyId, V4Pool};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -22,6 +23,16 @@ const NETWORK_PROTOCOL: &str = "uniswap_v4";
 /// pools are deep enough.
 pub use pool_manager::depth_config::MIN_CANDIDATE_CAPACITY_RAW as MIN_CLOSED_LOOP_CAPACITY_RAW;
 const CLOSED_LOOP_SCOPE_KEY: &str = "core4";
+/// The scope that supplies the **first and third** hop of a closed loop.
+///
+/// The candidate edge layer publishes those pools under the `core4` scope,
+/// so the direction rows the loop walks for them are the `core4` ones.
+const HOP_SIDE_SCOPE_KEY: &str = "core4";
+/// The scope that supplies the **middle** hop of a closed loop.
+///
+/// The market observation layer publishes the Y->Z pools under the
+/// `candidate_exchange` scope, so the middle hop walks that projection.
+const HOP_MIDDLE_SCOPE_KEY: &str = "candidate_exchange";
 const MAX_REQUEST_ID_LENGTH: usize = 128;
 const MAX_IDEMPOTENCY_KEY_LENGTH: usize = 256;
 const MAX_SNAPSHOT_LIMIT: usize = 1_000;
@@ -213,6 +224,10 @@ pub struct ClosedLoopMaterializationResult {
     pub observation_version: i64,
     pub observation_checksum: String,
     pub pool_scope_checksum: String,
+    /// The version of the direction layer the loops were built against.
+    pub directional_pool_version: i64,
+    /// The checksum of the direction layer the loops were built against.
+    pub directional_pool_checksum: String,
     pub library_versions: BTreeMap<String, i64>,
     pub library_checksums: BTreeMap<String, String>,
     pub anchor_count: usize,
@@ -249,6 +264,10 @@ pub struct ClosedLoopStatus {
     pub observation_version: Option<i64>,
     pub observation_checksum: Option<String>,
     pub pool_scope_checksum: Option<String>,
+    /// The version of the direction layer the loops were built against.
+    pub directional_pool_version: Option<i64>,
+    /// The checksum of the direction layer the loops were built against.
+    pub directional_pool_checksum: Option<String>,
     pub library_versions: BTreeMap<String, i64>,
     pub library_checksums: BTreeMap<String, String>,
     pub anchor_count: usize,
@@ -274,6 +293,14 @@ pub struct ClosedLoopRow {
     pub path_symbols: Vec<String>,
     pub pool_path_key: String,
     pub pool_ids: Vec<String>,
+    /// The directional pools the three hops walk.
+    ///
+    /// The list has one entry per hop and holds the **directional pool
+    /// identity** of the hop, in hop order. It is the same pool the hop's
+    /// `directional_pool_id` names, so a consumer can resolve a loop back to
+    /// the direction rows it was built from without re-deriving the
+    /// direction from the token order.
+    pub directional_pool_ids: Vec<String>,
     pub backup_pool_ids: BTreeMap<String, Vec<String>>,
     pub hop_candidate_counts: BTreeMap<String, usize>,
     pub hop_candidate_combination_count: usize,
@@ -353,6 +380,26 @@ pub struct ClosedLoopHopRow {
     pub pool_id: String,
     pub base_pool_id: String,
     pub pool_selection_basis: String,
+    /// The directional pool the hop walks.
+    ///
+    /// The identity is the direction layer's own id, and it resolves to the
+    /// row that carries the hop's direction, its tick state and its
+    /// capacity. `pool_id` and `base_pool_id` stay the **base** pool, so the
+    /// foreign keys of the hop table keep pointing at the base pool table.
+    pub directional_pool_id: Option<String>,
+    /// The direction of the hop: `0` is high address to low address,
+    /// `1` is low address to high address.
+    ///
+    /// The value is the direction of the directional pool the hop walks. It
+    /// is written from that row, so the stored direction and the numbers
+    /// that belong to it can never drift apart.
+    pub hop_direction: Option<i64>,
+    /// The scope of the direction layer the hop's row was published under.
+    pub directional_scope_key: Option<String>,
+    /// The rank the row held inside its (pair, direction) group.
+    ///
+    /// `None` means the row was not measured, so it holds no rank.
+    pub directional_pool_rank: Option<i64>,
     pub optimization_id: Option<String>,
     pub temporary_override: bool,
 }
@@ -398,7 +445,12 @@ pub struct ClosedLoopSnapshot {
     pub status: ClosedLoopStatus,
     pub loops: Vec<ClosedLoopRow>,
     pub hops: Vec<ClosedLoopHopRow>,
+    /// The optimizations that are **in effect**: the hop trades the pool of
+    /// the optimization instead of the pool the recommendation named.
     pub optimizations: Vec<ClosedLoopOptimizationRow>,
+    /// The optimizations that are still **waiting**: the standby pool of a
+    /// hop that the capacity gate has not needed yet.
+    pub pending_optimizations: Vec<ClosedLoopOptimizationRow>,
     pub runtime_states: Vec<ClosedLoopRuntimeStateRow>,
     pub skipped_tokens: Vec<ClosedLoopSkippedTokenRow>,
 }
@@ -482,27 +534,225 @@ struct MiddlePool {
     token1_key_id: String,
 }
 
-/// The published single-tick state of one pool.
+/// The published price of one pool, as the USDG valuation reads it.
 ///
-/// The state carries exactly what the path-level capacity needs: the
-/// current price, the liquidity, the fee, the tick spacing, the tick the
-/// price sits in and the order of the pool's two tokens.
+/// The valuation is a property of the **market**, not of a route: it
+/// expresses the borrow token in USDG so the cross-tick threshold is
+/// comparable. It therefore keeps its own view of the pool universe, the
+/// one the base pool tables publish, and it is deliberately **not** narrowed
+/// to the direction layer eligible subset: a valuation route that runs
+/// through a pool the direction layer does not admit is still a real route,
+/// and dropping it would change the USDG value of the borrow token and with
+/// it the profit gate.
+///
+/// The fold does not read this view: the capacity of a hop comes from the
+/// directional row the hop walks, so a hop direction and the numbers that
+/// belong to it can never drift apart.
 #[derive(Debug, Clone)]
-struct PoolTickState {
+struct ValuationPoolState {
     /// The square-root price of the pool, in Q96 fixed point.
     sqrt_price_x96: u128,
-    /// The current liquidity of the pool.
-    liquidity: u128,
-    /// The fee of the pool, in hundredths of a basis point.
-    fee_pips: u32,
-    /// The tick spacing of the pool.
-    tick_spacing: i32,
-    /// The initialized tick the pool's price sits in.
-    tick: i32,
     /// The key id of the pool's token0.
     token0_key_id: String,
     /// The key id of the pool's token1.
     token1_key_id: String,
+}
+
+/// The direction layer as the closed loop consumes it.
+///
+/// The closed loop keeps **one** pool collection: the directional
+/// projection. The capacity, the single-tick bound and the tick state of a
+/// hop all come from the same row, so a hop's direction and the numbers
+/// that belong to it can never drift apart. A direction is a pure function
+/// of the token order, so a base pool projects onto exactly two rows and
+/// the row a hop walks is decided by the token the hop spends.
+#[derive(Debug, Clone, Default)]
+struct DirectionalPoolIndex {
+    /// Every published directional pool, keyed by its own identity.
+    pools: BTreeMap<String, DirectionalPool>,
+    /// The two rows of every base pool, keyed by (scope, base pool id).
+    by_base: BTreeMap<(String, String), Vec<String>>,
+    /// The scope each row was published under.
+    scope_of: BTreeMap<String, String>,
+    /// The rank a row held inside its (pair, direction).
+    rank_of: BTreeMap<String, i64>,
+    /// The `(pair, direction)` group every ranked row belongs to.
+    group_of: BTreeMap<String, (String, i64)>,
+    /// The ranked rows of every `(scope, pair, direction)` group, in rank
+    /// order.
+    ///
+    /// The group is the **qualified** set of one direction: the direction
+    /// layer never truncates it, so every qualified pool keeps a rank and
+    /// stays reachable.  The closed loop reads the group to reach the pools
+    /// a truncated candidate list dropped.
+    by_group: BTreeMap<(String, String, i64), Vec<String>>,
+}
+
+impl DirectionalPoolIndex {
+    /// One published row.
+    fn row(&self, directional_pool_id: &str) -> Option<&DirectionalPool> {
+        self.pools.get(directional_pool_id)
+    }
+
+    /// The rows of one base pool inside one scope, with their identities.
+    fn rows_of_base(&self, scope_key: &str, base_pool_id: &str) -> Vec<(&str, &DirectionalPool)> {
+        self.by_base
+            .get(&(scope_key.to_owned(), base_pool_id.to_owned()))
+            .map(|ids| {
+                ids.iter()
+                    .filter_map(|id| self.pools.get(id).map(|pool| (id.as_str(), pool)))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// The `(pair, direction)` group a row belongs to.
+    fn group_of_row(&self, directional_pool_id: &str) -> Option<(String, i64)> {
+        self.group_of.get(directional_pool_id).cloned()
+    }
+
+    /// The ranked rows of one group, in rank order.
+    fn rows_of_group(
+        &self,
+        scope_key: &str,
+        pair_key_id: &str,
+        direction: i64,
+    ) -> Vec<(&str, &DirectionalPool)> {
+        self.by_group
+            .get(&(
+                scope_key.to_owned(),
+                pair_key_id.to_owned(),
+                direction,
+            ))
+            .map(|ids| {
+                ids.iter()
+                    .filter_map(|id| self.pools.get(id).map(|pool| (id.as_str(), pool)))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+}
+
+/// The directional pool one hop walks.
+///
+/// The hop reads its direction from the row; the row is found by the token
+/// the hop spends, because the direction of a hop is decided by which of
+/// the pool's two tokens is the input.
+#[derive(Debug, Clone)]
+struct HopPool {
+    directional_pool_id: String,
+    scope_key: String,
+    base_pool_id: String,
+    direction: PoolDirection,
+    rank: Option<i64>,
+}
+
+/// One candidate of one hop: a pool the hop may trade in.
+///
+/// The **candidate tier** comes first: the pools the candidate edge (or the
+/// market observation) publishes for this hop, in their own order.  The
+/// **backup tier** follows: the pools of the same `(pair, direction)` group
+/// of the direction layer that the candidate tier does not name.  The
+/// direction layer never truncates its groups, so a pool that the candidate
+/// list dropped stays in the group and stays reachable as a backup.
+#[derive(Debug, Clone)]
+struct HopCandidate {
+    /// The base pool id of the candidate.
+    base_pool_id: String,
+    /// The optimization that records this candidate, when it is not the
+    /// primary of the hop.
+    optimization_id: Option<String>,
+    /// The selection basis of the candidate.
+    basis: String,
+    /// The directional row the candidate resolves to.  `None` when the
+    /// candidate carries no direction row and therefore cannot be traded.
+    hop_pool: Option<HopPool>,
+}
+
+/// One hop of a selected path.
+#[derive(Debug, Clone)]
+struct SelectedHop {
+    /// The candidates of the hop, in the order they are tried.
+    candidates: Vec<HopCandidate>,
+    /// The position of the winning candidate inside `candidates`.
+    chosen: usize,
+}
+
+impl SelectedHop {
+    /// The winning candidate of the hop.
+    fn chosen_candidate(&self) -> &HopCandidate {
+        &self.candidates[self.chosen]
+    }
+
+    /// The directional row the winning candidate resolves to.
+    fn hop_pool(&self) -> &HopPool {
+        self.chosen_candidate()
+            .hop_pool
+            .as_ref()
+            .expect("the winning candidate always resolves to a direction row")
+    }
+
+    /// The pool the hop used before any optimization: the primary of the
+    /// candidate tier.
+    fn primary_pool_id(&self) -> &str {
+        self.candidates
+            .first()
+            .map(|candidate| candidate.base_pool_id.as_str())
+            .unwrap_or_default()
+    }
+}
+
+/// The numbers one path publishes.
+#[derive(Debug, Clone, Default)]
+struct PathMeasures {
+    /// The folded single-tick capacity of the path and the pool that binds
+    /// it.
+    folded_capacity: Option<(u128, String)>,
+    /// The cross-tick ceiling of the path, in the anchor token.
+    cross_tick_capacity_anchor_raw: Option<u128>,
+    /// The USDG value of the borrow token.
+    borrow_token_usdg_value_raw: Option<u128>,
+    /// The decimals of the borrow token.
+    borrow_token_decimals: Option<u32>,
+}
+
+/// The maximum number of combinations one path may try.
+///
+/// The three candidate lists are short, but the search must stay bounded: a
+/// path that passes the gate on no combination at all is dropped, and the
+/// search must never become the expensive part of a rebuild.
+const MAX_HOP_CANDIDATE_COMBINATIONS: usize = 512;
+
+/// Every combination of the three candidate lists, ordered by how far it
+/// deviates from the primary combination.
+///
+/// The order is `(deviations, first, middle, third)`: a combination that
+/// keeps more hops on their primary comes first, so one hop is replaced
+/// before two hops are, and the primary combination is always tried first.
+/// The order is total, so the search is deterministic.
+fn hop_candidate_combinations(
+    first: usize,
+    middle: usize,
+    third: usize,
+) -> Vec<(usize, usize, usize)> {
+    let mut combinations = Vec::with_capacity(first.saturating_mul(middle).saturating_mul(third));
+    for i in 0..first {
+        for j in 0..middle {
+            for k in 0..third {
+                combinations.push((i, j, k));
+            }
+        }
+    }
+    combinations.sort_by_key(|(i, j, k)| {
+        (
+            usize::from(*i > 0) + usize::from(*j > 0) + usize::from(*k > 0),
+            *i,
+            *j,
+            *k,
+        )
+    });
+    combinations.truncate(MAX_HOP_CANDIDATE_COMBINATIONS);
+    combinations
 }
 
 struct ClosedLoopInput {
@@ -513,38 +763,33 @@ struct ClosedLoopInput {
     yz_directions: BTreeMap<(String, String), YzDirection>,
     middle_pools: BTreeMap<(String, String), MiddlePool>,
     candidate_pool_ids: BTreeSet<(String, String)>,
-    /// On-chain price-impact capacity per pool, in raw token units.
+    /// The direction layer: the closed loop's **only** pool collection.
     ///
-    /// A pool that has never been measured is absent from this map. The
-    /// absence is a coverage gap of the pool index, not a statement about the
-    /// market, so it must not disqualify a loop by itself.
-    capacity_by_pool: BTreeMap<String, u128>,
-    /// The largest input each pool may carry while the price stays inside
-    /// its current tick range, per direction.
+    /// The capacity, the single-tick bound and the tick state of a hop all
+    /// come from one row, so a hop's direction and the numbers that belong
+    /// to it cannot drift apart. A base pool projects onto exactly two
+    /// rows, and the row a hop walks is decided by the token the hop
+    /// spends.
+    directional_pools: DirectionalPoolIndex,
+    /// The published state of every scope of the direction layer the loop
+    /// consumes, keyed by scope key: the version and the checksum.
     ///
-    /// The first arbitrage version constrains every hop to one tick range,
-    /// so a position larger than this bound would cross a tick boundary,
-    /// where the single-step off-chain pricing no longer holds. Pool
-    /// Manager owns the arithmetic and publishes the bound.
-    ///
-    /// A pool that has never been measured is absent from this map. The
-    /// absence is a coverage gap of the pool index, not a statement about
-    /// the market, so it must not disqualify a loop by itself.
-    ///
-    /// TASK-172 / AC-221: the depth snapshot table has exactly one writer --
-    /// the pool manager -- which writes the price columns and the bounds in
-    /// one statement, so a stored bound always belongs to the price next to
-    /// it. The stored bound is the only evidence about the tick room of a
-    /// pool that publishes no tick state of its own, and a measured zero is
-    /// a measured fact rather than a coverage gap.
-    single_tick_bounds_by_pool: BTreeMap<String, (Option<u128>, Option<u128>)>,
-    /// The published single-tick state of every pool that carries one.
+    /// The closed loop records them, so a consumer can tell which
+    /// projection a loop was built against and whether that projection has
+    /// moved since.
+    directional_scope_states: BTreeMap<String, (i64, String)>,
+    /// The published single-tick state of every pool the valuation routes
+    /// through.
     ///
     /// The state is what lets the path capacity be expressed in the
     /// **anchor** token: the bound of a hop is denominated in the token
     /// that hop spends, and the conversion between the tokens of the hops
-    /// is read from the pools themselves.
-    pool_tick_states: BTreeMap<String, PoolTickState>,
+    /// is read from the pools themselves. It is deliberately the **whole**
+    /// pool universe and not the closed loop's path: the valuation is a
+    /// property of the market, so narrowing it to the path would change
+    /// the USDG value of the borrow token, and with it the cross-tick
+    /// threshold comparison, which the design forbids.
+    valuation_pool_states: BTreeMap<String, ValuationPoolState>,
     /// The decimals of every admitted token, keyed by its key id.
     ///
     /// The decimals are the property of the **token**, not of a pool, so
@@ -589,6 +834,33 @@ fn closed_loop_pool_scope_checksum(input: &ClosedLoopInput) -> Result<String, Cl
         .ok_or(ClosedLoopError::MissingCandidateEdgeState)
 }
 
+/// The identity of the direction layer the closed loop was built against.
+///
+/// The closed loop walks **two** scopes of the direction layer: the
+/// candidate edge scope supplies the first and the third hop, the candidate
+/// exchange scope supplies the middle one. The two are folded into a single
+/// identity, so a consumer can tell which projection a loop was built
+/// against, and whether **either** part of that projection has moved since.
+///
+/// The version is the highest version the two scopes publish and the
+/// checksum covers both scopes' version and checksum, so a change in either
+/// scope changes the identity.
+fn directional_layer_identity(scope_states: &BTreeMap<String, (i64, String)>) -> (i64, String) {
+    let version = scope_states
+        .values()
+        .map(|(version, _)| *version)
+        .max()
+        .unwrap_or(0);
+    let payload = scope_states
+        .iter()
+        .map(|(scope_key, (version, checksum))| {
+            format!("{scope_key}:{version}:{checksum}")
+        })
+        .collect::<Vec<_>>()
+        .join("|");
+    (version, checksum_text(&payload))
+}
+
 #[derive(Debug, Clone, Default, PartialEq)]
 struct DesiredClosedLoopData {
     loops: Vec<ClosedLoopRow>,
@@ -606,6 +878,8 @@ struct ClosedLoopChecksumPayload<'a> {
     observation_version: i64,
     observation_checksum: &'a str,
     pool_scope_checksum: &'a str,
+    directional_pool_version: i64,
+    directional_pool_checksum: &'a str,
     library_versions: &'a BTreeMap<String, i64>,
     library_checksums: &'a BTreeMap<String, String>,
     loops: &'a [ClosedLoopRow],
@@ -730,6 +1004,8 @@ fn materialize_on_connection(
     } else {
         0
     };
+    let (directional_pool_version, directional_pool_checksum) =
+        directional_layer_identity(&input.directional_scope_states);
     let result = ClosedLoopMaterializationResult {
         network: network.to_owned(),
         chain_id,
@@ -750,6 +1026,8 @@ fn materialize_on_connection(
             .clone()
             .ok_or(ClosedLoopError::MissingObservationState)?,
         pool_scope_checksum: closed_loop_pool_scope_checksum(&input)?,
+        directional_pool_version,
+        directional_pool_checksum,
         library_versions: input.observation.library_versions.clone(),
         library_checksums: input.observation.library_checksums.clone(),
         anchor_count: input.anchors.len(),
@@ -883,9 +1161,27 @@ fn read_closed_loop_input(
     let yz_directions = read_yz_directions(connection, network, chain_id)?;
     let middle_pools = read_middle_pools(connection, network, chain_id)?;
     let candidate_pool_ids = read_candidate_pool_ids(connection, network, chain_id)?;
-    let capacity_by_pool = read_pool_capacities(connection, network, chain_id)?;
-    let single_tick_bounds_by_pool = read_single_tick_bounds(connection, network, chain_id)?;
-    let pool_tick_states = read_pool_tick_states(connection, network, chain_id)?;
+    // The direction layer is the closed loop's only pool collection. The
+    // loop walks two scopes of it: the candidate edge scope supplies the
+    // first and the third hop, the candidate exchange scope supplies the
+    // middle one.
+    let mut directional_pools = DirectionalPoolIndex::default();
+    let mut directional_scope_states = BTreeMap::new();
+    for scope_key in [HOP_SIDE_SCOPE_KEY, HOP_MIDDLE_SCOPE_KEY] {
+        read_directional_pools(
+            connection,
+            network,
+            chain_id,
+            scope_key,
+            &mut directional_pools,
+        )?;
+        if let Some((version, checksum)) =
+            read_directional_scope_state(connection, network, chain_id, scope_key)?
+        {
+            directional_scope_states.insert(scope_key.to_owned(), (version, checksum));
+        }
+    }
+    let valuation_pool_states = read_valuation_pool_states(connection, network, chain_id)?;
     let token_decimals = read_token_decimals(connection, network, chain_id)?;
     let usdg_token_key_id = read_usdg_token_key_id(connection, network, chain_id)?;
 
@@ -897,9 +1193,9 @@ fn read_closed_loop_input(
         yz_directions,
         middle_pools,
         candidate_pool_ids,
-        capacity_by_pool,
-        single_tick_bounds_by_pool,
-        pool_tick_states,
+        directional_pools,
+        directional_scope_states,
+        valuation_pool_states,
         token_decimals,
         usdg_token_key_id,
         cross_tick_review_threshold_usdg_raw: read_cross_tick_review_threshold_usdg_raw(),
@@ -1394,67 +1690,6 @@ fn read_candidate_pool_ids(
 /// A pool without a published bound is absent from the map. That is a
 /// coverage gap of the pool index, not a market conclusion, so such a pool
 /// does not block the path.
-fn read_single_tick_bounds(
-    connection: &Connection,
-    network: &str,
-    chain_id: i64,
-) -> Result<BTreeMap<String, (Option<u128>, Option<u128>)>, ClosedLoopError> {
-    let table_exists = connection
-        .query_row(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='v4_exchange_pool_liquidity_snapshots'",
-            [],
-            |row| row.get::<_, i64>(0),
-        )
-        .unwrap_or(0);
-    if table_exists == 0 {
-        return Ok(BTreeMap::new());
-    }
-    let columns = {
-        let mut statement =
-            connection.prepare("PRAGMA table_info(v4_exchange_pool_liquidity_snapshots)")?;
-        let rows = statement.query_map([], |row| Ok(row.get::<_, String>(1)?))?;
-        rows.collect::<Result<BTreeSet<_>, _>>()?
-    };
-    if !columns.contains("single_tick_max_token0_raw") {
-        return Ok(BTreeMap::new());
-    }
-    // A NULL bound means "not measured"; a bound of zero means "measured,
-    // and there is no room". The two are different facts, so the NULL is
-    // preserved instead of being folded into zero.
-    let mut statement = connection.prepare(
-        "SELECT pool_id,
-                single_tick_max_token0_raw,
-                single_tick_max_token1_raw
-         FROM v4_exchange_pool_liquidity_snapshots
-         WHERE network = ?1 AND chain_id = ?2",
-    )?;
-    let rows = statement.query_map(params![network, chain_id], |row| {
-        Ok((
-            row.get::<_, String>(0)?,
-            row.get::<_, Option<String>>(1)?,
-            row.get::<_, Option<String>>(2)?,
-        ))
-    })?;
-    let mut bounds = BTreeMap::new();
-    for row in rows {
-        let (pool_id, token0, token1) = row?;
-        fn parse_bound(value: Option<String>) -> Option<u128> {
-            let owned = value?;
-            let text = owned.trim();
-            if text.is_empty() {
-                return None;
-            }
-            text.parse::<u128>().ok()
-        }
-        let token0 = parse_bound(token0);
-        let token1 = parse_bound(token1);
-        if token0.is_none() && token1.is_none() {
-            continue;
-        }
-        bounds.insert(pool_id, (token0, token1));
-    }
-    Ok(bounds)
-}
 /// Read the published single-tick state of every candidate pool.
 ///
 /// The state is what lets the path capacity be expressed in the **anchor**
@@ -1464,11 +1699,11 @@ fn read_single_tick_bounds(
 ///
 /// A pool without a usable state is absent from the map. That is a
 /// coverage gap of the pool index, not a market conclusion.
-fn read_pool_tick_states(
+fn read_valuation_pool_states(
     connection: &Connection,
     network: &str,
     chain_id: i64,
-) -> Result<BTreeMap<String, PoolTickState>, ClosedLoopError> {
+) -> Result<BTreeMap<String, ValuationPoolState>, ClosedLoopError> {
     // The tick state is published by **two** pool tables:
     //
     //   * `v4_exchange_pools_candidate_exchange` — the pools that took part
@@ -1489,7 +1724,7 @@ fn read_pool_tick_states(
         "v4_exchange_pools_candidate_exchange",
         "v4_exchange_pools_core4",
     ] {
-        read_pool_tick_states_from_table(connection, network, chain_id, table, &mut states)?;
+        read_valuation_pool_states_from_table(connection, network, chain_id, table, &mut states)?;
     }
     Ok(states)
 }
@@ -1503,12 +1738,12 @@ fn read_pool_tick_states(
 ///
 /// A pool without a usable state is absent from the map. That is a
 /// coverage gap of the pool index, not a market conclusion.
-fn read_pool_tick_states_from_table(
+fn read_valuation_pool_states_from_table(
     connection: &Connection,
     network: &str,
     chain_id: i64,
     table: &str,
-    states: &mut BTreeMap<String, PoolTickState>,
+    states: &mut BTreeMap<String, ValuationPoolState>,
 ) -> Result<(), ClosedLoopError> {
     let table_exists = connection
         .query_row(
@@ -1588,7 +1823,12 @@ fn read_pool_tick_states_from_table(
         if liquidity <= 0 {
             continue;
         }
-        let Some(tick) = tick else { continue };
+        // The tick is not part of the valuation view, but a pool that does
+        // not publish one does not publish a usable price either, so it
+        // stays out of the map.
+        if tick.is_none() {
+            continue;
+        }
         let Some(fee) = fee else { continue };
         if fee <= 0 {
             continue;
@@ -1608,12 +1848,8 @@ fn read_pool_tick_states_from_table(
         if token0_key_id.trim().is_empty() || token1_key_id.trim().is_empty() {
             continue;
         }
-        states.entry(pool_id.clone()).or_insert(PoolTickState {
+        states.entry(pool_id.clone()).or_insert(ValuationPoolState {
             sqrt_price_x96,
-            liquidity,
-            fee_pips: fee as u32,
-            tick_spacing: tick_spacing as i32,
-            tick: tick as i32,
             token0_key_id,
             token1_key_id,
         });
@@ -1621,54 +1857,210 @@ fn read_pool_tick_states_from_table(
     Ok(())
 }
 
-fn read_pool_capacities(
+/// The table of the direction layer.
+const DIRECTIONAL_POOL_TABLE: &str = "manager_v4_directional_exchange_pools";
+
+/// Read the published state of one scope of the direction layer.
+///
+/// The state carries the version and the checksum of the projection. The
+/// closed loop records them, so a consumer can tell which projection a
+/// loop was built against and whether that projection has moved since.
+fn read_directional_scope_state(
     connection: &Connection,
     network: &str,
     chain_id: i64,
-) -> Result<BTreeMap<String, u128>, ClosedLoopError> {
-    let table_exists = connection
+    scope_key: &str,
+) -> Result<Option<(i64, String)>, ClosedLoopError> {
+    let stored = connection
         .query_row(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='v4_exchange_pool_liquidity_snapshots'",
-            [],
-            |row| row.get::<_, i64>(0),
+            "SELECT directional_pool_version, materialized_checksum
+             FROM manager_v4_directional_pool_library_state
+             WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
+               AND scope_key = ?4",
+            params![network, chain_id, NETWORK_PROTOCOL, scope_key],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
         )
-        .unwrap_or(0);
-    if table_exists == 0 {
-        return Ok(BTreeMap::new());
+        .optional()?;
+    Ok(stored)
+}
+
+/// Read every published directional pool of one scope.
+///
+/// The rows are the closed loop's only pool collection from here on: the
+/// tick state, the single-tick bound and the depth capacity of a hop all
+/// come from the row of the direction the hop trades in.
+fn read_directional_pools(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+    scope_key: &str,
+    index: &mut DirectionalPoolIndex,
+) -> Result<(), ClosedLoopError> {
+    if !table_exists(connection, DIRECTIONAL_POOL_TABLE)? {
+        // The direction layer has not been materialized yet. That is a
+        // coverage gap of the pool index, not a market conclusion.
+        return Ok(());
     }
-    let columns = {
-        let mut statement =
-            connection.prepare("PRAGMA table_info(v4_exchange_pool_liquidity_snapshots)")?;
-        let rows = statement.query_map([], |row| Ok(row.get::<_, String>(1)?))?;
-        rows.collect::<Result<BTreeSet<_>, _>>()?
+    let has_depth_capacity = table_has_column(connection, DIRECTIONAL_POOL_TABLE, "depth_capacity_raw")?;
+    let depth_capacity_expression = if has_depth_capacity {
+        "depth_capacity_raw"
+    } else {
+        "NULL"
     };
-    if !columns.contains("capacity_raw") {
-        return Ok(BTreeMap::new());
-    }
-    let mut statement = connection.prepare(
-        "SELECT pool_id, COALESCE(capacity_raw, '0')
-         FROM v4_exchange_pool_liquidity_snapshots
-         WHERE network = ?1 AND chain_id = ?2",
+    // The pair identity is what groups the rows of one direction.  A table
+    // that predates the column simply has no group, and the closed loop
+    // then reaches its backups through the candidate list alone.
+    let has_pair_key = table_has_column(connection, DIRECTIONAL_POOL_TABLE, "pair_key_id")?;
+    let pair_key_expression = if has_pair_key { "pair_key_id" } else { "NULL" };
+    let sql = format!(
+        "SELECT base_pool_id, direction, directional_pool_id, pool_manager,
+                pool_key_json, token0, token1, token0_key_id, token1_key_id,
+                fee, tick_spacing, hooks, sqrt_price_x96, tick, liquidity,
+                input_capacity_raw, input_capacity_measured, directional_output,
+                directional_output_measured, pair_direction_rank, pool_status,
+                {depth_capacity_expression}, {pair_key_expression}
+         FROM {DIRECTIONAL_POOL_TABLE}
+         WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4
+         ORDER BY base_pool_id, direction"
+    );
+    let mut statement = connection.prepare(&sql)?;
+    let rows = statement.query_map(
+        params![network, chain_id, NETWORK_PROTOCOL, scope_key],
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
+                row.get::<_, String>(5)?,
+                row.get::<_, String>(6)?,
+                row.get::<_, String>(7)?,
+                row.get::<_, String>(8)?,
+                row.get::<_, i64>(9)?,
+                row.get::<_, i64>(10)?,
+                row.get::<_, String>(11)?,
+                row.get::<_, Option<String>>(12)?,
+                row.get::<_, Option<i64>>(13)?,
+                row.get::<_, Option<String>>(14)?,
+                row.get::<_, Option<String>>(15)?,
+                row.get::<_, bool>(16)?,
+                row.get::<_, Option<f64>>(17)?,
+                row.get::<_, bool>(18)?,
+                row.get::<_, Option<i64>>(19)?,
+                row.get::<_, String>(20)?,
+                row.get::<_, Option<String>>(21)?,
+                row.get::<_, Option<String>>(22)?,
+            ))
+        },
     )?;
-    let rows = statement.query_map(params![network, chain_id], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-    })?;
-    let mut capacities = BTreeMap::new();
     for row in rows {
-        let (pool_id, capacity) = row?;
-        // The capacity is a raw uint128 amount stored as TEXT. Casting it to
-        // an INTEGER clamps every value above i64::MAX to i64::MAX, which
-        // would silently promote an oversized pool instead of rejecting it,
-        // so the text form is parsed instead.
-        let Ok(capacity) = capacity.trim().parse::<u128>() else {
-            continue;
+        let (
+            base_pool_id,
+            direction,
+            directional_pool_id,
+            pool_manager,
+            pool_key_json,
+            token0,
+            token1,
+            token0_key_id,
+            token1_key_id,
+            fee,
+            tick_spacing,
+            hooks,
+            sqrt_price_x96,
+            tick,
+            liquidity,
+            input_capacity_raw,
+            input_capacity_measured,
+            directional_output,
+            directional_output_measured,
+            pair_direction_rank,
+            pool_status,
+            depth_capacity_raw,
+            pair_key_id,
+        ) = row?;
+        let Some(direction) = PoolDirection::from_raw(direction) else {
+            return Err(ClosedLoopError::InvalidStoredTopology(format!(
+                "directional pool {directional_pool_id} has direction {direction}, expected 0 or 1"
+            )));
         };
-        if capacity <= 0 {
+        let pool = DirectionalPool {
+            base: V4Pool {
+                base_pool_id: base_pool_id.clone(),
+                pool_manager,
+                pool_key_json,
+                token0,
+                token1,
+                token0_key_id,
+                token1_key_id,
+                fee,
+                tick_spacing,
+                hooks,
+                sqrt_price_x96,
+                tick,
+                liquidity,
+                depth_capacity_raw,
+            },
+            direction,
+            input_capacity_raw,
+            input_capacity_measured,
+            directional_output,
+            directional_output_measured,
+            pair_direction_rank,
+            pool_status,
+        };
+        index
+            .by_base
+            .entry((scope_key.to_owned(), base_pool_id))
+            .or_default()
+            .push(directional_pool_id.clone());
+        index.scope_of.insert(directional_pool_id.clone(), scope_key.to_owned());
+        if let Some(rank) = pool.pair_direction_rank {
+            index.rank_of.insert(directional_pool_id.clone(), rank);
+        }
+        if let Some(pair_key_id) = pair_key_id {
+            index
+                .group_of
+                .insert(directional_pool_id.clone(), (pair_key_id, direction.raw()));
+        }
+        index.pools.insert(directional_pool_id, pool);
+    }
+    // The groups are built after the rows, so the order inside a group can
+    // be the rank order rather than the row order of the table.
+    let mut by_group: BTreeMap<(String, String, i64), Vec<String>> = BTreeMap::new();
+    for (directional_pool_id, (pair_key_id, direction)) in &index.group_of {
+        // Only a ranked row is qualified: a row without a rank was never
+        // priced, and an unpriced pool is not a candidate of the group.
+        if !index.rank_of.contains_key(directional_pool_id) {
             continue;
         }
-        capacities.insert(pool_id, capacity);
+        let Some(scope_key) = index.scope_of.get(directional_pool_id) else {
+            continue;
+        };
+        by_group
+            .entry((scope_key.clone(), pair_key_id.clone(), *direction))
+            .or_default()
+            .push(directional_pool_id.clone());
     }
-    Ok(capacities)
+    for ids in by_group.values_mut() {
+        ids.sort_by_key(|id| index.rank_of.get(id).copied().unwrap_or(i64::MAX));
+    }
+    index.by_group = by_group;
+    Ok(())
+}
+
+/// Whether a table carries a column.
+fn table_has_column(
+    connection: &Connection,
+    table: &str,
+    column: &str,
+) -> Result<bool, ClosedLoopError> {
+    let mut statement = connection.prepare(&format!("PRAGMA table_info({table})"))?;
+    let names = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(names.iter().any(|name| name == column))
 }
 
 /// Return the path-level minimum of the single-tick bounds.
@@ -1686,9 +2078,8 @@ fn read_pool_capacities(
 /// eligible: the missing measurement is a coverage gap of the pool index,
 /// not a market conclusion.
 fn path_min_single_tick_bound(
-    input: &ClosedLoopInput,
-    pool_ids: &[String],
-    directions: &[bool],
+    directional_pools: &DirectionalPoolIndex,
+    hop_directional_pool_ids: &[String],
 ) -> (Option<u128>, Option<String>) {
     // The bounds of the hops are denominated in the token each hop spends: the
     // first hop spends the anchor token, the middle hop spends Y and the
@@ -1702,55 +2093,113 @@ fn path_min_single_tick_bound(
     // are rolled out. That zero is retained as a directional unusability
     // signal, but raw positive bounds are never compared across tokens.
     if let Some((capacity, blocking_pool)) =
-        folded_path_capacity(&input.pool_tick_states, pool_ids, directions)
+        folded_path_capacity(directional_pools, hop_directional_pool_ids)
     {
         return (Some(capacity), Some(blocking_pool));
     }
-    // TASK-172 / AC-221: the fallback judges "this direction has no room" by
-    // the **recomputed** bound whenever the pool publishes a tick state, and
-    // by the **stored** bound only when it does not.
+    // The fallback judges "this direction has no room" by the bound the
+    // **row of that direction** publishes. The row's bound is recomputed by
+    // the direction layer from the very observation the row carries, so it
+    // is bound to the price next to it, and it is already the bound of the
+    // direction the hop trades in: no parallel array of directions is
+    // needed to pick the right side.
     //
-    // The recomputed bound is the one that is bound to the observation the
-    // loop actually walks: it is derived from the pool's own current price,
-    // liquidity, fee and spacing. The stored bound is the output of the same
-    // arithmetic, but it was published next to the price of the moment it
-    // was measured, so a price that has since moved makes it stale.
-    //
-    // A pool without a tick state cannot be recomputed at all. There the
-    // stored bound is the **only** evidence that exists, and it is not
-    // treated as a market conclusion: a missing bound stays out of the
-    // verdict (a coverage gap is not a rejection), while a bound that was
-    // actually measured as zero is a measured fact and disqualifies the hop.
-    // The stored bound is safe to read for that purpose because the depth
-    // snapshot table now has exactly one writer -- the pool manager -- which
-    // writes the price columns and the bounds in one statement, so a stored
-    // bound always belongs to the price next to it.
+    // A row that publishes no bound at all stays out of the verdict: the
+    // missing measurement is a coverage gap of the pool index, not a
+    // market conclusion. A bound that was measured as zero is a measured
+    // fact and disqualifies the hop.
     let mut unusable_pool = None;
-    for (pool_id, zero_for_one) in pool_ids.iter().zip(directions.iter()) {
-        let bound = match input.pool_tick_states.get(pool_id) {
-            Some(state) => {
-                let (token0, token1) = pool_manager::depth::recompute_single_tick_bounds(
-                    state.sqrt_price_x96,
-                    state.liquidity,
-                    state.fee_pips,
-                    state.tick_spacing,
-                    state.tick as i64,
-                );
-                if *zero_for_one { token0 } else { token1 }
-            }
-            None => {
-                let Some((token0, token1)) = input.single_tick_bounds_by_pool.get(pool_id) else {
-                    continue;
-                };
-                if *zero_for_one { *token0 } else { *token1 }
-            }
+    for directional_pool_id in hop_directional_pool_ids {
+        let Some(pool) = directional_pools.row(directional_pool_id) else {
+            continue;
         };
+        let bound = pool
+            .input_capacity_raw
+            .as_deref()
+            .map(str::trim)
+            .and_then(|text| text.parse::<u128>().ok());
         if bound == Some(0) {
-            unusable_pool = Some(pool_id.clone());
+            unusable_pool = Some(pool.base.base_pool_id.clone());
             break;
         }
     }
     (unusable_pool.clone().map(|_| 0), unusable_pool)
+}
+
+/// The usable single-tick state of one directional pool.
+///
+/// The state is read from the row, so it always belongs to the direction
+/// the row carries. A row whose observation cannot be used publishes no
+/// state: the capacity of a hop with an unusable price or liquidity is not
+/// computable, and publishing a zero would read as "measured, and there is
+/// no room".
+struct UsableTickState {
+    sqrt_price_x96: u128,
+    liquidity: u128,
+    fee_pips: u32,
+    tick_spacing: i32,
+    tick: i32,
+}
+
+/// The tick state of one directional pool, when it is usable.
+fn usable_tick_state(pool: &DirectionalPool) -> Option<UsableTickState> {
+    let sqrt_price_x96 = pool
+        .base
+        .sqrt_price_x96
+        .as_deref()
+        .map(str::trim)
+        .and_then(|text| text.parse::<u128>().ok())?;
+    if sqrt_price_x96 == 0 {
+        return None;
+    }
+    // The liquidity column stores the raw uint128 liquidity as TEXT, the
+    // same representation the pool snapshot table uses. Reading it as an
+    // INTEGER truncates every value above i64::MAX and fails outright on
+    // the production store, so the value is parsed from its text form.
+    let liquidity = pool
+        .base
+        .liquidity
+        .as_deref()
+        .map(str::trim)
+        .and_then(|text| text.parse::<u128>().ok())?;
+    if liquidity == 0 {
+        return None;
+    }
+    let tick = pool.base.tick?;
+    let fee = pool.base.fee;
+    if fee <= 0 {
+        return None;
+    }
+    let tick_spacing = pool.base.tick_spacing;
+    if tick_spacing <= 0 {
+        return None;
+    }
+    Some(UsableTickState {
+        sqrt_price_x96,
+        liquidity,
+        fee_pips: fee as u32,
+        tick_spacing: tick_spacing as i32,
+        tick: tick as i32,
+    })
+}
+
+/// The depth capacity of a pool, when it is measured.
+///
+/// The capacity is a raw uint128 amount stored as TEXT. Casting it to an
+/// INTEGER clamps every value above i64::MAX to i64::MAX, which would
+/// silently promote an oversized pool instead of rejecting it, so the text
+/// form is parsed instead. A capacity of zero is not a capacity: it is the
+/// absence of a measurement, and the old reader skipped it as well.
+fn parse_depth_capacity(value: Option<&str>) -> Option<u128> {
+    let text = value?.trim();
+    if text.is_empty() {
+        return None;
+    }
+    let capacity = text.parse::<u128>().ok()?;
+    if capacity == 0 {
+        return None;
+    }
+    Some(capacity)
 }
 
 /// Return the path-level capacity in the **anchor** token.
@@ -1762,36 +2211,32 @@ fn path_min_single_tick_bound(
 /// `None` means the fold cannot be performed: either a pool state or a
 /// price is missing, or the capacity itself is not computable.
 fn folded_path_capacity(
-    pool_tick_states: &BTreeMap<String, PoolTickState>,
-    pool_ids: &[String],
-    directions: &[bool],
+    directional_pools: &DirectionalPoolIndex,
+    hop_directional_pool_ids: &[String],
 ) -> Option<(u128, String)> {
-    if pool_ids.is_empty() || pool_ids.len() != directions.len() {
+    if hop_directional_pool_ids.is_empty() {
         return None;
     }
 
-    // The hop spends a token and receives another one. The token order of
-    // the pool decides which of the two the hop spends, and the hop
-    // direction decides whether it is token0 or token1.
+    // The hop spends a token and receives another one. The row carries both
+    // the direction and the token order, so the hop's input and output
+    // tokens are read from the row itself: there is no parallel array of
+    // directions that could disagree with the row.
     let mut hops: Vec<pool_manager::single_tick_capacity::CapacityHop> =
-        Vec::with_capacity(pool_ids.len());
-    for (pool_id, zero_for_one) in pool_ids.iter().zip(directions.iter()) {
-        let state = pool_tick_states.get(pool_id)?;
-        let (token_in, token_out) = if *zero_for_one {
-            (state.token0_key_id.clone(), state.token1_key_id.clone())
-        } else {
-            (state.token1_key_id.clone(), state.token0_key_id.clone())
-        };
+        Vec::with_capacity(hop_directional_pool_ids.len());
+    for directional_pool_id in hop_directional_pool_ids {
+        let pool = directional_pools.row(directional_pool_id)?;
+        let state = usable_tick_state(pool)?;
         hops.push(pool_manager::single_tick_capacity::CapacityHop {
-            pool_id: pool_id.clone(),
-            token_in,
-            token_out,
+            pool_id: pool.base.base_pool_id.clone(),
+            token_in: pool.input_token_key_id().to_owned(),
+            token_out: pool.output_token_key_id().to_owned(),
             sqrt_price_x96: state.sqrt_price_x96,
             liquidity: state.liquidity,
             fee_pips: state.fee_pips,
             tick_spacing: state.tick_spacing,
             tick: state.tick,
-            zero_for_one: *zero_for_one,
+            zero_for_one: pool.direction.zero_for_one(),
         });
     }
 
@@ -1816,33 +2261,28 @@ fn folded_path_capacity(
 /// may grow beyond the single-tick physical ceiling, but it may never grow
 /// beyond the depth the pools can carry.
 fn folded_path_depth_capacity(
-    pool_tick_states: &BTreeMap<String, PoolTickState>,
-    capacity_by_pool: &BTreeMap<String, u128>,
-    pool_ids: &[String],
-    directions: &[bool],
+    directional_pools: &DirectionalPoolIndex,
+    hop_directional_pool_ids: &[String],
 ) -> Option<u128> {
-    if pool_ids.is_empty() || pool_ids.len() != directions.len() {
+    if hop_directional_pool_ids.is_empty() {
         return None;
     }
     let mut hops: Vec<pool_manager::single_tick_capacity::DepthCapacityHop> =
-        Vec::with_capacity(pool_ids.len());
-    for (pool_id, zero_for_one) in pool_ids.iter().zip(directions.iter()) {
-        let state = pool_tick_states.get(pool_id)?;
-        let Some(capacity) = capacity_by_pool.get(pool_id) else {
+        Vec::with_capacity(hop_directional_pool_ids.len());
+    for directional_pool_id in hop_directional_pool_ids {
+        let pool = directional_pools.row(directional_pool_id)?;
+        let state = usable_tick_state(pool)?;
+        let Some(capacity) = parse_depth_capacity(pool.base.depth_capacity_raw.as_deref())
+        else {
             return None;
         };
-        let (token_in, token_out) = if *zero_for_one {
-            (state.token0_key_id.clone(), state.token1_key_id.clone())
-        } else {
-            (state.token1_key_id.clone(), state.token0_key_id.clone())
-        };
         hops.push(pool_manager::single_tick_capacity::DepthCapacityHop {
-            pool_id: pool_id.clone(),
-            token_in,
-            token_out,
+            pool_id: pool.base.base_pool_id.clone(),
+            token_in: pool.input_token_key_id().to_owned(),
+            token_out: pool.output_token_key_id().to_owned(),
             sqrt_price_x96: state.sqrt_price_x96,
-            zero_for_one: *zero_for_one,
-            depth_capacity_raw: *capacity,
+            zero_for_one: pool.direction.zero_for_one(),
+            depth_capacity_raw: capacity,
         });
     }
     let anchor_token = hops.first()?.token_in.clone();
@@ -1871,7 +2311,7 @@ fn usdg_valuation_for_token(
         return Some(identity);
     }
     let pool_states: BTreeMap<String, usdg_valuation::ValuationPoolState> = input
-        .pool_tick_states
+        .valuation_pool_states
         .iter()
         .map(|(pool_id, state)| {
             (
@@ -1916,53 +2356,222 @@ fn usdg_valuation_for_token(
 /// That is a coverage gap of the pool index rather than a topology error,
 /// so the caller is expected to fall back to a coarser source of truth
 /// instead of failing the whole materialization.
-fn hop_zero_for_one(
-    pool_tick_states: &BTreeMap<String, PoolTickState>,
-    pool_id: &str,
+/// The directional pool one hop walks.
+///
+/// The direction of a hop is a **pure function** of the token order: a base
+/// pool projects onto exactly two rows, and the row a hop walks is the one
+/// whose input token is the token the hop spends. The direction is therefore
+/// **read**, never inferred from a logical direction key.
+///
+/// The row's output token is compared with the hop's output token. A row
+/// that trades the other way is a topology error and is reported as such,
+/// instead of being silently accepted and folded the wrong way round.
+///
+/// A pool the direction layer does not publish is a topology error too: the
+/// direction layer is the closed loop's upstream, and a hop that walks a
+/// pool the projection does not know cannot be priced from it. The
+/// materialization stops and the published loops stay as they are.
+fn resolve_hop_directional_pool(
+    directional_pools: &DirectionalPoolIndex,
+    scope_key: &str,
+    base_pool_id: &str,
     token_in: &str,
-) -> Result<Option<bool>, ClosedLoopError> {
-    let Some(state) = pool_tick_states.get(pool_id) else {
-        return Ok(None);
-    };
+    token_out: &str,
+) -> Result<HopPool, ClosedLoopError> {
+    let rows = directional_pools.rows_of_base(scope_key, base_pool_id);
+    if rows.is_empty() {
+        return Err(ClosedLoopError::InvalidStoredTopology(format!(
+            "the direction layer publishes no pool {base_pool_id} in scope {scope_key}"
+        )));
+    }
     let token_in = token_in.trim();
-    if state.token0_key_id.trim() == token_in {
-        return Ok(Some(true));
+    let mut chosen: Option<(&str, &DirectionalPool)> = None;
+    for (directional_pool_id, row) in &rows {
+        if row.input_token_key_id().trim() == token_in {
+            chosen = Some((directional_pool_id, row));
+            break;
+        }
     }
-    if state.token1_key_id.trim() == token_in {
-        return Ok(Some(false));
+    let Some((directional_pool_id, row)) = chosen else {
+        return Err(ClosedLoopError::InvalidStoredTopology(format!(
+            "hop pool {base_pool_id} does not carry the hop input token {token_in}"
+        )));
+    };
+    if row.output_token_key_id().trim() != token_out.trim() {
+        return Err(ClosedLoopError::InvalidStoredTopology(format!(
+            "hop pool {base_pool_id} trades {} but the hop expects {token_out}",
+            row.output_token_key_id()
+        )));
     }
-    Err(ClosedLoopError::InvalidStoredTopology(format!(
-        "hop pool {pool_id} does not carry the hop input token {token_in}"
-    )))
+    Ok(HopPool {
+        directional_pool_id: directional_pool_id.to_owned(),
+        scope_key: scope_key.to_owned(),
+        base_pool_id: base_pool_id.to_owned(),
+        direction: row.direction,
+        rank: row.pair_direction_rank,
+    })
 }
 
-/// Resolve the swap direction of one hop, preferring the pool's token order.
+/// Build the ordered candidate list of one hop.
 ///
-/// The published tick state carries the pool's token order, which is the
-/// only source that tells whether the hop spends `token0` or `token1`. It is
-/// therefore preferred whenever it is available.
+/// The **candidate tier** is the list the candidate edge (or the market
+/// observation) publishes for the hop, in their own order: its first entry
+/// is the hop's primary.  The **backup tier** follows and holds the pools of
+/// the same `(pair, direction)` group of the direction layer that the
+/// candidate tier does not name — the pools a truncation would have
+/// dropped.  The direction layer never truncates, so the group keeps every
+/// qualified pool and the backup tier is what makes them reachable.
 ///
-/// When the pool has no published tick state the direction falls back to the
-/// logical direction key (`from > to`). That fallback only says which token
-/// the hop **spends**, not which side of the pool it spends, so it is
-/// correct only when the pool's token order happens to agree with the
-/// logical order. Such a pool contributes no folded capacity anyway,
-/// because the fold needs the tick state as well, so the fallback never
-/// influences a published capacity.
-fn resolve_hop_direction(
-    pool_tick_states: &BTreeMap<String, PoolTickState>,
-    pool_id: &str,
+/// The primary must resolve to a direction row: a hop whose primary has none
+/// is a topology error and aborts the materialization.  A backup without a
+/// direction row is not tradeable and is skipped.
+fn build_hop_candidates(
+    input: &ClosedLoopInput,
+    scope_key: &str,
+    candidate_tier: &[(String, String, Option<String>)],
     token_in: &str,
-    direction_key: &str,
-    direction_from_token: &str,
-) -> Result<bool, ClosedLoopError> {
-    if let Some(zero_for_one) = hop_zero_for_one(pool_tick_states, pool_id, token_in)? {
-        return Ok(zero_for_one);
+    token_out: &str,
+    backup_id_prefix: &str,
+) -> Result<Vec<HopCandidate>, ClosedLoopError> {
+    let mut candidates: Vec<HopCandidate> = Vec::with_capacity(candidate_tier.len());
+    let mut named: BTreeSet<String> = BTreeSet::new();
+    for (position, (pool_id, basis, optimization_id)) in candidate_tier.iter().enumerate() {
+        let resolved = resolve_hop_directional_pool(
+            &input.directional_pools,
+            scope_key,
+            pool_id,
+            token_in,
+            token_out,
+        );
+        named.insert(pool_id.clone());
+        if position == 0 {
+            // The primary of a hop must resolve: a hop whose primary has no
+            // direction row is a topology error, not a missing backup.
+            let hop_pool = resolved?;
+            candidates.push(HopCandidate {
+                base_pool_id: pool_id.clone(),
+                optimization_id: optimization_id.clone(),
+                basis: basis.clone(),
+                hop_pool: Some(hop_pool),
+            });
+            continue;
+        }
+        candidates.push(HopCandidate {
+            base_pool_id: pool_id.clone(),
+            optimization_id: optimization_id.clone(),
+            basis: basis.clone(),
+            hop_pool: resolved.ok(),
+        });
     }
-    Ok(direction_key
-        .split_once('>')
-        .map(|(from, _)| from.trim() == direction_from_token.trim())
-        .unwrap_or(false))
+    // The backup tier: the rest of the direction group of the primary.
+    let Some(primary) = candidates.first().and_then(|candidate| candidate.hop_pool.as_ref()) else {
+        return Ok(candidates);
+    };
+    let Some((pair_key_id, direction)) = input
+        .directional_pools
+        .group_of_row(&primary.directional_pool_id)
+    else {
+        return Ok(candidates);
+    };
+    let group = input
+        .directional_pools
+        .rows_of_group(scope_key, &pair_key_id, direction);
+    let eligible = group.len();
+    for (directional_pool_id, row) in group {
+        let base_pool_id = row.base.base_pool_id.clone();
+        if named.contains(&base_pool_id) {
+            continue;
+        }
+        let Some(rank) = row.pair_direction_rank else {
+            continue;
+        };
+        // The tier of the pool inside its own group: the candidate tier of
+        // the direction layer keeps the first `N` ranks, and everything
+        // beyond them is the backup tier — the tail a truncation dropped.
+        let tier = match tier_of_rank(rank, eligible) {
+            DirectionalPoolTier::Candidate => "candidate",
+            DirectionalPoolTier::Backup => "backup",
+        };
+        candidates.push(HopCandidate {
+            base_pool_id: base_pool_id.clone(),
+            optimization_id: Some(format!("{backup_id_prefix}-{tier}-rank-{rank}")),
+            basis: format!("directional_{tier}_tier_rank:{rank}"),
+            hop_pool: Some(HopPool {
+                directional_pool_id: directional_pool_id.to_owned(),
+                scope_key: scope_key.to_owned(),
+                base_pool_id,
+                direction: row.direction,
+                rank: Some(rank),
+            }),
+        });
+    }
+    Ok(candidates)
+}
+
+/// The verdict of the path level capacity gate for one combination.
+///
+/// `None` means the combination passes the gate.  `Some((reason, blocking))`
+/// names the reason and the pool that disqualified the combination.
+///
+/// The gate itself is unchanged: the folded single-tick bound must not be a
+/// measured zero, and the folded path capacity must not fall below the
+/// shared floor.  The backup wiring only changes **which pools** are tried.
+fn capacity_gate_verdict(
+    input: &ClosedLoopInput,
+    hop_directional_pool_ids: &[String],
+) -> Option<(String, String)> {
+    let (path_min_tick_bound_raw, path_tick_blocking_pool) =
+        path_min_single_tick_bound(&input.directional_pools, hop_directional_pool_ids);
+    if path_min_tick_bound_raw.is_some_and(|bound| bound == 0) {
+        let blocking = path_tick_blocking_pool
+            .as_deref()
+            .unwrap_or("unknown")
+            .to_owned();
+        return Some((format!("path_single_tick_bound_unusable:{blocking}"), blocking));
+    }
+    let (path_min_capacity_raw, path_blocking_pool) =
+        path_min_capacity(&input.directional_pools, hop_directional_pool_ids);
+    if path_min_capacity_raw.is_some_and(|capacity| capacity < MIN_CLOSED_LOOP_CAPACITY_RAW) {
+        let blocking = path_blocking_pool
+            .as_deref()
+            .unwrap_or("unknown")
+            .to_owned();
+        return Some((format!("path_capacity_below_minimum:{blocking}"), blocking));
+    }
+    None
+}
+
+/// Measure one combination of a path.
+fn measure_path(
+    input: &ClosedLoopInput,
+    anchor_token_key_id: &str,
+    hop_directional_pool_ids: &[String],
+) -> PathMeasures {
+    // The folded capacity is the authoritative single-tick bound of the
+    // loop.  It is captured separately from the legacy filter below,
+    // because the filter may fall back to a per-hop bound when the fold
+    // cannot be performed, and that fallback is **not** a folded capacity
+    // in anchor units.
+    let folded_capacity =
+        folded_path_capacity(&input.directional_pools, hop_directional_pool_ids);
+    // The cross-tick ceiling is the **depth** capacity of the path, folded
+    // into the anchor token with the same cumulative-rate fold.
+    let cross_tick_capacity_anchor_raw = folded_path_depth_capacity(
+        &input.directional_pools,
+        hop_directional_pool_ids,
+    );
+    // The borrow token is the anchor token: it is the token the loop spends
+    // first and receives last, so its USDG value is what values the profit
+    // of the closed loop.
+    let borrow_token_usdg_value_raw = usdg_valuation_for_token(input, anchor_token_key_id)
+        .map(|valuation| valuation.value_usdg_raw);
+    let borrow_token_decimals = input.token_decimals.get(anchor_token_key_id).copied();
+    PathMeasures {
+        folded_capacity,
+        cross_tick_capacity_anchor_raw,
+        borrow_token_usdg_value_raw,
+        borrow_token_decimals,
+    }
 }
 
 /// Return the path-level minimum capacity of a closed loop.
@@ -1976,21 +2585,25 @@ fn resolve_hop_direction(
 /// eligible: the missing measurement is a coverage gap of the pool index,
 /// not a market conclusion.
 fn path_min_capacity(
-    input: &ClosedLoopInput,
-    pool_ids: &[String],
+    directional_pools: &DirectionalPoolIndex,
+    hop_directional_pool_ids: &[String],
 ) -> (Option<u128>, Option<String>) {
     let mut minimum: Option<u128> = None;
     let mut blocking_pool: Option<String> = None;
-    for pool_id in pool_ids {
-        let Some(capacity) = input.capacity_by_pool.get(pool_id) else {
+    for directional_pool_id in hop_directional_pool_ids {
+        let Some(pool) = directional_pools.row(directional_pool_id) else {
             continue;
         };
-        if *capacity < MIN_CLOSED_LOOP_CAPACITY_RAW {
-            return (Some(*capacity), Some(pool_id.clone()));
+        let Some(capacity) = parse_depth_capacity(pool.base.depth_capacity_raw.as_deref()) else {
+            continue;
+        };
+        let pool_id = pool.base.base_pool_id.clone();
+        if capacity < MIN_CLOSED_LOOP_CAPACITY_RAW {
+            return (Some(capacity), Some(pool_id));
         }
-        if minimum.is_none_or(|current| *capacity < current) {
-            minimum = Some(*capacity);
-            blocking_pool = Some(pool_id.clone());
+        if minimum.is_none_or(|current| capacity < current) {
+            minimum = Some(capacity);
+            blocking_pool = Some(pool_id);
         }
     }
     (minimum, blocking_pool)
@@ -2165,11 +2778,6 @@ fn build_closed_loop_rows(
                 // A hop whose capacity was never measured does not block: the
                 // missing measurement is a coverage gap of the pool index, not
                 // a statement about the market.
-                let path_pool_ids = vec![
-                    first_options[0].pool_id.clone(),
-                    middle_pool_id.to_owned(),
-                    third_options[0].pool_id.clone(),
-                ];
                 // The first arbitrage version constrains every hop to one
                 // tick range. The direction of each hop decides which side
                 // of the range the hop runs into, so the direction has to be
@@ -2180,8 +2788,8 @@ fn build_closed_loop_rows(
                 // anchor. The `direction_key` of a recommendation already
                 // names that direction, and the middle pool publishes the
                 // token order it trades in.
-                // The direction of every hop is resolved from the **pool's
-                // own token order**, never from the logical direction key.
+                // The direction of every hop is **read** from the direction
+                // layer, never inferred from the logical direction key.
                 //
                 // The logical key names the trade (`A -> B`), while the pool
                 // orders its two tokens by numeric address. Those two orders
@@ -2191,62 +2799,187 @@ fn build_closed_loop_rows(
                 // of the hop, and the cumulative fold then accumulates the
                 // inverse rate of that hop, which destroys the capacity of
                 // the whole loop.
-                let first_zero_for_one = resolve_hop_direction(
-                    &input.pool_tick_states,
-                    &first_options[0].pool_id,
-                    anchor_token_key_id,
-                    &first_options[0].direction_key,
-                    anchor_token_key_id,
-                )?;
-                let third_zero_for_one = resolve_hop_direction(
-                    &input.pool_tick_states,
-                    &third_options[0].pool_id,
-                    z_token,
-                    &third_options[0].direction_key,
-                    z_token,
-                )?;
-                let middle_zero_for_one = resolve_hop_direction(
-                    &input.pool_tick_states,
-                    middle_pool_id,
-                    y_token,
-                    &middle_direction_key,
-                    y_token,
-                )?;
-                let hop_directions = [first_zero_for_one, middle_zero_for_one, third_zero_for_one];
-                // The folded capacity is the authoritative single-tick bound
-                // of the loop. It is captured separately from the legacy
-                // filter below, because the filter may fall back to a
-                // per-hop bound when the fold cannot be performed, and that
-                // fallback is **not** a folded capacity in anchor units.
-                let folded_capacity =
-                    folded_path_capacity(&input.pool_tick_states, &path_pool_ids, &hop_directions);
-                // The cross-tick ceiling is the **depth** capacity of the
-                // path, folded into the anchor token with the same
-                // cumulative-rate fold. It is the upper bound of the
-                // cross-tick ladder, which keeps using the existing
-                // double/halve stepping rule.
-                let cross_tick_capacity_anchor_raw = folded_path_depth_capacity(
-                    &input.pool_tick_states,
-                    &input.capacity_by_pool,
-                    &path_pool_ids,
-                    &hop_directions,
+                //
+                // The first and the third hop come from the candidate edge
+                // scope, the middle hop from the candidate exchange scope:
+                // each hop walks the projection of the layer that published
+                // its pool.
+                // The candidate tiers of the three hops.
+                //
+                // The candidate tier of a hop is the list the candidate edge
+                // (or the market observation) publishes for it; the backup
+                // tier is the rest of the direction group of the direction
+                // layer, which is what keeps a truncated pool reachable.
+                let first_tier = first_options
+                    .iter()
+                    .enumerate()
+                    .map(|(position, recommendation)| {
+                        let optimization_id = if position == 0 {
+                            None
+                        } else {
+                            Some(format!("first-rank-{}", recommendation.rank))
+                        };
+                        (
+                            recommendation.pool_id.clone(),
+                            recommendation.selection_basis.clone(),
+                            optimization_id,
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                let middle_basis = format!(
+                    "observation_direction_optimal_pool:{}:{}",
+                    address_from_token_key_id(y_token),
+                    address_from_token_key_id(z_token)
                 );
-                // The borrow token is the anchor token: it is the token the
-                // loop spends first and receives last, so its USDG value is
-                // what values the profit of the closed loop.
-                let borrow_token_usdg_value_raw = usdg_valuation_for_token(input, anchor_token_key_id)
-                    .map(|valuation| valuation.value_usdg_raw);
-                let borrow_token_decimals = input.token_decimals.get(anchor_token_key_id).copied();
-                let (path_min_tick_bound_raw, path_tick_blocking_pool) =
-                    path_min_single_tick_bound(input, &path_pool_ids, &hop_directions);
-                if path_min_tick_bound_raw.is_some_and(|bound| bound == 0) {
-                    // A hop that cannot carry any position inside its tick
-                    // range disqualifies the path in the first version.
-                    let blocking = path_tick_blocking_pool
-                        .as_deref()
-                        .unwrap_or("unknown")
-                        .to_owned();
-                    let reason = format!("path_single_tick_bound_unusable:{blocking}");
+                let middle_tier = std::iter::once((
+                    middle_pool_id.to_owned(),
+                    middle_basis.clone(),
+                    None,
+                ))
+                .chain(
+                    yz.pool_ids
+                        .iter()
+                        .enumerate()
+                        .filter(|(index, pool_id)| *index > 0 || pool_id.as_str() != middle_pool_id)
+                        .map(|(index, pool_id)| {
+                            let optimization_id = if index == 0 {
+                                "middle-rank-1".to_owned()
+                            } else {
+                                format!("middle-rank-{}", index + 1)
+                            };
+                            (
+                                pool_id.clone(),
+                                "observation_direction_pool_rank".to_owned(),
+                                Some(optimization_id),
+                            )
+                        }),
+                )
+                .collect::<Vec<_>>();
+                let third_tier = third_options
+                    .iter()
+                    .enumerate()
+                    .map(|(position, recommendation)| {
+                        let optimization_id = if position == 0 {
+                            None
+                        } else {
+                            Some(format!("third-rank-{}", recommendation.rank))
+                        };
+                        (
+                            recommendation.pool_id.clone(),
+                            recommendation.selection_basis.clone(),
+                            optimization_id,
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                let first_candidates = build_hop_candidates(
+                    input,
+                    HOP_SIDE_SCOPE_KEY,
+                    &first_tier,
+                    anchor_token_key_id,
+                    y_token,
+                    "first",
+                )?;
+                let middle_candidates = build_hop_candidates(
+                    input,
+                    HOP_MIDDLE_SCOPE_KEY,
+                    &middle_tier,
+                    y_token,
+                    z_token,
+                    "middle",
+                )?;
+                let third_candidates = build_hop_candidates(
+                    input,
+                    HOP_SIDE_SCOPE_KEY,
+                    &third_tier,
+                    z_token,
+                    anchor_token_key_id,
+                    "third",
+                )?;
+                // The search over the candidate combinations.
+                //
+                // The primary combination is always tried first, so a path
+                // that passes the gate on its primaries is published exactly
+                // as before.  A path that fails may still be published with a
+                // backup pool in one of its hops: the backup tier holds the
+                // pools the direction layer keeps for that (pair, direction)
+                // after the candidate tier was cut.
+                let mut selection: Option<(SelectedHop, SelectedHop, SelectedHop)> = None;
+                // The backups that were tried and blocked the path.  They are
+                // recorded as expired: the pool was used and did not work.
+                let mut expired: Vec<(usize, String)> = Vec::new();
+                let mut first_failure: Option<String> = None;
+                for (i, j, k) in hop_candidate_combinations(
+                    first_candidates.len(),
+                    middle_candidates.len(),
+                    third_candidates.len(),
+                ) {
+                    let hop_pools = [
+                        first_candidates[i].hop_pool.clone(),
+                        middle_candidates[j].hop_pool.clone(),
+                        third_candidates[k].hop_pool.clone(),
+                    ];
+                    if hop_pools.iter().any(|pool| pool.is_none()) {
+                        // A candidate without a direction row cannot be
+                        // traded, so the combination is not a candidate at
+                        // all.
+                        continue;
+                    }
+                    let hop_directional_pool_ids = hop_pools
+                        .iter()
+                        .map(|pool| {
+                            pool.as_ref()
+                                .expect("the combination was checked above")
+                                .directional_pool_id
+                                .clone()
+                        })
+                        .collect::<Vec<_>>();
+                    let Some((reason, blocking)) =
+                        capacity_gate_verdict(input, &hop_directional_pool_ids)
+                    else {
+                        selection = Some((
+                            SelectedHop {
+                                candidates: first_candidates.clone(),
+                                chosen: i,
+                            },
+                            SelectedHop {
+                                candidates: middle_candidates.clone(),
+                                chosen: j,
+                            },
+                            SelectedHop {
+                                candidates: third_candidates.clone(),
+                                chosen: k,
+                            },
+                        ));
+                        break;
+                    };
+                    if first_failure.is_none() {
+                        first_failure = Some(reason.clone());
+                    }
+                    // The backup that blocked the path is the one that was
+                    // tried and did not work.
+                    let chosen = [i, j, k];
+                    for (hop_index, candidates) in [
+                        (0usize, &first_candidates),
+                        (1usize, &middle_candidates),
+                        (2usize, &third_candidates),
+                    ] {
+                        let Some(candidate) = candidates.get(chosen[hop_index]) else {
+                            continue;
+                        };
+                        if candidate.base_pool_id != blocking {
+                            continue;
+                        }
+                        if let Some(optimization_id) = &candidate.optimization_id {
+                            expired.push((hop_index + 1, optimization_id.clone()));
+                        }
+                    }
+                }
+                let Some((first_hop, middle_hop, third_hop)) = selection else {
+                    // No combination passed the gate.  The reason of the
+                    // primary combination is the one that is reported, so
+                    // the operator sees why the path as published failed.
+                    let reason = first_failure
+                        .unwrap_or_else(|| "no_candidate_combination_passed".to_owned());
                     skipped.insert((
                         anchor_token_key_id.clone(),
                         y_token.clone(),
@@ -2260,34 +2993,17 @@ fn build_closed_loop_rows(
                         reason,
                     ));
                     continue;
-                }
-                let (path_min_capacity_raw, path_blocking_pool) =
-                    path_min_capacity(input, &path_pool_ids);
-                if path_min_capacity_raw
-                    .is_some_and(|capacity| capacity < MIN_CLOSED_LOOP_CAPACITY_RAW)
-                {
-                    // The blocking hop is named in the skip reason so the
-                    // operator can see *which* pool disqualified the path
-                    // instead of having to re-derive it.
-                    let blocking = path_blocking_pool
-                        .as_deref()
-                        .unwrap_or("unknown")
-                        .to_owned();
-                    let reason = format!("path_capacity_below_minimum:{blocking}");
-                    skipped.insert((
-                        anchor_token_key_id.clone(),
-                        y_token.clone(),
-                        "first".to_owned(),
-                        reason.clone(),
-                    ));
-                    skipped.insert((
-                        anchor_token_key_id.clone(),
-                        z_token.clone(),
-                        "third".to_owned(),
-                        reason,
-                    ));
-                    continue;
-                }
+                };
+                let hop_pools = [
+                    first_hop.hop_pool().clone(),
+                    middle_hop.hop_pool().clone(),
+                    third_hop.hop_pool().clone(),
+                ];
+                let hop_directional_pool_ids = hop_pools
+                    .iter()
+                    .map(|hop| hop.directional_pool_id.clone())
+                    .collect::<Vec<_>>();
+                let measures = measure_path(input, anchor_token_key_id, &hop_directional_pool_ids);
                 participating_first.insert(y_token.clone());
                 participating_third.insert(z_token.clone());
                 push_loop(
@@ -2298,19 +3014,14 @@ fn build_closed_loop_rows(
                     y_token,
                     z_token,
                     &anchor.tokens,
-                    first_options,
-                    third_options,
-                    yz,
-                    middle_pool_id,
+                    &first_hop,
+                    &middle_hop,
+                    &third_hop,
+                    &hop_pools,
+                    &measures,
+                    &expired,
                     &(input.observation.observation_version.max(1)),
-                    folded_capacity.as_ref().map(|(capacity, _)| *capacity),
-                    folded_capacity
-                        .as_ref()
-                        .map(|(_, binding_pool)| binding_pool.clone()),
-                    borrow_token_usdg_value_raw,
-                    borrow_token_decimals,
                     input.cross_tick_review_threshold_usdg_raw,
-                    cross_tick_capacity_anchor_raw,
                 )?;
             }
         }
@@ -2412,17 +3123,14 @@ fn push_loop(
     y_token_key_id: &str,
     z_token_key_id: &str,
     tokens: &BTreeMap<String, TokenMeta>,
-    first_options: &[Recommendation],
-    third_options: &[Recommendation],
-    yz: &YzDirection,
-    middle_pool_id: &str,
+    first_hop: &SelectedHop,
+    middle_hop: &SelectedHop,
+    third_hop: &SelectedHop,
+    hop_pools: &[HopPool; 3],
+    measures: &PathMeasures,
+    expired: &[(usize, String)],
     observation_version: &i64,
-    single_tick_capacity_anchor_raw: Option<u128>,
-    single_tick_capacity_binding_pool_id: Option<String>,
-    borrow_token_usdg_value_raw: Option<u128>,
-    borrow_token_decimals: Option<u32>,
     cross_tick_review_threshold_usdg_raw: u128,
-    cross_tick_capacity_anchor_raw: Option<u128>,
 ) -> Result<(), ClosedLoopError> {
     let y = tokens.get(y_token_key_id).ok_or_else(|| {
         ClosedLoopError::InvalidStoredTopology(format!("missing Y token {y_token_key_id}"))
@@ -2447,34 +3155,33 @@ fn push_loop(
         anchor.token_symbol.clone(),
     ];
     let pool_ids = vec![
-        first_options[0].pool_id.clone(),
-        middle_pool_id.to_owned(),
-        third_options[0].pool_id.clone(),
+        first_hop.chosen_candidate().base_pool_id.clone(),
+        middle_hop.chosen_candidate().base_pool_id.clone(),
+        third_hop.chosen_candidate().base_pool_id.clone(),
     ];
     let mut pool_path_parts = path_addresses.clone();
     pool_path_parts.extend(pool_ids.iter().cloned());
     let mut hop_candidate_counts = BTreeMap::new();
-    hop_candidate_counts.insert("1".to_owned(), first_options.len());
-    hop_candidate_counts.insert("2".to_owned(), yz.pool_ids.len());
-    hop_candidate_counts.insert("3".to_owned(), third_options.len());
-    let first_backups = first_options[1..]
-        .iter()
-        .map(|row| row.pool_id.clone())
-        .collect::<Vec<_>>();
-    let third_backups = third_options[1..]
-        .iter()
-        .map(|row| row.pool_id.clone())
-        .collect::<Vec<_>>();
+    hop_candidate_counts.insert("1".to_owned(), first_hop.candidates.len());
+    hop_candidate_counts.insert("2".to_owned(), middle_hop.candidates.len());
+    hop_candidate_counts.insert("3".to_owned(), third_hop.candidates.len());
+    // The backups of a hop are the candidates that are not in effect.  When a
+    // backup took over, the primary of the hop is a backup as well: the hop
+    // trades a different pool than the one the recommendation named.
+    let backups_of = |hop: &SelectedHop| -> Vec<String> {
+        hop.candidates
+            .iter()
+            .enumerate()
+            .filter(|(position, _)| *position != hop.chosen)
+            .map(|(_, candidate)| candidate.base_pool_id.clone())
+            .collect::<Vec<_>>()
+    };
+    let first_backups = backups_of(first_hop);
+    let middle_backups = backups_of(middle_hop);
+    let third_backups = backups_of(third_hop);
     let mut backup_pool_ids = BTreeMap::new();
     backup_pool_ids.insert("first".to_owned(), first_backups);
-    backup_pool_ids.insert(
-        "middle".to_owned(),
-        yz.pool_ids
-            .iter()
-            .filter(|pool_id| pool_id.as_str() != middle_pool_id)
-            .cloned()
-            .collect::<Vec<_>>(),
-    );
+    backup_pool_ids.insert("middle".to_owned(), middle_backups);
     backup_pool_ids.insert("third".to_owned(), third_backups);
     let route_tokens = [
         parse_token_key_id(&anchor.token_key_id)?,
@@ -2497,9 +3204,18 @@ fn push_loop(
         path_symbols,
         pool_path_key: pool_path_parts.join(":"),
         pool_ids: pool_ids.clone(),
+        directional_pool_ids: hop_pools
+            .iter()
+            .map(|hop| hop.directional_pool_id.clone())
+            .collect(),
         backup_pool_ids,
         hop_candidate_counts: hop_candidate_counts.clone(),
-        hop_candidate_combination_count: first_options.len() * third_options.len(),
+        // The count follows the legacy contract: it multiplies the two side
+        // hops, the ones the candidate edge publishes.  The middle hop is
+        // published by the market observation and is not part of the
+        // product, and keeping the definition aligned is what lets the
+        // manager rows and the legacy rows be compared field by field.
+        hop_candidate_combination_count: first_hop.candidates.len() * third_hop.candidates.len(),
         recommendation_basis: "directed_fixed_fee_no_hook_static_score".to_owned(),
         recommended_first_priority: true,
         candidate_edge_version: input.candidate_edge.candidate_version,
@@ -2516,34 +3232,56 @@ fn push_loop(
             .ok_or(ClosedLoopError::MissingObservationState)?,
         status: "active".to_owned(),
         source: "closed_loop_manager".to_owned(),
-        single_tick_capacity_anchor_raw,
-        single_tick_capacity_binding_pool_id,
-        borrow_token_usdg_value_raw,
-        borrow_token_decimals,
+        single_tick_capacity_anchor_raw: measures
+            .folded_capacity
+            .as_ref()
+            .map(|(capacity, _)| *capacity),
+        single_tick_capacity_binding_pool_id: measures
+            .folded_capacity
+            .as_ref()
+            .map(|(_, binding_pool)| binding_pool.clone()),
+        borrow_token_usdg_value_raw: measures.borrow_token_usdg_value_raw,
+        borrow_token_decimals: measures.borrow_token_decimals,
         cross_tick_review_threshold_usdg_raw,
-        cross_tick_capacity_anchor_raw,
+        cross_tick_capacity_anchor_raw: measures.cross_tick_capacity_anchor_raw,
     });
 
-    let middle_basis = format!("observation_direction_optimal_pool:{y_address}:{z_address}");
-    for (hop_index, hop_name, input_token, output_token, pool_id, basis) in [
+    for (hop_index, hop_name, input_token, output_token, hop_pool, basis) in [
         (
             1usize,
             "yc",
             anchor,
             y,
-            first_options[0].pool_id.clone(),
-            first_options[0].selection_basis.clone(),
+            &hop_pools[0],
+            first_hop.chosen_candidate().basis.clone(),
         ),
-        (2, "y-z", y, z, middle_pool_id.to_owned(), middle_basis),
+        (
+            2,
+            "y-z",
+            y,
+            z,
+            &hop_pools[1],
+            middle_hop.chosen_candidate().basis.clone(),
+        ),
         (
             3,
             "zc",
             z,
             anchor,
-            third_options[0].pool_id.clone(),
-            third_options[0].selection_basis.clone(),
+            &hop_pools[2],
+            third_hop.chosen_candidate().basis.clone(),
         ),
     ] {
+        // The hop carries the pool that is in effect and the pool the
+        // recommendation named.  They differ when an optimization took over
+        // the hop, and the hop then names the optimization that took over.
+        let selected = match hop_index {
+            1 => first_hop,
+            2 => middle_hop,
+            _ => third_hop,
+        };
+        let chosen = selected.chosen_candidate();
+        let original_pool_id = selected.primary_pool_id().to_owned();
         desired.hops.push(ClosedLoopHopRow {
             loop_key: loop_key.clone(),
             hop_index,
@@ -2552,52 +3290,66 @@ fn push_loop(
             output_token_key_id: output_token.token_key_id.clone(),
             input_address: address_from_token_key_id(&input_token.token_key_id),
             output_address: address_from_token_key_id(&output_token.token_key_id),
-            pool_id: pool_id.clone(),
-            base_pool_id: pool_id,
+            pool_id: hop_pool.base_pool_id.clone(),
+            base_pool_id: original_pool_id,
             pool_selection_basis: basis,
-            optimization_id: None,
-            temporary_override: false,
+            directional_pool_id: Some(hop_pool.directional_pool_id.clone()),
+            hop_direction: Some(hop_pool.direction.raw()),
+            directional_scope_key: Some(hop_pool.scope_key.clone()),
+            directional_pool_rank: hop_pool.rank,
+            optimization_id: chosen.optimization_id.clone(),
+            temporary_override: chosen.optimization_id.is_some(),
         });
     }
 
-    for recommendation in first_options.iter().skip(1) {
-        desired.optimizations.push(ClosedLoopOptimizationRow {
-            loop_key: loop_key.clone(),
-            hop_index: 1,
-            optimization_id: format!("first-rank-{}", recommendation.rank),
-            original_pool_id: first_options[0].pool_id.clone(),
-            optimized_pool_id: recommendation.pool_id.clone(),
-            optimization_basis: recommendation.selection_basis.clone(),
-            expected_price_improvement: None,
-            status: "candidate".to_owned(),
-            expires_at: None,
-        });
-    }
-    for (index, pool_id) in yz.pool_ids.iter().enumerate().skip(1) {
-        desired.optimizations.push(ClosedLoopOptimizationRow {
-            loop_key: loop_key.clone(),
-            hop_index: 2,
-            optimization_id: format!("middle-rank-{}", index + 1),
-            original_pool_id: middle_pool_id.to_owned(),
-            optimized_pool_id: pool_id.clone(),
-            optimization_basis: "observation_direction_pool_rank".to_owned(),
-            expected_price_improvement: None,
-            status: "candidate".to_owned(),
-            expires_at: None,
-        });
-    }
-    for recommendation in third_options.iter().skip(1) {
-        desired.optimizations.push(ClosedLoopOptimizationRow {
-            loop_key: loop_key.clone(),
-            hop_index: 3,
-            optimization_id: format!("third-rank-{}", recommendation.rank),
-            original_pool_id: third_options[0].pool_id.clone(),
-            optimized_pool_id: recommendation.pool_id.clone(),
-            optimization_basis: recommendation.selection_basis.clone(),
-            expected_price_improvement: None,
-            status: "candidate".to_owned(),
-            expires_at: None,
-        });
+    // The optimization rows of the three hops.
+    //
+    // Every candidate that is not the primary of its hop is an optimization
+    // the hop could take.  The row carries the **state** of that
+    // optimization: `candidate` while it waits, `temporary` while it is in
+    // effect, and `expired` once it was tried and blocked the path.  The
+    // state is what makes the table a consumed table rather than a written
+    // one.
+    for (hop_index, hop) in [
+        (1usize, first_hop),
+        (2usize, middle_hop),
+        (3usize, third_hop),
+    ] {
+        let original_pool_id = hop.primary_pool_id().to_owned();
+        for (position, candidate) in hop.candidates.iter().enumerate() {
+            if position == 0 {
+                continue;
+            }
+            let Some(optimization_id) = candidate.optimization_id.clone() else {
+                continue;
+            };
+            let status = if position == hop.chosen {
+                // The optimization is in effect: the hop trades this pool
+                // instead of the pool the recommendation named.
+                "temporary"
+            } else if expired
+                .iter()
+                .any(|(expired_hop, expired_id)| {
+                    *expired_hop == hop_index && expired_id == &optimization_id
+                })
+            {
+                // The optimization was tried and did not pass the gate.
+                "expired"
+            } else {
+                "candidate"
+            };
+            desired.optimizations.push(ClosedLoopOptimizationRow {
+                loop_key: loop_key.clone(),
+                hop_index,
+                optimization_id,
+                original_pool_id: original_pool_id.clone(),
+                optimized_pool_id: candidate.base_pool_id.clone(),
+                optimization_basis: candidate.basis.clone(),
+                expected_price_improvement: None,
+                status: status.to_owned(),
+                expires_at: None,
+            });
+        }
     }
     desired.runtime_states.push(ClosedLoopRuntimeStateRow {
         loop_key,
@@ -2607,9 +3359,6 @@ fn push_loop(
         review_required: true,
         last_rebuilt_at: chrono::Utc::now().to_rfc3339(),
     });
-    // The topology deliberately has no USD-depth or stable-token predicate. A
-    // Y-Z pool is eligible solely because M3/M4 admitted the directed pair.
-    let _ = yz.empty_reason.as_deref();
     Ok(())
 }
 
@@ -2772,6 +3521,8 @@ fn closed_loop_checksum(
     desired: &DesiredClosedLoopData,
 ) -> Result<String, ClosedLoopError> {
     let pool_scope_checksum = closed_loop_pool_scope_checksum(input)?;
+    let (directional_pool_version, directional_pool_checksum) =
+        directional_layer_identity(&input.directional_scope_states);
     let payload = ClosedLoopChecksumPayload {
         candidate_edge_version: input.candidate_edge.candidate_version,
         candidate_edge_checksum: input
@@ -2786,6 +3537,8 @@ fn closed_loop_checksum(
             .as_deref()
             .ok_or(ClosedLoopError::MissingObservationState)?,
         pool_scope_checksum: &pool_scope_checksum,
+        directional_pool_version,
+        directional_pool_checksum: &directional_pool_checksum,
         library_versions: &input.observation.library_versions,
         library_checksums: &input.observation.library_checksums,
         loops: &desired.loops,
@@ -2825,6 +3578,7 @@ fn read_status_on_connection(
                     pool_scope_checksum, library_versions_json,
                     library_checksums_json, anchor_count, loop_count, hop_count,
                     optimization_count, skipped_token_count, consumers_need_rebuild
+                    , directional_pool_version, directional_pool_checksum
              FROM manager_v4_closed_loop_library_state
              WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
                AND scope_key = ?4",
@@ -2846,6 +3600,8 @@ fn read_status_on_connection(
                     row.get::<_, i64>(12)?,
                     row.get::<_, i64>(13)?,
                     row.get::<_, i64>(14)?,
+                    row.get::<_, i64>(15)?,
+                    row.get::<_, String>(16)?,
                 ))
             },
         )
@@ -2866,6 +3622,8 @@ fn read_status_on_connection(
         optimization_count,
         skipped_token_count,
         consumers_need_rebuild,
+        directional_pool_version,
+        directional_pool_checksum,
     )) = stored
     else {
         return Ok(disabled_closed_loop_status(network, chain_id));
@@ -2883,6 +3641,8 @@ fn read_status_on_connection(
         observation_version: Some(observation_version),
         observation_checksum: Some(observation_checksum),
         pool_scope_checksum: Some(pool_scope_checksum),
+        directional_pool_version: Some(directional_pool_version),
+        directional_pool_checksum: Some(directional_pool_checksum),
         library_versions: serde_json::from_str(&library_versions_json)?,
         library_checksums: serde_json::from_str(&library_checksums_json)?,
         anchor_count: usize_from_i64(anchor_count),
@@ -2938,6 +3698,13 @@ pub fn read_closed_loop_snapshot(
             anchor_token_key_id,
             limit,
         )?,
+        pending_optimizations: read_pending_optimizations(
+            &connection,
+            network,
+            chain_id,
+            anchor_token_key_id,
+            limit,
+        )?,
         runtime_states: read_runtime_states(
             &connection,
             network,
@@ -2976,7 +3743,8 @@ fn read_loops(
                 borrow_token_usdg_value_raw,
                 borrow_token_decimals,
                 cross_tick_review_threshold_usdg_raw,
-                cross_tick_capacity_anchor_raw
+                cross_tick_capacity_anchor_raw,
+                directional_pool_ids_json
          FROM manager_v4_closed_loops
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4
            AND (?5 IS NULL OR anchor_token_key_id = ?5)
@@ -3039,6 +3807,15 @@ fn read_loops(
                 cross_tick_capacity_anchor_raw: row
                     .get::<_, Option<String>>(28)?
                     .and_then(|value| value.trim().parse::<u128>().ok()),
+                // The column was added by migration `20261124_016`, so a row
+                // that predates it — or a fixture that never wrote it —
+                // carries NULL.  Reading it as a plain `String` turns that
+                // NULL into a hard error, which is exactly what the
+                // nullable columns around it already avoid.
+                directional_pool_ids: row
+                    .get::<_, Option<String>>(29)?
+                    .and_then(|value| serde_json::from_str(&value).ok())
+                    .unwrap_or_default(),
             })
         },
     )?;
@@ -3056,7 +3833,9 @@ fn read_hops(
         "SELECT h.loop_key, h.hop_index, h.hop_name, h.input_token_key_id,
                 h.output_token_key_id, h.input_address, h.output_address,
                 h.pool_id, h.base_pool_id, h.pool_selection_basis,
-                h.optimization_id, h.temporary_override
+                h.optimization_id, h.temporary_override,
+                h.directional_pool_id, h.hop_direction,
+                h.directional_scope_key, h.directional_pool_rank
          FROM manager_v4_closed_loop_hops h
          JOIN manager_v4_closed_loops l
            ON l.network = h.network AND l.chain_id = h.chain_id
@@ -3091,6 +3870,10 @@ fn read_hops(
                 pool_selection_basis: row.get(9)?,
                 optimization_id: row.get(10)?,
                 temporary_override: row.get::<_, i64>(11)? != 0,
+                directional_pool_id: row.get(12)?,
+                hop_direction: row.get(13)?,
+                directional_scope_key: row.get(14)?,
+                directional_pool_rank: row.get(15)?,
             })
         },
     )?;
@@ -3098,6 +3881,64 @@ fn read_hops(
 }
 
 fn read_optimizations(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+    anchor_token_key_id: Option<&str>,
+    limit: usize,
+) -> Result<Vec<ClosedLoopOptimizationRow>, ClosedLoopError> {
+    // Only the optimizations that are **in effect** are consumed: a
+    // `temporary` one replaced the pool of its hop and an `accepted` one was
+    // adopted for good.  A `candidate` is still waiting and an `expired` one
+    // was tried and did not pass the gate, so neither of them describes a
+    // hop the loop actually trades.
+    let mut statement = connection.prepare(
+        "SELECT o.loop_key, o.hop_index, o.optimization_id,
+                o.original_pool_id, o.optimized_pool_id, o.optimization_basis,
+                o.expected_price_improvement, o.status, o.expires_at
+         FROM manager_v4_closed_loop_optimizations o
+         JOIN manager_v4_closed_loops l
+           ON l.network = o.network AND l.chain_id = o.chain_id
+          AND l.protocol = o.protocol AND l.scope_key = o.scope_key
+          AND l.loop_key = o.loop_key
+         WHERE o.network = ?1 AND o.chain_id = ?2 AND o.protocol = ?3
+           AND o.scope_key = ?4
+           AND o.status IN ('temporary', 'accepted')
+           AND (?5 IS NULL OR l.anchor_token_key_id = ?5)
+         ORDER BY o.loop_key, o.hop_index, o.optimization_id
+         LIMIT ?6",
+    )?;
+    let rows = statement.query_map(
+        params![
+            network,
+            chain_id,
+            NETWORK_PROTOCOL,
+            CLOSED_LOOP_SCOPE_KEY,
+            anchor_token_key_id,
+            limit as i64
+        ],
+        |row| {
+            Ok(ClosedLoopOptimizationRow {
+                loop_key: row.get(0)?,
+                hop_index: usize_from_i64(row.get(1)?),
+                optimization_id: row.get(2)?,
+                original_pool_id: row.get(3)?,
+                optimized_pool_id: row.get(4)?,
+                optimization_basis: row.get(5)?,
+                expected_price_improvement: row.get(6)?,
+                status: row.get(7)?,
+                expires_at: row.get(8)?,
+            })
+        },
+    )?;
+    Ok(rows.collect::<Result<Vec<_>, _>>()?)
+}
+
+/// The optimizations that are still waiting to be taken.
+///
+/// They are the standby pool of every hop: the pool the hop would trade if
+/// the capacity gate disqualified the pool it uses now.
+fn read_pending_optimizations(
     connection: &Connection,
     network: &str,
     chain_id: i64,
@@ -3115,6 +3956,7 @@ fn read_optimizations(
           AND l.loop_key = o.loop_key
          WHERE o.network = ?1 AND o.chain_id = ?2 AND o.protocol = ?3
            AND o.scope_key = ?4
+           AND o.status = 'candidate'
            AND (?5 IS NULL OR l.anchor_token_key_id = ?5)
          ORDER BY o.loop_key, o.hop_index, o.optimization_id
          LIMIT ?6",
@@ -3270,11 +4112,12 @@ fn replace_closed_loop_rows(
                  borrow_token_decimals,
                  cross_tick_review_threshold_usdg_raw,
                  cross_tick_capacity_anchor_raw,
+                 directional_pool_ids_json,
                  created_at, updated_at
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
                        ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23,
                        ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33,
-                       ?34, ?34)",
+                       ?34, ?35, ?35)",
             params![
                 network,
                 chain_id,
@@ -3310,6 +4153,7 @@ fn replace_closed_loop_rows(
                 row.borrow_token_decimals.map(|value| i64::from(value)),
                 row.cross_tick_review_threshold_usdg_raw.to_string(),
                 row.cross_tick_capacity_anchor_raw.map(|value| value.to_string()),
+                serde_json::to_string(&row.directional_pool_ids)?,
                 now
             ],
         )?;
@@ -3321,9 +4165,11 @@ fn replace_closed_loop_rows(
                  hop_name, input_token_key_id, output_token_key_id,
                  input_address, output_address, pool_id, base_pool_id,
                  pool_selection_basis, optimization_id, temporary_override,
+                 directional_pool_id, hop_direction, directional_scope_key,
+                 directional_pool_rank,
                  created_at, updated_at
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
-                       ?13, ?14, ?15, ?16, ?17, ?17)",
+                       ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?21)",
             params![
                 network,
                 chain_id,
@@ -3341,6 +4187,10 @@ fn replace_closed_loop_rows(
                 row.pool_selection_basis,
                 row.optimization_id,
                 i64::from(row.temporary_override),
+                row.directional_pool_id.clone(),
+                row.hop_direction,
+                row.directional_scope_key.clone(),
+                row.directional_pool_rank,
                 now
             ],
         )?;
@@ -3430,11 +4280,13 @@ fn insert_state(
              materialized_checksum, candidate_edge_version,
              candidate_edge_checksum, observation_version,
              observation_checksum, pool_scope_checksum,
+             directional_pool_version, directional_pool_checksum,
              library_versions_json, library_checksums_json, anchor_count,
              loop_count, hop_count, optimization_count, skipped_token_count,
              consumers_need_rebuild, generated_at, updated_at
          ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
-                   ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?20)
+                   ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22,
+                   ?22)
          ON CONFLICT(network, chain_id, protocol, scope_key) DO UPDATE SET
              closed_loop_version = excluded.closed_loop_version,
              materialized_checksum = excluded.materialized_checksum,
@@ -3443,6 +4295,8 @@ fn insert_state(
              observation_version = excluded.observation_version,
              observation_checksum = excluded.observation_checksum,
              pool_scope_checksum = excluded.pool_scope_checksum,
+             directional_pool_version = excluded.directional_pool_version,
+             directional_pool_checksum = excluded.directional_pool_checksum,
              library_versions_json = excluded.library_versions_json,
              library_checksums_json = excluded.library_checksums_json,
              anchor_count = excluded.anchor_count,
@@ -3465,6 +4319,8 @@ fn insert_state(
             result.observation_version,
             result.observation_checksum,
             result.pool_scope_checksum,
+            result.directional_pool_version,
+            result.directional_pool_checksum,
             serde_json::to_string(&result.library_versions)?,
             serde_json::to_string(&result.library_checksums)?,
             result.anchor_count as i64,
@@ -3974,6 +4830,8 @@ fn disabled_closed_loop_status(network: &str, chain_id: i64) -> ClosedLoopStatus
         observation_version: None,
         observation_checksum: None,
         pool_scope_checksum: None,
+        directional_pool_version: None,
+        directional_pool_checksum: None,
         library_versions: BTreeMap::new(),
         library_checksums: BTreeMap::new(),
         anchor_count: 0,
@@ -4079,9 +4937,15 @@ mod tests {
         compare_closed_loops, folded_path_capacity, materialize_closed_loops,
         materialize_closed_loops_write, path_min_capacity, read_closed_loop_input,
         read_closed_loop_snapshot, read_closed_loop_status, ClosedLoopError,
-        ClosedLoopWriteRequest, ExpectedUpstream, PoolTickState, MIN_CLOSED_LOOP_CAPACITY_RAW,
-        hop_zero_for_one, resolve_hop_direction,
+        ClosedLoopWriteRequest, ExpectedUpstream, MIN_CLOSED_LOOP_CAPACITY_RAW,
+        DirectionalPoolIndex, resolve_hop_directional_pool,
+        HOP_MIDDLE_SCOPE_KEY, HOP_SIDE_SCOPE_KEY,
+        path_min_single_tick_bound,
+        hop_candidate_combinations, read_hops, read_optimizations,
+        read_pending_optimizations, CLOSED_LOOP_SCOPE_KEY, NETWORK_PROTOCOL,
+        MAX_HOP_CANDIDATE_COMBINATIONS,
     };
+    use manager_contracts::directional_pool::{DirectionalPool, PoolDirection, V4Pool};
     use manager_contracts::TokenKeyId;
     use rusqlite::{params, Connection};
     use std::collections::BTreeMap;
@@ -4095,6 +4959,7 @@ mod tests {
     const POOL_A2: &str = "pool-a2";
     const POOL_YZ: &str = "pool-yz";
     const POOL_YZ_2: &str = "pool-yz-2";
+    const POOL_YZ_3: &str = "pool-yz-3";
     const POOL_YZ_REVERSE: &str = "pool-yz-reverse";
     const POOL_TA_FIRST: &str = "pool-ta-first";
     const POOL_AMZN_THIRD: &str = "pool-amzn-third";
@@ -4110,6 +4975,7 @@ mod tests {
         manager_db::migrate(&path).unwrap();
         let connection = Connection::open(&path).unwrap();
         seed_upstream(&connection);
+        seed_directional_pools(&connection);
         drop(connection);
         (directory, path)
     }
@@ -4144,6 +5010,15 @@ mod tests {
                     params![NETWORK, CHAIN_ID, pool_id, capacity.to_string()],
                 )
                 .unwrap();
+            // The closed loop reads the depth capacity from the directional
+            // row the hop walks, so the row carries the same number the
+            // snapshot publishes.
+            connection
+                .execute(
+                    "UPDATE manager_v4_directional_exchange_pools SET depth_capacity_raw = ?1 WHERE network = ?2 AND chain_id = ?3 AND protocol = 'uniswap_v4' AND base_pool_id = ?4",
+                    params![capacity.to_string(), NETWORK, CHAIN_ID, pool_id],
+                )
+                .unwrap();
         }
     }
 
@@ -4173,6 +5048,15 @@ mod tests {
                         token1,
                         sqrt_price_x96.to_string()
                     ],
+                )
+                .unwrap();
+            // The tick state of a hop comes from the directional row the hop
+            // walks, so the row carries the same price the pool table
+            // publishes.
+            connection
+                .execute(
+                    "UPDATE manager_v4_directional_exchange_pools SET sqrt_price_x96 = ?1, tick = 0, liquidity = '1000000000000' WHERE network = ?2 AND chain_id = ?3 AND protocol = 'uniswap_v4' AND base_pool_id = ?4",
+                    params![sqrt_price_x96.to_string(), NETWORK, CHAIN_ID, pool_id],
                 )
                 .unwrap();
         }
@@ -4215,6 +5099,24 @@ mod tests {
                     ],
                 )
                 .unwrap();
+            // The single-tick bound belongs to the **direction**, so each
+            // row of the base pool takes the bound of the token it spends:
+            // direction 0 spends token1, direction 1 spends token0.
+            for (direction, bound) in [(0i64, token1), (1i64, token0)] {
+                connection
+                    .execute(
+                        "UPDATE manager_v4_directional_exchange_pools SET input_capacity_raw = ?1, input_capacity_measured = ?2, depth_capacity_raw = '1000000' WHERE network = ?3 AND chain_id = ?4 AND protocol = 'uniswap_v4' AND base_pool_id = ?5 AND direction = ?6",
+                        params![
+                            bound.map(|value| value.to_string()),
+                            i64::from(bound.is_some()),
+                            NETWORK,
+                            CHAIN_ID,
+                            pool_id,
+                            direction,
+                        ],
+                    )
+                    .unwrap();
+            }
         }
     }
 
@@ -4423,6 +5325,11 @@ mod tests {
     #[test]
     fn a_hop_below_the_capacity_floor_disqualifies_the_whole_path() {
         // The middle hop is the weak one. The first and third hops are deep.
+        //
+        // The hop is tried against **every** candidate of its tier first, so
+        // the hop only disqualifies the path when no candidate of it reaches
+        // the floor.  Both pools of the middle hop are therefore weak here:
+        // the primary and its backup alike.
         let (_directory, path) = database();
         {
             let connection = Connection::open(&path).unwrap();
@@ -4431,6 +5338,7 @@ mod tests {
                 &[
                     (POOL_A1, 1_000_000),
                     (POOL_YZ, (MIN_CLOSED_LOOP_CAPACITY_RAW - 1) as i64),
+                    (POOL_YZ_2, (MIN_CLOSED_LOOP_CAPACITY_RAW - 1) as i64),
                     (POOL_D, 1_000_000),
                 ],
             );
@@ -4446,8 +5354,352 @@ mod tests {
         );
     }
 
+    /// The middle hop trades **AMZN into TA**, so the direction it walks is
+    /// the one that spends `token0`.  The fixture names the two sides of
+    /// the hop symbolically, and this is the helper that resolves the
+    /// symbolic name into the hop direction.
+    const MIDDLE_DIRECTION: i64 = 1;
+
+    /// Seed one more pool of the middle direction into the direction layer.
+    ///
+    /// The pool is **not** named by the market observation, so the hop
+    /// reaches it through the backup tier of its `(pair, direction)` group
+    /// and not through the candidate list.  This is the pool a truncation
+    /// dropped: the direction layer kept it, the candidate list did not.
+    fn seed_direction_layer_backup(
+        connection: &Connection,
+        base_pool_id: &str,
+        token0_key_id: &str,
+        token1_key_id: &str,
+        rank: i64,
+    ) {
+        for direction in 0i64..=1 {
+            let (input, output, zero_for_one) = if direction == 0 {
+                (token1_key_id.to_owned(), token0_key_id.to_owned(), 0i64)
+            } else {
+                (token0_key_id.to_owned(), token1_key_id.to_owned(), 1i64)
+            };
+            let directional_pool_id = format!(
+                "dpool:v1:{NETWORK}:{CHAIN_ID}:candidate_exchange:{base_pool_id}:{direction}"
+            );
+            connection
+                .execute(
+                    "INSERT INTO manager_v4_directional_exchange_pools (network, chain_id, protocol, scope_key, base_pool_id, direction, directional_pool_id, pool_manager, pool_key_json, token0, token1, token0_key_id, token1_key_id, fee, tick_spacing, hooks, pair_key_id, input_token_key_id, output_token_key_id, zero_for_one, pool_status, pair_direction_rank, materialized_at, updated_at) VALUES (?1, ?2, 'uniswap_v4', 'candidate_exchange', ?3, ?4, ?5, '0xpoolmanager', '{}', ?6, ?7, ?6, ?7, 3000, 60, '0x0', ?8, ?9, ?10, ?11, 'active', ?12, 'fixture', 'fixture')",
+                    params![
+                        NETWORK,
+                        CHAIN_ID,
+                        base_pool_id,
+                        direction,
+                        directional_pool_id,
+                        token0_key_id,
+                        token1_key_id,
+                        format!("pair:{token0_key_id}:{token1_key_id}"),
+                        input,
+                        output,
+                        zero_for_one,
+                        rank
+                    ],
+                )
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn a_hop_whose_primary_fails_the_capacity_gate_is_taken_over_by_its_next_candidate() {
+        // The primary of the middle hop is too shallow, so the hop trades
+        // the pool behind it.  The hop keeps naming the pool the
+        // recommendation named, so the takeover is visible on the row.
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            seed_capacities(
+                &connection,
+                &[
+                    (POOL_A1, 1_000_000),
+                    (POOL_A2, 1_000_000),
+                    (POOL_YZ, (MIN_CLOSED_LOOP_CAPACITY_RAW - 1) as i64),
+                    (POOL_YZ_2, 1_000_000),
+                    (POOL_D, 1_000_000),
+                ],
+            );
+        }
+        let applied = materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        assert_eq!(applied.loop_count, 1, "the path is published by its backup");
+
+        let connection = Connection::open(&path).unwrap();
+        let hops = read_hops(&connection, NETWORK, CHAIN_ID, None, 64).unwrap();
+        let middle = hops
+            .iter()
+            .find(|hop| hop.hop_index == 2)
+            .expect("the middle hop of the published loop");
+        assert_eq!(middle.pool_id, POOL_YZ_2, "the hop trades the backup");
+        assert_eq!(
+            middle.base_pool_id, POOL_YZ,
+            "the hop still names the pool the recommendation named"
+        );
+        assert_eq!(
+            middle.optimization_id.as_deref(),
+            Some("middle-rank-2"),
+            "the hop names the optimization that took it over"
+        );
+        assert!(middle.temporary_override, "the takeover is a temporary one");
+        assert_eq!(middle.hop_direction, Some(MIDDLE_DIRECTION));
+    }
+
+    #[test]
+    fn a_backup_of_the_direction_layer_takes_over_a_hop_the_candidate_list_could_not_serve() {
+        // The candidate list of the middle hop is exhausted and both of its
+        // pools are too shallow.  The direction layer still holds a third
+        // pool of the same `(pair, direction)` group, and that pool is the
+        // one that carries the hop.
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            seed_direction_layer_backup(
+                &connection,
+                POOL_YZ_3,
+                &token(AMZN),
+                &token(TA),
+                6,
+            );
+            seed_capacities(
+                &connection,
+                &[
+                    (POOL_A1, 1_000_000),
+                    (POOL_A2, 1_000_000),
+                    (POOL_YZ, (MIN_CLOSED_LOOP_CAPACITY_RAW - 1) as i64),
+                    (POOL_YZ_2, (MIN_CLOSED_LOOP_CAPACITY_RAW - 1) as i64),
+                    (POOL_YZ_3, 1_000_000),
+                    (POOL_D, 1_000_000),
+                ],
+            );
+        }
+        let applied = materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        assert_eq!(applied.loop_count, 1, "the path is published by the backup");
+
+        let connection = Connection::open(&path).unwrap();
+        let hops = read_hops(&connection, NETWORK, CHAIN_ID, None, 64).unwrap();
+        let middle = hops
+            .iter()
+            .find(|hop| hop.hop_index == 2)
+            .expect("the middle hop of the published loop");
+        assert_eq!(middle.pool_id, POOL_YZ_3, "the hop trades the backup");
+        assert_eq!(
+            middle.base_pool_id, POOL_YZ,
+            "the hop still names the pool the recommendation named"
+        );
+        assert_eq!(
+            middle.optimization_id.as_deref(),
+            Some("middle-backup-rank-6"),
+            "the backup of the group is an optimization of its own"
+        );
+        assert!(middle.temporary_override, "the takeover is a temporary one");
+    }
+
+    #[test]
+    fn an_optimization_that_failed_the_gate_is_recorded_as_expired() {
+        // The middle hop tries its candidate list first and only then the
+        // backup of the group.  The candidate that was tried and did not
+        // pass is recorded as expired, so the state of the table tells which
+        // pools were already ruled out.
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            seed_direction_layer_backup(
+                &connection,
+                POOL_YZ_3,
+                &token(AMZN),
+                &token(TA),
+                6,
+            );
+            seed_capacities(
+                &connection,
+                &[
+                    (POOL_A1, 1_000_000),
+                    (POOL_A2, 1_000_000),
+                    (POOL_YZ, (MIN_CLOSED_LOOP_CAPACITY_RAW - 1) as i64),
+                    (POOL_YZ_2, (MIN_CLOSED_LOOP_CAPACITY_RAW - 1) as i64),
+                    (POOL_YZ_3, 1_000_000),
+                    (POOL_D, 1_000_000),
+                ],
+            );
+        }
+        let applied = materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        assert_eq!(applied.loop_count, 1);
+
+        let connection = Connection::open(&path).unwrap();
+        let statuses = read_all_optimization_statuses(&connection);
+        assert_eq!(
+            statuses.get("middle-rank-2").map(String::as_str),
+            Some("expired"),
+            "the candidate that was tried and did not pass is expired"
+        );
+        assert_eq!(
+            statuses.get("middle-backup-rank-6").map(String::as_str),
+            Some("temporary"),
+            "the optimization in effect is temporary"
+        );
+        assert_eq!(
+            statuses.get("first-rank-2").map(String::as_str),
+            Some("candidate"),
+            "the pool that was never tried is still a candidate"
+        );
+    }
+
+    /// The state of every optimization row of the scope, keyed by the
+    /// optimization id.
+    fn read_all_optimization_statuses(connection: &Connection) -> BTreeMap<String, String> {
+        let mut statement = connection
+            .prepare(
+                "SELECT optimization_id, status FROM manager_v4_closed_loop_optimizations
+                 WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4",
+            )
+            .unwrap();
+        let rows = statement
+            .query_map(
+                params![NETWORK, CHAIN_ID, NETWORK_PROTOCOL, CLOSED_LOOP_SCOPE_KEY],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )
+            .unwrap();
+        rows.map(|row| row.unwrap()).collect()
+    }
+
+    #[test]
+    fn only_the_optimizations_in_effect_are_consumed_and_the_rest_stand_by() {
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            seed_direction_layer_backup(
+                &connection,
+                POOL_YZ_3,
+                &token(AMZN),
+                &token(TA),
+                6,
+            );
+            seed_capacities(
+                &connection,
+                &[
+                    (POOL_A1, 1_000_000),
+                    (POOL_A2, 1_000_000),
+                    (POOL_YZ, (MIN_CLOSED_LOOP_CAPACITY_RAW - 1) as i64),
+                    (POOL_YZ_2, (MIN_CLOSED_LOOP_CAPACITY_RAW - 1) as i64),
+                    (POOL_YZ_3, 1_000_000),
+                    (POOL_D, 1_000_000),
+                ],
+            );
+        }
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+
+        let connection = Connection::open(&path).unwrap();
+        let consumed = read_optimizations(&connection, NETWORK, CHAIN_ID, None, 64).unwrap();
+        assert_eq!(
+            consumed.len(),
+            1,
+            "only the optimization in effect is consumed"
+        );
+        assert_eq!(consumed[0].optimization_id, "middle-backup-rank-6");
+        assert_eq!(consumed[0].status, "temporary");
+        assert_eq!(consumed[0].original_pool_id, POOL_YZ);
+        assert_eq!(consumed[0].optimized_pool_id, POOL_YZ_3);
+
+        let pending = read_pending_optimizations(&connection, NETWORK, CHAIN_ID, None, 64).unwrap();
+        let pending_ids = pending
+            .iter()
+            .map(|row| row.optimization_id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            pending_ids,
+            vec!["first-rank-2"],
+            "the pool that was never tried stands by"
+        );
+        assert!(
+            pending.iter().all(|row| row.status == "candidate"),
+            "a standby optimization is a candidate"
+        );
+    }
+
+    #[test]
+    fn the_candidate_combinations_are_tried_from_the_primary_outward() {
+        // The order of the search is the contract: the primary combination
+        // is tried first, then the combinations that deviate from it in one
+        // hop, and only then the ones that deviate in two.
+        let combinations = hop_candidate_combinations(2, 3, 2);
+        assert_eq!(combinations[0], (0, 0, 0), "the primary is tried first");
+        let deviations = combinations
+            .iter()
+            .map(|(i, j, k)| usize::from(*i > 0) + usize::from(*j > 0) + usize::from(*k > 0))
+            .collect::<Vec<_>>();
+        let mut sorted = deviations.clone();
+        sorted.sort_unstable();
+        assert_eq!(deviations, sorted, "the deviations never decrease");
+        assert_eq!(combinations.len(), 12, "every combination is reachable");
+        assert_eq!(
+            combinations[1..4],
+            vec![(0, 0, 1), (0, 1, 0), (0, 2, 0)],
+            "one deviation is tried before two"
+        );
+    }
+
+    #[test]
+    fn the_search_over_the_combinations_stays_bounded() {
+        let combinations = hop_candidate_combinations(64, 64, 64);
+        assert_eq!(
+            combinations.len(),
+            MAX_HOP_CANDIDATE_COMBINATIONS,
+            "the search never grows without a bound"
+        );
+        assert_eq!(
+            combinations[0], (0, 0, 0),
+            "the primary is tried first even when the search is cut"
+        );
+    }
+
     /// Seeds the reverse direction of the middle hop, so the same anchor
     /// carries a second, opposite directed loop.
+
+    /// Seed the direction layer the closed loop consumes.
+    ///
+    /// The closed loop walks the projection of the layer that published its
+    /// pool: the candidate edge scope supplies the first and the third hop,
+    /// the candidate exchange scope supplies the middle one. Every base pool
+    /// projects onto **both** of its directions, so the row a hop walks is
+    /// the one whose input token is the token the hop spends.
+    ///
+    /// The rows carry the base identity and the token order; the measured
+    /// quantities are written by the seeding helpers, so a test decides
+    /// which pool published what.
+    fn seed_directional_pools(connection: &Connection) {
+        let pools = vec![
+            ("core4", POOL_A1, token(USDG), token(AMZN)),
+            ("core4", POOL_A2, token(USDG), token(AMZN)),
+            ("core4", POOL_D, token(TA), token(USDG)),
+            ("core4", POOL_TA_FIRST, token(USDG), token(TA)),
+            ("core4", POOL_AMZN_THIRD, token(AMZN), token(USDG)),
+            ("candidate_exchange", POOL_YZ, token(AMZN), token(TA)),
+            ("candidate_exchange", POOL_YZ_2, token(AMZN), token(TA)),
+            ("candidate_exchange", POOL_YZ_REVERSE, token(TA), token(AMZN)),
+        ];
+        for (scope_key, base_pool_id, token0, token1) in pools {
+            for direction in 0i64..=1 {
+                // Direction 0 spends token1 and receives token0, direction 1
+                // spends token0 and receives token1.
+                let (input, output, zero_for_one) = if direction == 0 {
+                    (token1.clone(), token0.clone(), 0i64)
+                } else {
+                    (token0.clone(), token1.clone(), 1i64)
+                };
+                // The identity is built in the shape the contract produces.
+                // The fixture names its pools symbolically, and a symbolic
+                // name is not a valid base pool id, so the identity is
+                // assembled here instead of through the contract.
+                let directional_pool_id = format!("dpool:v1:{NETWORK}:{CHAIN_ID}:{scope_key}:{base_pool_id}:{direction}");
+                connection.execute("INSERT INTO manager_v4_directional_exchange_pools (network, chain_id, protocol, scope_key, base_pool_id, direction, directional_pool_id, pool_manager, pool_key_json, token0, token1, token0_key_id, token1_key_id, fee, tick_spacing, hooks, pair_key_id, input_token_key_id, output_token_key_id, zero_for_one, pool_status, pair_direction_rank, materialized_at, updated_at) VALUES (?1, ?2, 'uniswap_v4', ?3, ?4, ?5, ?6, '0xpoolmanager', '{}', ?7, ?8, ?7, ?8, 3000, 60, '0x0', ?9, ?10, ?11, ?12, 'active', 1, 'fixture', 'fixture')", params![NETWORK, CHAIN_ID, scope_key, base_pool_id, direction, directional_pool_id, token0, token1, format!("pair:{token0}:{token1}"), input, output, zero_for_one]).unwrap();
+            }
+        }
+        for scope_key in ["core4", "candidate_exchange"] {
+            connection.execute("INSERT INTO manager_v4_directional_pool_library_state (network, chain_id, protocol, scope_key, directional_pool_version, materialized_checksum, pool_scope_version, pool_scope_checksum, snapshot_checksum, library_versions_json, library_checksums_json, base_pool_count, directional_pool_count, direction0_count, direction1_count, eligible_pair_count, measured_capacity_count, measured_output_count, excluded_pool_count, generated_at, updated_at) VALUES (?1, ?2, 'uniswap_v4', ?3, 1, 'sha256:directional-fixture', 1, 'sha256:scope-fixture', 'sha256:snapshot-fixture', '{}', '{}', 0, 0, 0, 0, 0, 0, 0, 0, 'fixture', 'fixture')", params![NETWORK, CHAIN_ID, scope_key]).unwrap();
+        }
+    }
     ///
     /// The reverse loop needs its own first and third hop pools, because the
     /// pools are part of the loop's identity: two loops that share a pool
@@ -4663,7 +5915,9 @@ mod tests {
     #[test]
     fn a_hop_that_cannot_carry_a_position_inside_its_tick_range_disqualifies_the_path() {
         // The middle hop has no usable room inside its tick range, so the
-        // first arbitrage version cannot size a position through it.
+        // first arbitrage version cannot size a position through it.  The
+        // backup of the hop is equally tight, so no combination of the
+        // candidates of the hop can be sized.
         let (_directory, path) = database();
         {
             let connection = Connection::open(&path).unwrap();
@@ -4672,6 +5926,7 @@ mod tests {
                 &[
                     (POOL_A1, Some(1_000_000), Some(1_000_000)),
                     (POOL_YZ, Some(0), Some(0)),
+                    (POOL_YZ_2, Some(0), Some(0)),
                     (POOL_D, Some(1_000_000), Some(1_000_000)),
                 ],
             );
@@ -4733,8 +5988,14 @@ mod tests {
         }
         let connection = Connection::open(&path).unwrap();
         let input = read_closed_loop_input(&connection, NETWORK, CHAIN_ID).unwrap();
-        let pool_ids = vec![POOL_A1.to_owned(), POOL_YZ.to_owned(), POOL_D.to_owned()];
-        let (minimum, binding) = path_min_capacity(&input, &pool_ids);
+        // The hops are resolved through the direction layer, exactly as the
+        // materialization resolves them.
+        let hop_directional_pool_ids = vec![
+            resolve_hop_directional_pool(&input.directional_pools, HOP_SIDE_SCOPE_KEY, POOL_A1, &token(USDG), &token(AMZN)).unwrap().directional_pool_id,
+            resolve_hop_directional_pool(&input.directional_pools, HOP_MIDDLE_SCOPE_KEY, POOL_YZ, &token(AMZN), &token(TA)).unwrap().directional_pool_id,
+            resolve_hop_directional_pool(&input.directional_pools, HOP_SIDE_SCOPE_KEY, POOL_D, &token(TA), &token(USDG)).unwrap().directional_pool_id,
+        ];
+        let (minimum, binding) = path_min_capacity(&input.directional_pools, &hop_directional_pool_ids);
         assert_eq!(minimum, Some(1_200));
         assert_eq!(binding.as_deref(), Some(POOL_YZ));
     }
@@ -5152,13 +6413,126 @@ mod tests {
         assert_eq!(stored_closed_loop_scope_checksum(&path), before);
     }
 
-    /// A pool tick state map that carries only what the capacity fold needs.
-    fn tick_state_map(states: &[(&str, u128, &str, &str)]) -> BTreeMap<String, PoolTickState> {
+    /// A directional pool index that carries only what the fold needs.
+    ///
+    /// The entries are `(base_pool_id, sqrt_price_x96, token0, token1,
+    /// direction)`. Every base pool is projected onto **both** of its
+    /// directions, exactly as the direction layer publishes it, so the row
+    /// a hop walks is the one whose input token is the token the hop spends.
+    fn directional_index(
+        scope_key: &str,
+        pools: &[(&str, u128, &str, &str, i64)],
+    ) -> DirectionalPoolIndex {
+        let mut index = DirectionalPoolIndex::default();
+        for (base_pool_id, sqrt_price_x96, token0, token1, direction) in pools {
+            let direction = PoolDirection::from_raw(*direction).expect("direction must be 0 or 1");
+            let directional_pool_id = format!("{scope_key}:{base_pool_id}:{direction}");
+            let pool = DirectionalPool {
+                base: V4Pool {
+                    base_pool_id: (*base_pool_id).to_owned(),
+                    pool_manager: "0xpoolmanager".to_owned(),
+                    pool_key_json: "{}".to_owned(),
+                    token0: (*token0).to_owned(),
+                    token1: (*token1).to_owned(),
+                    token0_key_id: (*token0).to_owned(),
+                    token1_key_id: (*token1).to_owned(),
+                    fee: 3000,
+                    tick_spacing: 60,
+                    hooks: "0x0".to_owned(),
+                    sqrt_price_x96: Some(sqrt_price_x96.to_string()),
+                    tick: Some(0),
+                    liquidity: Some("1000000000000".to_owned()),
+                    depth_capacity_raw: Some("1000000000000".to_owned()),
+                },
+                direction,
+                input_capacity_raw: Some("1000000000000".to_owned()),
+                input_capacity_measured: true,
+                directional_output: Some(1.0),
+                directional_output_measured: true,
+                pair_direction_rank: Some(1),
+                pool_status: "active".to_owned(),
+            };
+            index
+                .by_base
+                .entry((scope_key.to_owned(), (*base_pool_id).to_owned()))
+                .or_default()
+                .push(directional_pool_id.clone());
+            index
+                .scope_of
+                .insert(directional_pool_id.clone(), scope_key.to_owned());
+            index.rank_of.insert(directional_pool_id.clone(), 1);
+            index.pools.insert(directional_pool_id, pool);
+        }
+        index
+    }
+
+    /// The fold as it was implemented **before** the direction layer.
+    ///
+    /// The reference implementation is kept verbatim on purpose: the
+    /// equivalence of the refactor is the claim that the same tick state
+    /// produces the same folded capacity, no matter whether the hop's
+    /// direction is read from a parallel array or from the row the hop
+    /// walks. The reference takes the pool state and a parallel direction
+    /// array; the implementation under test takes the directional rows.
+    fn legacy_folded_path_capacity(
+        pool_tick_states: &BTreeMap<String, LegacyTickState>,
+        pool_ids: &[String],
+        directions: &[bool],
+    ) -> Option<(u128, String)> {
+        if pool_ids.is_empty() || pool_ids.len() != directions.len() {
+            return None;
+        }
+        let mut hops: Vec<pool_manager::single_tick_capacity::CapacityHop> =
+            Vec::with_capacity(pool_ids.len());
+        for (pool_id, zero_for_one) in pool_ids.iter().zip(directions.iter()) {
+            let state = pool_tick_states.get(pool_id)?;
+            let (token_in, token_out) = if *zero_for_one {
+                (state.token0_key_id.clone(), state.token1_key_id.clone())
+            } else {
+                (state.token1_key_id.clone(), state.token0_key_id.clone())
+            };
+            hops.push(pool_manager::single_tick_capacity::CapacityHop {
+                pool_id: pool_id.clone(),
+                token_in,
+                token_out,
+                sqrt_price_x96: state.sqrt_price_x96,
+                liquidity: state.liquidity,
+                fee_pips: state.fee_pips,
+                tick_spacing: state.tick_spacing,
+                tick: state.tick,
+                zero_for_one: *zero_for_one,
+            });
+        }
+        let anchor_token = hops.first()?.token_in.clone();
+        let capacity = pool_manager::single_tick_capacity::compute_loop_capacity(
+            &anchor_token,
+            &hops,
+        )
+        .ok()?;
+        Some((capacity.capacity_anchor_raw, capacity.binding_pool_id))
+    }
+
+    /// The pool state the legacy fold read.
+    #[derive(Debug, Clone)]
+    struct LegacyTickState {
+        sqrt_price_x96: u128,
+        liquidity: u128,
+        fee_pips: u32,
+        tick_spacing: i32,
+        tick: i32,
+        token0_key_id: String,
+        token1_key_id: String,
+    }
+
+    /// A legacy pool state map that carries only what the fold needs.
+    fn legacy_tick_state_map(
+        states: &[(&str, u128, &str, &str)],
+    ) -> BTreeMap<String, LegacyTickState> {
         let mut pool_tick_states = BTreeMap::new();
         for (pool_id, sqrt_price_x96, token0, token1) in states {
             pool_tick_states.insert(
                 (*pool_id).to_owned(),
-                PoolTickState {
+                LegacyTickState {
                     sqrt_price_x96: *sqrt_price_x96,
                     liquidity: 1_000_000_000_000,
                     fee_pips: 3000,
@@ -5184,21 +6558,23 @@ mod tests {
         // The third hop spends C and receives A at a price of 1, so its
         // capacity is unchanged by the fold.
         let q96: u128 = 1u128 << 96;
-        let pool_tick_states = tick_state_map(&[
-            ("pool-a", 2 * q96, USDG, AMZN),
-            ("pool-b", q96, AMZN, TA),
-            ("pool-c", q96, TA, USDG),
-        ]);
-        let pool_ids = vec![
-            "pool-a".to_owned(),
-            "pool-b".to_owned(),
-            "pool-c".to_owned(),
-        ];
         // The first hop spends token0 (USDG is token0 of pool-a), the
         // second hop spends token0 (AMZN is token0 of pool-b), and the
         // third hop spends token1 (USDG is token1 of pool-c).
-        let directions = vec![true, true, false];
-        let (capacity, blocking) = folded_path_capacity(&pool_tick_states, &pool_ids, &directions)
+        let index = directional_index(
+            "core4",
+            &[
+                ("pool-a", 2 * q96, USDG, AMZN, 1),
+                ("pool-b", q96, AMZN, TA, 1),
+                ("pool-c", q96, TA, USDG, 0),
+            ],
+        );
+        let hop_directional_pool_ids = vec![
+            "core4:pool-a:1".to_owned(),
+            "core4:pool-b:1".to_owned(),
+            "core4:pool-c:0".to_owned(),
+        ];
+        let (capacity, blocking) = folded_path_capacity(&index, &hop_directional_pool_ids)
             .expect("the capacity must be computable");
         assert!(capacity > 0);
         assert!(!blocking.is_empty());
@@ -5206,61 +6582,51 @@ mod tests {
 
     #[test]
     fn a_hop_without_a_published_state_has_no_folded_capacity() {
-        let pool_tick_states = BTreeMap::new();
-        let pool_ids = vec!["pool-a".to_owned()];
-        let directions = vec![true];
+        let index = DirectionalPoolIndex::default();
         assert!(
-            folded_path_capacity(&pool_tick_states, &pool_ids, &directions).is_none(),
+            folded_path_capacity(&index, &["core4:pool-a:1".to_owned()]).is_none(),
             "a missing pool state must not produce a folded capacity",
         );
     }
 
     #[test]
-    fn the_hop_direction_follows_the_pool_token_order() {
+    fn the_hop_direction_is_read_from_the_directional_row() {
         // The pool orders its two tokens by numeric address, which is
         // independent of the logical direction of the trade. The hop spends
-        // the pool's token0 exactly when the hop input token is token0.
-        let pool_tick_states = tick_state_map(&[("pool-inverted", 1u128 << 96, TA, USDG)]);
+        // the pool's token0 exactly when the hop input token is token0, and
+        // the row that says so is the row the hop walks.
+        let index = directional_index("core4", &[("pool-inverted", 1u128 << 96, TA, USDG, 0)]);
 
-        assert_eq!(
-            hop_zero_for_one(&pool_tick_states, "pool-inverted", TA).unwrap(),
-            Some(true),
-            "the hop spends token0 when the input token is the pool's token0",
-        );
-        assert_eq!(
-            hop_zero_for_one(&pool_tick_states, "pool-inverted", USDG).unwrap(),
-            Some(false),
-            "the hop spends token1 when the input token is the pool's token1",
+        let hop = resolve_hop_directional_pool(&index, "core4", "pool-inverted", USDG, TA)
+            .expect("the hop resolves to the row of its direction");
+        assert_eq!(hop.direction, PoolDirection::HighToLow);
+        assert_eq!(hop.directional_pool_id, "core4:pool-inverted:0");
+        assert!(!hop.direction.zero_for_one(),
+            "direction 0 spends token1, so the swap is not zero-for-one");
+    }
+
+    #[test]
+    fn a_pool_the_direction_layer_does_not_publish_is_a_topology_error() {
+        // The direction layer is the closed loop's upstream. A hop that walks
+        // a pool the projection does not know cannot be priced from it, so
+        // the materialization stops instead of guessing the direction.
+        let index = directional_index("core4", &[("pool-known", 1u128 << 96, TA, USDG, 0)]);
+        let error = resolve_hop_directional_pool(&index, "core4", "pool-missing", TA, USDG)
+            .expect_err("a pool the direction layer does not publish must be rejected");
+        assert!(
+            matches!(error, ClosedLoopError::InvalidStoredTopology(_)),
+            "unexpected error: {error:?}",
         );
     }
 
     #[test]
-    fn a_pool_without_a_tick_state_falls_back_to_the_logical_direction() {
-        let pool_tick_states = BTreeMap::new();
-        assert_eq!(
-            hop_zero_for_one(&pool_tick_states, "pool-missing", TA).unwrap(),
-            None,
-            "a pool without a published tick state has no token order",
-        );
-        assert_eq!(
-            resolve_hop_direction(
-                &pool_tick_states,
-                "pool-missing",
-                TA,
-                &format!("{USDG}>{TA}"),
-                TA,
-            )
-            .unwrap(),
-            false,
-            "the logical direction key still names the spent token",
-        );
-    }
-
-    #[test]
-    fn a_pool_that_does_not_carry_the_hop_input_token_is_a_topology_error() {
-        let pool_tick_states = tick_state_map(&[("pool-inverted", 1u128 << 96, TA, USDG)]);
-        let error = hop_zero_for_one(&pool_tick_states, "pool-inverted", AMZN)
-            .expect_err("a pool without the hop input token must be rejected");
+    fn a_row_that_trades_the_other_way_is_a_topology_error() {
+        // The row is found by the token the hop spends, and its output token
+        // is compared with the token the hop expects. A row that trades the
+        // other way would fold the path backwards.
+        let index = directional_index("core4", &[("pool-inverted", 1u128 << 96, TA, USDG, 0)]);
+        let error = resolve_hop_directional_pool(&index, "core4", "pool-inverted", TA, AMZN)
+            .expect_err("a row that trades the other way must be rejected");
         assert!(
             matches!(error, ClosedLoopError::InvalidStoredTopology(_)),
             "unexpected error: {error:?}",
@@ -5274,21 +6640,232 @@ mod tests {
         // Deriving the direction from the logical direction key swapped the
         // input and the output token of that hop, and the fold then failed.
         let q96: u128 = 1u128 << 96;
-        let pool_tick_states = tick_state_map(&[
-            ("pool-eth-weth", 2 * q96, USDG, AMZN),
-            ("pool-weth-usdg", q96, AMZN, TA),
-            ("pool-usdg-eth", q96, USDG, TA),
-        ]);
-        let pool_ids = vec![
-            "pool-eth-weth".to_owned(),
-            "pool-weth-usdg".to_owned(),
-            "pool-usdg-eth".to_owned(),
-        ];
         // The third hop spends USDG, which is the pool's token0 here.
-        let directions = vec![true, true, true];
-        let (capacity, blocking) = folded_path_capacity(&pool_tick_states, &pool_ids, &directions)
+        let index = directional_index(
+            "core4",
+            &[
+                ("pool-eth-weth", 2 * q96, USDG, AMZN, 1),
+                ("pool-weth-usdg", q96, AMZN, TA, 1),
+                ("pool-usdg-eth", q96, USDG, TA, 1),
+            ],
+        );
+        let hop_directional_pool_ids = vec![
+            "core4:pool-eth-weth:1".to_owned(),
+            "core4:pool-weth-usdg:1".to_owned(),
+            "core4:pool-usdg-eth:1".to_owned(),
+        ];
+        let (capacity, blocking) = folded_path_capacity(&index, &hop_directional_pool_ids)
             .expect("the capacity must be computable");
         assert!(capacity > 0);
         assert!(!blocking.is_empty());
+    }
+
+    /// The fold is a **pure function** of the tick state.
+    ///
+    /// The refactor changed where the hop's direction and its tick state come
+    /// from: the parallel arrays of pool states and directions are replaced
+    /// by the directional row the hop walks. The arithmetic must not move
+    /// with them, so the same tick state has to produce the very same folded
+    /// capacity through the old path and through the new one.
+    #[test]
+    fn the_folded_capacity_is_equal_to_the_legacy_fold() {
+        let q96: u128 = 1u128 << 96;
+        let states = [
+            ("pool-a", 2 * q96, USDG, AMZN),
+            ("pool-b", q96, AMZN, TA),
+            ("pool-c", q96, TA, USDG),
+        ];
+        // The legacy path: the pool states and a parallel direction array.
+        let legacy_states = legacy_tick_state_map(&states);
+        let pool_ids = vec!["pool-a".to_owned(), "pool-b".to_owned(), "pool-c".to_owned()];
+        let directions = vec![true, true, false];
+        let legacy = legacy_folded_path_capacity(&legacy_states, &pool_ids, &directions)
+            .expect("the legacy fold must be computable");
+        // The new path: the directional rows the hops walk.
+        let index = directional_index(
+            "core4",
+            &[
+                ("pool-a", 2 * q96, USDG, AMZN, 1),
+                ("pool-b", q96, AMZN, TA, 1),
+                ("pool-c", q96, TA, USDG, 0),
+            ],
+        );
+        let hop_directional_pool_ids = vec![
+            "core4:pool-a:1".to_owned(),
+            "core4:pool-b:1".to_owned(),
+            "core4:pool-c:0".to_owned(),
+        ];
+        let current = folded_path_capacity(&index, &hop_directional_pool_ids)
+            .expect("the fold must be computable");
+        assert_eq!(
+            current.0, legacy.0,
+            "the same tick state must fold into the same capacity",
+        );
+        assert_eq!(current.1, legacy.1, "the binding pool must not move");
+    }
+
+    /// The direction of a hop is a **pure function** of the token order.
+    ///
+    /// The same pair of tokens always yields the same direction: there is no
+    /// randomness and no read of the database in the decision.
+    #[test]
+    fn the_direction_of_a_hop_never_flips() {
+        let index = directional_index("core4", &[("pool-a", 1u128 << 96, USDG, AMZN, 0)]);
+        let first = resolve_hop_directional_pool(&index, "core4", "pool-a", AMZN, USDG)
+            .expect("the hop resolves");
+        let second = resolve_hop_directional_pool(&index, "core4", "pool-a", AMZN, USDG)
+            .expect("the hop resolves");
+        assert_eq!(first.direction, second.direction);
+        assert_eq!(first.directional_pool_id, second.directional_pool_id);
+    }
+
+    /// The single-tick bound belongs to the **direction** of the row.
+    ///
+    /// Direction 0 takes the bound of the token it spends (token1) and
+    /// direction 1 the bound of token0. The bound is read from the row the
+    /// hop walks, so a hop can never be judged against the bound of the
+    /// other direction.
+    #[test]
+    fn the_single_tick_bound_is_taken_from_the_direction_of_the_row() {
+        let mut index = directional_index("core4", &[("pool-a", 1u128 << 96, USDG, AMZN, 0)]);
+        let pool = index
+            .pools
+            .get_mut("core4:pool-a:0")
+            .expect("the row is published");
+        // The row publishes no price, so the fold cannot be performed and
+        // the bound decides whether the hop has any room.
+        pool.base.sqrt_price_x96 = None;
+        pool.input_capacity_raw = Some("0".to_owned());
+        let (bound, blocking) = path_min_single_tick_bound(&index, &["core4:pool-a:0".to_owned()]);
+        assert_eq!(
+            bound,
+            Some(0),
+            "a measured zero bound means the direction has no room",
+        );
+        assert_eq!(blocking.as_deref(), Some("pool-a"));
+
+        // The other direction of the same base pool publishes room, so it
+        // is not disqualified.
+        let mut index = directional_index("core4", &[("pool-a", 1u128 << 96, USDG, AMZN, 1)]);
+        let pool = index
+            .pools
+            .get_mut("core4:pool-a:1")
+            .expect("the row is published");
+        pool.base.sqrt_price_x96 = None;
+        pool.input_capacity_raw = Some("5000".to_owned());
+        let (bound, blocking) = path_min_single_tick_bound(&index, &["core4:pool-a:1".to_owned()]);
+        assert_eq!(bound, None, "a hop with room is not disqualified");
+        assert_eq!(blocking, None);
+    }
+
+    /// Every hop carries the identity of the directional row it walks.
+    ///
+    /// The direction, the pool and the identity of a hop come from **one**
+    /// row of the direction layer, so the hop and the numbers that belong
+    /// to it cannot drift apart.
+    #[test]
+    fn every_hop_carries_the_direction_layer_identity() {
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            seed_capacities(
+                &connection,
+                &[(POOL_A1, 1_000_000), (POOL_YZ, 5_000), (POOL_D, 1_000_000)],
+            );
+            seed_pool_tick_states(
+                &connection,
+                &[
+                    (POOL_A1, 1u128 << 96, &token(USDG), &token(AMZN)),
+                    (POOL_YZ, 1u128 << 96, &token(AMZN), &token(TA)),
+                    (POOL_D, 1u128 << 96, &token(TA), &token(USDG)),
+                ],
+            );
+        }
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        assert_eq!(snapshot.hops.len(), 3, "the loop has three hops");
+        let connection = Connection::open(&path).unwrap();
+        for hop in &snapshot.hops {
+            let directional_pool_id = hop
+                .directional_pool_id
+                .as_ref()
+                .expect("every hop names the directional row it walks");
+            let row = connection
+                .query_row(
+                    "SELECT base_pool_id, direction, input_token_key_id, output_token_key_id FROM manager_v4_directional_exchange_pools WHERE directional_pool_id = ?1",
+                    params![directional_pool_id],
+                    |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, i64>(1)?,
+                            row.get::<_, String>(2)?,
+                            row.get::<_, String>(3)?,
+                        ))
+                    },
+                )
+                .expect("the hop resolves to exactly one directional row");
+            assert_eq!(
+                row.0, hop.base_pool_id,
+                "I-8/I-11: the hop base pool is the row base pool",
+            );
+            assert_eq!(
+                hop.pool_id, hop.base_pool_id,
+                "I-8: the hop pool id is the base pool id",
+            );
+            assert_eq!(
+                row.1,
+                hop.hop_direction.expect("every hop stores its direction"),
+                "I-12: the stored direction is the direction of the row",
+            );
+            assert_eq!(
+                row.2, hop.input_token_key_id,
+                "the row spends the token the hop spends",
+            );
+            assert_eq!(
+                row.3, hop.output_token_key_id,
+                "I-7: the row receives the token the hop receives",
+            );
+        }
+        for row in &snapshot.loops {
+            assert_eq!(row.pool_ids.len(), 3, "I-16: the loop has one pool per hop");
+            assert_eq!(
+                row.directional_pool_ids.len(),
+                3,
+                "I-16: the loop names one directional pool per hop",
+            );
+            assert_eq!(
+                row.loop_key,
+                format!(
+                    "{}:{}:{}",
+                    row.anchor_address,
+                    row.path_addresses[1],
+                    row.path_addresses[2],
+                ),
+                "T-10: the loop key is still the anchor and the two middle tokens",
+            );
+        }
+    }
+
+    /// The closed loop records the direction layer it was built against.
+    ///
+    /// The consumer can then tell which projection the loops describe and
+    /// whether that projection has moved since.
+    #[test]
+    fn the_closed_loop_state_records_the_direction_layer_identity() {
+        let (_directory, path) = database();
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let status = read_closed_loop_status(&path, NETWORK, CHAIN_ID).unwrap();
+        assert_eq!(
+            status.directional_pool_version,
+            Some(1),
+            "I-15: the direction layer version is recorded",
+        );
+        let checksum = status
+            .directional_pool_checksum
+            .expect("I-15: the direction layer checksum is recorded");
+        assert!(
+            checksum.starts_with("sha256:"),
+            "I-15: the recorded identity is a checksum, got {checksum}",
+        );
     }
 }

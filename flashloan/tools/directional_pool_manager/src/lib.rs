@@ -33,6 +33,67 @@ pub const MAX_IDEMPOTENCY_KEY_LENGTH: usize = 256;
 pub const MAX_SNAPSHOT_LIMIT: usize = 1_000;
 pub const MATERIALIZE_OPERATION: &str = "directional_pools.materialize";
 
+/// Environment variable that overrides the directional candidate capacity.
+///
+/// The candidate count is a **capacity knob**, not an admission threshold:
+/// it answers "how many pools may one (pair, direction) group keep as
+/// candidates", never "is this pool qualified".  Changing it changes the
+/// system's behaviour, so it is a knob and belongs in the environment
+/// rather than in the source text.
+pub const MAX_DIRECTION_CANDIDATE_POOLS_ENV: &str = "FLASHLOAN_MAX_DIRECTION_CANDIDATE_POOLS";
+
+/// The default capacity when the environment does not override it.
+pub const DEFAULT_MAX_DIRECTION_CANDIDATE_POOLS: usize = 5;
+
+/// The two tiers a `(pair, direction)` group is split into.
+///
+/// The group holds every pool that passed admission; the **rank** decides
+/// which tier a pool belongs to.  Ranks `1..=N` are the candidates, the
+/// ranks beyond that are the backups.  The split is a *layering*, not a
+/// truncation: the backups stay in the table and stay reachable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DirectionalPoolTier {
+    /// A pool of the candidate tier: one of the first `N` ranks.
+    Candidate,
+    /// A pool of the backup tier: a qualified pool that did not make the cut.
+    Backup,
+}
+
+/// Resolve the directional candidate capacity from the environment.
+///
+/// A malformed or non-positive value falls back to the default instead of
+/// failing the build: a capacity knob must never be able to stop the
+/// scanner from running.
+pub fn max_direction_candidate_pools() -> usize {
+    std::env::var(MAX_DIRECTION_CANDIDATE_POOLS_ENV)
+        .ok()
+        .and_then(|raw| raw.trim().parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_MAX_DIRECTION_CANDIDATE_POOLS)
+}
+
+/// The size of the candidate tier of a group that holds `eligible` pools.
+///
+/// The identity `N == min(N_max, eligible)` is the whole point of the
+/// layering: the group is never padded to the capacity and never cut below
+/// the number of qualified pools it actually has.
+pub fn candidate_tier_size(eligible: usize) -> usize {
+    eligible.min(max_direction_candidate_pools())
+}
+
+/// The tier of the row that holds `rank` inside a group of `eligible` pools.
+///
+/// The ranks are continuous by construction, so the split is exact: the
+/// candidate tier owns `1..=N` and the backup tier owns `N+1..=eligible`.
+pub fn tier_of_rank(rank: i64, eligible: usize) -> DirectionalPoolTier {
+    let candidate_count = candidate_tier_size(eligible) as i64;
+    if rank >= 1 && rank <= candidate_count {
+        DirectionalPoolTier::Candidate
+    } else {
+        DirectionalPoolTier::Backup
+    }
+}
+
 /// The two tables of the directional pool layer.
 pub const DIRECTIONAL_POOL_TABLE: &str = "manager_v4_directional_exchange_pools";
 pub const DIRECTIONAL_POOL_STATE_TABLE: &str = "manager_v4_directional_pool_library_state";
@@ -211,6 +272,11 @@ pub struct DirectionalPoolRow {
     pub evidence_source: Option<String>,
     pub input_capacity_raw: Option<String>,
     pub input_capacity_measured: bool,
+    /// The price-impact depth capacity of the base pool, in raw units.
+    ///
+    /// The depth capacity does not depend on the direction, so both of the
+    /// directional rows of one base pool carry the same number.
+    pub depth_capacity_raw: Option<String>,
     pub directional_output: Option<f64>,
     pub directional_output_measured: bool,
     pub pair_direction_rank: Option<i64>,
@@ -287,6 +353,7 @@ struct SnapshotRow {
     evidence_source: Option<String>,
     single_tick_max_token0_raw: Option<String>,
     single_tick_max_token1_raw: Option<String>,
+    capacity_raw: Option<String>,
 }
 
 struct ScopeInput {
@@ -418,8 +485,8 @@ pub fn read_directional_pool_snapshot(
                 input_token_key_id, output_token_key_id, zero_for_one,
                 sqrt_price_x96, tick, liquidity, price, depth_status,
                 liquidity_read_at, liquidity_block_number, evidence_source,
-                input_capacity_raw, input_capacity_measured, directional_output,
-                directional_output_measured, pair_direction_rank, pool_status,
+                input_capacity_raw, input_capacity_measured, depth_capacity_raw,
+                directional_output, directional_output_measured, pair_direction_rank, pool_status,
                 pool_status_reason, source_block_number, source_tx_hash,
                 materialized_at, updated_at
          FROM manager_v4_directional_exchange_pools
@@ -1035,10 +1102,23 @@ fn read_snapshot_rows(
     } else {
         "NULL, NULL"
     };
+    // The depth capacity is optional: a database that has never run the
+    // depth rollout simply does not carry the column, and the projection
+    // then publishes no depth capacity at all.
+    let has_depth_capacity = table_has_column(
+        connection,
+        "v4_exchange_pool_liquidity_snapshots",
+        "capacity_raw",
+    )?;
+    let depth_capacity_expression = if has_depth_capacity {
+        "capacity_raw"
+    } else {
+        "NULL"
+    };
     let sql = format!(
         "SELECT pool_id, sqrt_price_x96, tick, liquidity, price, depth_status,
                 liquidity_read_at, liquidity_block_number, evidence_source,
-                {capacity_expression}
+                {capacity_expression}, {depth_capacity_expression}
          FROM v4_exchange_pool_liquidity_snapshots
          WHERE network = ?1 AND chain_id = ?2"
     );
@@ -1057,6 +1137,7 @@ fn read_snapshot_rows(
                 evidence_source: row.get(8)?,
                 single_tick_max_token0_raw: row.get(9)?,
                 single_tick_max_token1_raw: row.get(10)?,
+                capacity_raw: row.get(11)?,
             },
         ))
     })?;
@@ -1106,6 +1187,7 @@ fn snapshot_checksum(
         evidence_source: &'a Option<String>,
         single_tick_max_token0_raw: &'a Option<String>,
         single_tick_max_token1_raw: &'a Option<String>,
+        capacity_raw: &'a Option<String>,
     }
     let payload: Vec<Payload<'_>> = snapshots
         .iter()
@@ -1121,6 +1203,7 @@ fn snapshot_checksum(
             evidence_source: &snapshot.evidence_source,
             single_tick_max_token0_raw: &snapshot.single_tick_max_token0_raw,
             single_tick_max_token1_raw: &snapshot.single_tick_max_token1_raw,
+            capacity_raw: &snapshot.capacity_raw,
         })
         .collect();
     Ok(format!(
@@ -1371,6 +1454,7 @@ fn build_directional_rows(
                 evidence_source: snapshot.and_then(|item| item.evidence_source.clone()),
                 input_capacity_raw: capacity.clone(),
                 input_capacity_measured: capacity.is_some(),
+                depth_capacity_raw: snapshot.and_then(|item| item.capacity_raw.clone()),
                 directional_output: price.as_ref().map(|price| price.output_rate),
                 directional_output_measured: price.is_some(),
                 pair_direction_rank: None,
@@ -1403,6 +1487,13 @@ fn build_directional_rows(
 /// base pool id ascending so that the order never depends on the row order
 /// of the database.
 ///
+/// One key sits between the fee and the pool id: when the main order keys
+/// are all equal, the pool with the **larger** direction capacity wins, and
+/// only a capacity tie falls through to the pool id.  The capacity is
+/// denominated in the token the direction spends, and the comparison happens
+/// inside one `(pair, direction)` group, so the two capacities are the same
+/// unit — comparing them across pairs would be a unit error.
+///
 /// Only a row that may be selected takes a rank: the pool has to be active
 /// and its direction has to be priced.  A row that is not priced has no
 /// rank, because "not measured" and "measured as zero" are different facts.
@@ -1433,12 +1524,29 @@ fn assign_ranks(rows: &mut [ProjectedRow]) {
                         .cmp(&rows[*left].tick_ordering_rank.unwrap_or(i64::MIN))
                 })
                 .then_with(|| left_row.fee.cmp(&right_row.fee))
+                // The capacity is the tie breaker of the main order: the
+                // larger capacity wins.  A pool whose capacity was never
+                // measured has none to offer, so it loses the comparison.
+                .then_with(|| {
+                    direction_capacity(left_row).cmp(&direction_capacity(right_row))
+                })
                 .then_with(|| left_row.base_pool_id.cmp(&right_row.base_pool_id))
         });
         for (position, index) in indices.iter().enumerate() {
             rows[*index].row.pair_direction_rank = Some(position as i64 + 1);
         }
     }
+}
+
+/// The capacity of a row in the token its direction spends.
+///
+/// An unmeasured capacity is **not** a zero capacity: it is the absence of
+/// a measurement, and it loses every comparison against a measured one.
+fn direction_capacity(row: &DirectionalPoolRow) -> Option<u128> {
+    row.input_capacity_raw
+        .as_deref()
+        .map(str::trim)
+        .and_then(|text| parse_u128(text))
 }
 
 fn hooks_is_absent(hooks: &str) -> bool {
@@ -1569,13 +1677,13 @@ fn replace_directional_rows(
                  sqrt_price_x96, tick, liquidity, price, depth_status,
                  liquidity_read_at, liquidity_block_number, evidence_source,
                  input_capacity_raw, input_capacity_measured, directional_output,
-                 directional_output_measured, pair_direction_rank, pool_status,
+                 depth_capacity_raw, directional_output_measured, pair_direction_rank, pool_status,
                  pool_status_reason, source_block_number, source_tx_hash,
                  materialized_at, updated_at
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13,
                        ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25,
                        ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35, ?36, ?37,
-                       ?38, ?39)",
+                       ?38, ?39, ?40)",
             params_from_iter(directional_row_params(row)),
         )?;
     }
@@ -1618,6 +1726,7 @@ fn directional_row_params(row: &DirectionalPoolRow) -> Vec<rusqlite::types::Valu
         row.input_capacity_raw.clone().into(),
         i64::from(row.input_capacity_measured).into(),
         row.directional_output.into(),
+        row.depth_capacity_raw.clone().into(),
         i64::from(row.directional_output_measured).into(),
         row.pair_direction_rank.into(),
         row.pool_status.clone().into(),
@@ -1842,15 +1951,16 @@ fn read_row(row: &Row<'_>) -> rusqlite::Result<DirectionalPoolRow> {
         evidence_source: row.get(27)?,
         input_capacity_raw: row.get(28)?,
         input_capacity_measured: row.get::<_, i64>(29)? != 0,
-        directional_output: row.get(30)?,
-        directional_output_measured: row.get::<_, i64>(31)? != 0,
-        pair_direction_rank: row.get(32)?,
-        pool_status: row.get(33)?,
-        pool_status_reason: row.get(34)?,
-        source_block_number: row.get(35)?,
-        source_tx_hash: row.get(36)?,
-        materialized_at: row.get(37)?,
-        updated_at: row.get(38)?,
+        depth_capacity_raw: row.get(30)?,
+        directional_output: row.get(31)?,
+        directional_output_measured: row.get::<_, i64>(32)? != 0,
+        pair_direction_rank: row.get(33)?,
+        pool_status: row.get(34)?,
+        pool_status_reason: row.get(35)?,
+        source_block_number: row.get(36)?,
+        source_tx_hash: row.get(37)?,
+        materialized_at: row.get(38)?,
+        updated_at: row.get(39)?,
     })
 }
 

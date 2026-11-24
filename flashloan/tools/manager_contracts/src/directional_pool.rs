@@ -97,10 +97,18 @@ impl<'de> Deserialize<'de> for PoolDirection {
     }
 }
 
-/// The base V4 pool: identity plus the fixed on-chain facts.
+/// The base V4 pool: identity, the fixed on-chain facts, and the published
+/// snapshot state of that base pool.
 ///
 /// This is the **sub-object** of a directional pool. It carries nothing that
-/// the direction changes.
+/// the direction changes: the two projections of one base pool share every
+/// field of the base, and differ only in the direction dependent fields of
+/// the directional pool itself.
+///
+/// The snapshot fields are the ones the closed loop needs in order to fold a
+/// path: the price, the liquidity and the tick the price sits in. They
+/// belong to the **base** pool because they describe the pool, not the way
+/// it is traded.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct V4Pool {
@@ -114,6 +122,20 @@ pub struct V4Pool {
     pub fee: i64,
     pub tick_spacing: i64,
     pub hooks: String,
+    /// The published square-root price of the pool, in Q96 fixed point.
+    ///
+    /// `None` means the pool publishes no snapshot. The absence is a
+    /// coverage gap of the pool index, never a price of zero.
+    pub sqrt_price_x96: Option<String>,
+    /// The initialized tick the pool's price sits in.
+    pub tick: Option<i64>,
+    /// The published liquidity of the pool.
+    pub liquidity: Option<String>,
+    /// The price-impact depth capacity of the pool, in raw units.
+    ///
+    /// The depth capacity does **not** depend on the direction, so it is a
+    /// property of the base pool and both of its directional rows carry it.
+    pub depth_capacity_raw: Option<String>,
 }
 
 impl V4Pool {
@@ -245,6 +267,10 @@ mod tests {
             fee: 3000,
             tick_spacing: 60,
             hooks: "0x0000000000000000000000000000000000000000".to_owned(),
+            sqrt_price_x96: Some("79228162514264337593543950336".to_owned()),
+            tick: Some(0),
+            liquidity: Some("1000000000000000000".to_owned()),
+            depth_capacity_raw: Some("1000000000000000000000".to_owned()),
         }
     }
 

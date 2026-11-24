@@ -162,10 +162,34 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
         evidence = HEALER.review_evidence(self.review_row())
         self.assertEqual(evidence["loopKey"], "0xa:0xb:0xc")
         self.assertEqual(evidence["runArbitrage"]["signedPnl"]["amount"], 1.25)
-        self.assertFalse(evidence["runArbitrage"]["executable"])
+        self.assertTrue(evidence["runArbitrage"]["executable"])
         self.assertTrue(evidence["staticPreview"]["historicalEvidence"])
         self.assertFalse(evidence["staticPreview"]["automaticBroadcastEligible"])
         self.assertEqual(HEALER.review_loop_key(self.review_row()), "0xa:0xb:0xc")
+
+    def test_review_evidence_copies_the_recorded_execution_verdict(self):
+        """T-复编.01: the caller never declares the execution verdict.
+
+        The verdict belongs to the layer that executed the route.  The
+        legacy row records the outcome of the attempt under its
+        ``category`` column and the Review Manager row carries the
+        kernel's own ``runArbitrage.executable`` flag, so the conversion
+        copies the verdict it finds.
+
+        A caller that writes its own verdict decides the two execution
+        gates of the Review Manager by itself, and the gates then never
+        run - which is how the review library came to hold 164 rows that
+        no execution ever saw.
+        """
+        executed = HEALER.review_evidence(self.review_row(category="executable"))
+        self.assertTrue(executed["runArbitrage"]["executable"])
+
+        estimated = HEALER.review_evidence(self.review_row(category="not_executable"))
+        self.assertFalse(estimated["runArbitrage"]["executable"])
+
+        published = self.review_row(category="not_executable")
+        published["runArbitrage"] = {"ok": True, "executable": True}
+        self.assertTrue(HEALER.review_evidence(published)["runArbitrage"]["executable"])
 
     def test_a_review_without_a_published_identity_is_not_associated(self):
         """TASK-149: the route addresses never become the identity.

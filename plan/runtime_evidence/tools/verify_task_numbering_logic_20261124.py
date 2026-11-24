@@ -72,7 +72,33 @@ for tid in sorted(os.listdir(TASKDIR)):
     t=read(os.path.join(d,pf[0]))
     tasks.append((tid,t))
 
-check(len(tasks)==19,"C: 二级任务目录数应为 19，实为 %d"%len(tasks))
+# 期望总数 = 编号册 §4.2 登记的全部二级任务；**已归档的**任务目录已被移除，
+# 但归档件仍在 `plan/archive/` ⇒ 判据改为「在盘 + 已归档 == 登记总数」。
+m42=re.search(r"### 4\.2 二级任务(.*?)(?:\n### 4\.2\.1|\n### 4\.3|\n## )",reg,re.S)
+declared=set()
+if m42:
+    for line in m42.group(1).split("\n"):
+        if not line.startswith("|"): continue
+        cols=line.split("|")
+        if len(cols)<6: continue
+        # 第 4 列 = 「已占用编号」（第 5 列是「下一个可用」，**不算**）
+        declared|=set(re.findall(r"`(T-[^`]+?\.\d+)`",cols[4]))
+ARCHDIR=os.path.join(PLAN,"archive")
+archived=set()
+if os.path.isdir(ARCHDIR):
+    for f in os.listdir(ARCHDIR):
+        mm=re.match(r"\u4efb\u52a1\u5f52\u6863_(T-[^_]+)_.*\.md$",f)
+        if mm: archived.add(mm.group(1))
+on_disk_ids={tid for tid,_t in tasks}
+check(len(declared)==19,"C: 编号册 §4.2 登记的二级任务应为 19，实为 %d"%len(declared))
+check(on_disk_ids|archived==declared,
+      "C: 在盘(%d)+已归档(%d) 与编号册登记(%d) 不一致：多出 %s / 缺 %s"%(
+          len(on_disk_ids),len(archived),len(declared),
+          sorted((on_disk_ids|archived)-declared),sorted(declared-(on_disk_ids|archived))))
+check(not (on_disk_ids&archived),"C: 同时出现在盘与归档区的任务：%s"%sorted(on_disk_ids&archived))
+check(len(tasks)==len(declared)-len(archived),
+      "C: 二级任务目录数应为 %d（登记 %d − 已归档 %d），实为 %d"%(
+          len(declared)-len(archived),len(declared),len(archived),len(tasks)))
 seen_ids=set()
 for tid,t in tasks:
     mods=mods_of(t)
@@ -118,6 +144,24 @@ for rel,p in docs.items():
     t=read(p)
     first=t.split("\n")[0]
     check(first.startswith("# D-%03d "%n),"E: 文档 %s 标题行与编号不符：%s"%(rel,first[:50]))
+
+# 已归档任务的技术文案**并入归档件**（单文件多锚点）⇒ 其编号在盘上没有独立文件，
+# 但仍受编号纪律约束：唯一、连续、标题一致。
+embedded={}
+if os.path.isdir(ARCHDIR):
+    for f in sorted(os.listdir(ARCHDIR)):
+        if not f.startswith("\u4efb\u52a1\u5f52\u6863_") or not f.endswith(".md"): continue
+        ap=os.path.join(ARCHDIR,f)
+        at=read(ap)
+        for mm in re.finditer(r"<!-- \u539f\u6587\u4ef6\uff1a`[^`]*?/D-(\d{3})-[^`]+\.md` -->",at):
+            n2=int(mm.group(1))
+            check(n2 not in nums and n2 not in embedded,
+                  "E: 文档编号重复：D-%03d（归档件 %s）"%(n2,f))
+            embedded[n2]=(f,at)
+for n2,(f,at) in sorted(embedded.items()):
+    check(any(line.startswith("# D-%03d "%n2) for line in at.split("\n")),
+          "E: 归档件 %s 内的 D-%03d 缺少规范标题行"%(f,n2))
+    nums[n2]="archive/"+f
 check(sorted(nums)==list(range(1,len(nums)+1)),
       "E: 文档编号不是从 1 连续递增（缺口或越界）")
 print("E 文档编号：%d 份受控文档，编号唯一、连续、标题一致"%len(nums))
@@ -132,6 +176,10 @@ if m:
     only_list=listed-on_disk
     check(not only_disk,"F: 编号册总表缺少 %d 份文档：%s"%(len(only_disk),sorted(only_disk)[:5]))
     check(not only_list,"F: 编号册总表登记了不存在的文档 %d 份：%s"%(len(only_list),sorted(only_list)[:5]))
+    arch_listed=set(int(x) for x in re.findall(r"`plan/archive/[^`]+\.md#d(\d{3})`",m.group(1)))
+    check(arch_listed==set(embedded),
+          "F: 编号册总表登记的归档文档与归档件不一致：表 %s / 件 %s"%(
+              sorted(arch_listed),sorted(embedded)))
 print("F 编号册总表与磁盘一致")
 
 # ---------- 汇总 ----------

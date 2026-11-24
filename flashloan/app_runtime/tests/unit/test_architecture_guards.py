@@ -1571,6 +1571,81 @@ def _manager_direct_read_offenders(source, tables):
     return offenders
 
 
+_MANAGER_DIRECT_WRITE_PATTERN = re.compile(
+    r"\b(?:INSERT\s+INTO|UPDATE\s+\w+|DELETE\s+FROM|REPLACE\s+INTO"
+    r"|DROP\s+TABLE|ALTER\s+TABLE)\b",
+    re.IGNORECASE,
+)
+
+
+def _manager_direct_write_offenders(source, tables):
+    """Return (matched_text, table) for every manager table written directly.
+
+    The write statement and its target table are one statement, and the
+    table may sit on either side of it, so the window around the match
+    decides the table.  The matcher lives in one place on purpose: the
+    guard and its negative assertions have to exercise the very same
+    code path, otherwise a passing assertion would say nothing about the
+    guard it claims to prove.
+    """
+    offenders = []
+    for match in _MANAGER_DIRECT_WRITE_PATTERN.finditer(source):
+        window = source[max(0, match.start() - 200) : match.end() + 200]
+        for table in tables:
+            if table in window:
+                offenders.append((match.group(0), table))
+    return offenders
+
+
+# The review library is owned by the Review Manager, and the two
+# execution gates only run when the upstream evidence carries
+# ``ok && executable``.  A caller that writes the review library itself
+# therefore decides the gates by itself, so the library is guarded on its
+# own.
+REVIEW_LIBRARY_WRITE_TABLES = (
+    "manager_v4_reviews",
+    "manager_v4_review_diagnostics",
+    "manager_v4_review_broadcast_requests",
+)
+
+
+def _maintenance_script_files() -> list[Path]:
+    """The repository-root maintenance tools.
+
+    These scripts live **outside** the application package, so a guard
+    over ``SRC_ROOT`` never saw them.  The legacy review converter lives
+    here, and it is the channel that published the review library with a
+    **declared** execution verdict, so the review guards have to reach
+    this directory as well.
+    """
+    root = REPO_ROOT / "scripts"
+    if not root.exists():
+        return []
+    return [
+        path
+        for path in root.rglob("*.py")
+        if "tests" not in path.parts
+        and "__pycache__" not in path.parts
+        and ".pytest_cache" not in path.parts
+    ]
+
+
+# The execution verdict is a **conclusion**, never a literal.  A caller
+# that writes ``"executable": True`` or ``"executable": False`` decides
+# the gates by itself, and the gates then never run.
+_EXECUTABLE_VERDICT_DECLARATION = re.compile(
+    r"['\"]executable['\"]\s*:\s*(?:True|False)\b"
+)
+
+
+def _declared_execution_verdicts(source) -> list[str]:
+    """Return every literal execution verdict the source declares."""
+    return [
+        match.group(0)
+        for match in _EXECUTABLE_VERDICT_DECLARATION.finditer(source)
+    ]
+
+
 def test_python_never_clears_the_manager_business_tables_directly():
     """AC-142: clearing the business tables must go through the manager.
 
@@ -1584,22 +1659,15 @@ def test_python_never_clears_the_manager_business_tables_directly():
     fixture databases.
     """
 
-    write_pattern = re.compile(
-        r"\b(?:INSERT\s+INTO|UPDATE\s+\w+|DELETE\s+FROM|REPLACE\s+INTO"
-        r"|DROP\s+TABLE|ALTER\s+TABLE)\b",
-        re.IGNORECASE,
-    )
-
     offenders = []
     for path in _python_files():
         if "tests" in path.parts:
             continue
         source = path.read_text(encoding="utf-8")
-        for match in write_pattern.finditer(source):
-            window = source[max(0, match.start() - 200) : match.end() + 200]
-            for table in MANAGER_BUSINESS_WRITE_TABLES:
-                if table in window:
-                    offenders.append(f"{path}: {match.group(0)} {table}")
+        for match_text, table in _manager_direct_write_offenders(
+            source, MANAGER_BUSINESS_WRITE_TABLES
+        ):
+            offenders.append(f"{path}: {match_text} {table}")
 
     assert offenders == [], (
         "AC-142: Python must not write the manager business tables directly; "
@@ -1763,6 +1831,198 @@ def test_directional_pool_layer_is_wired_into_the_manager_workspace():
     assert "directional-pool-manager" in composite_manifest, (
         "AC-216: the composite manager must depend on the directional pool crate"
     )
+
+
+def test_python_never_binds_to_the_directional_pool_layer_layout():
+    """T-I-3: Python must not bind to the directional layer's own layout.
+
+    The directional pool layer is a **projection**: one base V4 pool becomes
+    exactly two rows, one per swap direction.  Everything that makes the
+    projection meaningful lives in that layer's columns -- the direction
+    itself, the token the direction spends, the capacity of that input side
+    and the rank inside the (pair, direction) group.
+
+    So a Python file that names one of those columns is a Python file that
+    has started to re-implement the projection: its ordering, its
+    de-duplication, its materialisation, its admission, its boundary
+    recomputation or its direction mapping.  Python only consumes the
+    values the in-memory objects carry; the projection itself belongs to
+    the Rust directional pool manager.
+
+    The guard therefore bans the directional layer's **column names**, not
+    only its table names.  The table guard (T-I-1) catches a query; this
+    one catches the layer that is being re-implemented behind it.
+    """
+    # The columns are matched on a **word boundary**: the Python helper
+    # `select_directional_pool_ids` contains `directional_pool_id` as a
+    # substring, but it is a legacy helper name and not a reference to the
+    # column.  Only a reference to the column itself is an offence.
+    forbidden_columns = (
+        "directional_pool_id",
+        "pair_direction_rank",
+        "input_token_key_id",
+        "output_token_key_id",
+        "directional_output",
+        "directional_output_measured",
+        "input_capacity_raw",
+        "input_capacity_measured",
+        "directional_pool_count",
+        "directional_pool_version",
+    )
+    forbidden_tables = (
+        "manager_v4_directional_exchange_pools",
+        "manager_v4_directional_pool_library_state",
+    )
+
+    offenders = []
+    for path in _python_files():
+        if "tests" in path.parts:
+            # Test files build their own fixtures and may name the layer.
+            continue
+        source = path.read_text(encoding="utf-8")
+        for symbol in forbidden_columns:
+            if re.search(rf"\b{re.escape(symbol)}\b", source):
+                offenders.append(f"{path}: {symbol}")
+        for symbol in forbidden_tables:
+            if symbol in source:
+                offenders.append(f"{path}: {symbol}")
+
+    assert offenders == [], (
+        "T-I-3: Python must not bind to the directional pool layer's layout; "
+        "the projection, its ordering, its admission and its boundary "
+        "recomputation belong to the Rust directional pool manager: "
+        + "; ".join(offenders)
+    )
+
+    # The guard must not be vacuous: the same matcher has to flag a
+    # snippet that really does read the layer, and it has to stay quiet on
+    # the legacy helper whose name merely contains a column name.
+    snippet = (
+        'def load(conn):\n'
+        '    return conn.execute(\n'
+        '        "SELECT directional_pool_id, pair_direction_rank "'
+        '        "FROM manager_v4_directional_exchange_pools"\n'
+        '    ).fetchall()\n'
+    )
+    flagged = [
+        symbol
+        for symbol in forbidden_columns
+        if re.search(rf"\b{re.escape(symbol)}\b", snippet)
+    ] + [
+        symbol for symbol in forbidden_tables if symbol in snippet
+    ]
+    assert flagged, (
+        "T-I-3: the matcher must flag a snippet that reads the directional "
+        "layer, otherwise the guard passes for the wrong reason"
+    )
+    legacy = "select_directional_pool_ids(scope_pools, token_in, token_out)"
+    assert not [
+        symbol
+        for symbol in forbidden_columns
+        if re.search(rf"\b{re.escape(symbol)}\b", legacy)
+    ], (
+        "T-I-3: the word boundary must not fire on a legacy helper whose "
+        "name merely contains a column name"
+    )
+
+
+def test_the_directional_admission_convention_is_enforced_in_rust_only():
+    """DPO-9: the directional layer must not project an inadmissible pool.
+
+    The standing convention of the system is that only a **fixed rate** pool
+    without a **hook** is a pool the off-chain arithmetic may price.  The
+    directional layer is a projection of exactly those pools, so it must
+    leave a dynamic-fee pool, a hook pool and a pool whose tokens are not
+    in the canonical V4 order **out** of the projection, and it must not
+    give a rank to a pool that is not active.
+
+    The convention is enforced in the Rust directional pool manager.  This
+    guard pins the four gates to that crate, so removing one of them (or
+    re-implementing the projection somewhere else) fails here instead of
+    silently widening the universe the closed loop walks.
+
+    The gate that decides the price quality is checked as well: the layer
+    must take the exact single-tick output from the **shared** price
+    function of the candidate edge pool manager.  A second, private copy of
+    that arithmetic would let the directional table and the recommendation
+    list drift apart, and the closed loop would switch pools silently.
+    """
+    tools_root = REPO_ROOT / "flashloan" / "tools"
+    crate = (tools_root / "directional_pool_manager" / "src" / "lib.rs").read_text(
+        encoding="utf-8"
+    )
+
+    gates = {
+        "a dynamic fee pool": "is_dynamic_fee_pool(pool.fee, pool.dynamic_fee)",
+        "a pool with a hook": "hooks_is_absent(&pool.hooks)",
+        "a pool whose tokens are not in the canonical order": (
+            "token_order_is_canonical(&pool.token0, &pool.token1)"
+        ),
+        "a pool that is not active": 'pool_status != "active"',
+    }
+    for what, needle in gates.items():
+        assert needle in crate, (
+            f"DPO-9: the directional layer must refuse {what}; the gate "
+            f"{needle!r} is missing from the Rust directional pool manager"
+        )
+
+    assert "use candidate_edge_pool_manager::" in crate, (
+        "DPO-9: the directional layer must take the price quality from the "
+        "shared candidate edge price function"
+    )
+    assert "fn exact_directional_output" not in crate, (
+        "DPO-9: the directional layer must not carry a second copy of the "
+        "exact single-tick output arithmetic"
+    )
+
+
+def test_the_directional_pool_columns_are_registered_in_the_migration_ledger():
+    """T-I-4: the directional columns must be registered with the migration.
+
+    A migration that creates the directional tables but does not register
+    their columns passes the smoke test while the layer is unusable: a
+    reader that asks for `input_capacity_raw` would find a table without
+    it.  The ledger is what turns the column list into a checked
+    contract, so the new columns have to be registered there.
+    """
+    migrate = (REPO_ROOT / "flashloan" / "tools" / "manager_db" / "src" / "migrate.rs").read_text(
+        encoding="utf-8"
+    )
+    required = {
+        "manager_v4_directional_exchange_pools": (
+            "base_pool_id",
+            "direction",
+            "directional_pool_id",
+            "pair_key_id",
+            "input_token_key_id",
+            "output_token_key_id",
+            "zero_for_one",
+            "input_capacity_raw",
+            "input_capacity_measured",
+            "directional_output",
+            "directional_output_measured",
+            "pair_direction_rank",
+            "pool_status",
+        ),
+        "manager_v4_directional_pool_library_state": (
+            "directional_pool_version",
+            "materialized_checksum",
+            "base_pool_count",
+            "directional_pool_count",
+            "direction0_count",
+            "direction1_count",
+        ),
+    }
+    for table, columns in required.items():
+        assert f'"{table}"' in migrate, (
+            f"T-I-4: the directional table {table} must be registered with "
+            "the manager migration ledger"
+        )
+        for column in columns:
+            assert f'"{column}"' in migrate, (
+                f"T-I-4: the directional column {column} must be registered "
+                f"with the manager migration ledger for {table}"
+            )
 
 
 def test_the_candidate_pool_count_is_a_runtime_configuration_parameter():
@@ -2351,4 +2611,145 @@ def test_the_depth_snapshot_drift_guard_does_not_trust_a_timestamp(tmp_path):
     assert _DRIFT_POOL_ID in drifted_ids, (
         "TASK-172: a fresh timestamp must not make a drifted row look "
         "consistent"
+    )
+
+
+def test_the_maintenance_tools_never_write_the_review_library_directly():
+    """T-复编.01: the Review Manager owns the review library.
+
+    The application guards cover ``SRC_ROOT`` and ``src/``.  The
+    repository-root maintenance tools sit outside both, and the legacy
+    review converter lives there: it is the channel that published the
+    review library with a **declared** execution verdict, which is how
+    the library came to hold 164 rows that no execution ever saw.
+
+    The guard reaches that directory as well, so a tool that writes the
+    review library with SQL is caught before it can replace the reviews
+    the Rust production path published.
+    """
+    offenders = []
+    for path in _maintenance_script_files():
+        source = path.read_text(encoding="utf-8-sig", errors="replace")
+        for match_text, table in _manager_direct_write_offenders(
+            source, REVIEW_LIBRARY_WRITE_TABLES
+        ):
+            offenders.append(f"{path}: {match_text} {table}")
+
+    assert offenders == [], (
+        "T-复编.01: the maintenance tools must not write the review library "
+        "directly; the Review Manager owns it: " + "; ".join(offenders)
+    )
+
+
+def test_the_review_library_write_guard_rejects_a_direct_write():
+    """T-复编.01: the review write guard must catch a direct write.
+
+    The assertion runs the very matcher the guard runs, so a pass here
+    means the guard would really fail on a real offender.
+    """
+    offenders = _manager_direct_write_offenders(
+        "DELETE FROM manager_v4_reviews WHERE network = ?",
+        REVIEW_LIBRARY_WRITE_TABLES,
+    )
+    assert offenders, (
+        "T-复编.01: the review write guard must reject a direct write "
+        "against manager_v4_reviews"
+    )
+    assert any(
+        table == "manager_v4_reviews" for _text, table in offenders
+    ), (
+        "T-复编.01: the guard must name the offending table, got: "
+        + ", ".join(f"{text} -> {table}" for text, table in offenders)
+    )
+
+
+def test_the_review_library_write_guard_is_not_vacuous():
+    """T-复编.01: dropping the table from the tuple must break the hit.
+
+    This is the regression construction for the guard itself.  If the
+    review tables were missing from the registration, the assertion above
+    would have nothing to catch and would pass for the wrong reason.
+    """
+    tables_without_reviews = tuple(
+        table for table in REVIEW_LIBRARY_WRITE_TABLES if table != "manager_v4_reviews"
+    )
+    assert _manager_direct_write_offenders(
+        "DELETE FROM manager_v4_reviews WHERE network = ?",
+        tables_without_reviews,
+    ) == [], (
+        "T-复编.01: without the review registration the same snippet must "
+        "not be flagged, otherwise the assertion is vacuous"
+    )
+    assert _manager_direct_write_offenders(
+        "DELETE FROM manager_v4_reviews WHERE network = ?",
+        REVIEW_LIBRARY_WRITE_TABLES,
+    ), (
+        "T-复编.01: the registration is what makes the review tables "
+        "protected; without it the guard has nothing to catch"
+    )
+
+
+def test_no_python_declares_the_execution_verdict():
+    """T-复编.01: the caller never declares the execution verdict.
+
+    The two execution gates of the Review Manager only run when the
+    upstream evidence carries ``ok && executable``.  A caller that writes
+    the flag itself decides the gates by itself, and the gates then never
+    run - which is exactly how the review library came to hold 164 rows
+    of ``runArbitrage evidence is missing`` with a broadcast request count
+    of zero.
+
+    The verdict is therefore **copied** from the layer that executed the
+    route (the kernel's own flag, or the outcome the record itself
+    carries) and never written down as a literal in Python.
+    """
+    offenders = []
+    for path in _python_files() + _maintenance_script_files():
+        if "tests" in path.parts:
+            continue
+        source = path.read_text(encoding="utf-8-sig", errors="replace")
+        for declaration in _declared_execution_verdicts(source):
+            offenders.append(f"{path}: {declaration}")
+
+    assert offenders == [], (
+        "T-复编.01: no Python caller may declare the execution verdict; "
+        "copy it from the layer that executed the route: " + "; ".join(offenders)
+    )
+
+
+def test_the_execution_verdict_guard_rejects_a_declaration():
+    """T-复编.01: the verdict guard must catch a declared verdict.
+
+    The assertion runs the very matcher the guard runs, so a pass here
+    means the guard would really fail on a real offender.
+    """
+    declarations = _declared_execution_verdicts(
+        '"runArbitrage": {"ok": True, "executable": False}'
+    )
+    assert declarations, (
+        "T-复编.01: the verdict guard must catch a declared execution verdict"
+    )
+    assert any("executable" in text for text in declarations), (
+        "T-复编.01: the guard must name the declared flag, got: "
+        + ", ".join(declarations)
+    )
+
+
+def test_the_execution_verdict_guard_is_not_vacuous():
+    """T-复编.01: copying the verdict must not be flagged.
+
+    A caller that copies the verdict holds it in a variable, so the
+    source never carries the literal.  The guard has to leave that copy
+    alone, otherwise it would forbid the very thing it asks for.
+    """
+    assert _declared_execution_verdicts(
+        '"runArbitrage": {"ok": True, "executable": verdict}'
+    ) == [], (
+        "T-复编.01: a copied verdict must not be flagged, otherwise the "
+        "guard would forbid copying the verdict at all"
+    )
+    assert _declared_execution_verdicts(
+        '"runArbitrage": {"ok": True, "executable": True}'
+    ), (
+        "T-复编.01: the guard must still catch a declared verdict"
     )

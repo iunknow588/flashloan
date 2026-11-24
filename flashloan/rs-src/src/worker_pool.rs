@@ -1,4 +1,5 @@
 ﻿use std::collections::{HashMap, HashSet};
+use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
@@ -11,10 +12,15 @@ use pyo3::prelude::*;
 use review_manager::{ReviewRuntime, ReviewSupervisor, ReviewSupervisorCommand};
 use serde_json::{json, Value};
 
-use crate::closed_loop_identity::ClosedLoopCatalog;
+use crate::closed_loop_identity::{closed_loop_upstream, ClosedLoopCatalog};
 use crate::execution;
 use crate::json_result_to_py;
 use crate::pool_index::{self, V4PoolKey};
+use crate::review_publish::{
+    build_route_evidence, is_unsigned_zero_placeholder, measured_signed_profit_raw,
+    publish_review_generation, signed_raw_to_amount, ReviewEvidenceAccumulator,
+    ReviewPublishError,
+};
 use crate::sqlite_read;
 
 type MaintenanceHandler = Py<PyAny>;
@@ -125,6 +131,12 @@ struct WorkerState {
     /// later snapshot of a market that has already moved on.
     last_parity_payload: Option<Value>,
     last_parity_payload_at: Option<String>,
+    /// The outcome of the last review publication.
+    ///
+    /// The publication is the step that files a review in the Review
+    /// Manager, so its outcome belongs to the review state: a failed
+    /// publication is visible next to the review it belongs to.
+    last_review_publish: Option<Value>,
     phase: String,
     phase_started_at: Option<String>,
     backoff_until: Option<String>,
@@ -162,6 +174,7 @@ impl Default for WorkerState {
             direction_results: Vec::new(),
             last_parity_payload: None,
             last_parity_payload_at: None,
+            last_review_publish: None,
             phase: "idle".to_string(),
             phase_started_at: None,
             backoff_until: None,
@@ -455,6 +468,15 @@ struct PoolInner {
     group_senders: Mutex<HashMap<String, Sender<WorkerControl<SubmitCommand>>>>,
     last_commands: Mutex<HashMap<String, SubmitCommand>>,
     contexts: Mutex<HashMap<String, Arc<ContextCache>>>,
+    /// The review evidence of every chain, collected until it covers the
+    /// whole closed-loop catalog.
+    ///
+    /// The Review Manager replaces the review set of the scope with the
+    /// evidence it receives, so a generation that carries only the loops of
+    /// one review group would erase the reviews of every other loop.  The
+    /// evidence of the groups is therefore collected here, per chain, until
+    /// it covers the catalog.
+    review_evidence: Mutex<HashMap<String, ReviewEvidenceAccumulator>>,
     maintenance_handler: Option<MaintenanceHandler>,
     maintenance_interval_seconds: u64,
     maintenance_tx: Mutex<Option<Sender<MaintenanceWorkerCommand>>>,
@@ -1083,7 +1105,17 @@ fn load_context_registry_rows(
     // to another chain.
     let closed_loop_rows =
         sqlite_read::load_manager_closed_loop_rows(&connection, network, chain_id).unwrap_or_default();
-    let closed_loops = crate::closed_loop_identity::catalog_from_rows(&closed_loop_rows);
+    // The generation the catalog belongs to is read **with** the rows, so
+    // the runtime always knows which generation its measurements were
+    // taken under.  A library that holds no closed-loop state yields no
+    // generation, and the publish gate then falls back to the generation
+    // it reads itself.
+    let closed_loop_generation =
+        sqlite_read::load_manager_closed_loop_generation(&connection, network, chain_id)
+            .ok()
+            .flatten();
+    let closed_loops = crate::closed_loop_identity::catalog_from_rows(&closed_loop_rows)
+        .with_upstream(closed_loop_generation.and_then(closed_loop_upstream));
     Some((
         pool_rows,
         liquidity_rows,
@@ -1179,52 +1211,6 @@ fn load_context_cache(
 /// the decimals of the token, so the two always describe the same value.
 /// Return the signed profit of the last **priced** probe row.
 ///
-/// The amount ladder records the signed profit of every size it priced, so a
-/// route that pays at no size still carries a measured loss. The rows are
-/// scanned from the back because the ladder halves the size while it
-/// searches downwards: the last row is the smallest size it tried, and the
-/// loss at the smallest executable size is the one that bounds the route.
-///
-/// An unsigned zero placeholder is skipped. It means "nothing was measured",
-/// not "the route broke even".
-fn measured_probe_loss_raw(attempts: Option<&Value>) -> Option<Value> {
-    let rows = attempts?.as_array()?;
-    for row in rows.iter().rev() {
-        let Some(profit) = row.get("profitRaw") else {
-            continue;
-        };
-        if profit.is_null() {
-            continue;
-        }
-        if let Some(text) = profit.as_str() {
-            if text.trim().is_empty() || is_unsigned_zero_placeholder(profit) {
-                continue;
-            }
-        }
-        return Some(profit.clone());
-    }
-    None
-}
-
-/// Return whether a raw value is the unsigned zero placeholder.
-///
-/// The kernel publishes `"0x0"` when it measured nothing. Treating it as a
-/// measured zero would turn a measurement gap into a measured result.
-fn is_unsigned_zero_placeholder(value: &Value) -> bool {
-    let Some(text) = value.as_str() else {
-        return false;
-    };
-    let trimmed = text.trim();
-    if trimmed.is_empty() {
-        return false;
-    }
-    let digits = trimmed
-        .strip_prefix("0x")
-        .or_else(|| trimmed.strip_prefix("0X"))
-        .unwrap_or(trimmed);
-    !digits.is_empty() && digits.chars().all(|character| character == '0')
-}
-
 /// Parse a signed raw hexadecimal amount into an exact integer.
 ///
 /// The kernel publishes raw amounts as an optional minus sign followed by a
@@ -1315,31 +1301,6 @@ fn route_measured_loss(route_payload: &Value) -> Option<(BigInt, Value)> {
         }
     }
     None
-}
-
-fn signed_raw_to_amount(raw: &Value, decimals: i64) -> Option<f64> {
-    let text = raw.as_str()?.trim();
-    if text.is_empty() {
-        return None;
-    }
-    let (negative, digits) = if let Some(rest) = text.strip_prefix('-') {
-        (true, rest.trim())
-    } else {
-        (false, text.trim())
-    };
-    let digits = digits.strip_prefix("0x").or_else(|| digits.strip_prefix("0X"))?;
-    let magnitude = BigUint::parse_bytes(digits.as_bytes(), 16)?;
-    let value = BigInt::from_biguint(Sign::Plus, magnitude);
-    let signed = if negative { -value } else { value };
-    let scale = 10f64.powi(decimals as i32);
-    if !scale.is_finite() || scale <= 0.0 {
-        return None;
-    }
-    // The raw value is exact up to this many digits; beyond it the f64
-    // mantissa runs out, so the amount is published with the precision the
-    // float can carry rather than a number that pretends to be exact.
-    let human = signed.to_string().parse::<f64>().ok()? / scale;
-    human.is_finite().then_some(human)
 }
 
 fn apply_selected_route_overrides(
@@ -1477,31 +1438,10 @@ fn apply_selected_route_overrides(
     //    numbers never leave the contract on that path.
     // 4. ``selectedProfitRaw`` is the last resort, and only when it is not
     //    the unsigned zero placeholder.
-    let signed_profit_raw = route_payload
-        .get("reportedNetProfitRaw")
-        .cloned()
-        .filter(|value| !value.is_null())
-        .or_else(|| {
-            run_arbitrage
-                .get("reportedNetProfitRaw")
-                .cloned()
-                .filter(|value| !value.is_null())
-        })
-        .or_else(|| {
-            run_arbitrage
-                .get("arbitrageNotProfitable")
-                .and_then(|value| value.get("profitDeltaRaw"))
-                .cloned()
-                .filter(|value| !value.is_null())
-        })
-        .or_else(|| measured_probe_loss_raw(route_payload.get("attempts")))
-        .or_else(|| {
-            route_payload
-                .get("selectedProfitRaw")
-                .cloned()
-                .filter(|value| !value.is_null() && !is_unsigned_zero_placeholder(value))
-        })
-        .unwrap_or(Value::Null);
+    // The measured profit is derived in one place only: the review publish
+    // chain derives the very same value from the very same payload, so the
+    // two can never disagree about what the kernel measured.
+    let signed_profit_raw = measured_signed_profit_raw(route_payload).unwrap_or(Value::Null);
     if !signed_profit_raw.is_null() {
         // The human amount is a **kernel conclusion** too. The Review
         // Manager requires it, and the decimals of the borrow token live
@@ -1662,15 +1602,6 @@ fn live_review_parity_payload(
     if status != "profitable_amount_found" {
         return None;
     }
-    let selected_keys = route_payload
-        .get("selectedKeys")
-        .and_then(Value::as_array)
-        .filter(|keys| keys.len() == 3)?;
-    let selected_directions = route_payload
-        .get("selectedDirections")
-        .and_then(Value::as_array)
-        .filter(|directions| directions.len() == 3)?;
-
     // The route addresses are the token path of the selected route. They are
     // the identity the parity comparison reconstructs the hop chain from.
     let route_addresses = route_payload
@@ -1685,7 +1616,80 @@ fn live_review_parity_payload(
         })
         .filter(|addresses| addresses.len() == 4)?;
     let borrow_token = route_addresses.first()?.clone();
+    // The pool state the review saw is read once and used twice: the
+    // parity replay compares it against a later snapshot, and the review
+    // publish chain carries it into the evidence, because the state
+    // transition gate of the Review Manager compares it against the state
+    // the Manager holds now.
+    let candidate_pools =
+        route_pool_states(route_payload, pool_registry, rpc_url, timeout_seconds)?;
+    let pool_ids = candidate_pools
+        .iter()
+        .filter_map(|pool| pool.get("poolId").and_then(Value::as_str))
+        .map(str::to_owned)
+        .collect::<Vec<String>>();
 
+    let selected_amount_raw = payload
+        .get("selectedAmountRaw")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())?;
+    let selected_profit_raw = payload
+        .get("selectedProfitRaw")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or("");
+
+    Some(json!({
+        "routeAddresses": route_addresses,
+        "poolPathKey": pool_ids.join("|"),
+        "poolIds": pool_ids,
+        "selectedAmountRaw": selected_amount_raw,
+        "selectedProfitRaw": selected_profit_raw,
+        "token": borrow_token,
+        "quote": {
+            "candidate_pools": candidate_pools,
+        },
+        "reviewTimeStateSource": "pool_manager_live_read_during_review",
+    }))
+}
+
+/// The measured pool state of one route, in the shape the Review Manager
+/// reads the review-time state in.
+///
+/// The state is read **now**, from the chain, through Pool Manager's own
+/// reader.  This is the state the review saw, because the review ran
+/// moments earlier against the same chain.
+///
+/// A route that cannot be described completely is **skipped**, never
+/// guessed: a wrong price would produce a wrong simulation, which is worse
+/// than no simulation.
+fn route_pool_states(
+    route_payload: &Value,
+    pool_registry: Option<&V4PoolRegistry>,
+    rpc_url: &str,
+    timeout_seconds: u64,
+) -> Option<Vec<Value>> {
+    let selected_keys = route_payload
+        .get("selectedKeys")
+        .and_then(Value::as_array)
+        .filter(|keys| keys.len() == 3)?;
+    let selected_directions = route_payload
+        .get("selectedDirections")
+        .and_then(Value::as_array)
+        .filter(|directions| directions.len() == 3)?;
+    // The route addresses are the token path of the route. They are the
+    // identity the hop chain is reconstructed from.
+    let route_addresses = route_payload
+        .get("routeAddresses")
+        .and_then(Value::as_array)
+        .map(|addresses| {
+            addresses
+                .iter()
+                .filter_map(|value| value.as_str().map(|text| text.trim().to_lowercase()))
+                .filter(|text| !text.is_empty())
+                .collect::<Vec<String>>()
+        })
+        .filter(|addresses| addresses.len() == 4)?;
     // The pool ids are derived from the **selected** pool keys, so the
     // comparison always runs against the pools the review actually priced
     // and never against the whole candidate set.
@@ -1704,7 +1708,6 @@ fn live_review_parity_payload(
         };
         pool_ids.push(pool_index::pool_id(&pool_key).ok()?.to_ascii_lowercase());
     }
-
     // The pool manager has to be the one the selected pools actually live
     // in. A mixed route has no single manager and is skipped. The manager is
     // never guessed: without it the state could not be read from the right
@@ -1715,15 +1718,10 @@ fn live_review_parity_payload(
     if pool_manager.is_empty() {
         return None;
     }
-
-    // The state is read **now**, from the chain, through Pool Manager's own
-    // reader. This is the state the review saw, because the review ran
-    // moments earlier against the same chain.
     let states =
         execution::read_v4_pool_states_impl(rpc_url, &pool_manager, &pool_ids, timeout_seconds)
             .ok()?;
     let state_map = states.get("states")?.as_object()?;
-
     let mut candidate_pools = Vec::with_capacity(pool_ids.len());
     for (index, pool_id) in pool_ids.iter().enumerate() {
         let state = state_map.get(pool_id)?;
@@ -1784,29 +1782,184 @@ fn live_review_parity_payload(
                 .to_owned(),
         }));
     }
+    Some(candidate_pools)
+}
 
-    let selected_amount_raw = payload
-        .get("selectedAmountRaw")
-        .and_then(Value::as_str)
-        .filter(|value| !value.trim().is_empty())?;
-    let selected_profit_raw = payload
-        .get("selectedProfitRaw")
-        .and_then(Value::as_str)
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or("");
+/// The review-time pool states of every route the review measured.
+///
+/// The states are keyed by the closed-loop key the Manager published, so
+/// the evidence of a loop carries the state of the very route that loop
+/// was measured on.
+fn route_pool_states_by_loop(
+    payload: &Value,
+    pool_registry: Option<&V4PoolRegistry>,
+    rpc_url: &str,
+    timeout_seconds: u64,
+) -> BTreeMap<String, Vec<Value>> {
+    let mut states = BTreeMap::new();
+    let Some(routes) = payload.get("routes").and_then(Value::as_array) else {
+        return states;
+    };
+    for route in routes {
+        let Some(loop_key) = route
+            .get("closedLoopKey")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        else {
+            continue;
+        };
+        let Some(candidate_pools) =
+            route_pool_states(route, pool_registry, rpc_url, timeout_seconds)
+        else {
+            continue;
+        };
+        states.insert(loop_key.to_lowercase(), candidate_pools);
+    }
+    states
+}
 
-    Some(json!({
-        "routeAddresses": route_addresses,
-        "poolPathKey": pool_ids.join("|"),
-        "poolIds": pool_ids,
-        "selectedAmountRaw": selected_amount_raw,
-        "selectedProfitRaw": selected_profit_raw,
-        "token": borrow_token,
-        "quote": {
-            "candidate_pools": candidate_pools,
-        },
-        "reviewTimeStateSource": "pool_manager_live_read_during_review",
-    }))
+/// Publish the review generation of one chain, when the evidence covers it.
+///
+/// This is the **only** place where a review reaches the Review Manager
+/// from the Rust side.  It runs after a group review landed, and it
+/// publishes only when the accumulated evidence covers the whole
+/// closed-loop catalog of the chain.
+///
+/// A failure is reported, never hidden: the caller puts the returned block
+/// into the review payload, so a failed publication can never read as a
+/// healthy review.
+fn review_publish_block(
+    inner: &PoolInner,
+    command: &SubmitCommand,
+    payload: &Value,
+    catalog: Option<&ClosedLoopCatalog>,
+    token_decimals: Option<&TokenDecimalsRegistry>,
+    pool_registry: Option<&V4PoolRegistry>,
+) -> Value {
+    let Some(catalog) = catalog else {
+        return json!({
+            "published": false,
+            "reason": "closed_loop_catalog_unavailable",
+        });
+    };
+    let Some(database_path) = command
+        .database_path
+        .clone()
+        .or_else(|| inner.database_path.clone())
+    else {
+        return json!({
+            "published": false,
+            "reason": "database_path_unavailable",
+        });
+    };
+    let Some(network) = command.network.clone() else {
+        return json!({
+            "published": false,
+            "reason": "network_unavailable",
+        });
+    };
+    let Some(chain_id) = command.chain_id.filter(|value| *value > 0) else {
+        return json!({
+            "published": false,
+            "reason": "chain_id_unavailable",
+        });
+    };
+    let measured_at = now_iso();
+    let rpc_url = payload
+        .get("rpcMetadata")
+        .and_then(|metadata| metadata.get("selectedRpcUrl"))
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_owned();
+    let timeout_seconds = serde_json::from_str::<Value>(&command.config_json)
+        .ok()
+        .and_then(|config| config.get("timeoutSeconds").and_then(Value::as_u64))
+        .unwrap_or(20);
+    let pool_states =
+        route_pool_states_by_loop(payload, pool_registry, &rpc_url, timeout_seconds);
+    let evidence = build_route_evidence(
+        payload,
+        catalog,
+        &pool_states,
+        &|address: &str| token_decimals.and_then(|registry| registry.decimals_for(address)),
+        &measured_at,
+    );
+    if evidence.is_empty() {
+        return json!({
+            "published": false,
+            "reason": "no_measured_route",
+            "measuredAt": measured_at,
+        });
+    }
+    let scope = maintenance_scope(Some(&network), Some(chain_id), command.protocol.as_deref());
+    let catalog_keys = catalog.loop_keys();
+    let mut accumulators = inner.review_evidence.lock().unwrap();
+    let accumulator = accumulators
+        .entry(scope)
+        .or_insert_with(ReviewEvidenceAccumulator::new);
+    accumulator.absorb(&catalog_keys, catalog.upstream(), evidence, &measured_at);
+    let evidence_count = accumulator.len();
+    let catalog_count = catalog_keys.len();
+    let missing_count = accumulator.missing().len();
+    if !accumulator.covers_catalog() {
+        return json!({
+            "published": false,
+            "reason": "coverage_incomplete",
+            "evidenceCount": evidence_count,
+            "catalogCount": catalog_count,
+            "missingCount": missing_count,
+            "accumulatorEmpty": accumulator.is_empty(),
+            "accumulatorUpdatedAt": accumulator.updated_at(),
+            "measuredAt": measured_at,
+        });
+    }
+    let round_id = accumulator.round_id();
+    let evidence = accumulator.evidence();
+    match publish_review_generation(
+        &database_path,
+        &network,
+        chain_id,
+        evidence,
+        &round_id,
+        accumulator.upstream(),
+    ) {
+        Ok(outcome) => {
+            accumulator.clear();
+            json!({
+                "published": true,
+                "loopCount": outcome.loop_count,
+                "evidenceCount": outcome.evidence_count,
+                "completedCount": outcome.completed_count,
+                "dataIncompleteCount": outcome.data_incomplete_count,
+                "notExecutableCount": outcome.not_executable_count,
+                "broadcastRequestCount": outcome.broadcast_request_count,
+                "reviewVersion": outcome.review_version,
+                "idempotencyKey": outcome.idempotency_key,
+                "accumulatorUpdatedAt": accumulator.updated_at(),
+                "publishedAt": outcome.published_at,
+                "measuredAt": measured_at,
+            })
+        }
+        Err(error) => {
+            // The failed publication wrote nothing, so the next attempt may
+            // use a fresh idempotency key.  A moved upstream is the one
+            // failure that keeps its evidence: the evidence is still
+            // valid, it was only measured under a generation that the
+            // Manager has replaced, and the sweep restarts on its own
+            // once the runtime reads the new catalog.
+            if !matches!(error, ReviewPublishError::UpstreamMoved { .. }) {
+                accumulator.rotate_round();
+            }
+            json!({
+                "published": false,
+                "reason": error.to_string(),
+                "evidenceCount": evidence_count,
+                "catalogCount": catalog_count,
+                "measuredAt": measured_at,
+            })
+        }
+    }
 }
 
 /// The funding anchor of the closed loop this route belongs to.
@@ -4147,6 +4300,20 @@ fn worker_loop(
                     "network": command.network.clone(),
                     "protocol": command.protocol.clone(),
                 });
+                // The review publish chain is the only place where a
+                // review reaches the Review Manager from the Rust side.
+                // It runs **after** the review landed, and it publishes
+                // only when the evidence covers the whole closed-loop
+                // catalog of the chain.
+                let publish_block = review_publish_block(
+                    &inner,
+                    &command,
+                    &payload,
+                    Some(&data.closed_loops),
+                    Some(&data.token_decimals),
+                    Some(&data.registry),
+                );
+                payload["reviewPublish"] = publish_block;
             }
             (payload, direction_results)
         });
@@ -4260,6 +4427,13 @@ fn worker_loop(
                     if let Some(parity_payload) = parity_payload {
                         state.last_parity_payload = Some(parity_payload);
                         state.last_parity_payload_at = Some(now_iso());
+                    }
+                    // The publication of the review generation is part of
+                    // the review outcome, so it is reported next to it: a
+                    // failed publication must never read as a healthy
+                    // review.
+                    if let Some(publish_block) = payload.get("reviewPublish") {
+                        state.last_review_publish = Some(publish_block.clone());
                     }
                     state.last_result = Some(payload);
                 }
@@ -4604,6 +4778,7 @@ impl ClosedLoopWorkerPool {
             group_senders: Mutex::new(HashMap::new()),
             last_commands: Mutex::new(HashMap::new()),
             contexts: Mutex::new(HashMap::new()),
+            review_evidence: Mutex::new(HashMap::new()),
             maintenance_handler,
             maintenance_interval_seconds: maintenance_interval_seconds.max(1),
             maintenance_tx: Mutex::new(None),
@@ -5068,6 +5243,10 @@ fn worker_state_value(state: &WorkerState, include_payloads: bool) -> Value {
             .clone()
             .map(Value::String)
             .unwrap_or(Value::Null);
+        // The publication of the review generation is reported next to the
+        // review it belongs to, so a failed publication is visible in the
+        // worker state.
+        worker["last_review_publish"] = state.last_review_publish.clone().unwrap_or(Value::Null);
         worker["broadcast_history"] = json!(state.broadcast_history.clone());
         worker["broadcast_failure_history"] = json!(state.broadcast_failure_history.clone());
         worker["direction_results"] = json!(state
@@ -5648,12 +5827,6 @@ mod tests {
     /// a different directed pool set and must not be accepted.
     #[test]
     fn a_loop_whose_pools_sit_in_the_wrong_hop_fails_closed() {
-        let published = vec![
-            "0xentry-pool".to_owned(),
-            "0xbridge-pool".to_owned(),
-            "0xexit-pool".to_owned(),
-        ];
-        let catalog = identity_catalog(json!(published));
         let mut route_config = identity_pool_keys();
         route_config["routeAddresses"] = json!(["0x1111111111111111111111111111111111111111", "0x2222222222222222222222222222222222222222", "0x3333333333333333333333333333333333333333", "0x1111111111111111111111111111111111111111"]);
         publish_route_pool_ids(&mut route_config);
@@ -7492,6 +7665,7 @@ mod tests {
             worker_completed_total: AtomicU64::new(0),
             worker_idle_exits: AtomicU64::new(0),
             database_path: Some("db.sqlite3".to_string()),
+            review_evidence: Mutex::new(HashMap::new()),
         });
         inner
             .maintenance_scopes
@@ -7538,6 +7712,7 @@ mod tests {
             worker_completed_total: AtomicU64::new(0),
             worker_idle_exits: AtomicU64::new(0),
             database_path: None,
+            review_evidence: Mutex::new(HashMap::new()),
         });
         inner
             .maintenance_scopes

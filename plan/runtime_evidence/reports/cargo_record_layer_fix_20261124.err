@@ -1,0 +1,14 @@
+   Compiling closed-loop-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\closed_loop_manager)
+   Compiling review-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\review_manager)
+   Compiling broadcast-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\broadcast_manager)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 30.23s
+     Running unittests src\lib.rs (target\debug\deps\broadcast_manager-0c1ef65cb2a506a5.exe)
+     Running unittests src\lib.rs (target\debug\deps\closed_loop_manager-21688cc4fc15b50f.exe)
+     Running unittests src\lib.rs (target\debug\deps\manager_db-84cf3b15956ebc7f.exe)
+     Running unittests src\main.rs (target\debug\deps\manager_db-225997f70a2fc514.exe)
+     Running tests\migration_smoke.rs (target\debug\deps\migration_smoke-7556b8197763666f.exe)
+     Running unittests src\lib.rs (target\debug\deps\review_manager-db2c16b42b7ae5f0.exe)
+   Doc-tests broadcast_manager
+   Doc-tests closed_loop_manager
+   Doc-tests manager_db
+   Doc-tests review_manager

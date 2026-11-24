@@ -16,6 +16,7 @@
 //! was never proved for that route.
 
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 
 /// The published identity and bound of one closed loop.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -46,6 +47,54 @@ pub struct ClosedLoopIdentity {
 #[derive(Clone, Debug, Default)]
 pub struct ClosedLoopCatalog {
     by_address_path: BTreeMap<Vec<String>, ClosedLoopIdentity>,
+    /// Every published loop, indexed by its own key.
+    ///
+    /// The address index drops a path that two rows disagree on, because
+    /// such a path cannot name one loop.  The key index keeps every
+    /// published loop: the review publish gate compares the evidence with
+    /// the **whole** catalog, so a loop that is missing from this index
+    /// would keep the gate from ever being satisfied.
+    by_loop_key: BTreeMap<String, ClosedLoopIdentity>,
+    /// The generation the catalog was read with.
+    ///
+    /// The catalog is read from the Manager library, so every loop in it
+    /// belongs to **one** generation.  A review that was measured against
+    /// one generation may not be filed against another, so the catalog
+    /// carries the generation it was read with and the publish gate
+    /// compares it with the generation the Manager publishes now.
+    upstream: Option<ClosedLoopUpstream>,
+}
+
+/// The upstream generation a closed-loop catalog was materialized from.
+///
+/// The version names the generation and the checksum names its content,
+/// so a generation that was rebuilt with the same version but different
+/// content is still told apart from the one before it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ClosedLoopUpstream {
+    /// The version of the closed-loop library.
+    pub closed_loop_version: i64,
+    /// The checksum of the materialization the version belongs to.
+    pub materialized_checksum: Option<String>,
+}
+
+/// The generation a library-state row names.
+///
+/// The row is the one the Manager library holds for the chain, so the
+/// version and the checksum are the Manager's own numbers and the runtime
+/// never derives a generation of its own.
+pub fn closed_loop_upstream(row: serde_json::Value) -> Option<ClosedLoopUpstream> {
+    let closed_loop_version = row
+        .get("closed_loop_version")
+        .and_then(serde_json::Value::as_i64)?;
+    let materialized_checksum = row
+        .get("materialized_checksum")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned);
+    Some(ClosedLoopUpstream {
+        closed_loop_version,
+        materialized_checksum,
+    })
 }
 
 impl ClosedLoopCatalog {
@@ -77,7 +126,43 @@ impl ClosedLoopCatalog {
     /// loaded: an empty catalog and a catalog that was never read are
     /// different failures, and only one of them is a Manager problem.
     pub fn len(&self) -> usize {
-        self.by_address_path.len()
+        self.by_loop_key.len()
+    }
+
+    /// The keys of every closed loop the catalog holds.
+    ///
+    /// The keys are normalized the way the Review Manager normalizes them,
+    /// so the publish gate compares them without a second spelling.
+    pub fn loop_keys(&self) -> BTreeSet<String> {
+        self.by_loop_key
+            .keys()
+            .map(|key| key.trim().to_lowercase())
+            .filter(|key| !key.is_empty())
+            .collect()
+    }
+
+    /// The identity the Manager published under one loop key.
+    pub fn identity_by_key(&self, loop_key: &str) -> Option<&ClosedLoopIdentity> {
+        let key = loop_key.trim();
+        if key.is_empty() {
+            return None;
+        }
+        self.by_loop_key.get(key)
+    }
+
+    /// The generation the catalog was read with.
+    ///
+    /// A catalog that was built without a generation - a fixture, or a
+    /// library that holds no closed-loop state at all - has none, and the
+    /// publish gate then falls back to the generation it reads itself.
+    pub fn upstream(&self) -> Option<&ClosedLoopUpstream> {
+        self.upstream.as_ref()
+    }
+
+    /// The catalog, stamped with the generation it was read with.
+    pub fn with_upstream(mut self, upstream: Option<ClosedLoopUpstream>) -> Self {
+        self.upstream = upstream;
+        self
     }
 }
 
@@ -88,6 +173,7 @@ impl ClosedLoopCatalog {
 /// execution path never reads the Manager library per review.
 pub fn catalog_from_rows(rows: &[serde_json::Value]) -> ClosedLoopCatalog {
     let mut by_address_path: BTreeMap<Vec<String>, ClosedLoopIdentity> = BTreeMap::new();
+    let mut by_loop_key: BTreeMap<String, ClosedLoopIdentity> = BTreeMap::new();
     for row in rows {
         let Some(loop_key) = row
             .get("loop_key")
@@ -106,10 +192,6 @@ pub fn catalog_from_rows(rows: &[serde_json::Value]) -> ClosedLoopCatalog {
             .map(|item| item.trim().to_ascii_lowercase())
             .filter(|item| !item.is_empty())
             .collect();
-        if address_path.len() != 4 || address_path.first() != address_path.last() {
-            continue;
-        }
-        let identity_path = address_path[..3].to_vec();
         let pool_ids: Vec<String> = row
             .get("pool_ids_json")
             .and_then(serde_json::Value::as_str)
@@ -145,7 +227,7 @@ pub fn catalog_from_rows(rows: &[serde_json::Value]) -> ClosedLoopCatalog {
             .and_then(|text| text.trim().parse::<u128>().ok())
             .filter(|value| *value > 0);
         let identity = ClosedLoopIdentity {
-                loop_key,
+                loop_key: loop_key.clone(),
                 pool_ids,
                 single_tick_capacity_anchor_raw: capacity,
                 single_tick_capacity_binding_pool_id: binding,
@@ -154,6 +236,15 @@ pub fn catalog_from_rows(rows: &[serde_json::Value]) -> ClosedLoopCatalog {
                 cross_tick_review_threshold_usdg_raw,
                 cross_tick_capacity_anchor_raw,
             };
+        // The key index keeps every published loop, even one whose address
+            // path cannot name it.  The publish gate compares the evidence
+            // with the whole catalog, so a loop that is missing here would
+            // keep the gate from ever being satisfied.
+        by_loop_key.insert(loop_key.clone(), identity.clone());
+        if address_path.len() != 4 || address_path.first() != address_path.last() {
+            continue;
+        }
+        let identity_path = address_path[..3].to_vec();
         if by_address_path
             .get(&identity_path)
             .is_some_and(|existing| existing != &identity)
@@ -163,7 +254,11 @@ pub fn catalog_from_rows(rows: &[serde_json::Value]) -> ClosedLoopCatalog {
         }
         by_address_path.insert(identity_path, identity);
     }
-    ClosedLoopCatalog { by_address_path }
+    ClosedLoopCatalog {
+        by_address_path,
+        by_loop_key,
+        upstream: None,
+    }
 }
 
 #[cfg(test)]
