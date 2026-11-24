@@ -1,5 +1,5 @@
 use directional_pool_manager::{
-    materialize_directional_pools, materialize_directional_pools_write,
+    compare_directional_pools, materialize_directional_pools, materialize_directional_pools_write,
     read_directional_pool_snapshot, read_directional_pool_status,
     candidate_tier_size, max_direction_candidate_pools, tier_of_rank,
     DirectionalPoolTier, DEFAULT_MAX_DIRECTION_CANDIDATE_POOLS,
@@ -1054,5 +1054,108 @@ fn a_rank_outside_the_group_is_a_backup() {
         tier_of_rank(99, 4),
         DirectionalPoolTier::Backup,
         "a rank beyond the group is a backup"
+    );
+}
+
+// --- the comparison of the published layer against its base pools -------
+//
+// The directional layer is a projection: one base pool becomes two
+// directional rows and every fact about the pool itself is copied.  A row
+// that no longer agrees with the pool it was projected from is serving a
+// stale fact, and the sibling comparison cannot see it -- both rows can be
+// stale in the same way.
+
+#[test]
+fn a_fresh_projection_compares_clean_against_its_base_pools() {
+    let fixture = fixture();
+    let connection = Connection::open(&fixture.path).unwrap();
+    insert_pool(&connection, &PoolSpec::default(), "a");
+    drop(connection);
+    materialize_directional_pools(&fixture.path, NETWORK, CHAIN_ID, SCOPE_KEY, true).unwrap();
+
+    let comparison =
+        compare_directional_pools(&fixture.path, NETWORK, CHAIN_ID, SCOPE_KEY, 100).unwrap();
+    assert_eq!(comparison.base_pool_mismatches, 0);
+    assert_eq!(comparison.rows_without_base_pool, 0);
+    assert_eq!(comparison.projected_base_pool_count, 1);
+    assert_eq!(comparison.directional_pool_count, 2);
+    assert_eq!(comparison.direction_mismatches, 0);
+    assert!(comparison.base_pool_mismatch_samples.is_empty());
+    assert!(
+        comparison.ready_for_cutover,
+        "a fresh projection is ready: {comparison:#?}"
+    );
+}
+
+#[test]
+fn a_stale_projection_is_detected_against_the_base_pool_row() {
+    let fixture = fixture();
+    let connection = Connection::open(&fixture.path).unwrap();
+    let pool_id = insert_pool(&connection, &PoolSpec::default(), "a");
+    drop(connection);
+    materialize_directional_pools(&fixture.path, NETWORK, CHAIN_ID, SCOPE_KEY, true).unwrap();
+
+    // The base pool changes after the layer was published: the projection
+    // is now stale.  The two directional rows still agree with each other,
+    // so only the base comparison can see this.
+    let connection = Connection::open(&fixture.path).unwrap();
+    connection
+        .execute(
+            "UPDATE v4_exchange_pools_candidate_exchange SET fee = 500
+             WHERE network = ?1 AND chain_id = ?2 AND pool_id = ?3",
+            params![NETWORK, CHAIN_ID, pool_id],
+        )
+        .unwrap();
+    drop(connection);
+
+    let comparison =
+        compare_directional_pools(&fixture.path, NETWORK, CHAIN_ID, SCOPE_KEY, 100).unwrap();
+    // Both directions of the pool carry the stale fee.
+    assert_eq!(comparison.base_pool_mismatches, 2);
+    assert_eq!(comparison.rows_without_base_pool, 0);
+    assert_eq!(
+        comparison.base_pool_mismatch_samples.len(),
+        2,
+        "the report names the difference: {comparison:#?}"
+    );
+    for sample in &comparison.base_pool_mismatch_samples {
+        assert_eq!(sample.differing_columns, vec!["fee".to_owned()]);
+        assert_eq!(sample.base_pool_id, pool_id);
+    }
+    assert!(
+        !comparison.ready_for_cutover,
+        "a stale projection is not ready: {comparison:#?}"
+    );
+    // The sibling comparison is still clean, which is the whole point.
+    assert_eq!(comparison.projection_mismatches, 0);
+    assert_eq!(comparison.direction_mismatches, 0);
+}
+
+#[test]
+fn a_projection_whose_base_pool_is_gone_is_detected() {
+    let fixture = fixture();
+    let connection = Connection::open(&fixture.path).unwrap();
+    let pool_id = insert_pool(&connection, &PoolSpec::default(), "a");
+    drop(connection);
+    materialize_directional_pools(&fixture.path, NETWORK, CHAIN_ID, SCOPE_KEY, true).unwrap();
+
+    // The base pool leaves the scope universe while the projection stays.
+    let connection = Connection::open(&fixture.path).unwrap();
+    connection
+        .execute(
+            "DELETE FROM v4_exchange_pools_candidate_exchange
+             WHERE network = ?1 AND chain_id = ?2 AND pool_id = ?3",
+            params![NETWORK, CHAIN_ID, pool_id],
+        )
+        .unwrap();
+    drop(connection);
+
+    let comparison =
+        compare_directional_pools(&fixture.path, NETWORK, CHAIN_ID, SCOPE_KEY, 100).unwrap();
+    assert_eq!(comparison.rows_without_base_pool, 2);
+    assert_eq!(comparison.base_pool_mismatches, 0);
+    assert!(
+        !comparison.ready_for_cutover,
+        "an orphaned projection is not ready: {comparison:#?}"
     );
 }

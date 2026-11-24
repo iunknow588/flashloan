@@ -96,6 +96,11 @@ pub fn tier_of_rank(rank: i64, eligible: usize) -> DirectionalPoolTier {
 
 /// The two tables of the directional pool layer.
 pub const DIRECTIONAL_POOL_TABLE: &str = "manager_v4_directional_exchange_pools";
+
+/// How many base pool differences a comparison report names.
+///
+/// The counter is the judgement; the samples only make it actionable.
+const BASE_POOL_MISMATCH_SAMPLE_LIMIT: usize = 5;
 pub const DIRECTIONAL_POOL_STATE_TABLE: &str = "manager_v4_directional_pool_library_state";
 
 /// The zero address: the marker of a pool without a hook.
@@ -316,10 +321,34 @@ pub struct DirectionalPoolComparison {
     pub direction_mismatches: usize,
     /// Row pairs of one base pool whose shared columns differ.
     pub projection_mismatches: usize,
+    /// Directional rows that no longer agree with their base pool row.
+    ///
+    /// The directional layer is a projection, so a row that disagrees with
+    /// the pool it was projected from is serving a stale fact.  Comparing
+    /// the two rows of one base pool against each other cannot detect it:
+    /// both rows can be stale in the same way.
+    pub base_pool_mismatches: usize,
+    /// Directional rows whose base pool is not in the scope's pool table.
+    pub rows_without_base_pool: usize,
+    /// The base pools that carry at least one directional row.
+    pub projected_base_pool_count: usize,
+    /// A few of the differences, so a report can name them.
+    pub base_pool_mismatch_samples: Vec<DirectionalPoolBaseDifference>,
     /// The rows that were examined.
     pub examined_rows: usize,
     pub differences_truncated: bool,
     pub ready_for_cutover: bool,
+}
+
+/// One directional row that no longer agrees with its base pool row.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirectionalPoolBaseDifference {
+    pub directional_pool_id: String,
+    pub base_pool_id: String,
+    pub direction: i64,
+    /// The names of the base fact columns that differ.
+    pub differing_columns: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -375,7 +404,6 @@ struct ProjectedRow {
 struct ComparedRow {
     base_pool_id: String,
     direction: i64,
-    #[allow(dead_code)]
     directional_pool_id: String,
     pool_manager: String,
     pool_key_json: String,
@@ -651,6 +679,17 @@ pub fn compare_directional_pools(
     let mut pools_without_two_rows = 0usize;
     let mut direction_mismatches = 0usize;
     let mut projection_mismatches = 0usize;
+    let mut base_pool_mismatches = 0usize;
+    let mut rows_without_base_pool = 0usize;
+    let mut base_pool_mismatch_samples: Vec<DirectionalPoolBaseDifference> = Vec::new();
+    // The base pool table of the scope.  A directional row that no longer
+    // agrees with it is serving a stale fact, and that is the one defect
+    // the sibling comparison cannot see.
+    let base_pools = read_scope_pools(&connection, network, chain_id, &pool_table)?;
+    let base_by_id: BTreeMap<&str, &BasePool> = base_pools
+        .iter()
+        .map(|pool| (pool.pool_id.as_str(), pool))
+        .collect();
     for (_, entries) in &groups {
         if entries.len() != 2 {
             pools_without_two_rows += 1;
@@ -688,10 +727,38 @@ pub fn compare_directional_pools(
                 direction_mismatches += 1;
             }
         }
+        // The row must still be a faithful copy of the pool it was
+        // projected from.
+        for entry in entries {
+            let Some(base) = base_by_id.get(entry.base_pool_id.as_str()) else {
+                rows_without_base_pool += 1;
+                continue;
+            };
+            let differing = base_fact_differences(entry, base);
+            if differing.is_empty() {
+                continue;
+            }
+            base_pool_mismatches += 1;
+            if base_pool_mismatch_samples.len() < BASE_POOL_MISMATCH_SAMPLE_LIMIT {
+                base_pool_mismatch_samples.push(DirectionalPoolBaseDifference {
+                    directional_pool_id: entry.directional_pool_id.clone(),
+                    base_pool_id: entry.base_pool_id.clone(),
+                    direction: entry.direction,
+                    differing_columns: differing,
+                });
+            }
+        }
     }
 
     let directional_pool_count: i64 = connection.query_row(
         "SELECT COUNT(*) FROM manager_v4_directional_exchange_pools
+         WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4",
+        params![network, chain_id, NETWORK_PROTOCOL, scope_key],
+        |row| row.get(0),
+    )?;
+
+    let projected_base_pool_count: i64 = connection.query_row(
+        "SELECT COUNT(DISTINCT base_pool_id) FROM manager_v4_directional_exchange_pools
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4",
         params![network, chain_id, NETWORK_PROTOCOL, scope_key],
         |row| row.get(0),
@@ -707,13 +774,55 @@ pub fn compare_directional_pools(
         pools_without_two_rows,
         direction_mismatches,
         projection_mismatches,
+        base_pool_mismatches,
+        rows_without_base_pool,
+        projected_base_pool_count: usize_from_i64(projected_base_pool_count),
+        base_pool_mismatch_samples,
         examined_rows,
         differences_truncated,
         ready_for_cutover: pools_without_two_rows == 0
             && direction_mismatches == 0
             && projection_mismatches == 0
+            && base_pool_mismatches == 0
+            && rows_without_base_pool == 0
             && !differences_truncated,
     })
+}
+
+/// The base pool facts a directional row copies.
+///
+/// The names are the ones the comparison report uses, so a report can say
+/// which fact went stale instead of only saying that something did.
+fn base_fact_differences(row: &ComparedRow, base: &BasePool) -> Vec<String> {
+    let mut differing = Vec::new();
+    if row.pool_manager != base.pool_manager {
+        differing.push("pool_manager".to_owned());
+    }
+    if row.pool_key_json != base.pool_key_json {
+        differing.push("pool_key_json".to_owned());
+    }
+    if row.token0 != base.token0 {
+        differing.push("token0".to_owned());
+    }
+    if row.token1 != base.token1 {
+        differing.push("token1".to_owned());
+    }
+    if row.token0_key_id != base.token0_key_id {
+        differing.push("token0_key_id".to_owned());
+    }
+    if row.token1_key_id != base.token1_key_id {
+        differing.push("token1_key_id".to_owned());
+    }
+    if row.fee != base.fee {
+        differing.push("fee".to_owned());
+    }
+    if row.tick_spacing != base.tick_spacing {
+        differing.push("tick_spacing".to_owned());
+    }
+    if row.hooks != base.hooks {
+        differing.push("hooks".to_owned());
+    }
+    differing
 }
 
 /// A comparison of a layer that has not been published.
@@ -731,6 +840,10 @@ fn empty_comparison(network: &str, chain_id: i64, scope_key: &str) -> Directiona
         pools_without_two_rows: 0,
         direction_mismatches: 0,
         projection_mismatches: 0,
+        base_pool_mismatches: 0,
+        rows_without_base_pool: 0,
+        projected_base_pool_count: 0,
+        base_pool_mismatch_samples: Vec::new(),
         examined_rows: 0,
         differences_truncated: false,
         ready_for_cutover: false,
