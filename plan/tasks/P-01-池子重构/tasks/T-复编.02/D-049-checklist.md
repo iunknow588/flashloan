@@ -90,15 +90,93 @@
 
       `candidate_edge_version` / `candidate_edge_checksum` / `pool_scope_checksum`
 
-      **与当前上游一致**（当前应为 closed_loop **15** / candidate_edge **9** / pool_scope **`sha256:ae6b14ac…`**）。
+      **与当前上游一致**（当前应为 closed_loop **19** / candidate_edge **9** / pool_scope **`sha256:ae6b14ac…`**）。
+
+      > **订正（2026-11-24）**：原文写的 `closed_loop 15` 是**陈旧值**。当前闭环管理器
+      > 发布的是 **`closed_loop_version=19`**（`sha256:6927d8d6…`，174 闭环 / 522 跳）；
+      > 复核库当时仍是 **14** ⇒ C1 当时 NOT MET。
+      >
+      > **实测更新（2026-11-24 18:16）**：**复核代次已发布** ⇒ **C1 = MET**。
+      > 复核库现为 `review_version=25→26`（持续自增）、
+      > `closed_loop_version=19`（**= 上游**）、`closed_loop_checksum=sha256:6927d8d6…`（**= 上游**）、
+      > `candidate_edge_version=9`（**= 上游**）、`observation_version=12`（**= 上游**）、
+      > `pool_scope_checksum=sha256:ae6b14ac…`（**= `core4` 作用域**）；
+      > `loop_count=174`、`reviewed_count=174`、`generated_at=2026-11-24T10:16:54`。
+      > **覆盖全集成立**：目录 174 / 复核 174 / **缺口 0** ⇒ `covers_catalog()` 成立。
+      > 读数出处：[`docs/D-108`](./docs/D-108-复核代次发布落地实测与剩余pool_scope跨作用域误判_20261124.md)。
 
 - [ ] `consumers_need_rebuild` **自然清除**（= **0**），**未**被手工写。
 
-- [ ] `runtime_core` 快照**被接受**：`state=ok`、`snapshotAvailable=true`、`generation>=1`。
+- [ ] `runtime_core` 快照**被接受**：`snapshotAvailable=true`、`generation>=1`、`lastError` 空。
+
+      > **口径订正（2026-11-24 · R4 · 待人工裁决）**：
+      > 原文写的 `state=ready` **额外**要求**广播组件也启用**，
+      > 而广播**未授权** ⇒ `state` **恒 `partial`** ⇒ 那一半**在广播未授权期间不可满足**。
+      > **「快照被接受」这一事实**的**真信号**是
+      > **`snapshotAvailable=true` ＋ `generation>=1` ＋ `lastError` 空**（三者**已全部满足**），
+      > `state=ready` 属**广播门禁**的维度 ⇒ **本项按上面的三信号判定**。
+      > **待人工裁决**：是否把「`state=partial`（源于 broadcast 未授权）」**显式豁免**记入本项。
+      > 裁决前**不勾选**本项（**不代裁决盖章**）。
+
+      > **订正（2026-11-24）**：原文写的 `state=ok` **不是 Rust 的状态词汇**。
+      > 内核的 `RuntimeCore::status` 只有 **`ready` / `partial` / `registered` / `error` / `closed`**
+      > 五个取值（`flashloan/rs-src/src/runtime_core.rs`）；**`ready`** 才是「快照已建立且链路完整」。
+      > 当时实测 `state=error`、`generation=0` ⇒ C3 当时 NOT MET。
+      >
+      > **实测更新（2026-11-24 18:36）**：代次发布后内核**已接受**混合快照 ⇒
+      > **`snapshotAvailable=true` / `generation=67`（持续递增）/ `lastError`=空**
+      > （原先的 `RuntimeCore rejected a mixed manager snapshot: […closedLoopVersion, expected: 19, actual: 14…]`
+      > **已消失**）⇒ **「快照被接受」已达成**。
+      >
+      > **但 `state` 实测是 `partial`，不是 `ready`** —— **根因已定位**：
+      > `runtime_core.rs:697-711` 里 `partial` = 「快照**存在**但 `readiness.chain_complete=false`」；
+      > `chain_complete`（`runtime_core.rs:2405-2411`）要求 **8 个组件全部 enabled**，
+      > 实测**唯一**未启用的是 **`broadcast`**（`ROBINHOOD_MAINNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST` 未开启）
+      > ⇒ `state` **恒 `partial`** ⇒ **「`state=ready`」这一条在广播未授权期间不可满足**。
+      > ⇒ **本项是「测量口径」问题，不是缺陷**（详见 [`docs/D-108`](./docs/D-108-复核代次发布落地实测与剩余pool_scope跨作用域误判_20261124.md) §2.5）。
+      > **待人工裁决**：C3 判定改为「`snapshotAvailable` + `generation>=1` + `lastError` 空」，
+      > **或**对 `state=partial` **显式豁免**（注明源于 broadcast 未授权）。
 
 - [ ] `blockers` 中 `closedLoops` 与 `reviews` **同时消失**。
 
+- [ ] **`overview` 的 `consistencyIssues` 为空**（`versionsConsistent = true`）。
+
+      > **实测更新（2026-11-24 18:16）**：**NOT MET** —— 恒 **2 条**：
+      > `candidate_exchange.pool_scope_checksum expected=sha256:2bea9bb4… actual=sha256:ae6b14ac…`
+      > 与 `closed_loop.pool_scope_checksum expected=sha256:ae6b14ac… actual=sha256:2bea9bb4…`。
+      >
+      > **根因（`D-108` §3）**：**不是**数据不一致，而是
+      > **`composite_manager/src/overview.rs:1195-1236` 留着**修复前的**跨作用域比较**副本**：
+      > `pool_scope_checksum` 标识**作用域的**物化身份
+      > （`core4` = `sha256:ae6b14ac…`、`candidate_exchange` = `sha256:2bea9bb4…`），
+      > **本就不该相等**。同义的**正确**比较**已存在**于
+      > `composite_manager/src/lib.rs:1721-1731`（**带修复注释**）⇒
+      > **同一时刻** `pipelineStatus.upstreamAssessment` = **`consistent: true` / `issues: []`**（实证）。
+      > ⇒ **同一件事被判了两次**（一次对、一次错）。
+      > **修在 `M-8`**（`composite_manager/src/overview.rs`）⇒ **仍在本任务改动模块集合内** ⇒
+      > **不需再扩模块范围**，但**须先扩 `SCOPE_GUARD` §1.1 文件级清单**再施工。
+      > **它不阻塞复核代次发布**（发布门禁在 `rs-src/src/review_publish.rs`，不看 overview 的 issue 列表）。
+      >
+      > **修复实测（2026-11-24 · R1 已修）**：`overview.rs` 的**陈旧副本**已对齐
+      > `lib.rs` 的**正确口径** —— `closed_loop.pool_scope_checksum` 改与 **`candidate`**（`core4`）
+      > 比，并删除 `candidate_exchange` 的**跨作用域**比较与那条**重复**比较；
+      > 该比较已提取为具名函数 `push_pool_scope_issue()`。
+      > **新增 2 条回归测试**（`overview.rs` 内）；
+      > **生产库只读实测**：`core4` vs `closed_loop` **相等** ⇒ 修复后**无 issue**，
+      > 而修复前两条比较**恒不等**（假阳性）。
+      > **回归**：`cargo test --offline -p composite-manager` ⇒ **20 passed**（原 18 ＋ 新增 2）。
+      > 详见 [`docs/D-108`](./docs/D-108-复核代次发布落地实测与剩余pool_scope跨作用域误判_20261124.md) §3.5。
+      > **仍待**：**重跑实盘** `/api/dex/overview` 确认 `consistencyIssues` **归零**
+      > ⇒ 在此之前本项**不勾选**。
+
 - [ ] **上游一致性补充**：闭环库状态中记录的**方向层版本与校验和**（I-15）与方向层库状态**一致**
+
+      > **口径订正（2026-11-24）**：I-15 的 `directional_pool_checksum` 是 Rust
+      > `directional_layer_identity()` 对**全部**方向 scope 求的**复合身份**
+      > （`sha256` over `scope:version:checksum`，以 `|` 连接），**不是**任一单个 scope 的
+      > `materialized_checksum`。方向层有 `candidate_exchange` 与 `core4` **两个 scope**，
+      > 拿复合身份和单 scope 比 ⇒ **假失配**（实测复算 `sha256:84cf7aef…` **逐字相等**，
+      > 方向层与闭环层**本就一致**）。采集器已按同一规则复算 ⇒ `C5` = **MET**。
 
 
 

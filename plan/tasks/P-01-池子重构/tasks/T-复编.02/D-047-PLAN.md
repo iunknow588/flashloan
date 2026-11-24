@@ -77,7 +77,9 @@
 | 模块 | 名称 | 代码落点 |
 |---|---|---|
 | `M-6` | 复核层 | `flashloan/tools/review_manager/` |
+| `M-6` | 复核层（**扩范围 · 事后补记 · Rust 原生发布层**） | `flashloan/rs-src/src/review_publish.rs` |
 | `M-8` | 编排层（**扩范围 · 事后补记**） | `flashloan/src/dex/runtime/dex_opportunity_scanner_rust_mixin.py`、`flashloan/src/dex/runtime/closed_loop_state_machine.py`、`flashloan/src/dex/runtime/rust_closed_loop.py`、`flashloan/app_runtime/.env.example` |
+| `M-8` | 编排层（**扩范围 · 第三次**） | `flashloan/tools/composite_manager/src/overview.rs` |
 
 > **规则**：**只跑**上表模块的独立测试。**未在上表出现的模块，一律不跑。**
 > **不得**以「有新任务」或「功能没变」为由跑全量。
@@ -87,11 +89,15 @@
 | 模块 | 名称 | 命令 |
 |---|---|---|
 | `M-6` | 复核层 | `cargo test --offline -p review-manager` |
+| `M-6` | 复核层（**扩范围**：Rust 原生发布层） | `cargo test --offline --release`（工作目录 `flashloan/rs-src/`） |
+| `M-8` | 编排层（**扩范围 · 第三次**：一致性判定） | `cargo test --offline -p composite-manager`（工作目录 `flashloan/tools/`） |
 | `M-8` | 编排层（扩范围） | `python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py flashloan/app_runtime/tests/unit/test_dynamic_closed_loop_workers.py flashloan/app_runtime/tests/unit/test_chain_scoped_parameter_layering.py flashloan/app_runtime/tests/unit/test_secret_leakage_guards.py flashloan/app_runtime/tests/unit/test_dex_route_test.py flashloan/app_runtime/tests/unit/test_d4_capacity_informed_ladder.py flashloan/app_runtime/tests/unit/test_manager_overview_closed_loop_identity.py -q` |
 
 ```powershell
 # T-复编.02 的完整回归范围 = 上表所有模块的命令之并集
 cargo test --offline -p review-manager
+cargo test --offline --release            # 工作目录 flashloan/rs-src/
+cargo test --offline -p composite-manager   # 工作目录 flashloan/tools/
 python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py flashloan/app_runtime/tests/unit/test_dynamic_closed_loop_workers.py flashloan/app_runtime/tests/unit/test_chain_scoped_parameter_layering.py flashloan/app_runtime/tests/unit/test_secret_leakage_guards.py flashloan/app_runtime/tests/unit/test_dex_route_test.py flashloan/app_runtime/tests/unit/test_d4_capacity_informed_ladder.py flashloan/app_runtime/tests/unit/test_manager_overview_closed_loop_identity.py -q
 ```
 
@@ -283,6 +289,58 @@ python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_b
 | 修复后 | **174 / 174** |
 
 **回归**：§M-8§ 的 7 个测试文件 → **209 passed**（§1.2）。
+
+---
+
+### 1.3.3 第四层根因：**Rust 原生复核发布层把「金额状态 + 金额阶梯」丢在了链路之外**
+
+> §1.3 / §1.3.1 / §1.3.2 修的是「**复核发不发布**」；
+> 这一层修的是「**发布出来的那条复核里有没有金额**」。
+
+§1.3.2 修复后复核代次**真的发布了**（`review_version` 持续自增，`closed_loop_version=19`，
+174/174 全覆盖）。但把发布出来的记录拆开看，**金额整块不见了**：
+
+| 事实 | 读数 |
+|---|---|
+| 发布出的 `manager_v4_reviews.static_preview_json` 的键 | **8 个**（`source` / `measuredAt` / `status` / `routeSymbols` / `routeAddresses` / `selectedAmountRaw` / `selectedProfitRaw` / `attemptedCount`）—— **没有 `bestAmountCalculation`** |
+| 内核**实际产出**的金额字段 | `execution.rs:2422-2445` 在**预览 payload 顶层**写 `bestAmountMissing` / `bestAmountMeasured` / `bestAmount` / `bestAmountConfirmed`，阶梯在 `attempts`（`execution.rs:2398`） |
+| 发布层的动作 | `review_publish.rs::static_preview()`（`654` 行）**只抄那 8 个字段**，`attempts` 与 `bestAmount*` **一个都没带出来** |
+| ⇒ 复核审计结果 | **174 / 174** 条 `amount_state=missing`；只读 healer `missing=174`、`ladderIncomplete=174` |
+
+**这不是「测量没做」，是「测量做了没带出来」。** 系统自己早就知道这件事 ——
+`scripts/mainnet_arbitrage_healer.py::kernel_best_amount_calculation()` 的文档字符串原文写着：
+
+> The block used to be dropped on the way into the Manager evidence: only
+> ``staticPreview`` and ``runArbitrage`` were forwarded, so every Manager row lost
+> the measured amount and the healer reported ``best_amount_missing`` for loops the
+> kernel had already measured. The measurement therefore has to be carried across
+> explicitly.
+
+healer 只在**它自己**的物化路径上做了补偿（`live_review_evidence()` 里补
+`preview["bestAmountCalculation"]`），**Rust 原生发布链路**没有补偿 ⇒ 主网实盘走的
+正是后者 ⇒ 每一条复核都像「从未测量过交易金额」。
+
+**为什么只能在 `M-6` 内改**：金额证据的**产生**在 Rust 内核（已正确），
+**丢失**发生在 `review_publish.rs::static_preview()` —— 即**复核发布层**本身
+（`M-6` = 复核层 · 复核发布 / 金额利润）。改 `M-8`（编排层）只能绕开症状，
+不能把丢掉的字段捡回来。
+
+**改了什么**（**最小改动 · 只加不改**）：
+
+| 文件 | 改动 |
+|---|---|
+| `flashloan/rs-src/src/review_publish.rs` | ① `static_preview()` 的签名增加 `decimals`，输出**增加** `bestAmountCalculation`；② 新增 `best_amount_calculation()`：把内核的 `bestAmount` / `bestAmountConfirmed` / `bestAmountMissing` / `bestAmountMeasured` / `bestAmountSelectionBasis` / `bestAmountZeroReason` **原样**带出，并补 `method` / `requestedAmount` / `requestedSymbol` / `probeCount`；③ 新增 `amount_ladder()`：把内核的 `attempts` **逐档**带出，每档同时给**原始量**（`amountRaw` / `profitRaw`）与**人单位量**（`amount` / `borrowAmount` / `requestedAmount` / `profit` / `profitAmount`，按借款代币 decimals 换算），并保留 `ok` / `profitable` / `status` / `error` / `revertData` / `routeIndex` |
+| `flashloan/rs-src/src/review_publish.rs`（测试） | 新增 `the_published_review_carries_the_measured_amount_and_its_ladder`（**T-9**）：断言发布出的复核**带**金额状态**和**两档阶梯，且**测得的亏损仍是测量**（`profit = -1.0`，不是缺失） |
+
+**没改什么**：复核发布门禁（覆盖全集 / 上游代际 / 幂等键）**一字未动**；
+金额口径**未放宽**（「测得为零」仍然是「测得的零」，**不是**「缺失」）；
+方向池与固定费率约定不变；广播门禁不变。
+
+**缺口如实登记**：`D-014` §0.2 的「M-n 模块表**没有 `rs-src` 复核发布层的归属**」
+仍未闭合 —— 本次沿用 `T-复编.01` 先例，把该落点**登记在本任务的 `M-6` 名下**，
+**不**改模块表（改模块表要连带重算全部回归范围）。
+
+**回归**：§1.2 的 `M-6`（扩范围）命令 `cargo test --offline --release`（工作目录 `flashloan/rs-src/`）。
 
 ---
 

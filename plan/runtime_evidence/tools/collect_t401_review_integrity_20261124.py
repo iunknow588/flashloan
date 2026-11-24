@@ -147,6 +147,13 @@ def audit_review(row):
     missing_flag = calculation.get("bestAmountMissing")
     confirmed = calculation.get("bestAmountConfirmed")
     zero_reason = calculation.get("bestAmountZeroReason")
+    # The kernel marks the route when the amount ladder was blocked before
+    # it probed anything.  Such a row has **no measured amount** and that is
+    # a market fact, not a dropped measurement, so it is reported apart.
+    ladder_blocked = bool(calculation.get("bestAmountLadderBlocked"))
+    ladder_blocked_reason = str(
+        calculation.get("bestAmountLadderBlockedReason") or ""
+    ).strip()
 
     if best_amount is None:
         amount_state = "missing"
@@ -209,6 +216,8 @@ def audit_review(row):
         "bestAmountConfirmed": confirmed,
         "bestAmountMissing": missing_flag,
         "bestAmountZeroReason": zero_reason,
+        "ladderBlocked": ladder_blocked,
+        "ladderBlockedReason": ladder_blocked_reason,
         "ladderSize": len(ladder),
         "capacityAnchorRaw": row["single_tick_capacity_anchor_raw"],
         "missingFields": missing_fields,
@@ -353,7 +362,47 @@ def main():
 
     upstream = upstream_state[0] if upstream_state else {}
     review_state = library_state[0] if library_state else {}
-    directional = directional_state[0] if directional_state else {}
+    # I-15 reads the directional layer the same way the closed-loop Manager
+    # does: `directional_layer_identity()` in
+    # `flashloan/tools/closed_loop_manager/src/lib.rs` folds **every** scope
+    # of the directional layer into ONE composite identity, so the checksum
+    # the closed-loop layer recorded is not any single scope's
+    # `materialized_checksum`.  Comparing the composite against one scope
+    # would report a mismatch that does not exist, so the composite is
+    # recomputed here with the very same rule.
+    directional_scopes = sorted(
+        (
+            {
+                "scopeKey": r.get("scope_key"),
+                "directionalPoolVersion": r.get("directional_pool_version"),
+                "materializedChecksum": r.get("materialized_checksum"),
+            }
+            for r in directional_state
+        ),
+        key=lambda r: (r["scopeKey"] or ""),
+    )
+    directional_payload = "|".join(
+        "%s:%s:%s"
+        % (r["scopeKey"], r["directionalPoolVersion"], r["materializedChecksum"])
+        for r in directional_scopes
+    )
+    directional = {
+        "directional_pool_version": max(
+            [r["directionalPoolVersion"] or 0 for r in directional_scopes] or [0]
+        ),
+        "materialized_checksum": (
+            "sha256:" + hashlib.sha256(directional_payload.encode("utf-8")).hexdigest()
+            if directional_payload
+            else None
+        ),
+        "scopeStates": directional_scopes,
+        "identityPayload": directional_payload,
+        "identityRule": (
+            "directional_layer_identity() in "
+            "flashloan/tools/closed_loop_manager/src/lib.rs: "
+            "sha256 over 'scope:version:checksum' joined by '|' (scope order)"
+        ),
+    }
 
     upstream_consistency = {
         "upstreamClosedLoopVersion": upstream.get("closed_loop_version"),
@@ -400,6 +449,9 @@ def main():
         "checksumMatches": (
             upstream.get("directional_pool_checksum") == directional.get("materialized_checksum")
         ),
+        "directionalScopeStates": directional.get("scopeStates"),
+        "directionalIdentityRule": directional.get("identityRule"),
+        "directionalIdentityPayload": directional.get("identityPayload"),
     }
 
     runtime_core = {"measured": False, "reason": "the runtime snapshot is read from the runtime API"}
@@ -478,6 +530,19 @@ def main():
                 "measured": len(measured_amount),
                 "missing": len(missing_amount),
                 "unconfirmed": len(unconfirmed),
+                "missingBecauseLadderNeverRan": len(
+                    [r for r in missing_amount if r.get("ladderBlocked")]
+                ),
+                "missingWithoutABlockReason": [
+                    r["loopKey"]
+                    for r in missing_amount
+                    if not r.get("ladderBlocked")
+                ][:20],
+                "ladderBlockedReasons": sorted({
+                    r.get("ladderBlockedReason")
+                    for r in reviews
+                    if r.get("ladderBlocked") and r.get("ladderBlockedReason")
+                })[:5],
             },
             "met": bool(reviews) and not missing_amount and not unconfirmed,
         },
@@ -581,6 +646,12 @@ def main():
                 "failClosed": best_amount_layer.get("failClosed"),
                 "confirmed": best_amount_layer.get("confirmed"),
                 "total": best_amount_layer.get("total"),
+                "missingBecauseLadderNeverRan": len(
+                    [r for r in missing_amount if r.get("ladderBlocked")]
+                ),
+                "healerRowsWithLadder": len(
+                    [r for r in reviews if r.get("ladderSize")]
+                ),
             },
             "met": (
                 best_amount_layer.get("missing") == 0
@@ -714,7 +785,7 @@ def main():
             "name": "C3",
             "group": "upstream",
             "requirement": (
-                "the runtime_core snapshot was accepted: state=ok, "
+                "the runtime_core snapshot was accepted: state=ready, "
                 "snapshotAvailable=true, generation>=1"
             ),
             "observations": runtime_core,

@@ -602,7 +602,7 @@ fn route_evidence(
     let diagnostics = measurement_diagnostics(route, signed_pnl.is_some(), measured_at);
     ReviewEvidenceInput {
         loop_key: loop_key.to_owned(),
-        static_preview: static_preview(route, measured_at),
+        static_preview: static_preview(route, measured_at, decimals),
         run_arbitrage: Some(RunArbitrageEvidence {
             ok,
             executable,
@@ -651,7 +651,7 @@ fn measurement_diagnostics(
 }
 
 /// The static preview of one measured route.
-fn static_preview(route: &Value, measured_at: &str) -> Value {
+fn static_preview(route: &Value, measured_at: &str, decimals: Option<i64>) -> Value {
     json!({
         "source": "native_rust_review",
         "measuredAt": measured_at,
@@ -661,7 +661,115 @@ fn static_preview(route: &Value, measured_at: &str) -> Value {
         "selectedAmountRaw": route.get("selectedAmountRaw").cloned().unwrap_or(Value::Null),
         "selectedProfitRaw": route.get("selectedProfitRaw").cloned().unwrap_or(Value::Null),
         "attemptedCount": route.get("attemptedCount").cloned().unwrap_or(Value::Null),
+        // The amount the route was measured at, and the ladder it was
+        // measured over, travel with the review.  Without them a stored
+        // review carries no amount at all, and every reader has to
+        // conclude that the route was never measured.
+        "bestAmountCalculation": best_amount_calculation(route, decimals),
     })
+}
+
+/// The best-trade-amount evidence of one measured route.
+///
+/// The kernel owns the amount ladder: it measures the route at every size
+/// the ladder tries, and it owns the difference between "the ladder never
+/// ran" (a measurement gap) and "the ladder ran and no size paid" (a
+/// measured zero).  That evidence used to be dropped on the way into the
+/// Manager review, so every stored review looked like a review that never
+/// measured a trade amount.  It travels with the review instead.
+fn best_amount_calculation(route: &Value, decimals: Option<i64>) -> Value {
+    let ladder = amount_ladder(route, decimals);
+    let best_amount = route.get("bestAmount").cloned().unwrap_or(Value::Null);
+    let confirmed = route
+        .get("bestAmountConfirmed")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    // The kernel marks the amount as missing until the ladder contributes a
+// usable probe record, so a route whose ladder never ran carries no amount
+// at all.  The default here is the same one: **no measurement means the
+// amount is missing**, never "not missing but empty".
+    let missing = route
+        .get("bestAmountMissing")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    let measured = route
+        .get("bestAmountMeasured")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    json!({
+        "method": "native_rust_review_ladder",
+        "bestAmount": best_amount,
+        "bestAmountRaw": best_amount,
+        "bestAmountAmount": decimals.and_then(|value| signed_raw_to_amount(&best_amount, value)),
+        "bestAmountConfirmed": confirmed,
+        "selectionConfirmed": confirmed,
+        "bestAmountMissing": missing,
+        "bestAmountMeasured": measured,
+        "bestAmountSelectionBasis": route
+            .get("bestAmountSelectionBasis")
+            .cloned()
+            .unwrap_or(Value::Null),
+        "bestAmountZeroReason": route.get("bestAmountZeroReason").cloned().unwrap_or(Value::Null),
+        "initialProbeAmount": route.get("initialProbeAmount").cloned().unwrap_or(Value::Null),
+        "initialAmountRaw": route.get("initialAmountRaw").cloned().unwrap_or(Value::Null),
+        "requestedAmount": route.get("selectedAmountRaw").cloned().unwrap_or(Value::Null),
+        "requestedSymbol": borrow_symbol(route),
+        // A route the capacity blocked before it probed anything carries the
+        // reason with it, so a reader can tell "the ladder never ran"
+        // apart from "the measurement was dropped".
+        "bestAmountLadderBlocked": route
+            .get("ladderBlocked")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        "bestAmountLadderBlockedReason": route
+            .get("ladderBlockedReason")
+            .cloned()
+            .unwrap_or(Value::Null),
+        "probeCount": ladder.len(),
+        "probeRecords": ladder,
+    })
+}
+
+/// The measured amount ladder of one route.
+///
+/// Every rung is one size the chain priced, with the outcome it saw.  The
+/// raw amount is the contract's own integer; the human amount is the same
+/// number scaled by the borrow token's decimals, so a reader never has to
+/// guess the scale of a stored amount.
+fn amount_ladder(route: &Value, decimals: Option<i64>) -> Vec<Value> {
+    let Some(rows) = route.get("attempts").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    rows.iter()
+        .filter(|row| row.is_object())
+        .map(|row| {
+            let amount_raw = row.get("amountRaw").cloned().unwrap_or(Value::Null);
+            let profit_raw = row.get("profitRaw").cloned().unwrap_or(Value::Null);
+            let amount = decimals.and_then(|value| signed_raw_to_amount(&amount_raw, value));
+            let profit = decimals.and_then(|value| signed_raw_to_amount(&profit_raw, value));
+            let profitable = row.get("profitable").and_then(Value::as_bool);
+            let status = if profitable == Some(true) {
+                "live_verified"
+            } else {
+                "not_profitable"
+            };
+            json!({
+                "amountRaw": amount_raw,
+                "amount": amount,
+                "borrowAmount": amount,
+                "requestedAmount": amount,
+                "profitRaw": profit_raw,
+                "profit": profit,
+                "profitAmount": profit,
+                "ok": row.get("ok").cloned().unwrap_or(Value::Null),
+                "profitable": profitable,
+                "status": status,
+                "error": row.get("error").cloned().unwrap_or(Value::Null),
+                "revertData": row.get("revertData").cloned().unwrap_or(Value::Null),
+                "routeIndex": row.get("routeIndex").cloned().unwrap_or(Value::Null),
+            })
+        })
+        .collect()
 }
 
 /// The identity diagnosis the kernel published for one route.
@@ -908,6 +1016,133 @@ mod tests {
             &|_| Some(18),
             "2026-11-24T00:00:00Z",
         )
+    }
+
+    /// **T-9**: the published review carries the amount the route was
+    /// measured at **and** the ladder it was measured over.
+    ///
+    /// The amount used to be dropped on the way into the Manager review, so
+    /// every stored review looked like a review that never measured a
+    /// trade amount.
+    #[test]
+    fn the_published_review_carries_the_measured_amount_and_its_ladder() {
+        let mut payload = route(LOOP_KEY);
+        payload["attempts"] = json!([
+            {
+                "amountRaw": "0x0de0b6b3a7640000",
+                "ok": true,
+                "profitable": true,
+                "profitRaw": "0x0de0b6b3a7640000",
+                "routeIndex": 0
+            },
+            {
+                "amountRaw": "0x1bc16d674ec80000",
+                "ok": true,
+                "profitable": false,
+                "profitRaw": "-0x0de0b6b3a7640000",
+                "routeIndex": 1
+            }
+        ]);
+        payload["bestAmount"] = json!("0x0de0b6b3a7640000");
+        payload["bestAmountConfirmed"] = json!(true);
+        payload["bestAmountMissing"] = json!(false);
+        payload["bestAmountMeasured"] = json!(true);
+        payload["bestAmountSelectionBasis"] = json!("native_rust_ladder_profitable_probe");
+        let evidence = route_evidence(
+            &payload,
+            LOOP_KEY,
+            &catalog(),
+            None,
+            &|_| Some(18),
+            "2026-11-24T00:00:00Z",
+        );
+        let calculation = evidence
+            .static_preview
+            .get("bestAmountCalculation")
+            .and_then(Value::as_object)
+            .expect("the published review carries the amount calculation");
+        assert_eq!(
+            calculation.get("bestAmount").and_then(Value::as_str),
+            Some("0x0de0b6b3a7640000")
+        );
+        assert_eq!(
+            calculation.get("bestAmountMeasured").and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            calculation.get("bestAmountMissing").and_then(Value::as_bool),
+            Some(false)
+        );
+        assert_eq!(
+            calculation.get("probeCount").and_then(Value::as_u64),
+            Some(2)
+        );
+        let probes = calculation
+            .get("probeRecords")
+            .and_then(Value::as_array)
+            .expect("the published review carries the measured ladder");
+        assert_eq!(probes.len(), 2);
+        // The raw amount is the contract's own integer and the human amount
+        // is the same number in the borrow token's decimals.
+        assert_eq!(
+            probes[0].get("amountRaw").and_then(Value::as_str),
+            Some("0x0de0b6b3a7640000")
+        );
+        assert_eq!(probes[0].get("amount").and_then(Value::as_f64), Some(1.0));
+        // A measured loss stays a measurement: a negative profit is not a
+        // missing profit.
+        assert_eq!(probes[1].get("profit").and_then(Value::as_f64), Some(-1.0));
+        assert_eq!(
+            probes[1].get("status").and_then(Value::as_str),
+            Some("not_profitable")
+        );
+    }
+
+    /// **T-10**: a route whose ladder **never ran** carries the missing
+    /// marker and the reason it was blocked.
+    ///
+    /// "The ladder never ran" is a measurement gap; "the measurement was
+    /// dropped" is a publisher defect.  A review that says only "not
+    /// missing but empty" cannot tell the two apart, so the missing marker
+    /// follows the kernel's own default and the block reason travels with
+    /// it.
+    #[test]
+    fn a_route_whose_ladder_never_ran_carries_the_missing_marker() {
+        let mut payload = route(LOOP_KEY);
+        payload["status"] = json!("single_tick_capacity_below_min_probe");
+        payload["attempts"] = json!([]);
+        payload["ladderBlocked"] = json!(true);
+        payload["ladderBlockedReason"] = json!("single_tick_capacity_below_min_probe");
+        let evidence = route_evidence(
+            &payload,
+            LOOP_KEY,
+            &catalog(),
+            None,
+            &|_| Some(18),
+            "2026-11-24T00:00:00Z",
+        );
+        let calculation = evidence
+            .static_preview
+            .get("bestAmountCalculation")
+            .and_then(Value::as_object)
+            .expect("the published review carries the amount calculation");
+        assert_eq!(
+            calculation.get("bestAmountMissing").and_then(Value::as_bool),
+            Some(true)
+        );
+        assert!(calculation.get("bestAmount").unwrap().is_null());
+        assert_eq!(
+            calculation.get("probeCount").and_then(Value::as_u64),
+            Some(0)
+        );
+        assert_eq!(
+            calculation.get("bestAmountLadderBlocked").and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            calculation.get("bestAmountLadderBlockedReason").and_then(Value::as_str),
+            Some("single_tick_capacity_below_min_probe")
+        );
     }
 
     /// The generation the fixture's library state publishes.

@@ -21,12 +21,19 @@ review 的金额与利润完整性核验口径
 | [`D-050-现状与可行性分析.md`](./D-050-现状与可行性分析.md) | 本任务的现状与可行性分析（口径定义 · 边界） |
 | [`D-103-利润等价性与profitDrop实测.md`](./D-103-利润等价性与profitDrop实测.md) | 利润等价性与 `profitDrop` 的**实测读数**（三代目录对比 · 归因） |
 | [`D-104-复核完整性实测.md`](./D-104-复核完整性实测.md) | 复核完整性的**实测读数**（23 条验收项 · 上下游一致性 · 新鲜度双阈值） |
+| [`D-108-复核代次发布落地实测与剩余pool_scope跨作用域误判_20261124.md`](./D-108-复核代次发布落地实测与剩余pool_scope跨作用域误判_20261124.md) | **复核代次已发布**的落地实测（174/174 全覆盖）＋ 剩余 2 条 `pool_scope_checksum` **跨作用域误判**的根因 |
 
 > **原始读数**（机器产出，不在文档内改写）：
 > `plan/runtime_evidence/profit_drop/v15_to_v18.json` /
 > `v18_to_v19.json` / `v15_to_v19.json` —— 利润等价性逐条明细；
 > `plan/runtime_evidence/t401_review_integrity_baseline.json` —— **发布前**基线（复核库停在 v14 / 164 闭环）；
-> `plan/runtime_evidence/t401_review_integrity.json` —— **发布后**读数。
+> `plan/runtime_evidence/t401_review_integrity.json` —— **发布后**读数；
+`plan/runtime_evidence/t401_review_integrity_prepublish2.json` —— **发布前**读数（含方向层**复合身份**口径订正）。
+>
+> **发布层丢金额证据**的根因链与修法见 [`D-104`](./D-104-复核完整性实测.md) **§2.6**
+> （第五层根因）；配套只读探针：
+> `plan/runtime_evidence/tools/probe_t401_amount_publish_20261124.py`（发布出的复核**带没带**金额块）·
+> `plan/runtime_evidence/tools/probe_t401_capacity_blocked_20261124.py`（阶梯**从未运行**的那几条闭环的容量读数）。
 
 ---
 

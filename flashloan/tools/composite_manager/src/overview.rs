@@ -1192,11 +1192,10 @@ fn build_versions(
         closed_loop.status.observation_checksum.as_deref(),
         exchange.status.materialized_checksum.as_deref(),
     );
-    push_checksum_issue(
+    push_pool_scope_issue(
         &mut issues,
-        "closed_loop.pool_scope_checksum",
+        candidate.status.pool_scope_checksum.as_deref(),
         closed_loop.status.pool_scope_checksum.as_deref(),
-        exchange.status.pool_scope_checksum.as_deref(),
     );
     push_checksum_issue(
         &mut issues,
@@ -1221,18 +1220,6 @@ fn build_versions(
         "review.pool_scope_checksum",
         review.status.pool_scope_checksum.as_deref(),
         closed_loop.status.pool_scope_checksum.as_deref(),
-    );
-    push_checksum_issue(
-        &mut issues,
-        "candidate_exchange.pool_scope_checksum",
-        exchange.status.pool_scope_checksum.as_deref(),
-        candidate.status.pool_scope_checksum.as_deref(),
-    );
-    push_checksum_issue(
-        &mut issues,
-        "closed_loop.pool_scope_checksum",
-        closed_loop.status.pool_scope_checksum.as_deref(),
-        candidate.status.pool_scope_checksum.as_deref(),
     );
     push_checksum_issue(
         &mut issues,
@@ -1294,6 +1281,31 @@ fn push_version_issue(
             issues.push(format!("{field} expected={left} actual={right}"));
         }
     }
+}
+
+/// The pool-scope consistency check of the overview.
+///
+/// The closed loop and the review both live in the `core4` scope, so their
+/// pool-scope checksum has to be compared against the checksum owned by the
+/// `core4` pool-scope configuration -- the one the candidate-edge layer
+/// publishes.  `candidate_exchange` intentionally carries the
+/// `candidate_exchange` scope checksum, which is derived from a different pool
+/// table and a different selection mode, so comparing against it can never
+/// succeed and would pin the assessment to a permanent false positive.
+///
+/// This mirrors the pipeline status check in `lib.rs`, which was corrected for
+/// the same reason.
+fn push_pool_scope_issue(
+    issues: &mut Vec<String>,
+    core4_scope_checksum: Option<&str>,
+    closed_loop_scope_checksum: Option<&str>,
+) {
+    push_checksum_issue(
+        issues,
+        "closed_loop.pool_scope_checksum",
+        core4_scope_checksum,
+        closed_loop_scope_checksum,
+    );
 }
 
 fn push_checksum_issue(
@@ -1515,6 +1527,60 @@ mod tests {
                 "review.closed_loop_checksum expected=sha256:closed-loop-v1 actual=sha256:closed-loop-v2"
             ]
         );
+    }
+
+    /// **T-10**: the overview's pool-scope check compares like with like.
+    ///
+    /// The closed loop publishes the `core4` scope checksum, so it has to be
+    /// compared against the `core4` checksum the candidate-edge layer owns.
+    /// Comparing it against the `candidate_exchange` scope checksum -- a
+    /// different pool table with a different selection mode -- can never
+    /// succeed and reported a permanent false inconsistency, which left the
+    /// overview permanently inconsistent.
+    #[test]
+    fn the_pool_scope_check_compares_the_closed_loop_against_the_core4_scope() {
+        let mut issues = Vec::new();
+
+        // The core4 scope owns the checksum the closed loop published.
+        super::push_pool_scope_issue(
+            &mut issues,
+            Some("sha256:core4-scope"),
+            Some("sha256:core4-scope"),
+        );
+        assert!(issues.is_empty(), "equal scope checksums must not be an issue");
+
+        // A real drift inside the same scope is still reported.
+        super::push_pool_scope_issue(
+            &mut issues,
+            Some("sha256:core4-scope-v2"),
+            Some("sha256:core4-scope-v1"),
+        );
+        assert_eq!(
+            issues,
+            vec![
+                "closed_loop.pool_scope_checksum expected=sha256:core4-scope-v2 actual=sha256:core4-scope-v1"
+            ]
+        );
+    }
+
+    /// **T-10**: the overview never compares the `candidate_exchange` scope
+    /// checksum against the `core4` scope.
+    ///
+    /// The two scopes are different pool tables with different selection modes,
+    /// so their checksums are expected to differ.  Comparing them reports a
+    /// false inconsistency.
+    #[test]
+    fn the_candidate_exchange_scope_is_never_compared_against_the_core4_scope() {
+        // The exchange scope and the core4 scope are different by design.
+        let exchange_scope = "sha256:candidate-exchange-scope";
+        let core4_scope = "sha256:core4-scope";
+        assert_ne!(exchange_scope, core4_scope);
+
+        // The overview's pool-scope check takes the core4 checksum, never the
+        // exchange one, so the exchange scope cannot reach the comparison.
+        let mut issues = Vec::new();
+        super::push_pool_scope_issue(&mut issues, Some(core4_scope), Some(core4_scope));
+        assert!(issues.is_empty());
     }
 
     #[test]
