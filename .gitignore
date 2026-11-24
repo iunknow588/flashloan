@@ -225,3 +225,8 @@ plan/runtime_evidence/logs/whea_forensics/
 # 临时探针脚本（用完即删）—— 不入库，避免被「整树提交」带上。
 # 约定：plan/runtime_evidence/tools/ 下的 _*.py 是**一次性**探针，不具备可追溯价值。
 plan/runtime_evidence/tools/_*.py
+
+# 闭环层复算瘦副本（T-闭.01）—— **大文件**（各约 58 MB），**不入库**。
+# 可由 plan/runtime_evidence/tools/clone_closed_loop_slice_20261125.py 从实盘库**只读**重建；
+# 校验和与读数留在 plan/runtime_evidence/reports/ 与任务文档里。
+plan/runtime_evidence/*.sqlite3

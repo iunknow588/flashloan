@@ -69,7 +69,7 @@
 
 | 文件 | 内容 |
 |---|---|
-| `tools/collect_t401_review_integrity_20261124.py` | **采集器**：A1–A8 / B1–B6 / C1–C5 / D1–D4 共 **23** 项 |
+| `tools/collect_t401_review_integrity_20261124.py` | **采集器**：A1–A8 / B1–B7 / C1–C5 / D1–D4 共 **24** 项 |
 | `tools/render_t401_readings_20261124.py` | **渲染器**：**只格式化**采集器输出，**不自己**判定任何一项 |
 | `t401_review_integrity_baseline.json` | **发布前基线**（复核库停在闭环 **v14** / **164** 闭环时的**同口径**读数，用作前后对照） |
 | `t401_review_integrity.json` | **发布后读数**（由采集器写入；发布前为空缺 ⇒ **不得**据此勾项） |
@@ -78,6 +78,99 @@
 | `logs/t401_m8_regression.log` | `M-8` 编排层回归（pytest **119 passed**） |
 | `logs/t401_review_manager_cargo.log` | `M-6` 复核层回归（`cargo test --offline -p review-manager` **158 passed / 0 failed**） |
 | `tools/probe_t401_*_20261124.py` | **只读探针**：目录/扫描器**方向组集合**差分、**物理闭合键**差分、观察集覆盖、RuntimeCore 状态、发布覆盖度 —— 全部**不写**任何表 |
+
+### 第五层 / 第六层修复后的采集（2026-11-24 晚）
+
+> **发布层丢证据**的两层根因（发布层第一次把金额整块丢在链路外；
+> 第二次把「阶梯为什么没跑」的诊断留在 route 的**子对象**里）修完并部署后，
+> 采集**必须在复核代次发布后的第一时间做** —— 否则读到的只是**放旧**的复核，
+> 120s 的自动广播门禁会**必然**全部拒答，测不出它对新复核的真实判定。
+
+| 文件 | 内容 |
+|---|---|
+| `tools/watch_and_collect_t401_20261124.py` | **发布即采集**：轮询 `manager_review_library_state`（**5s**），**一发现新代次就立刻**起采集器 ⇒ 读数落在「复核刚发布」的时刻，120s 门禁的判定才有意义 |
+| `tools/watch_t401_review_version_20261124.py` | **纯监视**：只在 `review_version` / `generated_at` 变化时打一行（20s 轮询） |
+| `tools/scan_backtick_balance_20261124.py` | **文档自检**：逐行数反引号配对，报出**配对错位**的行（渲染会坏） |
+| `tools/probe_t401_gate_status_20261124.py` | **广播闸门只读探针**：① 先加载 app 自己的 `.env` 再调 `broadcast_gate_status()`；② 读运行中实时运行时 **178** 个常驻 worker 的 `broadcastGate` ⇒ **以运行态快照为准**（裸 python 进程读不到 app 的 `.env`，会误报「三道全关」） |
+| `logs/t401_watch_collect.log` | **发布即采集**的逐次读数（含采集器退出码与耗时） |
+| `logs/t401_gate_status.log` | 广播闸门的**直调读数** ＋ **运行态 worker 读数** |
+| `logs/t401_review_version_watch.log` | 复核代次的**逐次**读数（变化才记） |
+| `logs/t401_overview_state_now.log` | `overview` 的 `runtimeCore` 读数（`snapshotAvailable` / `generation` / `lastError`） |
+| `t401_review_integrity_after_layer5.json` | **第五层修后**的读数快照（`review_version=30`，2026-11-24 19:51:50）—— **不被后续采集覆盖**，用于三层对照 |
+| `t401_review_integrity_after_layer6.json` | **第六层修后**的读数快照（`review_version=34`，2026-11-24 21:05:34，**发布后 2 秒**取）—— 同上 |
+
+> **两个时间点必须分清**：`B1` / `B2` 测的是**采集时刻**的复核年龄
+> ⇒ 采集**必须**紧跟代次发布（`watch_and_collect` 就是为此写的）。
+> `B7` 测的是**门禁自己的判定**（发布那一刻逐条判定）⇒ **与采集时刻无关**。
+
+### 钉住快照与回归日志（2026-11-24 收尾）
+
+> **为什么需要「钉住快照」**：主网**每 6～8 分钟**发布一代复核，同一批复核的条数**逐代浮动**
+> ⇒ **滚动文件**里的读数会在几分钟内**对不上**文档里写的数字。
+> ⇒ 规矩：**文档引用的每一个读数，都必须能指回某个钉住快照**；
+> **滚动文件**与**钉住快照**的读数**不可混用**（同一项数值不同是**正常的**，必须**各自标注代次**）。
+
+| 文件 | 性质 | 内容 |
+|---|---|---|
+| `t401_review_integrity.json` | **滚动**（会被覆盖） | 采集器在**发现新代次后 5 s 内**自动重采并**覆盖**它 ⇒ 只能用来「发现新代次」，**不可**作为引用出处 |
+| `t401_review_integrity_v39.json` | **钉住**（不可变） | **本波次文档引用出处**：`review_version = 39`、闭环 **174**、采集于 `2026-11-24T21:41:06.023923+08:00`（**紧跟该代次发布的同一秒**）；**C3 / C4 全项测得** |
+| `t401_review_integrity_v38.json` | **钉住**（不可变） | 上一代快照（`review_version = 38`）—— 该代采集时 `overview` API **超时** ⇒ `C3` 记为「未测量」（**如实登记，不补写**） |
+| `t401_review_integrity_after_layer5.json` | **钉住**（不可变） | **第五层修后**（`review_version = 30`）—— 用于 **§2.10** 的三测点对照 |
+| `t401_review_integrity_after_layer6.json` | **钉住**（不可变） | **第六层修后**（`review_version = 34`）—— 同上 |
+| `t401_review_integrity_baseline.json` | **钉住**（不可变） | **发布前基线**（复核库停在闭环 **v14** / **164** 闭环时的同口径读数） |
+
+| 工具 | 用途 |
+|---|---|
+| `tools/render_t401_layer_compare_20261124.py` | 生成 `D-104` **§2.10 的三测点对照表**（发布前 / 第五层 / 第六层） |
+| `tools/append_d104_span_row_20261124.py` | 往 `D-104` 的「边界与诚实登记」表追加**代次跨度逼近 600s** 的预警行 |
+| `tools/normalize_md_crlf_20261124.py` | 受控 md 的 **CRLF / 无 BOM** 归一 |
+| `tools/check_broadcast_env_guard_20261124.py` | **广播闸门守卫的负向校验**：把 env **复制到临时目录**再跑守卫（**从不碰真实 env**）⇒ **6 个组合**逐一断言判定（干净＝ACCEPTED、operator 主网 arb＝ACCEPTED、其余 4 组＝REJECTED） |
+| `tools/detect_stray_placeholder_20261124.py` | **文档自检**：找出**上一轮 patch 残留的章节号占位符**（应为反引号、却写成 § 字符）—— 只读，不写文件 |
+| `tools/gen_placeholder_fix_patch_20261124.py` | 按规则把占位符还原成反引号并**生成 apply_patch 载荷**（**只打印补丁，不改文件**）；规则：**章节号前缀**（A2 / D-048 / 4.2.2）**不动**，成对的代码段定界符**改回反引号** |
+
+| 回归日志（2026-11-24 收尾） | 读数 |
+|---|---|
+| `rs_release_test_20261124.log` | `cargo test --offline --release`（`flashloan/rs-src`）⇒ **220 passed / 0 failed** |
+| `rs_src_workspace_test_20261124.log` | `cargo test --offline`（`flashloan/rs-src` debug）⇒ **220 passed / 0 failed**（**与 release 同读数**） |
+| `tools_review_composite_test_20261124.log` | `cargo test --offline -p review-manager -p composite-manager` ⇒ **158 ＋ 26 passed / 0 failed** |
+| `tools_workspace_build_20261124.log` | `cargo build --offline --workspace`（`flashloan/tools`）⇒ **exit 0** |
+| `tools_workspace_test_20261124.log` | `cargo test --offline --workspace`（`flashloan/tools`）⇒ **650 passed / 0 failed**（逐 crate 求和） |
+| `py_t401_7files_20261124.log` | `M-8` 编排层 **7 个 Python 文件** ⇒ **209 passed** |
+| `py_arch_guards_20261124.log` | 架构守卫 ⇒ **80 passed** |
+| `py_full_regression_20261124.log` | Python **全量第 1 次**（`pytest flashloan scripts -q`）⇒ **1 failed / 3250 passed / 3 skipped**（1783.32s）—— 唯一红例＝**架构守卫与已入库广播模板互相矛盾**，已收窄守卫修掉（见 [`D-104`](../tasks/P-01-池子重构/tasks/T-复编.02/docs/D-104-复核完整性实测.md) §2.9.1）⇒ **不得再作基线引用** |
+| `py_full_regression_20261124_run2.log` | Python **全量第 2 次**（守卫收窄后重跑）⇒ **3251 passed / 3 skipped / 0 failed**（1479.66s）⇒ **全绿**；**本波基线以它为准** |
+| `py_full_regression_20261125_run3.log` | Python **全量第 3 次**（**修复「测试会杀掉运行时」之后**重跑）⇒ **3251 passed / 3 skipped / 0 failed**（1395.02s）⇒ **全绿**（用例数与第 2 次一致，**未增减**）；**监督日志全程零增长** ⇒ 运行时**全程未被杀** ⇒ **本波基线以它为准** |
+
+### 运行时重启的根因定位（2026-11-25）
+
+> **为什么要有这一节**：本波实测期间，运行时被监督进程重启 **3** 次；
+> 早前登记为「其它修复进程抢端口」——**该归因被本节的实测推翻并更正**。
+
+| 文件 | 性质 | 内容 |
+|---|---|---|
+| `logs/t401_supervisor_r6.log` | **钉住**（追加） | 监督进程的重启史：`22:23:11`（PID 29384，`exit_code=1`）→ `22:23:26` 起 PID **22404**；`23:00:06`（PID 22404，`exit_code=1`）→ `23:00:21` 起 PID **29832**；`23:55:57`（PID 29832，`exit_code=1`，**受控复现**）→ `23:56:12` 起 PID **27084** |
+| `logs/t401_runtime_sup/runtime_stderr.log` | **钉住**（追加） | 被监督实例的 stderr：两个退出点**都没有 traceback、没有自诊断信息**（HTTP 访问日志直接中断）⇒ 与「被 `taskkill` 强杀」一致 |
+
+| 工具 | 用途 |
+|---|---|
+| `tools/probe_runtime_instances_20261124.py` | **只读**探针：按 `instance_id` 分组链库里的运行事件（`runtime-core-<pid>-<chain>-<n>`）⇒ 用于判断「有没有第三方实例」。**结论**：运行事件**只在内存、未持久化**，链库里查不到实例级事件 ⇒ 归属**不可**由数据库证明 |
+| `tools/check_markdown_links_20261125.py` | **只读**链接检查：把 `plan/` 非归档区每份 md 的相对链接逐条解析到磁盘。**本波读数**：**308** 条相对链接、**3** 条断链——**全部**在 `T-候编储.01/D-030-checklist.md`（指向 `../../T-候.01/docs/…`，应为 `../T-候.01/docs/…`），**属另一修复线程的在途文件，本轮未触碰**；**本轮改动自身 0 断链** |
+
+**根因（已受控复现）**：`flashloan/app_runtime/tests/unit/test_run_port.py` 的
+`test_resolve_port_auto_advances_when_default_is_occupied` **只 mock 了 `_port_in_use`**，
+**未 mock** `_try_close_port_owner` 内部的 `netstat` 与 `taskkill` ⇒ 执行该测试会
+**真的 `taskkill /F` 掉 5000 端口的持有者**（即被监督的运行时），被杀进程**静默退出码 1**。
+两次现场重启都落在**本线程的全量回归窗口内**（第 1 次 **21:57:02–22:26:45**、第 2 次
+**22:38:11–23:02:50**），且**两次签名一致**（`exit_code=1`、无 traceback）。
+
+| 动作 | 观测 |
+|---|---|
+| 修复前：单独执行该测试文件 | **3 passed / 4.64s**，运行时 PID **29832 被杀**（监督日志记 `23:55:57` / `exit_code=1`） |
+| 修复后：同一命令 | **3 passed / 7.39s**，运行时 PID **27084 未变**、监督日志**零增长** |
+| 修复后：**全量**回归 | **3251 passed / 3 skipped / 0 failed**（1395.02s），运行时 PID **27084 未变**、监督日志**零增长** ⇒ **规模级验证通过** |
+
+**修复**：`test_run_port.py` 新增 autouse fixture，同时 mock `_port_process_ids` 与
+`subprocess.run` ⇒ **保留**「端口被占用 → 顺延」的断言覆盖、**去掉**真实 kill 副作用。
 
 ## 存档规则
 
@@ -227,3 +320,119 @@
   **不计入违规** —— 那 **6** 跳是**备用池接管**（`pool_id` = 生效池、
   `base_pool_id` = 原推荐池，见 `D-001` §7 `T-方闭.01` 迁移记录），
   探针本轮补上了该分支（原口径会误报 **6** 条）。
+
+## 2026-11-25 增量报告索引（`T-储.01` 测试套件生产库零写入）
+
+> **目的**：把「测试套件把生产库的闸门键改回默认值」这个缺陷
+> **用实测读数钉死**，并给出**可复算**的守卫证据。
+> **落点**：`flashloan/app_runtime/tests/**`（**产品代码零改动**）。
+
+### 探针与工具
+
+| 文件 | 作用 |
+|---|---|
+| `tools/probe_live_db_writes_20261125.py` | 只读探针：以 `mode=ro` 打开活链库，窗口前后**逐字节**比对生产闸门键（`value_json` ＋ `updated_at`）、`kv_meta` 与两张业务表的行数 |
+| `tools/probe_gate_keys_snapshot_20261125.py` | 同一口径的**独立**快照／比对工具（用于交叉核对） |
+| `tools/probe_store_path_binding_20261125.py` | 列出**仍持有未改道路径解析函数**的模块（漏网绑定点自检） |
+| `tools/probe_readonly_uri_modes_20261125.py` | 实测 `mode=ro` 打开活链库成功、写入被 SQLite 层拒绝 |
+| `tools/probe_sandbox_schema_cost_20261125.py` | 实测会话沙箱的建库成本 |
+| `tools/probe_rust_bridge_live_cost_20261125.py` | 实测 **Rust 桥的默认落点就是主链库**、且 Rust 侧迁移**真的读写生产** |
+| `tools/probe_full_store_snapshot_20261125.py` | **全库快照**探针：以 `mode=ro` 遍历活链库的**每一张表**，逐表记行数 ＋ 内容 §sha256§，另加 `kv_entries` / `kv_meta` 的**整表摘要**与 5 个**测试残留**定向探针 ⇒ 把判据从「19 个闸门键」扩到**整库字节级** |
+| `tools/probe_full_store_window_20261125.py` | 把**全库快照**包在一个命令的**前后**，产出「窗口前／窗口后／差异」三合一报告（用于把**全量回归**和**同时长静默对照**各跑一遍整库比对） |
+| `tools/cmd_full_regression_20261125.txt` | 探针 `--command-file` 用的全量回归命令 |
+| `tools/cmd_silent_control_20261125.txt` | 探针 `--command-file` 用的**静默对照**命令（同时长、无 pytest） |
+| `tools/cmd_silent_control_v4_20261125.txt` | 第二轮**静默对照**命令（同时长 2100 s、无 pytest） |
+| `tools/cmd_scoped_retest_20261125.txt` | **范围复测**命令（28 用例）—— 缺陷复现时它改写了 **4** 个闸门键，守卫装好后改写 **0** 个 |
+
+### 证据文件
+
+| 文件 | 内容 |
+|---|---|
+| `probe_live_db_writes_20261125_control.json` | **缺陷存在时**的静默对照窗（30 s，无 pytest）⇒ 闸门键改写 **0** 个 |
+| `probe_live_db_writes_20261125_scoped.json` | **缺陷存在时**的范围复测窗（28 用例）⇒ 闸门键改写 **4** 个（全是 `page_state\|*`） |
+| `probe_live_db_writes_20261125_guard_v1.json` / `_guard_v2.json` | 第一版守卫后的同一范围复测 ⇒ 改写 **0** 个 |
+| `probe_live_db_writes_20261125_full_guard_v3.json` | 第一轮**全量回归窗**（**3 failed** —— 3 个红例都是「断言默认库＝生产库」这条**被守卫改掉的规则**，已用 `unguarded_default_store()` 处置，见 `D-032` §3.2.5） |
+| `probe_live_db_writes_20261125_full_control_v3.json` | 第一轮**同时长**的**静默对照窗**（无 pytest） |
+| `probe_live_db_writes_20261125_full_guard_v4.json` | **最终**守卫版的**全量回归窗**：**3267 passed / 3 skipped / 0 failed**（**1289.65 s**），闸门键 **19** 个**逐字节 changedCount = 0**、`kv_meta` **0** |
+| `probe_live_db_writes_20261125_full_control_v4.json` | **最终**的**同时长静默对照窗**（**2102.234 s**，无 pytest）：闸门键 **0**、`kv_meta` **0**，且主库文件涨得**更多**（**87.6 vs 70.6 MB/1000 s**）⇒ **归因成立** |
+| `probe_gate_keys_20261125_midrun.json` / `_final.json` | 全量回归**中途**与**结束**时的闸门键独立快照（交叉核对） |
+| `probe_full_store_window_20261125_guard_v5.json` | **第二轮**：**整库摘要**包住的全量回归窗（**81** 张表行数 ＋ 内容 `sha256`，＋ `kv_entries` / `kv_meta` **整表摘要**，＋ **5** 个测试残留定向探针） |
+| `probe_full_store_window_20261125_control_v5.json` | **第二轮**：**同时长**静默对照窗的整库摘要（用于把「运行时自身写入」从整库差异里分离出来） |
+| `t401_guard_functional_unified.log` | 当前版的功能子集回归（**296** 例） |
+| `t401_guard_selftest_v2.log` | 守卫自测（**13** 项；随后新增 1 项，现为 **14** 项，见 `D-034` §f.1） |
+| `cargo_manager_db_20261125_t401.log` | `M-10` 的 Rust 侧回归（`cargo test --offline -p manager-db`） |
+
+> **方法学订正（如实登记）**：WAL 模式下 `PRAGMA data_version` **不与每次提交一一对应**
+> —— 缺陷复现的 **9.10 s** 短窗里闸门键被改写 **4** 个，它仍 **2 → 2**；
+> `TASK-184` 的 **943.705 s** 长窗里 **185** 次提交才 **2 → 187**；
+> 守卫后的 **2102.234 s** 对照窗（运行时自身写 **1124** 行）也只跳 **2** 次
+> ⇒ **闸门键逐字节比对才是可靠判据**，`data_version` **降级为辅助读数**。
+> **不推翻** `TASK-184` 的**语句级**计数结论（**185** 次提交 ／ **362** 条 DML）。
+> 详见 `T-储.01` 的 `D-035` §2.6。
+
+### 最终读数（**2026-11-25 · `T-储.01` 闭合**）
+
+> **一句话**：**测试套件对活链库的写入 = 0**（归因后）。
+
+| 判据层 | 守卫窗（全量回归在窗口内） | 同时长静默对照窗（无 pytest） |
+|---|---|---|
+| pytest 结果 | **3267 passed / 3 skipped / 0 failed**（**1289.65 s**） | — |
+| **闸门键逐字节**（`parameters` **19** 行 ＝ **全集合**） | **changedCount = 0** | **changedCount = 0** |
+| **`kv_meta` 逐字节** | **changedCount = 0** | **changedCount = 0** |
+| **`kv_entries` 整表摘要**（**6068** 行） | **完全相同** | **完全相同** |
+| **`kv_meta` 整表摘要** | **完全相同** | **完全相同** |
+| **81 张表**内容摘要 | **76 张完全相同**；余 **6** 张为**运行时产出表** | **同样变化**（差分归因） |
+| **测试残留**定向探针（**4** 个） | 全部**不变**（`attempt\|local\|%` 复核 **1 → 1**、尝试 **0 → 0**、`chain_id=0` 复核 **1 → 1**、尝试 **0 → 0**） | 全部**不变** |
+| 主库文件 size | **+92 MB / 1304 s ＝ 70.6 MB/1000 s** | **+184 MB / 2102 s ＝ 87.6 MB/1000 s**（**无 pytest 却涨得更多**） |
+
+**判据订正（如实登记，不美化）**：活链库**同时**被实盘运行时写入 ⇒
+「**活链库文件字节级零变化**」**字面不成立**（对照窗涨得**更多**即为证）。
+本任务证明的是「**测试套件写入 = 0**」（**归因后**），**不是**「活链库文件不动」。
+
+**完整判据设计、读数与诚实边界**：见 `T-储.01` 的 `D-032` §3.2 ＋ `D-035` §7。
+
+---
+
+## 2026-11-25 增量报告索引（`T-闭.01` 方向层主序接管闭环主池）
+
+> **目的**：把「方向层的序位能不能接管闭环三跳的主池」这件事**用实测读数钉死**，
+> 并给出**可复算**的对照（旧序 vs 新序）证据。
+> **落点**：`flashloan/tools/closed_loop_manager/src/lib.rs`（**唯一改动文件**）。
+> **实盘库零写入**：全程 `mode=ro` ＋ `PRAGMA query_only = ON`；复算在**瘦副本**上做。
+
+### 探针与工具
+
+| 文件 | 作用 |
+|---|---|
+| `tools/clone_closed_loop_slice_20261125.py` | 把 **11.93 GB** 的实盘库切成**瘦副本**：逐表复制 schema ＋ 只复制闭环层会读的表 ⇒ 得到一个 **58 MB**、**83** 张表的库（方向池 **692** 行、闭环跳 **522** 行、闭环 **174** 行） |
+| `tools/compare_directional_primary_order_20261125.py` | **只读**影子比对：方向层序位 vs 旧口径主序（换池率、序位分布、选池依据分布、截断窗口越界数） |
+| `tools/compare_directional_primary_order_effect_20261125.py` | 对**同一份切片重物化两次**的结果做差异量化（闭环数 / 跳数 / 成员集 / 容量 / 价格质量 / 优化状态 / 跳过令牌） |
+| `tools/probe_legacy_cutover_comparison_20261125.py` | 复算闭环层的「旧口径切换」诊断位（`readyForCutover`），**只读** |
+
+### 证据文件
+
+| 文件 | 内容 |
+|---|---|
+| `reports/directional_primary_order_shadow_20261125.json` / `.md` | 影子比对读数：方向池 **692** 行（有 rank **342**）、已发布跳 **522**、跳维度换池率 **23.7548 %**（124 / 522）、受影响闭环 **99 / 174**、**方向层 rank-1 在旧候选层截断窗口内 `notInTier` 0 / 216 ＋ 0 / 386**、当前主池的序位分布 `{1: 404, 2: 61, 3: 51, None: 6}` |
+| `reports/directional_primary_order_effect_20261125.json` | 旧序 vs 新序的**差异量化**：闭环 **174 → 174**（新增 0 / 移除 0）、跳 **522 → 522**、跳过令牌 **1100 → 1100 且逐条相同**、**候选成员集逐跳完全一致**、换池跳 **118 / 522 = 22.6054 %**、容量 **37 变好 / 46 变差 / 91 不变**（**−0.5963 %**）、**价格质量 89 变好 / 0 变差 / 79 不变**（**+0.4197 %**）、`temporary` **6 → 0** |
+| `reports/legacy_cutover_comparison_20261125.json` | 旧口径切换诊断位：`readyForCutover` 改动**前已是 `false`**（闭环 174 vs 104、跳 522 vs 312、`fieldMismatch` **225** 行）⇒ 本改动**不使该诊断位变差** |
+| `closed_loop_slice_4663.sqlite3` | **58,511,360 B** 瘦副本（**证据 · 保留**；须确认 `.gitignore` 不误提交） |
+| `slice_off.sqlite3` / `slice_on.sqlite3` | 同一切片的**旧序**（`changedRows = 0`、`closedLoopVersion = 19` ⇒ 与实盘逐行一致）与**新序**（`changedRows = 2442`、`closedLoopVersion = 20`）两次物化的产物（**证据 · 保留**） |
+
+### 最终读数（**2026-11-25 · `T-闭.01` 部分闭合**）
+
+> **一句话**：方向层的主序可以在**不引入任何新池、不放宽任何门禁**的前提下接管闭环主池；
+> 代价是**折叠容量 −0.60 %**，收益是**价格质量 +0.42 %（单向占优：89 变好 / 0 变差）**。
+
+| 判据 | 读数 | 结论 |
+|---|---|---|
+| 闭环身份 | **174 → 174**（新增 **0** / 移除 **0**） | **不变** |
+| 跳数 / 跳过令牌 | **522 → 522** ／ **1100 → 1100 且逐条相同** | **不变** |
+| 候选成员集（主池 ∪ 备选） | **逐跳完全一致** | **纯置换 ⇒ 不引入新池** |
+| 门禁 | 容量门禁仍生效；`temporary` **6 → 0** | **未放宽**（6 条换池接管被方向层 rank-1 **直接取代**） |
+| 折叠容量 | **37 变好 / 46 变差 / 91 不变**，合计 **−0.5963 %** | **轻微下降**（方向层是**价格**序，旧序是**深度**序） |
+| 价格质量（利润代理） | **89 变好 / 0 变差 / 79 不变**，合计 **+0.4197 %** | **单向占优** |
+| 旧序可回滚 | 开关 OFF ⇒ `changedRows = 0`、`closedLoopVersion = 19` | **与实盘逐行一致** |
+| 实盘生效 | **未做**（运行时 pid **27084** 未重启） | **须随下次运行期重启生效** |
+
+**完整方法、代码改动与诚实边界**：见 `T-闭.01` 的 `D-113` §3 ＋ `D-116`。

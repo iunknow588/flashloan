@@ -33,6 +33,19 @@ const HOP_SIDE_SCOPE_KEY: &str = "core4";
 /// The market observation layer publishes the Y->Z pools under the
 /// `candidate_exchange` scope, so the middle hop walks that projection.
 const HOP_MIDDLE_SCOPE_KEY: &str = "candidate_exchange";
+/// The environment variable that decides which order names the **primary**
+/// pool of a hop.
+///
+/// The direction layer ranks every pool of a `(pair, direction)` group by the
+/// price quality of that direction, and the closed loop walks the group in
+/// that order: the primary of a hop is the pool the direction layer ranked
+/// first.  The variable is the **kill switch** of that switch-over.
+///
+/// Absent or empty means **on** — the direction layer is the authority — and
+/// only an explicit negative value (`0` / `false` / `off` / `no`) keeps the
+/// legacy order of the candidate tier.  A typo therefore can never silently
+/// disable the switch-over.
+pub const DIRECTIONAL_PRIMARY_ORDER_ENV: &str = "FLASHLOAN_CLOSED_LOOP_DIRECTIONAL_PRIMARY";
 const MAX_REQUEST_ID_LENGTH: usize = 128;
 const MAX_IDEMPOTENCY_KEY_LENGTH: usize = 256;
 const MAX_SNAPSHOT_LIMIT: usize = 1_000;
@@ -88,6 +101,30 @@ fn read_cross_tick_review_threshold_usdg_raw() -> u128 {
         .map(|raw| raw as u128)
         .filter(|raw| *raw > 0)
         .unwrap_or(DEFAULT_CROSS_TICK_REVIEW_THRESHOLD_USDG_RAW)
+}
+
+/// Read the primary-order switch from a raw environment value.
+///
+/// An absent or empty value means **on**: the direction layer is the
+/// authority.  Only an explicit negative value turns the switch off, so a
+/// malformed value can never silently keep the legacy order alive.
+fn directional_primary_order_from_value(value: Option<&str>) -> bool {
+    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return true;
+    };
+    !matches!(
+        value.to_ascii_lowercase().as_str(),
+        "0" | "false" | "off" | "no"
+    )
+}
+
+/// Whether the direction layer names the primary pool of a hop.
+///
+/// The value is read **once per materialization**, so one run never mixes two
+/// orders, and the published rows always agree with the order the run used.
+fn directional_primary_order_enabled() -> bool {
+    let value = std::env::var(DIRECTIONAL_PRIMARY_ORDER_ENV).ok();
+    directional_primary_order_from_value(value.as_deref())
 }
 
 #[derive(Debug)]
@@ -809,6 +846,14 @@ struct ClosedLoopInput {
     /// read from the policy file so that there is exactly one definition
     /// of the threshold in the system.
     cross_tick_review_threshold_usdg_raw: u128,
+    /// Whether the direction layer names the **primary** pool of a hop.
+    ///
+    /// The direction layer ranks the pools of a `(pair, direction)` group by
+    /// the price quality of that direction; when the switch is on, the closed
+    /// loop walks the group in that order, so the primary of a hop is the pool
+    /// the direction layer ranked first.  When the switch is off, the legacy
+    /// order of the candidate tier is kept, which is the rollback path.
+    directional_primary_order: bool,
 }
 
 /// Resolve the pool-scope checksum that the closed-loop layer must publish.
@@ -1199,6 +1244,7 @@ fn read_closed_loop_input(
         token_decimals,
         usdg_token_key_id,
         cross_tick_review_threshold_usdg_raw: read_cross_tick_review_threshold_usdg_raw(),
+        directional_primary_order: directional_primary_order_enabled(),
     })
 }
 
@@ -2425,6 +2471,12 @@ fn resolve_hop_directional_pool(
 /// The primary must resolve to a direction row: a hop whose primary has none
 /// is a topology error and aborts the materialization.  A backup without a
 /// direction row is not tradeable and is skipped.
+///
+/// When the direction layer is the authority of the primary order, the whole
+/// candidate list is re-ordered by the direction rank before the hop walks
+/// it.  The re-order is a **pure permutation**: the membership of the list
+/// does not change, so no pool becomes reachable that the list could not
+/// reach before, and no gate moves.
 fn build_hop_candidates(
     input: &ClosedLoopInput,
     scope_key: &str,
@@ -2505,7 +2557,63 @@ fn build_hop_candidates(
             }),
         });
     }
+    if input.directional_primary_order {
+        order_hop_candidates_by_direction_rank(&mut candidates, backup_id_prefix);
+    }
     Ok(candidates)
+}
+
+/// Order the candidates of one hop by the direction layer's own ranking.
+///
+/// The direction layer ranks every pool of a `(pair, direction)` group by the
+/// price quality of that direction, and the closed loop walks the group in
+/// that order: the **primary** of a hop is the pool the direction layer
+/// ranked first.
+///
+/// The order is a **pure permutation** of the candidate list, so the
+/// membership does not change and no gate moves.  Three properties hold:
+///
+/// * A pool that carries no rank was never priced, so it stays behind every
+///   ranked pool.
+/// * A pool without a direction row has no rank either, so the primary of a
+///   hop always resolves to a direction row.
+/// * The sort is stable, so two pools of the same rank keep the order the
+///   candidate tier gave them.
+///
+/// The optimization id of a candidate names its **position** in the list the
+/// hop walks (`{prefix}-rank-{n}`), because that is the order the candidate
+/// is tried in.  The direction rank itself is published on the hop row and
+/// in the basis of the candidate, so nothing is lost by the renumbering.
+fn order_hop_candidates_by_direction_rank(candidates: &mut [HopCandidate], prefix: &str) {
+    candidates.sort_by(|left, right| {
+        let left_rank = left.hop_pool.as_ref().and_then(|pool| pool.rank);
+        let right_rank = right.hop_pool.as_ref().and_then(|pool| pool.rank);
+        match (left_rank, right_rank) {
+            (Some(left_rank), Some(right_rank)) => left_rank.cmp(&right_rank),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => std::cmp::Ordering::Equal,
+        }
+    });
+    for (position, candidate) in candidates.iter_mut().enumerate() {
+        let rank = candidate.hop_pool.as_ref().and_then(|pool| pool.rank);
+        candidate.optimization_id = if position == 0 {
+            // The primary of the hop is not an optimization: it is the pool
+            // the direction layer named.
+            None
+        } else {
+            Some(format!("{prefix}-rank-{}", position + 1))
+        };
+        if position == 0 {
+            // The basis of the primary answers "why this pool", and the
+            // answer is now the rank the direction layer gave it.  A primary
+            // without a rank means the group held no priced pool at all, and
+            // then the basis of the candidate tier still holds the truth.
+            if let Some(rank) = rank {
+                candidate.basis = format!("directional_pair_direction_rank:{rank}");
+            }
+        }
+    }
 }
 
 /// The verdict of the path level capacity gate for one combination.
@@ -4934,11 +5042,12 @@ fn usize_from_i64(value: i64) -> usize {
 #[cfg(test)]
 mod tests {
     use super::{
-        compare_closed_loops, folded_path_capacity, materialize_closed_loops,
+        build_closed_loop_rows, compare_closed_loops, directional_primary_order_from_value,
+        folded_path_capacity, materialize_closed_loops,
         materialize_closed_loops_write, path_min_capacity, read_closed_loop_input,
         read_closed_loop_snapshot, read_closed_loop_status, ClosedLoopError,
         ClosedLoopWriteRequest, ExpectedUpstream, MIN_CLOSED_LOOP_CAPACITY_RAW,
-        DirectionalPoolIndex, resolve_hop_directional_pool,
+        DesiredClosedLoopData, DirectionalPoolIndex, resolve_hop_directional_pool,
         HOP_MIDDLE_SCOPE_KEY, HOP_SIDE_SCOPE_KEY,
         path_min_single_tick_bound,
         hop_candidate_combinations, read_hops, read_optimizations,
@@ -4948,7 +5057,7 @@ mod tests {
     use manager_contracts::directional_pool::{DirectionalPool, PoolDirection, V4Pool};
     use manager_contracts::TokenKeyId;
     use rusqlite::{params, Connection};
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, BTreeSet};
 
     const NETWORK: &str = "robinhood";
     const CHAIN_ID: i64 = 4663;
@@ -5404,6 +5513,188 @@ mod tests {
         }
     }
 
+    /// Give the directional rows of a base pool their rank inside their
+    /// `(pair, direction)` group.
+    ///
+    /// `None` clears the rank, which is the state of a pool whose direction
+    /// was never priced.
+    fn seed_direction_rank(connection: &Connection, base_pool_id: &str, rank: Option<i64>) {
+        connection
+            .execute(
+                "UPDATE manager_v4_directional_exchange_pools SET pair_direction_rank = ?1
+                 WHERE network = ?2 AND chain_id = ?3 AND protocol = 'uniswap_v4'
+                   AND base_pool_id = ?4",
+                params![rank, NETWORK, CHAIN_ID, base_pool_id],
+            )
+            .unwrap();
+    }
+
+    /// The pools every hop of the published data may trade, keyed by hop.
+    ///
+    /// The set is the **membership** of the candidate list: the primary of the
+    /// hop plus every optimization the hop may take over to.
+    fn pools_of_every_hop(desired: &DesiredClosedLoopData) -> BTreeMap<usize, BTreeSet<String>> {
+        let mut pools: BTreeMap<usize, BTreeSet<String>> = BTreeMap::new();
+        for hop in &desired.hops {
+            pools
+                .entry(hop.hop_index)
+                .or_default()
+                .insert(hop.base_pool_id.clone());
+        }
+        for optimization in &desired.optimizations {
+            pools
+                .entry(optimization.hop_index)
+                .or_default()
+                .insert(optimization.optimized_pool_id.clone());
+        }
+        pools
+    }
+
+    #[test]
+    fn the_primary_order_switch_is_read_from_the_environment() {
+        // An absent or empty value means **on**: the direction layer is the
+        // authority.  Only an explicit negative value turns the switch off,
+        // so a typo can never silently keep the legacy order alive.
+        assert!(directional_primary_order_from_value(None));
+        assert!(directional_primary_order_from_value(Some("")));
+        assert!(directional_primary_order_from_value(Some("   ")));
+        assert!(directional_primary_order_from_value(Some("1")));
+        assert!(directional_primary_order_from_value(Some("on")));
+        assert!(directional_primary_order_from_value(Some("TRUE")));
+        assert!(!directional_primary_order_from_value(Some("0")));
+        assert!(!directional_primary_order_from_value(Some("false")));
+        assert!(!directional_primary_order_from_value(Some("off")));
+        assert!(!directional_primary_order_from_value(Some("NO")));
+    }
+
+    #[test]
+    fn the_direction_rank_decides_the_primary_of_a_hop() {
+        // The candidate edge names `POOL_A1` first, but the direction layer
+        // ranks `POOL_A2` first inside their `(pair, direction)` group.  The
+        // direction layer is the authority of the primary, so the hop trades
+        // the pool it ranked first.
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            seed_direction_rank(&connection, POOL_A2, Some(1));
+            seed_direction_rank(&connection, POOL_A1, Some(2));
+        }
+        let applied = materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        assert_eq!(applied.loop_count, 1);
+
+        let connection = Connection::open(&path).unwrap();
+        let hops = read_hops(&connection, NETWORK, CHAIN_ID, None, 64).unwrap();
+        let first = hops
+            .iter()
+            .find(|hop| hop.hop_index == 1)
+            .expect("the first hop of the published loop");
+        assert_eq!(
+            first.pool_id, POOL_A2,
+            "the hop trades the pool the direction layer ranked first"
+        );
+        assert_eq!(
+            first.base_pool_id, POOL_A2,
+            "the primary of the hop is the pool the direction layer ranked first"
+        );
+        assert_eq!(first.directional_pool_rank, Some(1));
+        assert_eq!(
+            first.pool_selection_basis, "directional_pair_direction_rank:1",
+            "the basis of the hop names the authority that picked the pool"
+        );
+        assert!(!first.temporary_override, "the primary is not an override");
+    }
+
+    #[test]
+    fn the_legacy_order_is_kept_when_the_switch_is_off() {
+        // The switch is the rollback path of the switch-over: with it off,
+        // the candidate tier keeps naming the primary of the hop.
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            seed_direction_rank(&connection, POOL_A2, Some(1));
+            seed_direction_rank(&connection, POOL_A1, Some(2));
+        }
+        let connection = Connection::open(&path).unwrap();
+        let mut input = read_closed_loop_input(&connection, NETWORK, CHAIN_ID).unwrap();
+        input.directional_primary_order = false;
+        let desired = build_closed_loop_rows(&input).unwrap();
+        let first = desired
+            .hops
+            .iter()
+            .find(|hop| hop.hop_index == 1)
+            .expect("the first hop of the published loop");
+        assert_eq!(
+            first.base_pool_id, POOL_A1,
+            "the legacy candidate tier keeps naming the primary"
+        );
+        assert_eq!(
+            first.pool_selection_basis, "first_fixed_fee",
+            "the basis of the legacy order is kept"
+        );
+    }
+
+    #[test]
+    fn the_reordering_keeps_the_membership_of_the_candidate_list() {
+        // The re-order is a pure permutation: the pools a hop may trade are
+        // the same with the switch on and with the switch off, so no pool
+        // becomes reachable that the list could not reach before.
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            seed_direction_rank(&connection, POOL_A2, Some(1));
+            seed_direction_rank(&connection, POOL_A1, Some(2));
+            seed_direction_rank(&connection, POOL_YZ_2, Some(2));
+            seed_direction_rank(&connection, POOL_YZ, Some(1));
+        }
+        let connection = Connection::open(&path).unwrap();
+        let mut input = read_closed_loop_input(&connection, NETWORK, CHAIN_ID).unwrap();
+        let switched_on = build_closed_loop_rows(&input).unwrap();
+        input.directional_primary_order = false;
+        let switched_off = build_closed_loop_rows(&input).unwrap();
+        assert_eq!(
+            pools_of_every_hop(&switched_on),
+            pools_of_every_hop(&switched_off),
+            "the membership of the candidate list does not change"
+        );
+        assert!(!pools_of_every_hop(&switched_on).is_empty());
+    }
+
+    #[test]
+    fn a_pool_without_a_rank_stays_behind_the_ranked_pools() {
+        // A row without a rank was never priced, so it is not a candidate of
+        // its group and it never becomes the primary of a hop.
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            seed_direction_rank(&connection, POOL_A1, None);
+            seed_direction_rank(&connection, POOL_A2, Some(1));
+        }
+        let connection = Connection::open(&path).unwrap();
+        let input = read_closed_loop_input(&connection, NETWORK, CHAIN_ID).unwrap();
+        let desired = build_closed_loop_rows(&input).unwrap();
+        let first = desired
+            .hops
+            .iter()
+            .find(|hop| hop.hop_index == 1)
+            .expect("the first hop of the published loop");
+        assert_eq!(
+            first.base_pool_id, POOL_A2,
+            "the ranked pool is the primary"
+        );
+        assert_eq!(first.directional_pool_rank, Some(1));
+        let alternatives = desired
+            .optimizations
+            .iter()
+            .filter(|optimization| optimization.hop_index == 1)
+            .map(|optimization| optimization.optimized_pool_id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            alternatives,
+            vec![POOL_A1],
+            "the pool without a rank stays an alternative of the hop"
+        );
+    }
+
     #[test]
     fn a_hop_whose_primary_fails_the_capacity_gate_is_taken_over_by_its_next_candidate() {
         // The primary of the middle hop is too shallow, so the hop trades
@@ -5490,8 +5781,8 @@ mod tests {
         );
         assert_eq!(
             middle.optimization_id.as_deref(),
-            Some("middle-backup-rank-6"),
-            "the backup of the group is an optimization of its own"
+            Some("middle-rank-3"),
+            "the backup of the group is an optimization of its own, and its id names the position it is tried in"
         );
         assert!(middle.temporary_override, "the takeover is a temporary one");
     }
@@ -5535,7 +5826,7 @@ mod tests {
             "the candidate that was tried and did not pass is expired"
         );
         assert_eq!(
-            statuses.get("middle-backup-rank-6").map(String::as_str),
+            statuses.get("middle-rank-3").map(String::as_str),
             Some("temporary"),
             "the optimization in effect is temporary"
         );
@@ -5597,7 +5888,7 @@ mod tests {
             1,
             "only the optimization in effect is consumed"
         );
-        assert_eq!(consumed[0].optimization_id, "middle-backup-rank-6");
+        assert_eq!(consumed[0].optimization_id, "middle-rank-3");
         assert_eq!(consumed[0].status, "temporary");
         assert_eq!(consumed[0].original_pool_id, POOL_YZ);
         assert_eq!(consumed[0].optimized_pool_id, POOL_YZ_3);
@@ -6233,16 +6524,20 @@ mod tests {
             )
             .unwrap();
         for (index, name, input, output, pool, basis) in [
-            (1, "yc", USDG, AMZN, POOL_A1, "first_fixed_fee"),
+            // The basis of a hop names the authority that picked the pool.
+            // Under the direction layer that authority is the rank of the
+            // pool inside its `(pair, direction)` group, so the legacy rows
+            // of the fixture carry the same label as the manager rows.
+            (1, "yc", USDG, AMZN, POOL_A1, "directional_pair_direction_rank:1"),
             (
                 2,
                 "y-z",
                 AMZN,
                 TA,
                 POOL_YZ,
-                &format!("observation_direction_optimal_pool:{AMZN}:{TA}"),
+                "directional_pair_direction_rank:1",
             ),
-            (3, "zc", TA, USDG, POOL_D, "third_fixed_fee"),
+            (3, "zc", TA, USDG, POOL_D, "directional_pair_direction_rank:1"),
         ] {
             connection
                 .execute(

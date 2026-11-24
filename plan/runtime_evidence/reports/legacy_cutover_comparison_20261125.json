@@ -1,0 +1,422 @@
+{
+  "hops": {
+    "fieldMismatchByColumn": {
+      "base_pool_id": 71,
+      "pool_id": 71,
+      "pool_selection_basis": 200
+    },
+    "fieldMismatchRows": 225,
+    "legacyOnly": 12,
+    "legacyRows": 312,
+    "managerOnly": 222,
+    "managerRows": 522,
+    "samples": [
+      {
+        "fields": {
+          "pool_selection_basis": {
+            "legacy": "capacity_binding_desc_price_impact_asc_first_hop:0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            "manager": "direction_single_tick_exact_output_then_tick_fee_pool_id"
+          }
+        },
+        "key": "0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168|1"
+      },
+      {
+        "fields": {
+          "base_pool_id": {
+            "legacy": "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+            "manager": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e"
+          },
+          "pool_id": {
+            "legacy": "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+            "manager": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e"
+          },
+          "pool_selection_basis": {
+            "legacy": "capacity_binding_desc_price_impact_asc_third_hop:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+            "manager": "direction_single_tick_exact_output_then_tick_fee_pool_id"
+          }
+        },
+        "key": "0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168|3"
+      },
+      {
+        "fields": {
+          "pool_selection_basis": {
+            "legacy": "capacity_binding_desc_price_impact_asc_first_hop:0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            "manager": "direction_single_tick_exact_output_then_tick_fee_pool_id"
+          }
+        },
+        "key": "0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec|1"
+      },
+      {
+        "fields": {
+          "base_pool_id": {
+            "legacy": "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35",
+            "manager": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c"
+          },
+          "pool_id": {
+            "legacy": "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35",
+            "manager": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c"
+          },
+          "pool_selection_basis": {
+            "legacy": "capacity_binding_desc_price_impact_asc_third_hop:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000",
+            "manager": "direction_single_tick_exact_output_then_tick_fee_pool_id"
+          }
+        },
+        "key": "0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec|3"
+      },
+      {
+        "fields": {
+          "pool_selection_basis": {
+            "legacy": "capacity_binding_desc_price_impact_asc_first_hop:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+            "manager": "direction_single_tick_exact_output_then_tick_fee_pool_id"
+          }
+        },
+        "key": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3|1"
+      },
+      {
+        "fields": {
+          "base_pool_id": {
+            "legacy": "0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e",
+            "manager": "0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30"
+          },
+          "pool_id": {
+            "legacy": "0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e",
+            "manager": "0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30"
+          }
+        },
+        "key": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3|2"
+      },
+      {
+        "fields": {
+          "pool_selection_basis": {
+            "legacy": "capacity_binding_desc_price_impact_asc_third_hop:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000",
+            "manager": "direction_single_tick_exact_output_then_tick_fee_pool_id"
+          }
+        },
+        "key": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3|3"
+      },
+      {
+        "fields": {
+          "pool_selection_basis": {
+            "legacy": "capacity_binding_desc_price_impact_asc_first_hop:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+            "manager": "direction_single_tick_exact_output_then_tick_fee_pool_id"
+          }
+        },
+        "key": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168|1"
+      },
+      {
+        "fields": {
+          "base_pool_id": {
+            "legacy": "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+            "manager": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e"
+          },
+          "pool_id": {
+            "legacy": "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+            "manager": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e"
+          },
+          "pool_selection_basis": {
+            "legacy": "capacity_binding_desc_price_impact_asc_third_hop:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+            "manager": "direction_single_tick_exact_output_then_tick_fee_pool_id"
+          }
+        },
+        "key": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168|3"
+      },
+      {
+        "fields": {
+          "pool_selection_basis": {
+            "legacy": "capacity_binding_desc_price_impact_asc_first_hop:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+            "manager": "direction_single_tick_exact_output_then_tick_fee_pool_id"
+          }
+        },
+        "key": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xc0d6457c16cc70d6790dd43521c899c87ce02f35|1"
+      }
+    ],
+    "shared": 300
+  },
+  "legacyTablesAvailable": true,
+  "loops": {
+    "fieldMismatchByColumn": {
+      "hop_candidate_combination_count": 18,
+      "hop_candidate_counts_json": 66,
+      "pool_ids_json": 59,
+      "pool_path_key": 59
+    },
+    "fieldMismatchRows": 78,
+    "legacyOnly": 4,
+    "legacyRows": 104,
+    "managerOnly": 74,
+    "managerRows": 174,
+    "samples": [
+      {
+        "fields": {
+          "hop_candidate_counts_json": {
+            "legacy": {
+              "1": 1,
+              "2": 1,
+              "3": 1
+            },
+            "manager": {
+              "1": 1,
+              "2": 4,
+              "3": 1
+            }
+          }
+        },
+        "key": "AAPL|0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+      },
+      {
+        "fields": {
+          "hop_candidate_counts_json": {
+            "legacy": {
+              "1": 1,
+              "2": 1,
+              "3": 1
+            },
+            "manager": {
+              "1": 1,
+              "2": 4,
+              "3": 1
+            }
+          },
+          "pool_ids_json": {
+            "legacy": [
+              "0xc748f4671a867db48b552f6b7650bf3255e05f80f00e3f7aad1b17ccb7898fdb",
+              "0xfe2a80bb5618fd14984b92ca6d45bf5ba67443ddb1435e28b2e48df2fc1526cd",
+              "0xeab0adac76db99a233ed077ca6be7a3f708baee6f98b17df69f7e1a07d1dc2e4"
+            ],
+            "manager": [
+              "0xc748f4671a867db48b552f6b7650bf3255e05f80f00e3f7aad1b17ccb7898fdb",
+              "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+              "0xeab0adac76db99a233ed077ca6be7a3f708baee6f98b17df69f7e1a07d1dc2e4"
+            ]
+          },
+          "pool_path_key": {
+            "legacy": "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0xc748f4671a867db48b552f6b7650bf3255e05f80f00e3f7aad1b17ccb7898fdb:0xfe2a80bb5618fd14984b92ca6d45bf5ba67443ddb1435e28b2e48df2fc1526cd:0xeab0adac76db99a233ed077ca6be7a3f708baee6f98b17df69f7e1a07d1dc2e4",
+            "manager": "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0xc748f4671a867db48b552f6b7650bf3255e05f80f00e3f7aad1b17ccb7898fdb:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:0xeab0adac76db99a233ed077ca6be7a3f708baee6f98b17df69f7e1a07d1dc2e4"
+          }
+        },
+        "key": "AAPL|0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      },
+      {
+        "fields": {
+          "hop_candidate_counts_json": {
+            "legacy": {
+              "1": 1,
+              "2": 1,
+              "3": 1
+            },
+            "manager": {
+              "1": 1,
+              "2": 4,
+              "3": 1
+            }
+          }
+        },
+        "key": "AMD|0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+      },
+      {
+        "fields": {
+          "hop_candidate_counts_json": {
+            "legacy": {
+              "1": 1,
+              "2": 1,
+              "3": 1
+            },
+            "manager": {
+              "1": 1,
+              "2": 4,
+              "3": 1
+            }
+          },
+          "pool_ids_json": {
+            "legacy": [
+              "0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274",
+              "0xfe2a80bb5618fd14984b92ca6d45bf5ba67443ddb1435e28b2e48df2fc1526cd",
+              "0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82"
+            ],
+            "manager": [
+              "0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274",
+              "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+              "0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82"
+            ]
+          },
+          "pool_path_key": {
+            "legacy": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274:0xfe2a80bb5618fd14984b92ca6d45bf5ba67443ddb1435e28b2e48df2fc1526cd:0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82",
+            "manager": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82"
+          }
+        },
+        "key": "AMD|0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      },
+      {
+        "fields": {
+          "hop_candidate_counts_json": {
+            "legacy": {
+              "1": 1,
+              "2": 1,
+              "3": 1
+            },
+            "manager": {
+              "1": 1,
+              "2": 2,
+              "3": 1
+            }
+          }
+        },
+        "key": "AMD|0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec"
+      },
+      {
+        "fields": {
+          "hop_candidate_counts_json": {
+            "legacy": {
+              "1": 1,
+              "2": 1,
+              "3": 1
+            },
+            "manager": {
+              "1": 1,
+              "2": 2,
+              "3": 1
+            }
+          },
+          "pool_ids_json": {
+            "legacy": [
+              "0x928965e3f578b9825df398cfb31595201b32fc9e58b28ade4b2b48b68ea88e5b",
+              "0x84e2847d2fe2dab492ca065326efa51b6f7e0924f200f983b9939530834df815",
+              "0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274"
+            ],
+            "manager": [
+              "0x928965e3f578b9825df398cfb31595201b32fc9e58b28ade4b2b48b68ea88e5b",
+              "0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1",
+              "0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274"
+            ]
+          },
+          "pool_path_key": {
+            "legacy": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x928965e3f578b9825df398cfb31595201b32fc9e58b28ade4b2b48b68ea88e5b:0x84e2847d2fe2dab492ca065326efa51b6f7e0924f200f983b9939530834df815:0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274",
+            "manager": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x928965e3f578b9825df398cfb31595201b32fc9e58b28ade4b2b48b68ea88e5b:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274"
+          }
+        },
+        "key": "AMD|0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+      },
+      {
+        "fields": {
+          "hop_candidate_counts_json": {
+            "legacy": {
+              "1": 2,
+              "2": 1,
+              "3": 2
+            },
+            "manager": {
+              "1": 2,
+              "2": 4,
+              "3": 2
+            }
+          },
+          "pool_ids_json": {
+            "legacy": [
+              "0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748",
+              "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+              "0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00"
+            ],
+            "manager": [
+              "0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748",
+              "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+              "0x628c98ab436ee34a6a7decd606242890582591bdf7c9a35d90e0d08021c31ea0"
+            ]
+          },
+          "pool_path_key": {
+            "legacy": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00",
+            "manager": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0x628c98ab436ee34a6a7decd606242890582591bdf7c9a35d90e0d08021c31ea0"
+          }
+        },
+        "key": "CRCL|0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+      },
+      {
+        "fields": {
+          "hop_candidate_counts_json": {
+            "legacy": {
+              "1": 2,
+              "2": 1,
+              "3": 2
+            },
+            "manager": {
+              "1": 2,
+              "2": 4,
+              "3": 2
+            }
+          },
+          "pool_ids_json": {
+            "legacy": [
+              "0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00",
+              "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+              "0x10906975ba92bce9209431984d3e3e4b0eac706db274e8d1a29358331a555987"
+            ],
+            "manager": [
+              "0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00",
+              "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+              "0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748"
+            ]
+          },
+          "pool_path_key": {
+            "legacy": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0x10906975ba92bce9209431984d3e3e4b0eac706db274e8d1a29358331a555987",
+            "manager": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748"
+          }
+        },
+        "key": "CRCL|0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000"
+      },
+      {
+        "fields": {
+          "hop_candidate_counts_json": {
+            "legacy": {
+              "1": 2,
+              "2": 1,
+              "3": 1
+            },
+            "manager": {
+              "1": 2,
+              "2": 2,
+              "3": 1
+            }
+          }
+        },
+        "key": "CRCL|0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e"
+      },
+      {
+        "fields": {
+          "hop_candidate_counts_json": {
+            "legacy": {
+              "1": 1,
+              "2": 1,
+              "3": 2
+            },
+            "manager": {
+              "1": 1,
+              "2": 2,
+              "3": 2
+            }
+          },
+          "pool_ids_json": {
+            "legacy": [
+              "0x9d287d9cc4292d4edd599d983a221ad4c1b16340996326be9b3e0b5786caf33d",
+              "0x632d9bdccf26e13dbf23b185f29cba47e237371010e1abf7aceaeff653f66be4",
+              "0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00"
+            ],
+            "manager": [
+              "0x9d287d9cc4292d4edd599d983a221ad4c1b16340996326be9b3e0b5786caf33d",
+              "0x632d9bdccf26e13dbf23b185f29cba47e237371010e1abf7aceaeff653f66be4",
+              "0x628c98ab436ee34a6a7decd606242890582591bdf7c9a35d90e0d08021c31ea0"
+            ]
+          },
+          "pool_path_key": {
+            "legacy": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x9d287d9cc4292d4edd599d983a221ad4c1b16340996326be9b3e0b5786caf33d:0x632d9bdccf26e13dbf23b185f29cba47e237371010e1abf7aceaeff653f66be4:0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00",
+            "manager": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x9d287d9cc4292d4edd599d983a221ad4c1b16340996326be9b3e0b5786caf33d:0x632d9bdccf26e13dbf23b185f29cba47e237371010e1abf7aceaeff653f66be4:0x628c98ab436ee34a6a7decd606242890582591bdf7c9a35d90e0d08021c31ea0"
+          }
+        },
+        "key": "CRCL|0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+      }
+    ],
+    "shared": 100
+  },
+  "marketId": "dex-arbitrage-4663-uniswap-v4",
+  "ok": true,
+  "readyForCutover": false,
+  "store": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3"
+}
