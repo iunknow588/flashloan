@@ -2884,6 +2884,7 @@ fn map_broadcast_command_error(error: BroadcastError) -> RuntimeCoreError {
         BroadcastError::ExpectedUpstreamMismatch { .. } => ("UPSTREAM_VERSION_CHANGED", 409),
         BroadcastError::UnknownRequest(_)
         | BroadcastError::BroadcastRequestNotEligible { .. }
+        | BroadcastError::BroadcastRequestNotAdmitted { .. }
         | BroadcastError::AttemptNotFound(_)
         | BroadcastError::AttemptAlreadyTerminal { .. } => ("BROADCAST_REQUEST_NOT_ELIGIBLE", 409),
         BroadcastError::MissingReviewState | BroadcastError::ReviewSnapshotTruncated { .. } => {

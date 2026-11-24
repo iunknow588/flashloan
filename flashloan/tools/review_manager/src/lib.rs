@@ -417,6 +417,35 @@ pub struct ReviewDiagnosticRow {
     pub observed_at: String,
 }
 
+/// The facts the broadcast layer needs in order to judge a request.
+///
+/// The review is the only layer that measured `runArbitrage`, so it owns
+/// these facts. The broadcast layer reads them instead of re-measuring,
+/// which keeps the admission decision in one auditable place.
+///
+/// Every field is **optional on purpose**: a value that was never
+/// measured reads back as absent. The broadcast layer must treat an
+/// absent fact as **"not proven"**, never as zero and never as a pass.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BroadcastAdmissionFacts {
+    /// The review's own status at the moment the request was published.
+    ///
+    /// Only `completed` may reach the broadcast layer.
+    pub review_status: String,
+    /// The `runArbitrage` verdict the review recorded.
+    ///
+    /// `ok` and `executable` are read back **separately** so that a
+    /// missing field is distinguishable from a false one.
+    pub run_ok: Option<bool>,
+    pub run_executable: Option<bool>,
+    /// When the review measured the loop.
+    ///
+    /// The broadcast layer computes the age from this stamp. It is the
+    /// only clock reference the freshness rule may use.
+    pub reviewed_at: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BroadcastRequestRow {
@@ -432,6 +461,18 @@ pub struct BroadcastRequestRow {
     pub signed_pnl: SignedPnl,
     pub request_status: String,
     pub request_reason: Option<String>,
+    /// The admission facts the broadcast layer needs in order to judge
+    /// the request on its own.
+    ///
+    /// The review is the layer that measured `runArbitrage`, so it owns
+    /// these facts. The broadcast layer **must not** re-measure them; it
+    /// re-reads them here so that the admission decision is made from
+    /// one place against one record.
+    ///
+    /// The facts are **copied**, never rebuilt: the review wrote them
+    /// when it measured the loop, and no later writer may change them
+    /// without producing a new review generation.
+    pub admission: BroadcastAdmissionFacts,
     /// The folded single-tick capacity of the loop, in anchor-token raw
     /// units.
     ///
@@ -1897,6 +1938,12 @@ fn build_review_rows(
                         request_reason: Some(
                             "completed review with positive executable signed PnL".to_owned(),
                         ),
+                        admission: BroadcastAdmissionFacts {
+                            review_status: row.review_status.clone(),
+                            run_ok: run_ok_of(&row.run_arbitrage),
+                            run_executable: run_executable_of(&row.run_arbitrage),
+                            reviewed_at: row.reviewed_at.clone(),
+                        },
                         single_tick_capacity_anchor_raw: row.single_tick_capacity_anchor_raw,
                         single_tick_capacity_binding_pool_id: row
                             .single_tick_capacity_binding_pool_id
@@ -2215,6 +2262,29 @@ fn empty_object() -> serde_json::Value {
 
 fn option_string(value: Option<String>) -> serde_json::Value {
     value.map_or(serde_json::Value::Null, serde_json::Value::String)
+}
+
+/// Read the `runArbitrage` `ok` flag back out of the stored evidence.
+///
+/// The flag is **optional** on purpose. A stored payload that carries no
+/// `ok` field was never proven to have succeeded, so it reads back as
+/// absent rather than as `false`. The broadcast layer treats an absent
+/// flag as "not proven" — never as a pass.
+fn run_ok_of(run_arbitrage: &serde_json::Value) -> Option<bool> {
+    run_arbitrage
+        .get("ok")
+        .and_then(serde_json::Value::as_bool)
+}
+
+/// Read the `runArbitrage` `executable` flag back out of the stored
+/// evidence.
+///
+/// See [`run_ok_of`] for why this is optional rather than a plain
+/// `bool`.
+fn run_executable_of(run_arbitrage: &serde_json::Value) -> Option<bool> {
+    run_arbitrage
+        .get("executable")
+        .and_then(serde_json::Value::as_bool)
 }
 
 fn validate_signed_pnl(value: &SignedPnl) -> bool {
@@ -2905,19 +2975,31 @@ fn read_broadcast_requests(
     loop_key: Option<&str>,
     limit: usize,
 ) -> Result<Vec<BroadcastRequestRow>, ReviewError> {
+    // The admission facts live on the review row, not on the request row:
+    // the review is the layer that measured `runArbitrage`. The join is a
+    // LEFT JOIN on purpose — a request whose review row is gone reads
+    // back with absent facts, and the broadcast layer then refuses it
+    // instead of admitting it on incomplete evidence.
     let mut statement = connection.prepare(
-        "SELECT loop_key, closed_loop_version, closed_loop_checksum,
-                anchor_token_key_id, path_text, path_addresses_json,
-                path_symbols_json, pool_path_key, pool_ids_json, signed_pnl_raw,
-                signed_pnl_amount, signed_pnl_currency, signed_pnl_address,
-                signed_pnl_unit, signed_pnl_source, request_status, request_reason,
-                single_tick_capacity_anchor_raw,
-                single_tick_capacity_binding_pool_id,
-                hop_sqrt_price_limits_json
-         FROM manager_v4_review_broadcast_requests
-         WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4
-           AND (?5 IS NULL OR loop_key = ?5)
-         ORDER BY loop_key, created_at
+        "SELECT r.loop_key, r.closed_loop_version, r.closed_loop_checksum,
+                r.anchor_token_key_id, r.path_text, r.path_addresses_json,
+                r.path_symbols_json, r.pool_path_key, r.pool_ids_json, r.signed_pnl_raw,
+                r.signed_pnl_amount, r.signed_pnl_currency, r.signed_pnl_address,
+                r.signed_pnl_unit, r.signed_pnl_source, r.request_status, r.request_reason,
+                r.single_tick_capacity_anchor_raw,
+                r.single_tick_capacity_binding_pool_id,
+                r.hop_sqrt_price_limits_json,
+                v.review_status, v.reviewed_at, v.run_arbitrage_json
+         FROM manager_v4_review_broadcast_requests AS r
+         LEFT JOIN manager_v4_reviews AS v
+           ON v.network = r.network
+          AND v.chain_id = r.chain_id
+          AND v.protocol = r.protocol
+          AND v.scope_key = r.scope_key
+          AND v.loop_key = r.loop_key
+         WHERE r.network = ?1 AND r.chain_id = ?2 AND r.protocol = ?3 AND r.scope_key = ?4
+           AND (?5 IS NULL OR r.loop_key = ?5)
+         ORDER BY r.loop_key, r.created_at
          LIMIT ?6",
     )?;
     let rows = statement.query_map(
@@ -2960,6 +3042,23 @@ fn read_broadcast_requests(
                 hop_sqrt_price_limits: parse_optional_json_column(
                     row.get::<_, Option<String>>(19)?,
                 )?,
+                admission: {
+                    // The joined evidence is parsed once and read twice.
+                    // A review row that is absent, or whose stored payload
+                    // is not an object, yields absent facts — never a
+                    // fabricated `false`.
+                    let run_arbitrage: serde_json::Value =
+                        parse_optional_json_column(row.get::<_, Option<String>>(22)?)?;
+                    BroadcastAdmissionFacts {
+                        review_status: row
+                            .get::<_, Option<String>>(20)?
+                            .map(|value| value.trim().to_owned())
+                            .unwrap_or_default(),
+                        run_ok: run_ok_of(&run_arbitrage),
+                        run_executable: run_executable_of(&run_arbitrage),
+                        reviewed_at: row.get::<_, Option<String>>(21)?.unwrap_or_default(),
+                    }
+                },
             })
         },
     )?;

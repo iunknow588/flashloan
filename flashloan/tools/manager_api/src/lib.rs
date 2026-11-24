@@ -11,7 +11,7 @@ use axum::{
 use broadcast_manager::{
     clear_broadcast_records_write, finalize_broadcast_attempts_write, read_broadcast_snapshot_page,
     submit_broadcasts_write, AttemptCreateInput, AttemptFinalizeInput, BroadcastClearRequest,
-    BroadcastError, BroadcastFinalizeRequest, BroadcastSubmitRequest,
+    BroadcastError, BroadcastFinalizeRequest, BroadcastGuardPolicy, BroadcastSubmitRequest,
     ExpectedUpstream as BroadcastExpectedUpstream,
 };
 use candidate_edge_pool_manager::{
@@ -52,7 +52,12 @@ use review_manager::{
     ReviewWriteRequest,
 };
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashSet},
+    net::SocketAddr,
+    path::PathBuf,
+    sync::Arc,
+};
 use token_manager::{
     audit_manager_database, change_admission, read_library_tokens, resolve_token_symbol,
     AdmissionChangeRequest, AdmissionError, AdmissionStatus, LibraryKey, ManagerAuditError,
@@ -95,6 +100,17 @@ pub struct AppState {
     /// which means "writes are denied" -- the same default every other
     /// dimension uses.
     pub directional_pool_authority: TokenAuthorityMode,
+    /// The runtime guardrails the broadcast layer judges a submission
+    /// against.
+    ///
+    /// These are **deployment configuration**, not an approval step:
+    /// which chain this process serves, which account it signs with, how
+    /// much it may move in one round, and when it is allowed to move it.
+    ///
+    /// An **absent** policy is a refusal, not a default-allow. A
+    /// deployment that cannot name its guardrails does not get a
+    /// broadcast -- it gets a refusal with a recorded reason.
+    pub broadcast_guard_policy: Option<BroadcastGuardPolicy>,
 }
 
 impl Default for AppState {
@@ -112,6 +128,7 @@ impl Default for AppState {
             broadcast_authority: TokenAuthorityMode::Legacy,
             composite_authority: TokenAuthorityMode::Legacy,
             directional_pool_authority: TokenAuthorityMode::Legacy,
+            broadcast_guard_policy: None,
         }
     }
 }
@@ -187,6 +204,21 @@ impl AppState {
         self.directional_pool_authority = authority;
         self
     }
+    /// Attach the runtime guardrails the broadcast layer judges a
+    /// submission against.
+    ///
+    /// The policy is deployment configuration: it is read once, at
+    /// start-up, and it applies to every submission this process makes.
+    /// An absent policy leaves the broadcast layer refusing everything,
+    /// which is the safe direction.
+    pub fn with_broadcast_guard_policy(
+        mut self,
+        policy: Option<BroadcastGuardPolicy>,
+    ) -> Self {
+        self.broadcast_guard_policy = policy;
+        self
+    }
+
 }
 
 pub fn app() -> Router {
@@ -1575,6 +1607,13 @@ async fn submit_broadcasts_endpoint(
             apply: !dry_run,
             expected_upstream: request.expected_upstream.unwrap_or_default(),
             attempts: request.attempts,
+            // The guardrails come from the deployment, the amounts
+            // come from the request. The broadcast layer judges the
+            // two together: a policy without an amount is a refusal,
+            // and an amount without a policy is a refusal too.
+            guard_policy: state.broadcast_guard_policy.clone(),
+            attempt_amounts_raw: request.amounts_raw,
+            admission_now: None,
         },
     ) {
         Ok(outcome) => {
@@ -2986,6 +3025,25 @@ fn broadcast_failure(error: BroadcastError, chain_id: u64, stage: &str) -> Manag
             stage,
         )
         .with_details(serde_json::json!({"chainId": chain_id, "reason": message})),
+        // An admission refusal is a **judgement**, not a malformation.
+        // The rules that did not hold travel back to the caller so that
+        // the refusal can be read without opening the database.
+        BroadcastError::BroadcastRequestNotAdmitted {
+            loop_key,
+            reasons,
+            detail,
+        } => ManagerError::new(
+            ErrorCode::BroadcastRequestNotEligible,
+            message.clone(),
+            stage,
+        )
+        .with_details(serde_json::json!({
+            "chainId": chain_id,
+            "loopKey": loop_key,
+            "reasons": reasons,
+            "reason": message,
+            "detail": detail,
+        })),
         BroadcastError::MissingReviewState | BroadcastError::ReviewSnapshotTruncated { .. } => {
             ManagerError::new(ErrorCode::TokenNotAdmitted, message.clone(), stage)
                 .with_details(serde_json::json!({"chainId": chain_id, "reason": message}))
@@ -3417,6 +3475,30 @@ struct BroadcastQuery {
     limit: Option<usize>,
 }
 
+/// Read the per-loop amounts of a broadcast submission.
+///
+/// The amount is a 128-bit quantity and travels as a decimal string,
+/// the same representation the rest of the system uses for capacities.
+/// A JSON number is accepted too, so a caller written against an older
+/// shape still reads back.
+fn deserialize_amounts_raw<'de, D>(deserializer: D) -> Result<BTreeMap<String, u128>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let raw = BTreeMap::<String, serde_json::Value>::deserialize(deserializer)?;
+    raw.into_iter()
+        .map(|(loop_key, value)| {
+            let amount = match value {
+                serde_json::Value::String(text) => text.trim().parse::<u128>().ok(),
+                serde_json::Value::Number(number) => number.to_string().parse::<u128>().ok(),
+                _ => None,
+            }
+            .ok_or_else(|| serde::de::Error::custom("expected a 128-bit amount"))?;
+            Ok((loop_key, amount))
+        })
+        .collect()
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct BroadcastSubmitHttpRequest {
@@ -3424,6 +3506,21 @@ struct BroadcastSubmitHttpRequest {
     expected_upstream: Option<BroadcastExpectedUpstream>,
     attempts: Vec<AttemptCreateInput>,
     dry_run: Option<bool>,
+    /// The amount each attempt would move, in anchor-token raw units,
+    /// keyed by `loopKey`.
+    ///
+    /// The amount is what the limit rule is judged against, so it has
+    /// to travel with the submission: the guardrail policy names the
+    /// ceiling, and this names what is actually being moved. An attempt
+    /// whose loop has no entry has an **unmeasured** amount, and the
+    /// limit rule refuses it.
+    ///
+    /// The value is a decimal string: a folded capacity routinely exceeds
+    /// `u64::MAX`, and a JSON number cannot hold it. A JSON number is
+    /// accepted too, so a caller written against an older shape still
+    /// reads back.
+    #[serde(default, deserialize_with = "deserialize_amounts_raw")]
+    amounts_raw: BTreeMap<String, u128>,
 }
 
 #[derive(Deserialize)]
@@ -3516,6 +3613,7 @@ mod tests {
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use http_body_util::BodyExt;
+    use broadcast_manager::BroadcastGuardPolicy;
     use manager_contracts::{ErrorCode, TokenAuthorityMode, TokenKeyId, V4PoolKey};
     use rusqlite::Connection;
     use std::sync::Arc;
@@ -5586,6 +5684,42 @@ mod tests {
                 [],
             )
             .unwrap();
+        // The broadcast layer judges a request against the **review row**
+        // that measured it. The fixture therefore seeds one: without it the
+        // admission decision has no evidence to judge, and it refuses.
+        connection
+            .execute(
+                r#"INSERT INTO manager_v4_reviews (
+                    network, chain_id, protocol, scope_key, loop_key,
+                    closed_loop_version, closed_loop_checksum,
+                    candidate_edge_version, candidate_edge_checksum,
+                    observation_version, observation_checksum,
+                    pool_scope_checksum, anchor_token_key_id, anchor_address,
+                    anchor_symbol, path_text, path_addresses_json,
+                    path_symbols_json, pool_path_key, pool_ids_json,
+                    review_status, review_reason, static_preview_json,
+                    run_arbitrage_json, signed_pnl_raw, signed_pnl_amount,
+                    signed_pnl_currency, signed_pnl_address, signed_pnl_unit,
+                    signed_pnl_source, reviewed_at, created_at, updated_at
+                 ) VALUES ('robinhood', 4663, 'uniswap_v4', 'core4', 'loop-1',
+                           7, 'sha256:closed-loop', 5, 'sha256:candidate-edge',
+                           3, 'sha256:observation', 'sha256:pool-scope',
+                           'robinhood:4663:0x1111111111111111111111111111111111111111',
+                           '0x1111111111111111111111111111111111111111', 'USDG',
+                           'USDG -> AMZN -> TA -> USDG',
+                           '[]', '[]', 'pool-path:1', '[]',
+                           'completed', 'fixture', '{}',
+                           '{"ok":true,"executable":true}',
+                           '12.5 USDG', 12.5, 'USDG',
+                           '0x1111111111111111111111111111111111111111',
+                           'token', 'runArbitrage', ?1,
+                           'fixture', 'fixture')"#,
+                // The review stamp has to be inside the freshness
+                // window of the moment the decision is made, so it is
+                // stamped now rather than pinned to a fixture date.
+                [chrono::Utc::now().to_rfc3339()],
+            )
+            .unwrap();
         drop(connection);
     }
 
@@ -5593,6 +5727,9 @@ mod tests {
         serde_json::json!({
             "chainId": 4663,
             "dryRun": dry_run,
+            // The amount the limit rule is judged against, in
+            // anchor-token raw units, keyed by loop key.
+            "amountsRaw": {"loop-1": "1000"},
             "attempts": [{
                 "attemptId": "attempt-1",
                 "loopKey": "loop-1",
@@ -5606,6 +5743,22 @@ mod tests {
             }]
         })
         .to_string()
+    }
+
+    /// The runtime guardrails the fixture deployment broadcasts under.
+    ///
+    /// Without them the broadcast layer refuses every submission: a
+    /// missing guardrail is a missing guardrail, not a passing one.
+    fn broadcast_guard_policy() -> BroadcastGuardPolicy {
+        BroadcastGuardPolicy {
+            chain_id: Some(4663),
+            signer_address: Some(
+                "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_owned(),
+            ),
+            max_amount_raw: Some(1_000_000u128),
+            window_start: Some("2020-01-01T00:00:00Z".to_owned()),
+            window_end: Some("2099-01-01T00:00:00Z".to_owned()),
+        }
     }
 
     fn broadcast_finalize_body(dry_run: Option<bool>) -> String {
@@ -5959,9 +6112,13 @@ mod tests {
         let (_directory, _state, path) = temporary_state();
         seed_broadcast_review(&path);
 
+        // The legacy state carries the guardrails as well: the two
+        // gates are independent. This test is about the **authority**
+        // gate, so the guardrails must not be the thing that refuses.
         let legacy = Arc::new(
             AppState::with_token_database(&path)
-                .with_broadcast_authority(TokenAuthorityMode::Legacy),
+                .with_broadcast_authority(TokenAuthorityMode::Legacy)
+                .with_broadcast_guard_policy(Some(broadcast_guard_policy())),
         );
         let missing_headers = app_with_state(legacy.clone())
             .oneshot(admission_request(
@@ -6008,7 +6165,8 @@ mod tests {
 
         let state = Arc::new(
             AppState::with_token_database(&path)
-                .with_broadcast_authority(TokenAuthorityMode::Manager),
+                .with_broadcast_authority(TokenAuthorityMode::Manager)
+                .with_broadcast_guard_policy(Some(broadcast_guard_policy())),
         );
         let app = app_with_state(state);
         let dry = app

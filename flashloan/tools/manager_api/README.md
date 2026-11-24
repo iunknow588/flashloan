@@ -66,6 +66,59 @@ The seven authority variables are independent. An unset value defaults to
 `legacy`. `legacy` and `rollback` still permit read, compare-only, and
 `dryRun=true`, but every `dryRun=false` request fails closed. Enabling one
 module with `manager` does not enable any other module.
+### Broadcast guardrails (`BROADCAST_GUARD_*`)
+
+These five variables are the **runtime guardrails** the broadcast layer judges
+a submission against. They are **deployment configuration**, not an approval
+step: they say which chain this process serves, which account it signs with,
+how much it may move in one round, and when it is allowed to move it.
+
+| Variable | Type | Meaning |
+|---|---|---|
+| `BROADCAST_GUARD_CHAIN_ID` | integer | The chain this process serves. A request on another chain is refused. |
+| `BROADCAST_GUARD_SIGNER_ADDRESS` | address | The account that may sign. Compared case-insensitively. |
+| `BROADCAST_GUARD_MAX_AMOUNT_RAW` | unsigned integer | The largest amount one round may move, in anchor-token raw units. |
+| `BROADCAST_GUARD_WINDOW_START` | RFC 3339 | When the broadcast window opens. |
+| `BROADCAST_GUARD_WINDOW_END` | RFC 3339 | When the broadcast window closes. |
+
+**A missing guardrail is a refusal, not a passing one.** If **all five** are
+unset, the policy stays absent and the broadcast layer refuses **every**
+submission with a recorded reason. If only **some** are set, each missing one
+refuses on its own rule (chain, account, limit, window) — so a partial
+configuration is never mistaken for a complete one.
+
+```powershell
+$env:BROADCAST_GUARD_CHAIN_ID = "4663"
+$env:BROADCAST_GUARD_SIGNER_ADDRESS = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+$env:BROADCAST_GUARD_MAX_AMOUNT_RAW = "1000000"
+$env:BROADCAST_GUARD_WINDOW_START = "2020-01-01T00:00:00Z"
+$env:BROADCAST_GUARD_WINDOW_END = "2099-01-01T00:00:00Z"
+```
+
+### `POST /v1/broadcasts/submit` — `amountsRaw`
+
+The submission carries the **amount each attempt would move**, keyed by loop
+key, in anchor-token raw units. The amounts are **decimal strings** (the
+system-wide `u128` convention) — a JSON number loses precision above 2^53.
+
+```json
+{
+  "chainId": 4663,
+  "dryRun": true,
+  "idempotencyKey": "...",
+  "attempts": [ { "loopKey": "loop-1", "signerAddress": "0x...", "nonce": 42 } ],
+  "amountsRaw": { "loop-1": "1000" }
+}
+```
+
+The broadcast layer judges the **policy** (from the environment) and the
+**amount** (from this body) together: a policy without an amount is a
+refusal, and an amount without a policy is a refusal too.
+
+An admission refusal is a **judgement**, not a malformation: it returns
+**409 `BROADCAST_REQUEST_NOT_ELIGIBLE`** with `loopKey`, `reasons` (the
+stable rule codes that did not hold) and `reason` in the details, so the
+refusal can be read without opening the database.
 
 Resolve request:
 

@@ -10,8 +10,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::Path;
 
+pub mod admission;
 pub mod runtime;
 
+pub use admission::{
+    decide as decide_admission, AdmissionCandidate, AdmissionCheck, AdmissionDecision,
+    AdmissionRule, BroadcastAdmissionContext, BroadcastGuardPolicy,
+};
 pub use runtime::{BroadcastRuntimeStatus, BroadcastSupervisor, ExecutionQueue, ExecutionTask};
 
 const NETWORK_PROTOCOL: &str = "uniswap_v4";
@@ -22,6 +27,121 @@ const MAX_IDENTIFIER_LENGTH: usize = 512;
 const MAX_RPC_URL_LENGTH: usize = 2048;
 const MAX_SNAPSHOT_LIMIT: usize = 1_000;
 const MAX_INTERNAL_LIMIT: usize = 100_000;
+
+/// The nine audit fields that answer "why was this one sent" (`BC-5`).
+///
+/// Every field is present in every record — a field that could not be
+/// measured is `null`, never silently absent. The point of the record
+/// is that an operator can reconstruct the decision without reading the
+/// code.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BroadcastAuditRecord {
+    /// 1. The review the request came from.
+    pub review_identifier: String,
+    /// 2. The signed PnL amount the review measured.
+    pub signed_pnl_amount: Option<f64>,
+    /// 3. The age of the review, in seconds, at the moment of the
+    ///    decision.
+    pub review_age_seconds: Option<i64>,
+    /// 4. The idempotency key of the submission.
+    pub idempotency_key: String,
+    /// 5. The chain the request was read under.
+    pub chain_id: i64,
+    /// 6. The account that signs.
+    pub account_identifier: Option<String>,
+    /// 7. The limit the amount was judged against.
+    pub limit_verdict: String,
+    /// 8. When the broadcast happened.
+    pub broadcast_at: String,
+    /// 9. What became of it.
+    pub outcome: String,
+    /// The full admission trail.
+    ///
+    /// This is the evidence behind the nine fields: every rule that was
+    /// checked, with its verdict and its reason.
+    pub admission: serde_json::Value,
+    /// The reason, when the record describes a refusal.
+    pub refusal_reason: Option<String>,
+}
+
+impl BroadcastAuditRecord {
+    /// Build the record of an **admitted** request.
+    ///
+    /// The nine fields are filled from the decision and the request; the
+    /// admission trail is embedded verbatim.
+    pub fn admitted(
+        operation: &str,
+        chain_id: i64,
+        loop_key: &str,
+        signer_address: Option<&str>,
+        signed_pnl_amount: Option<f64>,
+        decision: &AdmissionDecision,
+        idempotency_key: &str,
+        broadcast_at: &str,
+    ) -> Self {
+        Self {
+            review_identifier: format!("{}:{}", operation, loop_key),
+            signed_pnl_amount,
+            review_age_seconds: decision.review_age_seconds,
+            idempotency_key: idempotency_key.to_owned(),
+            chain_id,
+            account_identifier: signer_address.map(str::to_owned),
+            limit_verdict: limit_verdict(decision),
+            broadcast_at: broadcast_at.to_owned(),
+            outcome: "admitted".to_owned(),
+            admission: serde_json::to_value(decision).unwrap_or(serde_json::Value::Null),
+            refusal_reason: None,
+        }
+    }
+
+    /// Build the record of a **refused** request.
+    ///
+    /// A refusal is recorded exactly like a pass. That is the whole
+    /// point of `BC-3`: "it did not send" is a fact about the system,
+    /// not the absence of a fact.
+    pub fn refused(
+        operation: &str,
+        chain_id: i64,
+        loop_key: &str,
+        signer_address: Option<&str>,
+        decision: &AdmissionDecision,
+        idempotency_key: &str,
+        broadcast_at: &str,
+        signed_pnl_amount: Option<f64>,
+    ) -> Self {
+        Self {
+            review_identifier: format!("{}:{}", operation, loop_key),
+            signed_pnl_amount,
+            review_age_seconds: decision.review_age_seconds,
+            idempotency_key: idempotency_key.to_owned(),
+            chain_id,
+            account_identifier: signer_address.map(str::to_owned),
+            limit_verdict: limit_verdict(decision),
+            broadcast_at: broadcast_at.to_owned(),
+            outcome: "refused".to_owned(),
+            admission: serde_json::to_value(decision).unwrap_or(serde_json::Value::Null),
+            refusal_reason: Some(decision.refusal_reason()),
+        }
+    }
+}
+
+/// The limit verdict recorded in the audit trail.
+///
+/// It names the rule that decided, so that "the limit" is answerable
+/// without re-reading the policy.
+fn limit_verdict(decision: &AdmissionDecision) -> String {
+    for check in &decision.checks {
+        if check.rule == AdmissionRule::AmountWithinLimit {
+            return if check.satisfied {
+                "within_limit".to_owned()
+            } else {
+                "limit_not_satisfied".to_owned()
+            };
+        }
+    }
+    "not_evaluated".to_owned()
+}
 
 #[derive(Debug)]
 pub enum BroadcastError {
@@ -38,6 +158,16 @@ pub enum BroadcastError {
     BroadcastRequestNotEligible {
         loop_key: String,
         request_status: String,
+    },
+    /// The request failed the admission decision (`BC-1` / `BC-2`).
+    ///
+    /// The variant carries **every** rule that did not hold, so that
+    /// the caller can record why the request did not leave the system
+    /// without re-deriving the judgement.
+    BroadcastRequestNotAdmitted {
+        loop_key: String,
+        reasons: Vec<String>,
+        detail: String,
     },
     DuplicateAttemptInput(String),
     DuplicateAttempt(String),
@@ -92,6 +222,15 @@ impl fmt::Display for BroadcastError {
             } => write!(
                 formatter,
                 "request {loop_key} is not eligible for broadcast; current status is {request_status}"
+            ),
+            Self::BroadcastRequestNotAdmitted {
+                loop_key,
+                reasons,
+                detail,
+            } => write!(
+                formatter,
+                "request {loop_key} was refused by the admission decision;                  unsatisfied rules: {}; {detail}",
+                reasons.join(", ")
             ),
             Self::DuplicateAttemptInput(attempt_id) => {
                 write!(
@@ -208,6 +347,26 @@ pub struct BroadcastSubmitRequest {
     pub apply: bool,
     pub expected_upstream: ExpectedUpstream,
     pub attempts: Vec<AttemptCreateInput>,
+    /// The runtime guardrails this submission is judged against.
+    ///
+    /// The policy is **runtime configuration**, not an approval. A
+    /// deployment that cannot name its chain, its account, its limit or
+    /// its window does not get a broadcast — it gets a refusal with a
+    /// recorded reason.
+    ///
+    /// An **absent** policy is a refusal, not a default-allow: the
+    /// absence of a guardrail is not evidence that the guardrail passed.
+    pub guard_policy: Option<BroadcastGuardPolicy>,
+    /// The amount each attempt would move, in anchor-token raw units.
+    ///
+    /// The mapping is keyed by `loop_key`. An attempt whose loop has no
+    /// entry has an **unmeasured** amount, which the limit rule refuses.
+    pub attempt_amounts_raw: BTreeMap<String, u128>,
+    /// The time the admission decision is made at.
+    ///
+    /// Supplying it makes the decision reproducible. When absent the
+    /// current UTC time is used.
+    pub admission_now: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -516,20 +675,40 @@ struct PersistedClearWrite {
     result: BroadcastClearResult,
 }
 
+/// Submit attempts without a full write request.
+///
+/// The caller supplies the **runtime guardrails** explicitly. There is
+/// deliberately no default: a submission that cannot say which chain,
+/// account, limit and window it runs under is refused by the admission
+/// decision, and it says why.
+///
+/// The amounts are supplied per loop key. A loop with no entry has an
+/// **unmeasured** amount, which the limit rule refuses.
 pub fn submit_broadcasts(
     database_path: impl AsRef<Path>,
     network: &str,
     chain_id: i64,
     attempts: Vec<AttemptCreateInput>,
     apply: bool,
+    guard_policy: BroadcastGuardPolicy,
+    attempt_amounts_raw: BTreeMap<String, u128>,
+    admission_now: Option<String>,
 ) -> Result<BroadcastMaterializationResult, BroadcastError> {
-    submit_impl(
+    // The guardrails travel as explicit parameters, not inside a
+    // synthesized request: this entry point carries no idempotency key
+    // of its own, and a synthesized request would persist one. The
+    // admission decision still runs on exactly the same path — the
+    // guardrails are handed to the same call.
+    submit_impl_with_guard(
         database_path.as_ref(),
         network,
         chain_id,
         apply,
         &attempts,
         None,
+        Some(guard_policy),
+        attempt_amounts_raw,
+        admission_now,
     )
     .map(|(result, _)| result)
 }
@@ -763,6 +942,45 @@ fn submit_impl(
     attempts: &[AttemptCreateInput],
     request: Option<&BroadcastSubmitRequest>,
 ) -> Result<(BroadcastMaterializationResult, bool), BroadcastError> {
+    let (guard_policy, attempt_amounts_raw, admission_now) = match request {
+        Some(request) => (
+            request.guard_policy.clone(),
+            request.attempt_amounts_raw.clone(),
+            request.admission_now.clone(),
+        ),
+        None => (None, BTreeMap::new(), None),
+    };
+    submit_impl_with_guard(
+        database_path,
+        network,
+        chain_id,
+        apply,
+        attempts,
+        request,
+        guard_policy,
+        attempt_amounts_raw,
+        admission_now,
+    )
+}
+
+/// The submit path, with the runtime guardrails passed explicitly.
+///
+/// The guardrails travel separately from the write request because the
+/// two entry points differ: the write request carries an idempotency
+/// key and is persisted, while the plain entry point carries neither.
+/// The admission decision must run on **both** paths, so the guardrails
+/// cannot live inside the request alone.
+fn submit_impl_with_guard(
+    database_path: &Path,
+    network: &str,
+    chain_id: i64,
+    apply: bool,
+    attempts: &[AttemptCreateInput],
+    request: Option<&BroadcastSubmitRequest>,
+    guard_policy: Option<BroadcastGuardPolicy>,
+    attempt_amounts_raw: BTreeMap<String, u128>,
+    admission_now: Option<String>,
+) -> Result<(BroadcastMaterializationResult, bool), BroadcastError> {
     validate_operation(network, chain_id)?;
     let prepared_write = match request {
         Some(request) => {
@@ -776,14 +994,33 @@ fn submit_impl(
     connection.busy_timeout(std::time::Duration::from_secs(60))?;
     if apply {
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let outcome = submit_on_connection(
+        let outcome = match submit_on_connection(
             &transaction,
             network,
             chain_id,
             true,
             attempts,
             prepared_write,
-        )?;
+            guard_policy.as_ref(),
+            &attempt_amounts_raw,
+            admission_now.as_deref(),
+        ) {
+            Ok(outcome) => outcome,
+            Err(error) => {
+                // The transaction is abandoned with the error, so the
+                // `BC-3` trail has to be written **outside** it.
+                // A refusal that is rolled back with its transaction is
+                // not a refusal anybody can find.
+                drop(transaction);
+                record_refusal_trail(
+                    database_path,
+                    network,
+                    chain_id,
+                    &error,
+                )?;
+                return Err(error);
+            }
+        };
         transaction.commit()?;
         Ok(outcome)
     } else {
@@ -794,8 +1031,46 @@ fn submit_impl(
             false,
             attempts,
             prepared_write,
+            guard_policy.as_ref(),
+            &attempt_amounts_raw,
+            admission_now.as_deref(),
         )
     }
+}
+
+/// Write the `BC-3` refusal trail on its own connection.
+///
+/// The trail must survive the rollback of the submission it belongs to.
+/// It therefore opens the store again, outside the failed transaction,
+/// and writes only when the failure **was** an admission refusal.
+///
+/// A dry run writes nothing: the refusal is reported to the caller and
+/// nothing is persisted.
+fn record_refusal_trail(
+    database_path: &Path,
+    network: &str,
+    chain_id: i64,
+    error: &BroadcastError,
+) -> Result<(), BroadcastError> {
+    let BroadcastError::BroadcastRequestNotAdmitted {
+        loop_key,
+        reasons,
+        detail,
+    } = error
+    else {
+        return Ok(());
+    };
+    let connection = open_connection(database_path, true)?;
+    connection.busy_timeout(std::time::Duration::from_secs(60))?;
+    record_admission_refusal(
+        &connection,
+        network,
+        chain_id,
+        loop_key,
+        reasons,
+        detail,
+        &chrono::Utc::now().to_rfc3339(),
+    )
 }
 
 fn submit_on_connection(
@@ -805,6 +1080,9 @@ fn submit_on_connection(
     apply: bool,
     attempts: &[AttemptCreateInput],
     prepared_write: Option<(&BroadcastSubmitRequest, String)>,
+    guard_policy: Option<&BroadcastGuardPolicy>,
+    attempt_amounts_raw: &BTreeMap<String, u128>,
+    admission_now: Option<&str>,
 ) -> Result<(BroadcastMaterializationResult, bool), BroadcastError> {
     if apply {
         if let Some((request, request_digest)) = prepared_write.as_ref() {
@@ -840,7 +1118,34 @@ fn submit_on_connection(
         });
     }
     let now = chrono::Utc::now().to_rfc3339();
-    let desired = build_attempt_rows(&review, &requests, attempts, &now)?;
+    // ---- BC-3: a refusal is recorded too --------------------------------
+    //
+    // "It did not send" is a fact about the system, not the absence of
+    // one. When the admission decision refuses a request, the refusal
+    // is written to the diagnostics table **before** the error is
+    // returned, so that an operator can ask "why did nothing go out"
+    // and get an answer.
+    //
+    // The trail is only written for an `apply` submission. A dry run
+    // writes nothing at all — that is the whole point of a dry run.
+    // The `BC-3` trail for a refusal is written by the caller, on a
+    // connection of its own: the refusal aborts this transaction, and a
+    // trail written inside it would be rolled back with it.
+    let desired = build_attempt_rows(
+        &review,
+        &requests,
+        attempts,
+        &now,
+        chain_id,
+        guard_policy,
+        &attempt_amounts_raw,
+        admission_now.as_deref(),
+        prepared_write.as_ref().map(|(request, _)| *request),
+        prepared_write
+            .as_ref()
+            .map(|(request, _)| request.idempotency_key.as_str())
+            .unwrap_or_default(),
+    )?;
     let existing_attempts = read_attempts(
         connection,
         network,
@@ -1445,6 +1750,12 @@ fn build_attempt_rows(
     requests: &[BroadcastRequestRow],
     attempts: &[AttemptCreateInput],
     now: &str,
+    chain_id: i64,
+    guard_policy: Option<&BroadcastGuardPolicy>,
+    attempt_amounts_raw: &BTreeMap<String, u128>,
+    admission_now: Option<&str>,
+    submit_request: Option<&BroadcastSubmitRequest>,
+    idempotency_key: &str,
 ) -> Result<Vec<AttemptRow>, BroadcastError> {
     validate_submit_attempts(attempts)?;
     let requests_by_loop = requests
@@ -1463,33 +1774,72 @@ fn build_attempt_rows(
                 request_status: request.request_status.clone(),
             });
         }
-        if !validate_signed_pnl(&request.signed_pnl) {
+        // The **descriptive** fields of the signed PnL are checked here,
+        // because a request without a currency or a source is a
+        // malformed request, not a judgement.
+        //
+        // The **measurement** itself is *not* checked here: whether the
+        // profit was measured at all is one of the `BC-1` predicates, and
+        // it is judged in `admission` so that the refusal carries a
+        // named rule and lands in the `BC-3` trail. Folding it into a
+        // generic validation error would hide the reason the broadcast
+        // did not happen.
+        if !validate_signed_pnl_description(&request.signed_pnl) {
             return Err(BroadcastError::InvalidRequest(format!(
                 "confirmed request {} has incomplete signed PnL",
                 request.loop_key
             )));
         }
-        if request.signed_pnl.amount <= 0.0 {
-            return Err(BroadcastError::BroadcastRequestNotEligible {
+        // ---- BC-1: the single admission decision ------------------------
+        //
+        // The rule set lives in `admission`. It is applied **here**, at
+        // the one place where a request becomes an attempt, so that the
+        // judgement is made once and is recorded.
+        //
+        // The request status check above stays: a request that the
+        // review consumed or canceled is not a candidate at all, and
+        // that is a different fact from "the request failed admission".
+        let context = BroadcastAdmissionContext {
+            policy: guard_policy.cloned().unwrap_or_default(),
+            amount_raw: attempt_amounts_raw.get(&attempt.loop_key).copied(),
+            now: admission_now.map(str::to_owned),
+        };
+        let candidate = AdmissionCandidate {
+            loop_key: request.loop_key.clone(),
+            chain_id,
+            request_status: request.request_status.clone(),
+            // A stored amount that is not a finite number is not a
+            // measurement. It is passed on as "never measured" so that
+            // the `BC-1.pnl_measured` rule refuses it with a reason
+            // instead of it being silently folded into zero.
+            signed_pnl_amount: admission::measured_amount(request.signed_pnl.amount),
+            hop_sqrt_price_limits: request.hop_sqrt_price_limits.clone(),
+            signer_address: Some(attempt.signer_address.clone()),
+            facts: request.admission.clone(),
+        };
+        let decision = decide_admission(&candidate, &context);
+        if !decision.admitted {
+            return Err(BroadcastError::BroadcastRequestNotAdmitted {
                 loop_key: request.loop_key.clone(),
-                request_status: format!("non_positive_pnl:{}", request.signed_pnl.amount),
+                reasons: decision.failed_rules.clone(),
+                detail: decision.refusal_reason(),
             });
         }
-        // Version 1 executes inside one tick range per hop. The request
-        // must therefore carry all three price limits the review proved.
-        // Without them the executor would have to use the global V4 price
-        // bound, so the attempt is refused instead of created.
-        if request.hop_sqrt_price_limits.len() != 3
-            || request
-                .hop_sqrt_price_limits
-                .iter()
-                .any(|value| value.trim().is_empty())
-        {
-            return Err(BroadcastError::InvalidRequest(format!(
-                "confirmed request {} has no complete per-hop price limits",
-                request.loop_key
-            )));
-        }
+        // The BC-5 record is built **only** for an admitted request. A
+        // refusal gets its own trail (`BC-3`) on the refusal path, so
+        // that "it did not send" is recorded too.
+        let audit = BroadcastAuditRecord::admitted(
+            submit_request
+                .map(|request| request.operation.as_str())
+                .unwrap_or("broadcasts.submit"),
+            chain_id,
+            &request.loop_key,
+            Some(attempt.signer_address.as_str()),
+            Some(request.signed_pnl.amount),
+            &decision,
+            idempotency_key,
+            now,
+        );
         let attempt_id = attempt_id_for(attempt, review.review_version)?;
         if !seen_ids.insert(attempt_id.clone()) {
             return Err(BroadcastError::DuplicateAttemptInput(attempt_id));
@@ -1528,7 +1878,23 @@ fn build_attempt_rows(
             status: "pending".to_owned(),
             status_reason: None,
             receipt: serde_json::Value::Object(Default::default()),
-            evidence: normalize_object(&attempt.evidence),
+            evidence: {
+                // The BC-5 audit record is written **into** the attempt's
+                // evidence, next to whatever the caller supplied. The
+                // caller's own evidence is kept: the audit record is
+                // added to it, never substituted for it.
+                let mut evidence = normalize_object(&attempt.evidence);
+                if !evidence.is_object() {
+                    evidence = serde_json::Value::Object(Default::default());
+                }
+                if let Some(object) = evidence.as_object_mut() {
+                    object.insert(
+                        "broadcastAudit".to_owned(),
+                        serde_json::to_value(audit)?,
+                    );
+                }
+                evidence
+            },
             created_at: now.to_owned(),
             updated_at: now.to_owned(),
             terminal_at: None,
@@ -1698,9 +2064,14 @@ fn build_diagnostics(
     Ok(rows)
 }
 
-fn validate_signed_pnl(value: &SignedPnl) -> bool {
-    value.amount.is_finite()
-        && !value.raw.trim().is_empty()
+/// Check the **descriptive** half of a signed PnL.
+///
+/// Whether the amount was measured is deliberately *not* part of this
+/// check: that judgement belongs to the `BC-1` predicate set, and it
+/// has to be reported as a named refusal rather than as a malformed
+/// request.
+fn validate_signed_pnl_description(value: &SignedPnl) -> bool {
+    !value.raw.trim().is_empty()
         && !value.currency.trim().is_empty()
         && !value.unit.trim().is_empty()
         && !value.source.trim().is_empty()
@@ -2333,6 +2704,49 @@ fn update_attempt_terminal(
     Ok(())
 }
 
+/// Write the `BC-3` refusal trail.
+///
+/// The refusal is stored in the diagnostics table with the
+/// `evidence_incomplete` type and a dedicated diagnostic code, so that
+/// a reader can tell "the admission decision refused this" apart from
+/// "the attempt was sent and the evidence came back incomplete".
+///
+/// The diagnostic is keyed by the loop it refused, not by an attempt
+/// id: a refused request has no attempt — that is precisely why it was
+/// refused.
+fn record_admission_refusal(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+    loop_key: &str,
+    reasons: &[String],
+    detail: &str,
+    observed_at: &str,
+) -> Result<(), BroadcastError> {
+    let diagnostic_id = format!("admission-refusal:{loop_key}");
+    // The primary key is (..., attempt_id, diagnostic_id). A refusal has
+    // no attempt, so the attempt id is the loop key itself — the
+    // refusal belongs to the request, and the request is keyed by its
+    // loop.
+    let row = BroadcastDiagnosticRow {
+        attempt_id: loop_key.to_owned(),
+        loop_key: loop_key.to_owned(),
+        diagnostic_id,
+        diagnostic_type: "evidence_incomplete".to_owned(),
+        diagnostic_code: Some("BC-1_BC-2_ADMISSION_REFUSED".to_owned()),
+        message: Some(detail.to_owned()),
+        rpc_url: None,
+        tx_hash: None,
+        payload: serde_json::json!({
+            "unsatisfiedRules": reasons,
+            "outcome": "refused",
+            "broadcasted": false,
+        }),
+        observed_at: observed_at.to_owned(),
+    };
+    insert_diagnostic(connection, network, chain_id, &row)
+}
+
 fn insert_diagnostic(
     connection: &Connection,
     network: &str,
@@ -2625,15 +3039,22 @@ mod tests {
         submit_broadcasts, submit_broadcasts_write, AttemptCreateInput, AttemptFinalizeInput,
         BroadcastClearRequest, BroadcastDiagnosticInput, BroadcastDiagnosticType, BroadcastError,
         BroadcastFinalizeRequest, BroadcastRecordStore, BroadcastSubmitRequest,
-        BroadcastTerminalStatus, ExpectedUpstream,
+        BroadcastGuardPolicy, BroadcastMaterializationResult, BroadcastTerminalStatus,
+        ExpectedUpstream,
     };
     use rusqlite::{params, Connection};
+    use std::collections::BTreeMap;
 
     const NETWORK: &str = "robinhood";
     const CHAIN_ID: i64 = 4663;
     const LOOP_KEY: &str = "loop-1";
     const SIGNER: &str = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     const TX_HASH: &str = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    /// The instant the fixture decision is made at.
+    const FIXTURE_NOW: &str = "2026-11-04T01:00:00Z";
+    /// The review stamp the fixture seeds. It is 60 seconds before
+    /// `FIXTURE_NOW`, so it is inside the 120 s freshness window.
+    const REVIEWED_AT: &str = "2026-11-04T00:59:00Z";
 
     fn database() -> (tempfile::TempDir, std::path::PathBuf) {
         let directory = tempfile::tempdir().unwrap();
@@ -2705,6 +3126,39 @@ mod tests {
                 params![NETWORK, CHAIN_ID, LOOP_KEY],
             )
             .unwrap();
+        // The broadcast layer judges a request against the **review row**
+        // that measured it. The fixture therefore seeds one, with a
+        // review stamp that is inside the freshness window relative to
+        // `FIXTURE_NOW`.
+        connection
+            .execute(
+                "INSERT INTO manager_v4_reviews (
+                    network, chain_id, protocol, scope_key, loop_key,
+                    closed_loop_version, closed_loop_checksum,
+                    candidate_edge_version, candidate_edge_checksum,
+                    observation_version, observation_checksum,
+                    pool_scope_checksum, anchor_token_key_id, anchor_address,
+                    anchor_symbol, path_text, path_addresses_json,
+                    path_symbols_json, pool_path_key, pool_ids_json,
+                    review_status, review_reason, static_preview_json,
+                    run_arbitrage_json, signed_pnl_raw, signed_pnl_amount,
+                    signed_pnl_currency, signed_pnl_address, signed_pnl_unit,
+                    signed_pnl_source, reviewed_at, created_at, updated_at
+                 ) VALUES (?1, ?2, 'uniswap_v4', 'core4', ?3, 7,
+                           'sha256:closed-loop', 5, 'sha256:candidate-edge',
+                           3, 'sha256:observation', 'sha256:pool-scope',
+                           'robinhood:4663:0x1111111111111111111111111111111111111111',
+                           '0x1111111111111111111111111111111111111111', 'USDG',
+                           'USDG -> AMZN -> TA -> USDG',
+                           '[]', '[]', 'pool-path:1', '[]',
+                           'completed', 'fixture', '{}',
+                           '{\"ok\":true,\"executable\":true}',
+                           '12.5 USDG', 12.5, 'USDG',
+                           '0x1111111111111111111111111111111111111111',
+                           'token', 'runArbitrage', ?4, 'fixture', 'fixture')",
+                params![NETWORK, CHAIN_ID, LOOP_KEY, REVIEWED_AT],
+            )
+            .unwrap();
         drop(connection);
         path.to_path_buf()
     }
@@ -2757,6 +3211,43 @@ mod tests {
             apply,
             expected_upstream: expected(path),
             attempts: vec![attempt(Some("attempt-1"), 42)],
+            guard_policy: Some(guard_policy()),
+            attempt_amounts_raw: BTreeMap::from([(LOOP_KEY.to_owned(), 1_000u128)]),
+            admission_now: Some(FIXTURE_NOW.to_owned()),
+        }
+    }
+
+    /// Submit attempts through the plain entry point.
+    ///
+    /// The plain entry point carries no idempotency key of its own, so
+    /// the fixture supplies the runtime guardrails explicitly. There is
+    /// no default: a submission that cannot name its guardrails is
+    /// refused.
+    fn submit_attempts(
+        path: &std::path::Path,
+        attempts: Vec<AttemptCreateInput>,
+        apply: bool,
+    ) -> Result<BroadcastMaterializationResult, BroadcastError> {
+        submit_broadcasts(
+            path,
+            NETWORK,
+            CHAIN_ID,
+            attempts,
+            apply,
+            guard_policy(),
+            BTreeMap::from([(LOOP_KEY.to_owned(), 1_000u128)]),
+            Some(FIXTURE_NOW.to_owned()),
+        )
+    }
+
+    /// The runtime guardrails the fixture submission is judged against.
+    fn guard_policy() -> BroadcastGuardPolicy {
+        BroadcastGuardPolicy {
+            chain_id: Some(CHAIN_ID),
+            signer_address: Some(SIGNER.to_owned()),
+            max_amount_raw: Some(1_000_000u128),
+            window_start: Some("2020-01-01T00:00:00Z".to_owned()),
+            window_end: Some("2099-01-01T00:00:00Z".to_owned()),
         }
     }
 
@@ -2835,13 +3326,7 @@ mod tests {
     #[test]
     fn failed_finalization_preserves_rpc_nonce_hash_and_diagnostic() {
         let (_directory, path) = database();
-        submit_broadcasts(
-            &path,
-            NETWORK,
-            CHAIN_ID,
-            vec![attempt(Some("attempt-1"), 42)],
-            true,
-        )
+        submit_attempts(&path, vec![attempt(Some("attempt-1"), 42)], true)
         .unwrap();
         let result = finalize_broadcast_attempts(
             &path,
@@ -2868,7 +3353,7 @@ mod tests {
     #[test]
     fn clear_is_dry_run_safe_idempotent_and_rejects_pending_work() {
         let (_directory, path) = database();
-        submit_broadcasts(&path, NETWORK, CHAIN_ID, vec![attempt(None, 42)], true).unwrap();
+        submit_attempts(&path, vec![attempt(None, 42)], true).unwrap();
         let pending_clear = clear_broadcast_records_write(
             &path,
             BroadcastClearRequest {
@@ -3003,7 +3488,7 @@ mod tests {
     #[test]
     fn success_requires_hash_and_terminal_attempt_cannot_be_finalized_twice() {
         let (_directory, path) = database();
-        submit_broadcasts(&path, NETWORK, CHAIN_ID, vec![attempt(None, 42)], true).unwrap();
+        submit_attempts(&path, vec![attempt(None, 42)], true).unwrap();
         let missing_hash = AttemptFinalizeInput {
             attempt_id: "core4:loop-1:9:42".to_owned(),
             status: BroadcastTerminalStatus::Success,
@@ -3093,13 +3578,15 @@ mod tests {
                 )
                 .unwrap();
         }
-        let error = submit_broadcasts(&path, NETWORK, CHAIN_ID, vec![attempt(None, 7)], true)
+        let error = submit_attempts(&path, vec![attempt(None, 7)], true)
             .expect_err("a request without three price limits must be refused");
+        // The refusal names the rule that did not hold, so that the
+        // reason is answerable without re-deriving the judgement.
         match error {
-            BroadcastError::InvalidRequest(message) => {
+            BroadcastError::BroadcastRequestNotAdmitted { reasons, .. } => {
                 assert!(
-                    message.contains("per-hop price limits"),
-                    "unexpected reason: {message}"
+                    reasons.iter().any(|reason| reason == "BC-1.price_limits_complete"),
+                    "unexpected reasons: {reasons:?}"
                 );
             }
             other => panic!("unexpected error: {other:?}"),
@@ -3117,13 +3604,7 @@ mod tests {
             )
             .unwrap();
         drop(connection);
-        let error = submit_broadcasts(
-            &path,
-            NETWORK,
-            CHAIN_ID,
-            vec![attempt(Some("attempt-1"), 42)],
-            true,
-        )
+        let error = submit_attempts(&path, vec![attempt(Some("attempt-1"), 42)], true)
         .unwrap_err();
         assert!(matches!(
             error,
@@ -3134,13 +3615,7 @@ mod tests {
     #[test]
     fn a_finalized_attempt_reaches_the_monthly_trade_store() {
         let (directory, path) = database_with_record_root();
-        submit_broadcasts(
-            &path,
-            NETWORK,
-            CHAIN_ID,
-            vec![attempt(Some("attempt-1"), 42)],
-            true,
-        )
+        submit_attempts(&path, vec![attempt(Some("attempt-1"), 42)], true)
         .unwrap();
         finalize_broadcast_attempts(
             &path,
@@ -3196,5 +3671,522 @@ mod tests {
             .unwrap();
         assert_eq!(path_addresses, "[]");
         assert_eq!(receipt, "{}");
+    }
+
+    // ---- BC-1 / BC-2 / BC-3 / BC-5 acceptance -------------------------
+    //
+    // The cases below are the acceptance table of `T-复广.02`:
+    // six negative scenarios, one positive, and one guardrail case.
+    //
+    // Every negative case asserts **two** things:
+    //
+    // 1. no broadcast request was generated, and
+    // 2. the refusal names the rule that did not hold.
+    //
+    // The second half is what separates "the gate is on" from "the code
+    // has a check". A refusal without a named rule is not evidence.
+
+    /// Rewrite the fixture review row so that the admission facts differ.
+    ///
+    /// The fixture review is the layer that measured `runArbitrage`, so
+    /// this is how a scenario "measures differently".
+    fn set_review_facts(
+        path: &std::path::Path,
+        review_status: &str,
+        run_json: &str,
+        reviewed_at: &str,
+    ) {
+        let connection = Connection::open(path).unwrap();
+        connection
+            .execute(
+                "UPDATE manager_v4_reviews
+                    SET review_status = ?4, run_arbitrage_json = ?5, reviewed_at = ?6
+                  WHERE network = ?1 AND chain_id = ?2 AND loop_key = ?3",
+                params![
+                    NETWORK,
+                    CHAIN_ID,
+                    LOOP_KEY,
+                    review_status,
+                    run_json,
+                    reviewed_at
+                ],
+            )
+            .unwrap();
+    }
+
+    /// The rules a refusal named.
+    fn refusal_rules(error: &BroadcastError) -> Vec<String> {
+        match error {
+            BroadcastError::BroadcastRequestNotAdmitted { reasons, .. } => reasons.clone(),
+            other => panic!("expected an admission refusal, got {other:?}"),
+        }
+    }
+
+    /// Assert that a refusal named a rule.
+    fn assert_refused_with(error: &BroadcastError, rule: &str) {
+        let reasons = refusal_rules(error);
+        assert!(
+            reasons.iter().any(|reason| reason == rule),
+            "expected {rule} among {reasons:?}"
+        );
+    }
+
+    /// Assert that no attempt was created.
+    fn assert_no_attempt(path: &std::path::Path) {
+        let connection = Connection::open(path).unwrap();
+        let count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM manager_cow_execution_attempts",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0, "a refused request must not create an attempt");
+    }
+
+    /// N-1: `run.ok = false` refuses the broadcast.
+    #[test]
+    fn n1_run_not_ok_refuses_the_broadcast() {
+        let (_directory, path) = database();
+        set_review_facts(
+            &path,
+            "not_executable",
+            "{\"ok\":false,\"executable\":true}",
+            REVIEWED_AT,
+        );
+        let error = submit_attempts(&path, vec![attempt(None, 42)], true)
+            .expect_err("a request whose run is not ok must be refused");
+        assert_refused_with(&error, "BC-1.run_ok");
+        assert_no_attempt(&path);
+    }
+
+    /// N-2: `run.executable = false` refuses the broadcast.
+    #[test]
+    fn n2_run_not_executable_refuses_the_broadcast() {
+        let (_directory, path) = database();
+        set_review_facts(
+            &path,
+            "not_executable",
+            "{\"ok\":true,\"executable\":false}",
+            REVIEWED_AT,
+        );
+        let error = submit_attempts(&path, vec![attempt(None, 42)], true)
+            .expect_err("a request whose run is not executable must be refused");
+        assert_refused_with(&error, "BC-1.run_executable");
+        assert_no_attempt(&path);
+    }
+
+    /// N-3: a **measured zero** profit refuses the broadcast, and is
+    /// recorded as a business outcome rather than a defect.
+    #[test]
+    fn n3_measured_zero_profit_refuses_the_broadcast() {
+        let (_directory, path) = database();
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute(
+                "UPDATE manager_v4_review_broadcast_requests
+                    SET signed_pnl_amount = 0.0, signed_pnl_raw = '0 USDG'
+                  WHERE network = ?1 AND chain_id = ?2",
+                params![NETWORK, CHAIN_ID],
+            )
+            .unwrap();
+        drop(connection);
+        let error = submit_attempts(&path, vec![attempt(None, 42)], true)
+            .expect_err("a measured zero profit must be refused");
+        assert_refused_with(&error, "BC-1.pnl_positive");
+        assert_no_attempt(&path);
+    }
+
+    /// N-4: a **measured negative** profit refuses the broadcast.
+    #[test]
+    fn n4_measured_negative_profit_refuses_the_broadcast() {
+        let (_directory, path) = database();
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute(
+                "UPDATE manager_v4_review_broadcast_requests
+                    SET signed_pnl_amount = -3.5, signed_pnl_raw = '-3.5 USDG'
+                  WHERE network = ?1 AND chain_id = ?2",
+                params![NETWORK, CHAIN_ID],
+            )
+            .unwrap();
+        drop(connection);
+        let error = submit_attempts(&path, vec![attempt(None, 42)], true)
+            .expect_err("a measured loss must be refused");
+        assert_refused_with(&error, "BC-1.pnl_positive");
+        assert_no_attempt(&path);
+    }
+
+    /// N-5: an **unmeasured** profit refuses the broadcast, and is never
+    /// treated as zero.
+    #[test]
+    fn n5_unmeasured_profit_refuses_the_broadcast() {
+        let (_directory, path) = database();
+        let connection = Connection::open(&path).unwrap();
+        // "The profit was never measured" reaches the broadcast layer as
+        // a request row whose stored amount is not a finite number. A
+        // `NaN` cannot be stored at all — SQLite turns it into `NULL`
+        // and the `NOT NULL` constraint rejects it — so the reachable
+        // shape of "no figure" is an infinity.
+        //
+        // The review layer normally never publishes such a row: it only
+        // publishes a request when the PnL was measured and positive.
+        // This fixture writes one directly, because the broadcast layer
+        // has to refuse it **on its own account** rather than trusting
+        // that the review layer was careful.
+        connection
+            .execute(
+                "UPDATE manager_v4_review_broadcast_requests
+                    SET signed_pnl_amount = ?4
+                  WHERE network = ?1 AND chain_id = ?2",
+                params![NETWORK, CHAIN_ID, LOOP_KEY, f64::INFINITY],
+            )
+            .unwrap();
+        drop(connection);
+        let error = submit_attempts(&path, vec![attempt(None, 42)], true)
+            .expect_err("a request without a measured profit must be refused");
+        assert_refused_with(&error, "BC-1.pnl_measured");
+        // The refusal must **not** be folded into "zero profit": a
+        // missing measurement is not a business outcome, and the two
+        // are reported by different rules.
+        assert!(
+            !refusal_rules(&error).contains(&"BC-1.pnl_positive".to_owned()),
+            "an unmeasured profit must not be reported as a non-positive profit"
+        );
+        assert_no_attempt(&path);
+    }
+
+    /// N-6: a review older than the freshness window refuses the
+    /// broadcast. The window is 120 s, not the 600 s observation
+    /// threshold.
+    #[test]
+    fn n6_stale_review_refuses_the_broadcast() {
+        let (_directory, path) = database();
+        // 121 seconds before `FIXTURE_NOW` — one second past the window.
+        set_review_facts(
+            &path,
+            "completed",
+            "{\"ok\":true,\"executable\":true}",
+            "2026-11-04T00:57:59Z",
+        );
+        let error = submit_attempts(&path, vec![attempt(None, 42)], true)
+            .expect_err("a stale review must be refused");
+        assert_refused_with(&error, "BC-1.review_fresh");
+        assert_no_attempt(&path);
+    }
+
+    /// A review inside the window is admitted, and the 600 s observation
+    /// threshold is **not** used as the freshness window.
+    #[test]
+    fn a_review_just_inside_the_window_is_admitted() {
+        let (_directory, path) = database();
+        // 119 seconds before `FIXTURE_NOW`.
+        set_review_facts(
+            &path,
+            "completed",
+            "{\"ok\":true,\"executable\":true}",
+            "2026-11-04T00:59:01Z",
+        );
+        submit_attempts(&path, vec![attempt(None, 42)], true)
+            .expect("a fresh review must be admitted");
+    }
+
+    /// A missing run verdict is **not** a pass.
+    #[test]
+    fn a_missing_run_verdict_is_refused() {
+        let (_directory, path) = database();
+        set_review_facts(&path, "completed", "{}", REVIEWED_AT);
+        let error = submit_attempts(&path, vec![attempt(None, 42)], true)
+            .expect_err("a request with no run verdict must be refused");
+        assert_refused_with(&error, "BC-1.run_ok");
+        assert_refused_with(&error, "BC-1.run_executable");
+        assert_no_attempt(&path);
+    }
+
+    /// A request whose review row is gone is refused: absent evidence is
+    /// not evidence of admissibility.
+    #[test]
+    fn a_request_without_a_review_row_is_refused() {
+        let (_directory, path) = database();
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute(
+                "DELETE FROM manager_v4_reviews
+                  WHERE network = ?1 AND chain_id = ?2",
+                params![NETWORK, CHAIN_ID],
+            )
+            .unwrap();
+        drop(connection);
+        let error = submit_attempts(&path, vec![attempt(None, 42)], true)
+            .expect_err("a request without a review row must be refused");
+        assert_refused_with(&error, "BC-1.evidence_complete");
+        assert_no_attempt(&path);
+    }
+
+    /// P-1: a measured, positive and fresh review is admitted, and the
+    /// attempt carries the nine `BC-5` fields.
+    #[test]
+    fn p1_a_positive_fresh_review_carries_the_nine_audit_fields() {
+        let (_directory, path) = database();
+        submit_attempts(&path, vec![attempt(None, 42)], true)
+            .expect("a positive fresh review must be admitted");
+
+        let connection = Connection::open(&path).unwrap();
+        // The attempt id is derived from the scope, the loop, the review
+        // generation and the nonce when the caller does not name one.
+        let expected_attempt_id = format!("core4:{LOOP_KEY}:9:42");
+        let evidence_json: String = connection
+            .query_row(
+                "SELECT evidence_json FROM manager_cow_execution_attempts
+                  WHERE attempt_id = ?1",
+                params![expected_attempt_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let evidence: serde_json::Value = serde_json::from_str(&evidence_json).unwrap();
+        let audit = evidence
+            .get("broadcastAudit")
+            .expect("the BC-5 audit record must be attached to the attempt");
+
+        // The nine fields.
+        assert!(audit.get("reviewIdentifier").is_some(), "1 review identity");
+        assert_eq!(
+            audit.get("signedPnlAmount").and_then(|value| value.as_f64()),
+            Some(12.5),
+            "2 the measured PnL"
+        );
+        assert_eq!(
+            audit.get("reviewAgeSeconds").and_then(|value| value.as_i64()),
+            Some(60),
+            "3 the review age in seconds"
+        );
+        assert!(audit.get("idempotencyKey").is_some(), "4 the idempotency key");
+        assert_eq!(
+            audit.get("chainId").and_then(|value| value.as_i64()),
+            Some(CHAIN_ID),
+            "5 the chain"
+        );
+        assert!(audit.get("accountIdentifier").is_some(), "6 the account");
+        assert_eq!(
+            audit.get("limitVerdict").and_then(|value| value.as_str()),
+            Some("within_limit"),
+            "7 the limit verdict"
+        );
+        assert!(audit.get("broadcastAt").is_some(), "8 the broadcast timestamp");
+        assert_eq!(
+            audit.get("outcome").and_then(|value| value.as_str()),
+            Some("admitted"),
+            "9 the outcome"
+        );
+
+        // The full trail is behind the nine fields.
+        let trail = audit
+            .get("admission")
+            .and_then(|value| value.get("checks"))
+            .and_then(|value| value.as_array())
+            .expect("the admission trail must be embedded");
+        assert!(!trail.is_empty());
+    }
+
+    /// BC-3: a refusal is recorded, exactly like a send.
+    #[test]
+    fn bc3_a_refusal_is_recorded_with_its_reason() {
+        let (_directory, path) = database();
+        set_review_facts(
+            &path,
+            "not_executable",
+            "{\"ok\":false,\"executable\":false}",
+            REVIEWED_AT,
+        );
+        submit_attempts(&path, vec![attempt(None, 42)], true)
+            .expect_err("the request must be refused");
+
+        let connection = Connection::open(&path).unwrap();
+        let (code, message, payload): (String, Option<String>, String) = connection
+            .query_row(
+                "SELECT diagnostic_code, message, payload_json
+                   FROM manager_broadcast_attempt_diagnostics
+                  WHERE network = ?1 AND chain_id = ?2",
+                params![NETWORK, CHAIN_ID],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .expect("the refusal must leave a trail");
+        assert_eq!(code, "BC-1_BC-2_ADMISSION_REFUSED");
+        let message = message.unwrap_or_default();
+        assert!(
+            message.contains("BC-1.run_ok"),
+            "the trail must name the rule: {message}"
+        );
+        let payload: serde_json::Value = serde_json::from_str(&payload).unwrap();
+        assert_eq!(payload.get("outcome").and_then(|v| v.as_str()), Some("refused"));
+        assert_eq!(
+            payload.get("broadcasted").and_then(|v| v.as_bool()),
+            Some(false),
+            "the trail must state that nothing went out"
+        );
+        let rules = payload
+            .get("unsatisfiedRules")
+            .and_then(|value| value.as_array())
+            .expect("the trail must list the unsatisfied rules");
+        assert!(rules.iter().any(|rule| rule == "BC-1.run_ok"));
+    }
+
+    /// A dry run leaves **no** trail: it writes nothing at all.
+    #[test]
+    fn a_dry_run_leaves_no_refusal_trail() {
+        let (_directory, path) = database();
+        set_review_facts(
+            &path,
+            "not_executable",
+            "{\"ok\":false,\"executable\":false}",
+            REVIEWED_AT,
+        );
+        submit_attempts(&path, vec![attempt(None, 42)], false)
+            .expect_err("the request must be refused");
+        let connection = Connection::open(&path).unwrap();
+        let count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM manager_broadcast_attempt_diagnostics",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0, "a dry run must not write anything");
+    }
+
+    /// P-2: the guardrails refuse on their own terms.
+    ///
+    /// The three sub-cases are checked separately because they have
+    /// different meanings: a missing chain refuses, a missing account
+    /// refuses, a breached limit refuses, and a closed window defers
+    /// this round.
+    #[test]
+    fn p2_a_missing_chain_refuses_the_broadcast() {
+        let (_directory, path) = database();
+        let error = submit_broadcasts(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            vec![attempt(None, 42)],
+            true,
+            BroadcastGuardPolicy {
+                chain_id: None,
+                ..guard_policy()
+            },
+            BTreeMap::from([(LOOP_KEY.to_owned(), 1_000u128)]),
+            Some(FIXTURE_NOW.to_owned()),
+        )
+        .expect_err("a deployment with no chain must be refused");
+        assert_refused_with(&error, "BC-2.chain_matches");
+        assert_no_attempt(&path);
+    }
+
+    /// P-2: an attempt that names a different account is refused.
+    #[test]
+    fn p2_a_foreign_account_refuses_the_broadcast() {
+        let (_directory, path) = database();
+        let mut foreign = attempt(None, 42);
+        foreign.signer_address = "0xcccccccccccccccccccccccccccccccccccccccc".to_owned();
+        let error = submit_broadcasts(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            vec![foreign],
+            true,
+            guard_policy(),
+            BTreeMap::from([(LOOP_KEY.to_owned(), 1_000u128)]),
+            Some(FIXTURE_NOW.to_owned()),
+        )
+        .expect_err("an attempt naming a foreign account must be refused");
+        assert_refused_with(&error, "BC-2.account_matches");
+        assert_no_attempt(&path);
+    }
+
+    /// P-2: an amount above the limit is refused.
+    #[test]
+    fn p2_an_amount_above_the_limit_refuses_the_broadcast() {
+        let (_directory, path) = database();
+        let error = submit_broadcasts(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            vec![attempt(None, 42)],
+            true,
+            BroadcastGuardPolicy {
+                max_amount_raw: Some(10u128),
+                ..guard_policy()
+            },
+            BTreeMap::from([(LOOP_KEY.to_owned(), 1_000u128)]),
+            Some(FIXTURE_NOW.to_owned()),
+        )
+        .expect_err("an amount above the limit must be refused");
+        assert_refused_with(&error, "BC-2.amount_within_limit");
+        assert_no_attempt(&path);
+    }
+
+    /// P-2: a request outside the time window is not sent this round.
+    #[test]
+    fn p2_a_request_outside_the_window_is_not_sent_this_round() {
+        let (_directory, path) = database();
+        let error = submit_broadcasts(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            vec![attempt(None, 42)],
+            true,
+            BroadcastGuardPolicy {
+                window_start: Some("2020-01-01T00:00:00Z".to_owned()),
+                window_end: Some("2020-01-02T00:00:00Z".to_owned()),
+                ..guard_policy()
+            },
+            BTreeMap::from([(LOOP_KEY.to_owned(), 1_000u128)]),
+            Some(FIXTURE_NOW.to_owned()),
+        )
+        .expect_err("a request outside the window must not be sent");
+        assert_refused_with(&error, "BC-2.within_window");
+        assert_no_attempt(&path);
+    }
+
+    /// An **unmeasured** amount is not zero: it cannot be shown to be
+    /// inside a limit, so it is refused.
+    #[test]
+    fn an_unmeasured_amount_is_refused() {
+        let (_directory, path) = database();
+        let error = submit_broadcasts(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            vec![attempt(None, 42)],
+            true,
+            guard_policy(),
+            BTreeMap::new(),
+            Some(FIXTURE_NOW.to_owned()),
+        )
+        .expect_err("an unmeasured amount must be refused");
+        assert_refused_with(&error, "BC-2.amount_within_limit");
+        assert_no_attempt(&path);
+    }
+
+    /// A deployment with **no** guardrails at all is refused, not
+    /// defaulted open.
+    #[test]
+    fn a_deployment_without_guardrails_is_refused() {
+        let (_directory, path) = database();
+        let error = submit_broadcasts(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            vec![attempt(None, 42)],
+            true,
+            BroadcastGuardPolicy::default(),
+            BTreeMap::from([(LOOP_KEY.to_owned(), 1_000u128)]),
+            Some(FIXTURE_NOW.to_owned()),
+        )
+        .expect_err("a deployment without guardrails must be refused");
+        assert_refused_with(&error, "BC-2.chain_matches");
+        assert_refused_with(&error, "BC-2.account_matches");
+        assert_refused_with(&error, "BC-2.amount_within_limit");
+        assert_refused_with(&error, "BC-2.within_window");
+        assert_no_attempt(&path);
     }
 }

@@ -755,13 +755,13 @@ Rename-Item "plan/.../D-042-旧名字.md" "D-042-新名字.md"
 
 | `D-058` | 现状与可行性分析 | P-01 T-复广.01 | `plan/tasks/P-01-池子重构/tasks/T-复广.01/docs/D-058-现状与可行性分析.md` |
 
-| `D-059` | PLAN | P-01 T-复广.02 | `plan/tasks/P-01-池子重构/tasks/T-复广.02/D-059-PLAN.md` |
+| `D-059` | PLAN | P-01 T-复广.02 | `plan/archive/任务归档_T-复广.02_广播准入门槛与审计留痕_20261125.md#d059` |
 
-| `D-060` | SCOPE_GUARD | P-01 T-复广.02 | `plan/tasks/P-01-池子重构/tasks/T-复广.02/D-060-SCOPE_GUARD.md` |
+| `D-060` | SCOPE_GUARD | P-01 T-复广.02 | `plan/archive/任务归档_T-复广.02_广播准入门槛与审计留痕_20261125.md#d060` |
 
-| `D-061` | checklist | P-01 T-复广.02 | `plan/tasks/P-01-池子重构/tasks/T-复广.02/D-061-checklist.md` |
+| `D-061` | checklist | P-01 T-复广.02 | `plan/archive/任务归档_T-复广.02_广播准入门槛与审计留痕_20261125.md#d061` |
 
-| `D-062` | 现状与可行性分析 | P-01 T-复广.02 | `plan/tasks/P-01-池子重构/tasks/T-复广.02/docs/D-062-现状与可行性分析.md` |
+| `D-062` | 现状与可行性分析 | P-01 T-复广.02 | `plan/archive/任务归档_T-复广.02_广播准入门槛与审计留痕_20261125.md#d062` |
 
 | `D-063` | PLAN | P-01 T-复编.01 | `plan/archive/任务归档_T-复编.01_Rust_生产侧复核发布链路_20261124.md#d063` |
 
@@ -855,7 +855,7 @@ Rename-Item "plan/.../D-042-旧名字.md" "D-042-新名字.md"
 | `D-115` | checklist | P-01 T-闭.01 | `plan/tasks/P-01-池子重构/tasks/T-闭.01/D-115-checklist.md` |
 | `D-116` | 实施与影子复算报告 | P-01 T-闭.01 | `plan/tasks/P-01-池子重构/tasks/T-闭.01/docs/D-116-实施与影子复算报告_20261125.md` |
 | `D-117` | 旧排序消费者清单与逐列决策 | P-01 T-方储.01 | `plan/tasks/P-01-池子重构/tasks/T-方储.01/docs/D-117-旧排序消费者清单与逐列决策_20261125.md` |
-| `D-118` | 广播准入判据与接口层接线 | P-01 T-复广.02 | `plan/tasks/P-01-池子重构/tasks/T-复广.02/docs/D-118-广播准入判据与接口层接线.md` |
+| `D-118` | 广播准入判据与接口层接线 | P-01 T-复广.02 | `plan/archive/任务归档_T-复广.02_广播准入门槛与审计留痕_20261125.md#d118` |
 | `D-122` | PLAN | P-01 T-方.01 | `plan/tasks/P-01-池子重构/tasks/T-方.01/D-122-PLAN.md` |
 | `D-123` | SCOPE_GUARD | P-01 T-方.01 | `plan/tasks/P-01-池子重构/tasks/T-方.01/D-123-SCOPE_GUARD.md` |
 | `D-124` | checklist | P-01 T-方.01 | `plan/tasks/P-01-池子重构/tasks/T-方.01/D-124-checklist.md` |
