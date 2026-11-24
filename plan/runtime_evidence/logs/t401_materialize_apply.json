@@ -1,0 +1,106 @@
+{
+  "applied": true,
+  "candidateEdges": {
+    "abnormalPoolCount": 804,
+    "anchorTokenCount": 34,
+    "apply": true,
+    "candidateTokenCount": 35,
+    "candidateVersion": 9,
+    "chainId": 4663,
+    "changedRows": 0,
+    "consumersNeedRebuild": false,
+    "dryRun": false,
+    "eligiblePoolCount": 170,
+    "libraryChecksums": {
+      "core": "sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452",
+      "extension": "sha256:d492fbe1440810623e500f74e0572949d9151e29ca17d23e242a9a852000bbf1",
+      "stocks": "sha256:a7752808e288c80f4445b912f7d5883bd23577f6fa53a352d093c6683801cb2e",
+      "test": "sha256:c345fa3181bf5662f9401d3e766a503e8bf1d7e2b40cec747a31335773efaf5b"
+    },
+    "libraryVersions": {
+      "core": 1,
+      "extension": 3,
+      "stocks": 1,
+      "test": 1
+    },
+    "materializedChecksum": "sha256:429fadc225693ae40ce114f3fabff95caa6c95f357df7e563d6e1310bddc777d",
+    "network": "robinhood",
+    "poolScopeChecksum": "sha256:ae6b14ac4d533b80ca8493310e413b51ed2f5c6f2d4e72ac83a0e39a50ff12c6",
+    "protocol": "uniswap_v4",
+    "recommendationCount": 340,
+    "scopeKey": "core4",
+    "skipReasonCounts": {},
+    "sourcePoolCount": 488
+  },
+  "candidateExchanges": {
+    "abnormalDirectionCount": 180,
+    "abnormalPoolCount": 2362,
+    "anchorCount": 34,
+    "apply": true,
+    "candidateEdgeChecksum": "sha256:429fadc225693ae40ce114f3fabff95caa6c95f357df7e563d6e1310bddc777d",
+    "candidateEdgeVersion": 9,
+    "chainId": 4663,
+    "changedRows": 0,
+    "consumersNeedRebuild": false,
+    "directionCount": 1420,
+    "dryRun": false,
+    "emptyDirectionCount": 1034,
+    "libraryChecksums": {
+      "core": "sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452",
+      "stocks": "sha256:a7752808e288c80f4445b912f7d5883bd23577f6fa53a352d093c6683801cb2e",
+      "test": "sha256:c345fa3181bf5662f9401d3e766a503e8bf1d7e2b40cec747a31335773efaf5b"
+    },
+    "libraryVersions": {
+      "core": 1,
+      "stocks": 1,
+      "test": 1
+    },
+    "materializedChecksum": "sha256:88501d794e97fc59f13fab55d3095a28fea18ff8e611c2b34e8ff3a00407d6f0",
+    "network": "robinhood",
+    "observationVersion": 12,
+    "poolCount": 348,
+    "poolScopeChecksum": "sha256:2bea9bb4c62f4b1bacc4dd8731a3e05b0b26514f5f58b31f4bff69b6a51f7f75",
+    "protocol": "uniswap_v4",
+    "scopeKey": "candidate_exchange",
+    "tokenCount": 36
+  },
+  "chainId": 4663,
+  "closedLoops": {
+    "anchorCount": 34,
+    "apply": true,
+    "candidateEdgeChecksum": "sha256:429fadc225693ae40ce114f3fabff95caa6c95f357df7e563d6e1310bddc777d",
+    "candidateEdgeVersion": 9,
+    "chainId": 4663,
+    "changedRows": 0,
+    "closedLoopVersion": 19,
+    "consumersNeedRebuild": false,
+    "directionalPoolChecksum": "sha256:84cf7aef56554c5e140522b989e43701a911bc6ab03d061135df3d1b6b42f9cf",
+    "directionalPoolVersion": 2,
+    "dryRun": false,
+    "hopCount": 522,
+    "libraryChecksums": {
+      "core": "sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452",
+      "stocks": "sha256:a7752808e288c80f4445b912f7d5883bd23577f6fa53a352d093c6683801cb2e",
+      "test": "sha256:c345fa3181bf5662f9401d3e766a503e8bf1d7e2b40cec747a31335773efaf5b"
+    },
+    "libraryVersions": {
+      "core": 1,
+      "stocks": 1,
+      "test": 1
+    },
+    "loopCount": 174,
+    "materializedChecksum": "sha256:6927d8d67b2c411d60ea83226dca8aea42cd454f0b2ec793b56bc61e58d73f4a",
+    "network": "robinhood",
+    "observationChecksum": "sha256:88501d794e97fc59f13fab55d3095a28fea18ff8e611c2b34e8ff3a00407d6f0",
+    "observationVersion": 12,
+    "optimizationCount": 472,
+    "poolScopeChecksum": "sha256:ae6b14ac4d533b80ca8493310e413b51ed2f5c6f2d4e72ac83a0e39a50ff12c6",
+    "protocol": "uniswap_v4",
+    "scopeKey": "core4",
+    "skippedTokenCount": 79
+  },
+  "database": "\\\\?\\E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "mode": "apply",
+  "network": "robinhood",
+  "poolScopePreflightCount": 1
+}

@@ -109,7 +109,8 @@ python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_b
 | 事实 | 读数 |
 |---|---|
 | 闭环目录发布的方向组数 | **174**（每组恰好 1 个闭环 ⇒ 需 **174** 个 worker） |
-| 扫描器**实际发现**的方向组数 | **174**（与目录**完全一致**，缺口 0） |
+| **overview** 给出的方向组数 | **174**（与目录**完全一致**，缺口 0） |
+| **扫描器 payload** 给出的方向组数 | **104**（**第一层根因放开容量后仍缺 74** ⇒ 见 `1.3.1） |
 | 运行时**常驻 worker** 数 | **16** |
 | 常驻上限的**内联硬顶** | **32**（`DEX_CLOSED_LOOP_MAX_RESIDENT_GROUPS` 默认 **16**） |
 | ⇒ **没有 worker 的闭环数** | **158** |
@@ -137,6 +138,70 @@ python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_b
 
 **缺口如实登记**：`D-014` §0.2 的「M-n 模块表**没有 `rs-src` / Python 运行时归属**」
 仍未闭合 —— 本次沿用 `T-复编.01` 先例把运行时落点登记在 `M-8` 名下，**不**改模块表。
+
+---
+
+### 1.3.1 第二层根因：扫描器的**方向组全集**缺了目录的 74 组（**死锁**）
+
+> **§1.3 放开的是「容量」** —— 容量放开后常驻上限不再是 16，
+> 但**方向组全集本身**仍缺 74 组 ⇒ 那 74 个闭环**连第一个 worker 都拿不到**。
+
+| 事实 | 读数 |
+|---|---|
+| 闭环目录发布的**方向组**数 | **174**（每组 1 个闭环 ⇒ 需 174 个 worker） |
+| 扫描器 payload 的 **route** 数 | **104** |
+| 扫描器 payload 的**方向组**数 | **104**（与常驻 worker 组集合**完全相同**，双向差 0） |
+| 两者**交集** | **100** 组 |
+| **目录有、扫描器没有 route** 的组 | **74**（如 `meta`¦`eth`¦`spy`、`nvda`¦`mu`¦`eth` …） |
+| **扫描器有、目录没有** 的组 | **4**（`spy`¦`coin`¦`usdg`、`spy`¦`eth`¦`meta`、`spy`¦`meta`¦`eth`、`spy`¦`usdg`¦`coin`） |
+
+> **口径说明**：上表按**方向组**（`anchor`¦`Y`¦`Z`，**方向敏感**）统计。
+> 按**物理闭合键**（**地址有序**三元组）统计则同源：扫描器 104 / 目录 174 /
+> 交集 100 / 扫描器独有 4 / 目录独有 74 ⇒ **两个口径结论一致**。
+
+**死锁的形状**（**不是容量问题，是依赖方向问题**）：
+
+```text
+组只有在扫描器产出 route 时才成为常驻 worker
+扫描器只产出「已经持有 worker」的组的 route      ← 观察集可达性过滤的结果
+  ⇒ 目录里 74 个组永远拿不到**第一个** worker
+  ⇒ 这 74 个闭环永远拿不到复核证据
+  ⇒ covers_catalog()（证据条数 == 目录条数 == 174）永不成立
+  ⇒ 复核代次永远发布不了
+```
+
+**为什么是「不一致」而不是「设计」**：
+**手动复核路径**（`_refresh_native_closed_loop_group_locked`）**早已优先用 manager 视图**，
+其注释原文即为：
+
+> Mainnet refresh prefers the RuntimeCore manager overview so loop libraries that are
+> not yet in the static observation snapshot can still be submitted.
+
+⇒ **自动扫描路径漏了这一步** ⇒ 同一份目录，两条路径给出**不同的方向组全集**。
+
+**成因**（代码位置）：
+
+| 路径 | 取数 | 结果 |
+|---|---|---|
+| 扫描器 payload | `dex_quote_routes_payload` → `dex_overview_payload` → `compact_snapshot` | `dex_surface_snapshots` 表**是空的** ⇒ 走**实时观测**路径 ⇒ 经 `_overview_path_candidates_from_observation_sets` 的 `observationReachable` 过滤 ⇒ **104** |
+| overview | `_overview_paths_from_static_summary(..., preserve_direction=(compact_snapshot["path"]=="sqlite_db"))` | 保留**双向** ⇒ **174** |
+| 手动复核 | `_native_manager_closed_loop_route_payload`（manager 闭环视图） | **174**（`pathSymbols` / `pathAddresses` / `poolIds` / `poolPathKey` 与 mixin 已有 helper **完全匹配**） |
+
+**改了什么**（**最小改动 · 仍在 `M-8` 内 ⇒ 无需再扩范围**）：
+
+| 文件 | 改动 |
+|---|---|
+| `dex_opportunity_scanner_rust_mixin.py` | 新增模块级 helper `_native_chain_runtime(chain_id)`：**请求内**用 Flask `g.chain_runtime`，**后台扫描线程**（无 app context）用 `chain_runtime_registry().get(chain_id)`；未注册则返回 `None`，调用方保持原行为 |
+| `dex_opportunity_scanner_rust_mixin.py` | `_native_manager_overview_route_payload` / `_native_manager_closed_loop_route_payload`：**去掉 Flask-only 取 runtime 的三段**，统一走 `_native_chain_runtime()`（原来只有手动复核路径够得着 manager 视图） |
+| `dex_opportunity_scanner_rust_mixin.py` | `_submit_native_closed_loop_groups`：把「只遍历 payload routes」的循环抽成闭包 `_collect_groups(routes, *, only_missing=False)`；先收 payload routes（**原行为不变**），再取 **manager 闭环视图**并**只补齐扫描 payload 缺失的组**；新增读数 `submission["managerGroupsAdded"]` |
+
+**没改什么**：闭环目录本身**一字未改**（174 组仍是 174 组）；
+方向池与固定费率约定不变；复核发布门禁（覆盖全集 / 上游代际 / 幂等键）**一字未动**。
+
+**为什么多出来的 4 组不破坏 `covers_catalog()`**：
+扫描器独有的 4 组**不在已发布闭环目录内** ⇒ 内核 `apply_closed_loop_identity()`
+找不到对应 identity ⇒ 只写 `closedLoopIdentityStatus = "mismatch"`、**不写** `closedLoopKey`
+⇒ **不产出复核证据** ⇒ 证据条数仍为 **174**（= 目录条数）⇒ 门禁成立。
 
 ---
 

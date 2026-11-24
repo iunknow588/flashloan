@@ -62,6 +62,23 @@
 - `reports/d9_11_ui_overview_manager_only_correction_20261105.json`
 - `reports/d9_32_runtime_core_manual_review_command_20261106.json`
 
+## `T-复编.02` 复核完整性实测（2026-11-24）
+
+> **只读证据**。采集器以 `mode=ro` 打开主网实库并 `PRAGMA query_only = ON`；
+> 本任务**一次也没有写**复核库。
+
+| 文件 | 内容 |
+|---|---|
+| `tools/collect_t401_review_integrity_20261124.py` | **采集器**：A1–A8 / B1–B6 / C1–C5 / D1–D4 共 **23** 项 |
+| `tools/render_t401_readings_20261124.py` | **渲染器**：**只格式化**采集器输出，**不自己**判定任何一项 |
+| `t401_review_integrity_baseline.json` | **发布前基线**（复核库停在闭环 **v14** / **164** 闭环时的**同口径**读数，用作前后对照） |
+| `t401_review_integrity.json` | **发布后读数**（由采集器写入；发布前为空缺 ⇒ **不得**据此勾项） |
+| `t401_publish_watch.jsonl` | 常驻 worker 数 / 复核库状态的**持续观测** |
+| `logs/t401_wait_publish.log` | **发布等待器**的逐次读数（超时即如实记 `TIMEOUT`） |
+| `logs/t401_m8_regression.log` | `M-8` 编排层回归（pytest **119 passed**） |
+| `logs/t401_review_manager_cargo.log` | `M-6` 复核层回归（`cargo test --offline -p review-manager` **158 passed / 0 failed**） |
+| `tools/probe_t401_*_20261124.py` | **只读探针**：目录/扫描器**方向组集合**差分、**物理闭合键**差分、观察集覆盖、RuntimeCore 状态、发布覆盖度 —— 全部**不写**任何表 |
+
 ## 存档规则
 
 - 文件保留原有文件名或增加时间戳，不覆盖同一窗口的旧证据。

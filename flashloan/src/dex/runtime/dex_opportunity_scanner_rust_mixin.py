@@ -155,6 +155,40 @@ def _closed_loop_transition_detail(error: str) -> str:
     }.get(error, "闭环状态切换失败")
 
 
+def _native_chain_runtime(chain_id: int | None) -> Any | None:
+    """Return the RuntimeCore binding for a chain, inside or outside a request.
+
+    The scanner runs in a background thread, so Flask's request-local
+    `g.chain_runtime` is not bound there.  The chain runtime registry is the
+    process-wide binding, so the manager views stay reachable from the scan
+    thread as well.  Returns None when the chain is not registered; the
+    caller then keeps its previous behaviour.
+    """
+    try:
+        from flask import g, has_app_context
+    except Exception:
+        has_app_context = None
+    if has_app_context is not None:
+        try:
+            if has_app_context():
+                runtime = getattr(g, "chain_runtime", None)
+                if runtime is not None and hasattr(runtime, "manager_view"):
+                    return runtime
+        except Exception:
+            pass
+    try:
+        from core.runtime.chain_runtime import chain_runtime_registry
+    except Exception:
+        return None
+    try:
+        runtime = chain_runtime_registry().get(int(chain_id))
+    except Exception:
+        return None
+    if runtime is None or not hasattr(runtime, "manager_view"):
+        return None
+    return runtime
+
+
 def _native_manager_overview_route_payload(
     *,
     chain_id: int,
@@ -170,16 +204,7 @@ def _native_manager_overview_route_payload(
     request has no RuntimeCore binding so callers can fall back to the static
     facade without changing testnet or old-chain behavior.
     """
-    try:
-        from flask import has_app_context, g
-    except Exception:
-        return None
-    if not has_app_context():
-        return None
-    try:
-        chain_runtime = getattr(g, "chain_runtime", None)
-    except Exception:
-        return None
+    chain_runtime = _native_chain_runtime(chain_id)
     if chain_runtime is None or not hasattr(chain_runtime, "manager_view"):
         return None
     try:
@@ -263,16 +288,7 @@ def _native_manager_closed_loop_route_payload(
     anchor: str | None,
 ) -> dict[str, Any] | None:
     """Build refresh routes from the lightweight closed-loop Manager view."""
-    try:
-        from flask import has_app_context, g
-    except Exception:
-        return None
-    if not has_app_context():
-        return None
-    try:
-        chain_runtime = getattr(g, "chain_runtime", None)
-    except Exception:
-        return None
+    chain_runtime = _native_chain_runtime(chain_id)
     if chain_runtime is None or not hasattr(chain_runtime, "manager_view"):
         return None
     try:
@@ -687,15 +703,46 @@ class DexOpportunityNativeRustMixin:
         # **not** assembled here. They are held by the runtime's in-memory
         # object, and the kernel applies them to the route when it reviews
         # it. Python only forwards the route.
-        for route in payload.get("routes") or []:
-            if not isinstance(route, dict) or not _route_is_closed_loop_quad(route):
-                continue
-            key = _pair_key(route)
-            if key is None:
-                continue
-            worker_group_key, loop_key = key
-            groups.setdefault(worker_group_key, []).append((route, loop_key))
+        def _collect_groups(
+            routes: list[dict[str, Any]],
+            *,
+            only_missing: bool = False,
+        ) -> int:
+            added = 0
+            for route in routes:
+                if not isinstance(route, dict) or not _route_is_closed_loop_quad(route):
+                    continue
+                key = _pair_key(route)
+                if key is None:
+                    continue
+                worker_group_key, loop_key = key
+                if only_missing and worker_group_key in groups:
+                    continue
+                groups.setdefault(worker_group_key, []).append((route, loop_key))
+                added += 1
+            return added
+
+        _collect_groups(payload.get("routes") or [])
+
+        # The scan payload only carries the loops this market scan found.  The
+        # published closed-loop catalog is the authoritative universe: a loop
+        # that is absent from the scan payload would never get a worker, never
+        # get review evidence, and the review generation could never cover the
+        # catalog.  The manager closed-loop view carries every materialized
+        # loop, so the group universe is the union of both.  The manual
+        # refresh path already prefers that view for the same reason.
+        manager_groups_added = 0
+        manager_payload = _native_manager_closed_loop_route_payload(
+            chain_id=int(chain_id),
+            anchor=None,
+        )
+        if manager_payload and isinstance(manager_payload.get("routes"), list):
+            manager_groups_added = _collect_groups(
+                manager_payload["routes"],
+                only_missing=True,
+            )
         submission["groupsDiscovered"] = len(groups)
+        submission["managerGroupsAdded"] = manager_groups_added
         # The number of groups the chain **publishes** is a fact about the
         # chain, not a policy choice.  It is read before the preferred-group
         # narrowing below, because that narrowing is a request for one
