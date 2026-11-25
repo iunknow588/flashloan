@@ -1,0 +1,363 @@
+{
+  "executedAt": "2026-11-25T05:30:04.790099300+00:00",
+  "liveDatabaseTouched": false,
+  "passed": 11,
+  "redFailures": 0,
+  "scenarioCount": 11,
+  "scenarios": [
+    {
+      "expectation": "the audit stream writes no line at all",
+      "id": "F-1",
+      "injection": "the main store file is read only, so the generation can not be committed",
+      "invariant": "the audit stream never describes a generation that was not committed",
+      "level": "red",
+      "name": "the main store commit fails",
+      "note": "the injection keeps the generation from being written: in this fixture the upstream precondition stops the pass and the main store is read only on top of that.  The commit phase itself is covered by the source order guard, which proves that the publish call sits behind the successful commit",
+      "readings": [
+        {
+          "name": "mainStoreWrite",
+          "value": "error: closed loop scope core4 has not been materialized"
+        },
+        {
+          "name": "jsonlFiles",
+          "value": "0"
+        },
+        {
+          "name": "jsonlLinesAfterFailedWrite",
+          "value": "0"
+        },
+        {
+          "name": "auditWriterControlLines",
+          "value": "1"
+        },
+        {
+          "name": "commitPrecedesPublish",
+          "value": "true"
+        },
+        {
+          "name": "sourceOrder",
+          "value": "commitOffset=983 publishOffset=1015 callSites=2"
+        }
+      ],
+      "verdict": "pass"
+    },
+    {
+      "expectation": "the main row is not slimmed and the failure is counted",
+      "id": "F-2",
+      "injection": "a file of the month name blocks the month folder",
+      "invariant": "a record never disappears from both stores",
+      "level": "red",
+      "name": "the month store can not be written",
+      "note": "",
+      "readings": [
+        {
+          "name": "archiveFailedDelta",
+          "value": "1"
+        },
+        {
+          "name": "mainRowStillComplete",
+          "value": "true"
+        },
+        {
+          "name": "monthStores",
+          "value": "0"
+        },
+        {
+          "name": "archivedAttempts",
+          "value": "0"
+        }
+      ],
+      "verdict": "pass"
+    },
+    {
+      "expectation": "the write waits for the busy timeout and then fails like F-2",
+      "id": "F-3",
+      "injection": "a second connection holds an exclusive lock on the month store",
+      "invariant": "a record never disappears from both stores",
+      "level": "red",
+      "name": "the month store is locked",
+      "note": "the busy timeout of the month store is 60 seconds, so the scenario needs that long on purpose",
+      "readings": [
+        {
+          "name": "monthStoreExists",
+          "value": "true"
+        },
+        {
+          "name": "archiveFailedDelta",
+          "value": "1"
+        },
+        {
+          "name": "waitedSeconds",
+          "value": "66"
+        },
+        {
+          "name": "mainRowStillComplete",
+          "value": "true"
+        },
+        {
+          "name": "archivedAttempts",
+          "value": "1"
+        }
+      ],
+      "verdict": "pass"
+    },
+    {
+      "expectation": "the surplus is dropped and counted, and the main store is not blocked",
+      "id": "F-4",
+      "injection": "200000 lines are pushed into a channel of 10000",
+      "invariant": "the main store never waits for the audit stream",
+      "level": "yellow",
+      "name": "the review channel is full",
+      "note": "",
+      "readings": [
+        {
+          "name": "channelCapacity",
+          "value": "10000"
+        },
+        {
+          "name": "droppedDelta",
+          "value": "185850"
+        },
+        {
+          "name": "publishedLines",
+          "value": "200000"
+        },
+        {
+          "name": "publishSeconds",
+          "value": "0.729"
+        },
+        {
+          "name": "mainStoreUntouched",
+          "value": "true"
+        }
+      ],
+      "verdict": "pass"
+    },
+    {
+      "expectation": "the write error is counted and the main store is untouched",
+      "id": "F-5",
+      "injection": "a file of the day name blocks the day folder",
+      "invariant": "the main store never waits for the audit stream",
+      "level": "yellow",
+      "name": "the review directory can not be written",
+      "note": "",
+      "readings": [
+        {
+          "name": "writeErrorsDelta",
+          "value": "1"
+        },
+        {
+          "name": "mainStoreUntouched",
+          "value": "true"
+        }
+      ],
+      "verdict": "pass"
+    },
+    {
+      "expectation": "the reconciliation pass archives it again and both stores agree",
+      "id": "F-6",
+      "injection": "the main row is filled in again after it was archived",
+      "invariant": "the month store and the main store end up consistent",
+      "level": "red",
+      "name": "a crash between the month write and the slimming",
+      "note": "the crash is reproduced by putting the main row back into its complete shape, which is exactly the state a crash between the two steps leaves behind",
+      "readings": [
+        {
+          "name": "crashStateMainRowComplete",
+          "value": "true"
+        },
+        {
+          "name": "reconcileScanned",
+          "value": "1"
+        },
+        {
+          "name": "reconcileArchived",
+          "value": "1"
+        },
+        {
+          "name": "reconcileFailed",
+          "value": "0"
+        },
+        {
+          "name": "monthStoreRowsForAttempt",
+          "value": "1"
+        },
+        {
+          "name": "mainRowSlimmedAgain",
+          "value": "true"
+        },
+        {
+          "name": "archivedAttempts",
+          "value": "1"
+        }
+      ],
+      "verdict": "pass"
+    },
+    {
+      "expectation": "only the audit trail is lost, and the loss is visible in the counter",
+      "id": "F-7",
+      "injection": "the channel overflows, so the surplus lines never reach the disk",
+      "invariant": "the audit stream takes part in no decision",
+      "level": "green",
+      "name": "a crash between the send and the write",
+      "note": "the trade record is still archived after the loss, so the judgement path never depended on the audit stream",
+      "readings": [
+        {
+          "name": "droppedLines",
+          "value": "185458"
+        },
+        {
+          "name": "droppedIsVisible",
+          "value": "true"
+        },
+        {
+          "name": "archivedAttemptsBefore",
+          "value": "0"
+        },
+        {
+          "name": "archivedAttemptsAfter",
+          "value": "1"
+        },
+        {
+          "name": "mainRowArchived",
+          "value": "true"
+        }
+      ],
+      "verdict": "pass"
+    },
+    {
+      "expectation": "the read reports an error and does not panic, and the main store is untouched",
+      "id": "F-8",
+      "injection": "the header of the month store is overwritten",
+      "invariant": "a damaged archive never takes the main store with it",
+      "level": "red",
+      "name": "the month store file is damaged",
+      "note": "",
+      "readings": [
+        {
+          "name": "monthStoreBytesBeforeDamage",
+          "value": "40960"
+        },
+        {
+          "name": "monthStoreBytesAfterDamage",
+          "value": "32"
+        },
+        {
+          "name": "summaryRead",
+          "value": "error: sqlite error: database disk image is malformed"
+        },
+        {
+          "name": "mainStoreRows",
+          "value": "1"
+        }
+      ],
+      "verdict": "pass"
+    },
+    {
+      "expectation": "every path outside is refused and no file is removed",
+      "id": "F-9",
+      "injection": "a relative escape and an absolute path outside the tree",
+      "invariant": "the retention pass never deletes a file outside the review subtree",
+      "level": "red",
+      "name": "the retention pass points outside the review subtree",
+      "note": "a symbolic link is refused by the same guard, but Windows refuses to create one without a privilege, so the link case is not exercised on this host",
+      "readings": [
+        {
+          "name": "escapePathRefused",
+          "value": "true"
+        },
+        {
+          "name": "absolutePathRefused",
+          "value": "true"
+        },
+        {
+          "name": "oldDayAccepted",
+          "value": "2020-01-02"
+        },
+        {
+          "name": "purgeScanned",
+          "value": "1"
+        },
+        {
+          "name": "purgeRemoved",
+          "value": "1"
+        },
+        {
+          "name": "purgeRejected",
+          "value": "0"
+        },
+        {
+          "name": "sentinelSurvived",
+          "value": "true"
+        },
+        {
+          "name": "outsideStillMissing",
+          "value": "true"
+        }
+      ],
+      "verdict": "pass"
+    },
+    {
+      "expectation": "the archive reports an error, counts it and writes no store",
+      "id": "F-10",
+      "injection": "the attempt carries an unparsable created_at",
+      "invariant": "a month is never guessed",
+      "level": "red",
+      "name": "the created_at of an attempt is not a timestamp",
+      "note": "",
+      "readings": [
+        {
+          "name": "archiveFailedDelta",
+          "value": "1"
+        },
+        {
+          "name": "monthStores",
+          "value": "0"
+        },
+        {
+          "name": "mainRowStillComplete",
+          "value": "true"
+        },
+        {
+          "name": "owningMonthRefused",
+          "value": "true"
+        },
+        {
+          "name": "monthFromBadKey",
+          "value": "true"
+        }
+      ],
+      "verdict": "pass"
+    },
+    {
+      "expectation": "the totals cover every month and every currency is kept apart",
+      "id": "X-1",
+      "injection": "attempts in three different months and two currencies",
+      "invariant": "one total per currency, never one total over several currencies",
+      "level": "green",
+      "name": "the cross month aggregation",
+      "note": "the fixture matrix of the cross month aggregation that the record separation plan asked for",
+      "readings": [
+        {
+          "name": "months",
+          "value": "2026-09,2026-10,2026-11"
+        },
+        {
+          "name": "attemptCount",
+          "value": "4"
+        },
+        {
+          "name": "perCurrency",
+          "value": "SPY=0x7,WETH=0xa"
+        },
+        {
+          "name": "monthKeys",
+          "value": "2026-09,2026-10,2026-11"
+        }
+      ],
+      "verdict": "pass"
+    }
+  ],
+  "schema": "task182_fault_injection_matrix.v1",
+  "target": "record separation (review audit stream and monthly trade store)"
+}

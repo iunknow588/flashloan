@@ -1,0 +1,281 @@
+{
+  "comparedWith": "E:\\2026OPC大赛\\flashLoan\\plan\\runtime_evidence\\probe_live_db_writes_20261125_guard_v2.json",
+  "current": {
+    "dataVersion": 2,
+    "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+    "gateRows": {
+      "cow_submission_pause_guard|last_paused_at": {
+        "updated_at": "2026-11-24T16:11:01.160+00:00",
+        "value": "{\"namespace\":\"cow_submission_pause_guard\",\"parameter_key\":\"last_paused_at\",\"value_json\":\"null\"}"
+      },
+      "cow_submission_pause_guard|last_resumed_at": {
+        "updated_at": "2026-11-24T16:11:01.208+00:00",
+        "value": "{\"namespace\":\"cow_submission_pause_guard\",\"parameter_key\":\"last_resumed_at\",\"value_json\":\"\\\"2026-11-24T16:11:00+00:00\\\"\"}"
+      },
+      "cow_submission_pause_guard|order_submission_enabled": {
+        "updated_at": "2026-11-24T16:11:00.976+00:00",
+        "value": "{\"namespace\":\"cow_submission_pause_guard\",\"parameter_key\":\"order_submission_enabled\",\"value_json\":\"true\"}"
+      },
+      "cow_submission_pause_guard|pause_reason": {
+        "updated_at": "2026-11-24T16:11:01.042+00:00",
+        "value": "{\"namespace\":\"cow_submission_pause_guard\",\"parameter_key\":\"pause_reason\",\"value_json\":\"null\"}"
+      },
+      "cow_submission_pause_guard|paused": {
+        "updated_at": "2026-11-24T16:11:00.934+00:00",
+        "value": "{\"namespace\":\"cow_submission_pause_guard\",\"parameter_key\":\"paused\",\"value_json\":\"false\"}"
+      },
+      "cow_submission_pause_guard|updated_at": {
+        "updated_at": "2026-11-24T16:11:01.106+00:00",
+        "value": "{\"namespace\":\"cow_submission_pause_guard\",\"parameter_key\":\"updated_at\",\"value_json\":\"\\\"2026-11-24T16:11:00+00:00\\\"\"}"
+      },
+      "liquidation_pause_guard|circuit_breaker_level": {
+        "updated_at": "2026-11-24T16:17:48.117+00:00",
+        "value": "{\"namespace\":\"liquidation_pause_guard\",\"parameter_key\":\"circuit_breaker_level\",\"value_json\":\"1\"}"
+      },
+      "liquidation_pause_guard|consecutive_failure_count": {
+        "updated_at": "2026-11-24T16:17:47.994+00:00",
+        "value": "{\"namespace\":\"liquidation_pause_guard\",\"parameter_key\":\"consecutive_failure_count\",\"value_json\":\"0\"}"
+      },
+      "liquidation_pause_guard|cooldown_multiplier": {
+        "updated_at": "2026-11-24T16:17:48.153+00:00",
+        "value": "{\"namespace\":\"liquidation_pause_guard\",\"parameter_key\":\"cooldown_multiplier\",\"value_json\":\"2.0\"}"
+      },
+      "liquidation_pause_guard|last_failure_at": {
+        "updated_at": "2026-11-24T16:17:48.067+00:00",
+        "value": "{\"namespace\":\"liquidation_pause_guard\",\"parameter_key\":\"last_failure_at\",\"value_json\":\"\\\"2026-11-24T16:17:47+00:00\\\"\"}"
+      },
+      "liquidation_pause_guard|last_level_change_at": {
+        "updated_at": "2026-11-24T16:17:48.170+00:00",
+        "value": "{\"namespace\":\"liquidation_pause_guard\",\"parameter_key\":\"last_level_change_at\",\"value_json\":\"\\\"2026-09-22T02:14:01+00:00\\\"\"}"
+      },
+      "liquidation_pause_guard|last_success_at": {
+        "updated_at": "2026-11-24T16:17:48.084+00:00",
+        "value": "{\"namespace\":\"liquidation_pause_guard\",\"parameter_key\":\"last_success_at\",\"value_json\":\"\\\"2026-11-24T16:17:47+00:00\\\"\"}"
+      },
+      "liquidation_pause_guard|pause_reason": {
+        "updated_at": "2026-11-24T16:17:48.010+00:00",
+        "value": "{\"namespace\":\"liquidation_pause_guard\",\"parameter_key\":\"pause_reason\",\"value_json\":\"null\"}"
+      },
+      "liquidation_pause_guard|paused": {
+        "updated_at": "2026-11-24T16:17:47.984+00:00",
+        "value": "{\"namespace\":\"liquidation_pause_guard\",\"parameter_key\":\"paused\",\"value_json\":\"false\"}"
+      },
+      "liquidation_pause_guard|updated_at": {
+        "updated_at": "2026-11-24T16:17:48.043+00:00",
+        "value": "{\"namespace\":\"liquidation_pause_guard\",\"parameter_key\":\"updated_at\",\"value_json\":\"\\\"2026-11-24T16:17:47+00:00\\\"\"}"
+      },
+      "page_state|account_scan": {
+        "updated_at": "2026-11-24T16:44:47.773+00:00",
+        "value": "{\"namespace\":\"page_state\",\"parameter_key\":\"account_scan\",\"value_json\":\"{\\\"context\\\":{\\\"account_pool\\\":{\\\"account_count\\\":1,\\\"account_source\\\":\\\"database\\\",\\\"ready\\\":true,\\\"reason\\\":\\\"account pool is ready\\\",\\\"registry_window\\\":{\\\"active_count\\\":1,\\\"latest_scan_end_at\\\":\\\"2026-08-02T00:00:00+00:00\\\",\\\"total_count\\\":1},\\\"result\\\":\\\"ACCOUNT_POOL_READY\\\"},\\\"backfill\\\":{\\\"error\\\":null,\\\"finished_at\\\":null,\\\"last_result\\\":{},\\\"progress\\\":{},\\\"running\\\":false,\\\"stage\\\":\\\"idle\\\",\\\"started_at\\\":null},\\\"discovery\\\":{\\\"error\\\":null,\\\"finished_at\\\":\\\"2026-11-24T16:06:54+00:00\\\",\\\"last_result\\\":{},\\\"progress\\\":{\\\"chunk_size\\\":1000,\\\"external_index\\\":{\\\"configured\\\":false,\\\"count\\\":0,\\\"enabled\\\":false,\\\"error\\\":null,\\\"requires_onchain_verification\\\":true,\\\"source\\\":\\\"external-index-coarse\\\"},\\\"from_block\\\":102,\\\"limit\\\":5000,\\\"rpc_url\\\":\\\"https://rpc.example\\\",\\\"to_block\\\":200},\\\"reason\\\":null,\\\"running\\\":false,\\\"skipped\\\":false,\\\"stage\\\":\\\"idle\\\",\\\"started_at\\\":\\\"2026-11-24T16:06:31+00:00\\\"}},\\\"last_error\\\":null,\\\"message\\\":\\\"account pool is ready\\\",\\\"page\\\":\\\"account_scan\\\",\\\"result\\\":null,\\\"source_event_id\\\":null,\\\"status\\\":\\\"SHOWING_ACCOUNT_POOL\\\",\\\"updated_at\\\":\\\"2026-11-24T16:09:22+00:00\\\"}\"}"
+      },
+      "page_state|debt_pool": {
+        "updated_at": "2026-11-24T16:44:47.781+00:00",
+        "value": "{\"namespace\":\"page_state\",\"parameter_key\":\"debt_pool\",\"value_json\":\"{\\\"context\\\":{\\\"account_pool\\\":{\\\"account_count\\\":1,\\\"account_source\\\":\\\"database\\\",\\\"ready\\\":true,\\\"reason\\\":\\\"account pool is ready\\\",\\\"registry_window\\\":{\\\"active_count\\\":1,\\\"latest_scan_end_at\\\":\\\"2026-08-02T00:00:00+00:00\\\",\\\"total_count\\\":1},\\\"result\\\":\\\"ACCOUNT_POOL_READY\\\"},\\\"debt_pool_decision\\\":{},\\\"event_received\\\":false,\\\"finished_at\\\":null,\\\"last_result\\\":{},\\\"market_event\\\":{\\\"active_sample_count\\\":6,\\\"affected_assets\\\":[\\\"AVAXUSDT\\\",\\\"BTCUSDT\\\"],\\\"consumed_at\\\":\\\"2026-11-24T16:44:43+00:00\\\",\\\"consumer_page\\\":\\\"debt_pool\\\",\\\"event_id\\\":\\\"521cebde88a8f7cce60f66d9\\\",\\\"event_type\\\":\\\"MARKET_VOLATILITY_ALERT\\\",\\\"expires_at\\\":\\\"2026-11-24T16:46:42+00:00\\\",\\\"gainer_count\\\":3,\\\"loser_count\\\":3,\\\"market_divergence_index\\\":2.0,\\\"max_abs_change_percent\\\":3.2,\\\"min_change_percent\\\":0.3,\\\"observed_at\\\":\\\"2026-11-24T16:44:42+00:00\\\",\\\"payload\\\":{\\\"active_sample_count\\\":6,\\\"bottom\\\":[{\\\"change_percent\\\":-2.4,\\\"symbol\\\":\\\"BTCUSDT\\\"}],\\\"gainer_count\\\":3,\\\"loser_count\\\":3,\\\"market_divergence_index\\\":2.0,\\\"min_change_percent\\\":0.3,\\\"observed_at\\\":\\\"2026-11-24T16:44:42+00:00\\\",\\\"sample_count\\\":12,\\\"top\\\":[{\\\"change_percent\\\":3.2,\\\"symbol\\\":\\\"AVAXUSDT\\\"}],\\\"window_seconds\\\":1.0},\\\"recorded_at\\\":\\\"2026-11-24T16:44:43+00:00\\\",\\\"sample_count\\\":12,\\\"severity\\\":\\\"medium\\\",\\\"store_status\\\":\\\"consumed\\\",\\\"trigger_reason\\\":\\\"medium_volatility: 3 gainers / 3 losers in 1.0s\\\",\\\"window_seconds\\\":1.0},\\\"progress\\\":{},\\\"route_intent\\\":null,\\\"running\\\":false,\\\"stage\\\":\\\"idle\\\",\\\"started_at\\\":null},\\\"last_error\\\":null,\\\"message\\\":null,\\\"page\\\":\\\"debt_pool\\\",\\\"result\\\":null,\\\"source_event_id\\\":null,\\\"status\\\":\\\"IDLE_FRESH\\\",\\\"updated_at\\\":\\\"2026-11-24T16:44:43+00:00\\\"}\"}"
+      },
+      "page_state|execution": {
+        "updated_at": "2026-11-24T16:44:47.796+00:00",
+        "value": "{\"namespace\":\"page_state\",\"parameter_key\":\"execution\",\"value_json\":\"{\\\"context\\\":{\\\"account\\\":\\\"0x0000000000000000000000000000000000000001\\\",\\\"block_level\\\":\\\"hard\\\",\\\"blocked_reasons\\\":[\\\"fork_simulation_failed\\\"],\\\"candidate_status\\\":\\\"liquidatable\\\",\\\"execution_target\\\":{},\\\"force_allowed\\\":false,\\\"mode\\\":\\\"flashloan\\\",\\\"request\\\":{\\\"collateralAsset\\\":\\\"0x0000000000000000000000000000000000000003\\\",\\\"deadline\\\":\\\"9999999999\\\",\\\"debtAsset\\\":\\\"0x0000000000000000000000000000000000000004\\\",\\\"debtToCover\\\":\\\"1000\\\",\\\"gasLimit\\\":\\\"0\\\",\\\"minCollateralSwapOut\\\":\\\"1\\\",\\\"minProfitAmount\\\":\\\"1\\\",\\\"swapPath\\\":[],\\\"user\\\":\\\"0x0000000000000000000000000000000000000001\\\"},\\\"static_call_passed\\\":true,\\\"static_call_status\\\":\\\"passed\\\",\\\"submission_allowed\\\":false},\\\"last_error\\\":\\\"submission blocked: fork_simulation_failed\\\",\\\"message\\\":\\\"submission blocked: fork_simulation_failed\\\",\\\"page\\\":\\\"execution\\\",\\\"result\\\":\\\"submission_blocked\\\",\\\"source_event_id\\\":null,\\\"status\\\":\\\"HARD_BLOCKED\\\",\\\"updated_at\\\":\\\"2026-11-24T16:44:47+00:00\\\"}\"}"
+      },
+      "page_state|market_observation": {
+        "updated_at": "2026-11-24T16:44:47.813+00:00",
+        "value": "{\"namespace\":\"page_state\",\"parameter_key\":\"market_observation\",\"value_json\":\"{\\\"context\\\":{\\\"liquidation_daemon\\\":{},\\\"market_event\\\":null,\\\"pid\\\":null,\\\"route_intent\\\":null},\\\"last_error\\\":null,\\\"message\\\":null,\\\"page\\\":\\\"market_observation\\\",\\\"result\\\":null,\\\"source_event_id\\\":null,\\\"status\\\":\\\"IDLE\\\",\\\"updated_at\\\":\\\"2026-11-24T16:09:22+00:00\\\"}\"}"
+      }
+    },
+    "generatedAt": "2026-11-25T02:25:52.131+08:00",
+    "metaRows": {
+      "business_schema_version": "\"directional_pairs_v1\"",
+      "chain_database_split": "{\"split_at\": \"utc\", \"source\": \"E:\\\\2026OPC大赛\\\\flashLoan\\\\flashloan\\\\src\\\\runtime\\\\local_store.sqlite3\", \"chain_id\": 4663, \"network\": \"robinhood\"}",
+      "schema_migrations": "{\"20260730_liquidation_execution_attempts\":{\"applied_at\":\"local\",\"description\":\"Record liquidation execution attempts, blocking reasons, preflight data, and receipts.\",\"migration_id\":\"20260730_liquidation_execution_attempts\"},\"20260730_liquidation_failure_samples\":{\"applied_at\":\"local\",\"description\":\"Archive failed or blocked liquidation payloads as reproducible review samples.\",\"migration_id\":\"20260730_liquidation_failure_samples\"},\"20260730_liquidation_runtime_schema\":{\"applied_at\":\"local\",\"description\":\"Split liquidation account registry, discovery progress, and health scan history.\",\"migration_id\":\"20260730_liquidation_runtime_schema\"},\"20260731_liquidation_borrow_health_pool\":{\"applied_at\":\"local\",\"description\":\"Store active borrower health records below the liquidation watch threshold.\",\"migration_id\":\"20260731_liquidation_borrow_health_pool\"},\"20260731_liquidation_profit_oriented_pools\":{\"applied_at\":\"local\",\"description\":\"Track liquidation scan batches, high-frequency borrower pool, and core opportunity pool.\",\"migration_id\":\"20260731_liquidation_profit_oriented_pools\"},\"20260731_liquidation_scan_config_library\":{\"applied_at\":\"local\",\"description\":\"Persist reusable liquidation scan configuration snapshots for account, borrow, and opportunity pools.\",\"migration_id\":\"20260731_liquidation_scan_config_library\"},\"20260803_liquidation_market_namespace\":{\"applied_at\":\"local\",\"description\":\"Add chain, market, protocol, executor, source RPC, and source block columns for future multi-market liquidation isolation.\",\"migration_id\":\"20260803_liquidation_market_namespace\"},\"20260804_cow_supported_tokens\":{\"applied_at\":\"local\",\"description\":\"Persist CoW supported token universe per network for DEX arbitrage filtering.\",\"migration_id\":\"20260804_cow_supported_tokens\"},\"20260805_cow_execution_attempts\":{\"applied_at\":\"local\",\"description\":\"Record CoW quote and execution-precheck outcomes for DEX arbitrage review.\",\"migration_id\":\"20260805_cow_execution_attempts\"},\"20260807_control_panel_parameters\":{\"applied_at\":\"local\",\"description\":\"Persist UI/runtime control parameters in the application database.\",\"migration_id\":\"20260807_control_panel_parameters\"},\"20260817_robinhood_dex_observation\":{\"applied_at\":\"local\",\"description\":\"Add Robinhood DEX observation attempts and seed market-specific three-pool scan policies.\",\"migration_id\":\"20260817_robinhood_dex_observation\"},\"20260818_chain_market_registry\":{\"applied_at\":\"local\",\"description\":\"Persist chain/market registry, scan policies, and current DEX arbitrage candidates.\",\"migration_id\":\"20260818_chain_market_registry\"},\"20261009_chain_business_tables\":{\"applied_at\":\"local\",\"description\":\"Create global chain registry, chain config, chain info, chain tokens, contracts, files, flows, markets, initialization tables.\",\"migration_id\":\"20261009_chain_business_tables\"},\"20261009_dex_candidate_tables\":{\"applied_at\":\"local\",\"description\":\"Create dex_candidate_anchor_tokens, dex_candidate_pool_pairs, dex_candidate_pools, and dex_candidate_pool_recommendations.\",\"migration_id\":\"20261009_dex_candidate_tables\"},\"20261009_market_observation_tables\":{\"applied_at\":\"local\",\"description\":\"Create market_observation_yz_pairs, market_observation_intermediate_pools, and market_observation_liquidity_snapshots.\",\"migration_id\":\"20261009_market_observation_tables\"},\"20261009_rs_hypersync_v4_pool_index\":{\"applied_at\":\"local\",\"description\":\"Add Robinhood V4 HyperSync/HyperRPC pool index and read-only Rust bridge metadata.\",\"migration_id\":\"20261009_rs_hypersync_v4_pool_index\"},\"20261009_v4_closed_loop_tables\":{\"applied_at\":\"local\",\"description\":\"Create v4_closed_loops, v4_closed_loop_hops, and v4_closed_loop_optimizations.\",\"migration_id\":\"20261009_v4_closed_loop_tables\"},\"20261009_v4_exchange_pools\":{\"applied_at\":\"local\",\"description\":\"Create v4_exchange_pools and v4_exchange_pool_liquidity_snapshots.\",\"migration_id\":\"20261009_v4_exchange_pools\"},\"20261016_dex_surface_snapshots\":{\"applied_at\":\"local\",\"description\":\"Persist compact DEX overview snapshots in SQLite for fast static pages.\",\"migration_id\":\"20261016_dex_surface_snapshots\"},\"20261025_cow_execution_review_table\":{\"applied_at\":\"local\",\"description\":\"Split review-class CoW attempts into cow_execution_reviews; cow_execution_attempts keeps submission and execution records.\",\"migration_id\":\"20261025_cow_execution_review_table\"}}",
+      "schema_version": "1"
+    },
+    "rowCounts": {
+      "cow_execution_attempts": 0,
+      "cow_execution_reviews": 69567
+    }
+  },
+  "diff": {
+    "gateChanged": [
+      {
+        "after": {
+          "updated_at": "2026-11-24T16:11:01.160+00:00",
+          "value": "{\"namespace\":\"cow_submission_pause_guard\",\"parameter_key\":\"last_paused_at\",\"value_json\":\"null\"}"
+        },
+        "before": null,
+        "key": "cow_submission_pause_guard|last_paused_at"
+      },
+      {
+        "after": {
+          "updated_at": "2026-11-24T16:11:01.208+00:00",
+          "value": "{\"namespace\":\"cow_submission_pause_guard\",\"parameter_key\":\"last_resumed_at\",\"value_json\":\"\\\"2026-11-24T16:11:00+00:00\\\"\"}"
+        },
+        "before": null,
+        "key": "cow_submission_pause_guard|last_resumed_at"
+      },
+      {
+        "after": {
+          "updated_at": "2026-11-24T16:11:00.976+00:00",
+          "value": "{\"namespace\":\"cow_submission_pause_guard\",\"parameter_key\":\"order_submission_enabled\",\"value_json\":\"true\"}"
+        },
+        "before": null,
+        "key": "cow_submission_pause_guard|order_submission_enabled"
+      },
+      {
+        "after": {
+          "updated_at": "2026-11-24T16:11:01.042+00:00",
+          "value": "{\"namespace\":\"cow_submission_pause_guard\",\"parameter_key\":\"pause_reason\",\"value_json\":\"null\"}"
+        },
+        "before": null,
+        "key": "cow_submission_pause_guard|pause_reason"
+      },
+      {
+        "after": {
+          "updated_at": "2026-11-24T16:11:00.934+00:00",
+          "value": "{\"namespace\":\"cow_submission_pause_guard\",\"parameter_key\":\"paused\",\"value_json\":\"false\"}"
+        },
+        "before": null,
+        "key": "cow_submission_pause_guard|paused"
+      },
+      {
+        "after": {
+          "updated_at": "2026-11-24T16:11:01.106+00:00",
+          "value": "{\"namespace\":\"cow_submission_pause_guard\",\"parameter_key\":\"updated_at\",\"value_json\":\"\\\"2026-11-24T16:11:00+00:00\\\"\"}"
+        },
+        "before": null,
+        "key": "cow_submission_pause_guard|updated_at"
+      },
+      {
+        "after": {
+          "updated_at": "2026-11-24T16:17:48.117+00:00",
+          "value": "{\"namespace\":\"liquidation_pause_guard\",\"parameter_key\":\"circuit_breaker_level\",\"value_json\":\"1\"}"
+        },
+        "before": null,
+        "key": "liquidation_pause_guard|circuit_breaker_level"
+      },
+      {
+        "after": {
+          "updated_at": "2026-11-24T16:17:47.994+00:00",
+          "value": "{\"namespace\":\"liquidation_pause_guard\",\"parameter_key\":\"consecutive_failure_count\",\"value_json\":\"0\"}"
+        },
+        "before": null,
+        "key": "liquidation_pause_guard|consecutive_failure_count"
+      },
+      {
+        "after": {
+          "updated_at": "2026-11-24T16:17:48.153+00:00",
+          "value": "{\"namespace\":\"liquidation_pause_guard\",\"parameter_key\":\"cooldown_multiplier\",\"value_json\":\"2.0\"}"
+        },
+        "before": null,
+        "key": "liquidation_pause_guard|cooldown_multiplier"
+      },
+      {
+        "after": {
+          "updated_at": "2026-11-24T16:17:48.067+00:00",
+          "value": "{\"namespace\":\"liquidation_pause_guard\",\"parameter_key\":\"last_failure_at\",\"value_json\":\"\\\"2026-11-24T16:17:47+00:00\\\"\"}"
+        },
+        "before": null,
+        "key": "liquidation_pause_guard|last_failure_at"
+      },
+      {
+        "after": {
+          "updated_at": "2026-11-24T16:17:48.170+00:00",
+          "value": "{\"namespace\":\"liquidation_pause_guard\",\"parameter_key\":\"last_level_change_at\",\"value_json\":\"\\\"2026-09-22T02:14:01+00:00\\\"\"}"
+        },
+        "before": null,
+        "key": "liquidation_pause_guard|last_level_change_at"
+      },
+      {
+        "after": {
+          "updated_at": "2026-11-24T16:17:48.084+00:00",
+          "value": "{\"namespace\":\"liquidation_pause_guard\",\"parameter_key\":\"last_success_at\",\"value_json\":\"\\\"2026-11-24T16:17:47+00:00\\\"\"}"
+        },
+        "before": null,
+        "key": "liquidation_pause_guard|last_success_at"
+      },
+      {
+        "after": {
+          "updated_at": "2026-11-24T16:17:48.010+00:00",
+          "value": "{\"namespace\":\"liquidation_pause_guard\",\"parameter_key\":\"pause_reason\",\"value_json\":\"null\"}"
+        },
+        "before": null,
+        "key": "liquidation_pause_guard|pause_reason"
+      },
+      {
+        "after": {
+          "updated_at": "2026-11-24T16:17:47.984+00:00",
+          "value": "{\"namespace\":\"liquidation_pause_guard\",\"parameter_key\":\"paused\",\"value_json\":\"false\"}"
+        },
+        "before": null,
+        "key": "liquidation_pause_guard|paused"
+      },
+      {
+        "after": {
+          "updated_at": "2026-11-24T16:17:48.043+00:00",
+          "value": "{\"namespace\":\"liquidation_pause_guard\",\"parameter_key\":\"updated_at\",\"value_json\":\"\\\"2026-11-24T16:17:47+00:00\\\"\"}"
+        },
+        "before": null,
+        "key": "liquidation_pause_guard|updated_at"
+      },
+      {
+        "after": {
+          "updated_at": "2026-11-24T16:44:47.773+00:00",
+          "value": "{\"namespace\":\"page_state\",\"parameter_key\":\"account_scan\",\"value_json\":\"{\\\"context\\\":{\\\"account_pool\\\":{\\\"account_count\\\":1,\\\"account_source\\\":\\\"database\\\",\\\"ready\\\":true,\\\"reason\\\":\\\"account pool is ready\\\",\\\"registry_window\\\":{\\\"active_count\\\":1,\\\"latest_scan_end_at\\\":\\\"2026-08-02T00:00:00+00:00\\\",\\\"total_count\\\":1},\\\"result\\\":\\\"ACCOUNT_POOL_READY\\\"},\\\"backfill\\\":{\\\"error\\\":null,\\\"finished_at\\\":null,\\\"last_result\\\":{},\\\"progress\\\":{},\\\"running\\\":false,\\\"stage\\\":\\\"idle\\\",\\\"started_at\\\":null},\\\"discovery\\\":{\\\"error\\\":null,\\\"finished_at\\\":\\\"2026-11-24T16:06:54+00:00\\\",\\\"last_result\\\":{},\\\"progress\\\":{\\\"chunk_size\\\":1000,\\\"external_index\\\":{\\\"configured\\\":false,\\\"count\\\":0,\\\"enabled\\\":false,\\\"error\\\":null,\\\"requires_onchain_verification\\\":true,\\\"source\\\":\\\"external-index-coarse\\\"},\\\"from_block\\\":102,\\\"limit\\\":5000,\\\"rpc_url\\\":\\\"https://rpc.example\\\",\\\"to_block\\\":200},\\\"reason\\\":null,\\\"running\\\":false,\\\"skipped\\\":false,\\\"stage\\\":\\\"idle\\\",\\\"started_at\\\":\\\"2026-11-24T16:06:31+00:00\\\"}},\\\"last_error\\\":null,\\\"message\\\":\\\"account pool is ready\\\",\\\"page\\\":\\\"account_scan\\\",\\\"result\\\":null,\\\"source_event_id\\\":null,\\\"status\\\":\\\"SHOWING_ACCOUNT_POOL\\\",\\\"updated_at\\\":\\\"2026-11-24T16:09:22+00:00\\\"}\"}"
+        },
+        "before": null,
+        "key": "page_state|account_scan"
+      },
+      {
+        "after": {
+          "updated_at": "2026-11-24T16:44:47.781+00:00",
+          "value": "{\"namespace\":\"page_state\",\"parameter_key\":\"debt_pool\",\"value_json\":\"{\\\"context\\\":{\\\"account_pool\\\":{\\\"account_count\\\":1,\\\"account_source\\\":\\\"database\\\",\\\"ready\\\":true,\\\"reason\\\":\\\"account pool is ready\\\",\\\"registry_window\\\":{\\\"active_count\\\":1,\\\"latest_scan_end_at\\\":\\\"2026-08-02T00:00:00+00:00\\\",\\\"total_count\\\":1},\\\"result\\\":\\\"ACCOUNT_POOL_READY\\\"},\\\"debt_pool_decision\\\":{},\\\"event_received\\\":false,\\\"finished_at\\\":null,\\\"last_result\\\":{},\\\"market_event\\\":{\\\"active_sample_count\\\":6,\\\"affected_assets\\\":[\\\"AVAXUSDT\\\",\\\"BTCUSDT\\\"],\\\"consumed_at\\\":\\\"2026-11-24T16:44:43+00:00\\\",\\\"consumer_page\\\":\\\"debt_pool\\\",\\\"event_id\\\":\\\"521cebde88a8f7cce60f66d9\\\",\\\"event_type\\\":\\\"MARKET_VOLATILITY_ALERT\\\",\\\"expires_at\\\":\\\"2026-11-24T16:46:42+00:00\\\",\\\"gainer_count\\\":3,\\\"loser_count\\\":3,\\\"market_divergence_index\\\":2.0,\\\"max_abs_change_percent\\\":3.2,\\\"min_change_percent\\\":0.3,\\\"observed_at\\\":\\\"2026-11-24T16:44:42+00:00\\\",\\\"payload\\\":{\\\"active_sample_count\\\":6,\\\"bottom\\\":[{\\\"change_percent\\\":-2.4,\\\"symbol\\\":\\\"BTCUSDT\\\"}],\\\"gainer_count\\\":3,\\\"loser_count\\\":3,\\\"market_divergence_index\\\":2.0,\\\"min_change_percent\\\":0.3,\\\"observed_at\\\":\\\"2026-11-24T16:44:42+00:00\\\",\\\"sample_count\\\":12,\\\"top\\\":[{\\\"change_percent\\\":3.2,\\\"symbol\\\":\\\"AVAXUSDT\\\"}],\\\"window_seconds\\\":1.0},\\\"recorded_at\\\":\\\"2026-11-24T16:44:43+00:00\\\",\\\"sample_count\\\":12,\\\"severity\\\":\\\"medium\\\",\\\"store_status\\\":\\\"consumed\\\",\\\"trigger_reason\\\":\\\"medium_volatility: 3 gainers / 3 losers in 1.0s\\\",\\\"window_seconds\\\":1.0},\\\"progress\\\":{},\\\"route_intent\\\":null,\\\"running\\\":false,\\\"stage\\\":\\\"idle\\\",\\\"started_at\\\":null},\\\"last_error\\\":null,\\\"message\\\":null,\\\"page\\\":\\\"debt_pool\\\",\\\"result\\\":null,\\\"source_event_id\\\":null,\\\"status\\\":\\\"IDLE_FRESH\\\",\\\"updated_at\\\":\\\"2026-11-24T16:44:43+00:00\\\"}\"}"
+        },
+        "before": null,
+        "key": "page_state|debt_pool"
+      },
+      {
+        "after": {
+          "updated_at": "2026-11-24T16:44:47.796+00:00",
+          "value": "{\"namespace\":\"page_state\",\"parameter_key\":\"execution\",\"value_json\":\"{\\\"context\\\":{\\\"account\\\":\\\"0x0000000000000000000000000000000000000001\\\",\\\"block_level\\\":\\\"hard\\\",\\\"blocked_reasons\\\":[\\\"fork_simulation_failed\\\"],\\\"candidate_status\\\":\\\"liquidatable\\\",\\\"execution_target\\\":{},\\\"force_allowed\\\":false,\\\"mode\\\":\\\"flashloan\\\",\\\"request\\\":{\\\"collateralAsset\\\":\\\"0x0000000000000000000000000000000000000003\\\",\\\"deadline\\\":\\\"9999999999\\\",\\\"debtAsset\\\":\\\"0x0000000000000000000000000000000000000004\\\",\\\"debtToCover\\\":\\\"1000\\\",\\\"gasLimit\\\":\\\"0\\\",\\\"minCollateralSwapOut\\\":\\\"1\\\",\\\"minProfitAmount\\\":\\\"1\\\",\\\"swapPath\\\":[],\\\"user\\\":\\\"0x0000000000000000000000000000000000000001\\\"},\\\"static_call_passed\\\":true,\\\"static_call_status\\\":\\\"passed\\\",\\\"submission_allowed\\\":false},\\\"last_error\\\":\\\"submission blocked: fork_simulation_failed\\\",\\\"message\\\":\\\"submission blocked: fork_simulation_failed\\\",\\\"page\\\":\\\"execution\\\",\\\"result\\\":\\\"submission_blocked\\\",\\\"source_event_id\\\":null,\\\"status\\\":\\\"HARD_BLOCKED\\\",\\\"updated_at\\\":\\\"2026-11-24T16:44:47+00:00\\\"}\"}"
+        },
+        "before": null,
+        "key": "page_state|execution"
+      },
+      {
+        "after": {
+          "updated_at": "2026-11-24T16:44:47.813+00:00",
+          "value": "{\"namespace\":\"page_state\",\"parameter_key\":\"market_observation\",\"value_json\":\"{\\\"context\\\":{\\\"liquidation_daemon\\\":{},\\\"market_event\\\":null,\\\"pid\\\":null,\\\"route_intent\\\":null},\\\"last_error\\\":null,\\\"message\\\":null,\\\"page\\\":\\\"market_observation\\\",\\\"result\\\":null,\\\"source_event_id\\\":null,\\\"status\\\":\\\"IDLE\\\",\\\"updated_at\\\":\\\"2026-11-24T16:09:22+00:00\\\"}\"}"
+        },
+        "before": null,
+        "key": "page_state|market_observation"
+      }
+    ],
+    "gateChangedCount": 19,
+    "metaChanged": [
+      {
+        "after": "\"directional_pairs_v1\"",
+        "before": null,
+        "key": "business_schema_version"
+      },
+      {
+        "after": "{\"split_at\": \"utc\", \"source\": \"E:\\\\2026OPC大赛\\\\flashLoan\\\\flashloan\\\\src\\\\runtime\\\\local_store.sqlite3\", \"chain_id\": 4663, \"network\": \"robinhood\"}",
+        "before": null,
+        "key": "chain_database_split"
+      },
+      {
+        "after": "{\"20260730_liquidation_execution_attempts\":{\"applied_at\":\"local\",\"description\":\"Record liquidation execution attempts, blocking reasons, preflight data, and receipts.\",\"migration_id\":\"20260730_liquidation_execution_attempts\"},\"20260730_liquidation_failure_samples\":{\"applied_at\":\"local\",\"description\":\"Archive failed or blocked liquidation payloads as reproducible review samples.\",\"migration_id\":\"20260730_liquidation_failure_samples\"},\"20260730_liquidation_runtime_schema\":{\"applied_at\":\"local\",\"description\":\"Split liquidation account registry, discovery progress, and health scan history.\",\"migration_id\":\"20260730_liquidation_runtime_schema\"},\"20260731_liquidation_borrow_health_pool\":{\"applied_at\":\"local\",\"description\":\"Store active borrower health records below the liquidation watch threshold.\",\"migration_id\":\"20260731_liquidation_borrow_health_pool\"},\"20260731_liquidation_profit_oriented_pools\":{\"applied_at\":\"local\",\"description\":\"Track liquidation scan batches, high-frequency borrower pool, and core opportunity pool.\",\"migration_id\":\"20260731_liquidation_profit_oriented_pools\"},\"20260731_liquidation_scan_config_library\":{\"applied_at\":\"local\",\"description\":\"Persist reusable liquidation scan configuration snapshots for account, borrow, and opportunity pools.\",\"migration_id\":\"20260731_liquidation_scan_config_library\"},\"20260803_liquidation_market_namespace\":{\"applied_at\":\"local\",\"description\":\"Add chain, market, protocol, executor, source RPC, and source block columns for future multi-market liquidation isolation.\",\"migration_id\":\"20260803_liquidation_market_namespace\"},\"20260804_cow_supported_tokens\":{\"applied_at\":\"local\",\"description\":\"Persist CoW supported token universe per network for DEX arbitrage filtering.\",\"migration_id\":\"20260804_cow_supported_tokens\"},\"20260805_cow_execution_attempts\":{\"applied_at\":\"local\",\"description\":\"Record CoW quote and execution-precheck outcomes for DEX arbitrage review.\",\"migration_id\":\"20260805_cow_execution_attempts\"},\"20260807_control_panel_parameters\":{\"applied_at\":\"local\",\"description\":\"Persist UI/runtime control parameters in the application database.\",\"migration_id\":\"20260807_control_panel_parameters\"},\"20260817_robinhood_dex_observation\":{\"applied_at\":\"local\",\"description\":\"Add Robinhood DEX observation attempts and seed market-specific three-pool scan policies.\",\"migration_id\":\"20260817_robinhood_dex_observation\"},\"20260818_chain_market_registry\":{\"applied_at\":\"local\",\"description\":\"Persist chain/market registry, scan policies, and current DEX arbitrage candidates.\",\"migration_id\":\"20260818_chain_market_registry\"},\"20261009_chain_business_tables\":{\"applied_at\":\"local\",\"description\":\"Create global chain registry, chain config, chain info, chain tokens, contracts, files, flows, markets, initialization tables.\",\"migration_id\":\"20261009_chain_business_tables\"},\"20261009_dex_candidate_tables\":{\"applied_at\":\"local\",\"description\":\"Create dex_candidate_anchor_tokens, dex_candidate_pool_pairs, dex_candidate_pools, and dex_candidate_pool_recommendations.\",\"migration_id\":\"20261009_dex_candidate_tables\"},\"20261009_market_observation_tables\":{\"applied_at\":\"local\",\"description\":\"Create market_observation_yz_pairs, market_observation_intermediate_pools, and market_observation_liquidity_snapshots.\",\"migration_id\":\"20261009_market_observation_tables\"},\"20261009_rs_hypersync_v4_pool_index\":{\"applied_at\":\"local\",\"description\":\"Add Robinhood V4 HyperSync/HyperRPC pool index and read-only Rust bridge metadata.\",\"migration_id\":\"20261009_rs_hypersync_v4_pool_index\"},\"20261009_v4_closed_loop_tables\":{\"applied_at\":\"local\",\"description\":\"Create v4_closed_loops, v4_closed_loop_hops, and v4_closed_loop_optimizations.\",\"migration_id\":\"20261009_v4_closed_loop_tables\"},\"20261009_v4_exchange_pools\":{\"applied_at\":\"local\",\"description\":\"Create v4_exchange_pools and v4_exchange_pool_liquidity_snapshots.\",\"migration_id\":\"20261009_v4_exchange_pools\"},\"20261016_dex_surface_snapshots\":{\"applied_at\":\"local\",\"description\":\"Persist compact DEX overview snapshots in SQLite for fast static pages.\",\"migration_id\":\"20261016_dex_surface_snapshots\"},\"20261025_cow_execution_review_table\":{\"applied_at\":\"local\",\"description\":\"Split review-class CoW attempts into cow_execution_reviews; cow_execution_attempts keeps submission and execution records.\",\"migration_id\":\"20261025_cow_execution_review_table\"}}",
+        "before": null,
+        "key": "schema_migrations"
+      },
+      {
+        "after": "1",
+        "before": null,
+        "key": "schema_version"
+      }
+    ],
+    "metaChangedCount": 4,
+    "rowCountsAfter": {
+      "cow_execution_attempts": 0,
+      "cow_execution_reviews": 69567
+    },
+    "rowCountsBefore": null
+  }
+}

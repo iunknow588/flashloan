@@ -1,0 +1,59 @@
+{
+  "command": "python -m pytest flashloan scripts -q -p no:cacheprovider",
+  "commandExitCode": 1,
+  "commandStderrTail": "",
+  "commandStdoutTail": "        \nE         - E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3\nE         + C:\\Users\\iunkn\\AppData\\Local\\Temp\\pytest-of-cdao\\pytest-945\\default_store0\\local_store_sandbox.sqlite3\n\nE:\\2026OPC大赛\\flashLoan\\flashloan\\app_runtime\\tests\\unit\\test_database_url_helpers.py:16: AssertionError\n___________ test_page_payload_default_anchor_symbols_include_stocks ___________\n\n    def test_page_payload_default_anchor_symbols_include_stocks():\n        mainnet = page_payloads._default_anchor_symbols(4663)\n>       assert \"AAPL\" in mainnet\nE       AssertionError: assert 'AAPL' in ['ETH', 'USDG', 'USDE', 'TZ', 'WETH']\n\nE:\\2026OPC大赛\\flashLoan\\flashloan\\app_runtime\\tests\\unit\\test_stock_token_registry.py:380: AssertionError\n============================== warnings summary ===============================\nflashloan/app_runtime/tests/unit/test_dex_onchain_quote_evidence.py: 4 warnings\nflashloan/app_runtime/tests/unit/test_flash_loan_pools_robinhood.py: 1 warning\nflashloan/app_runtime/tests/unit/test_pool_candidates_scanner.py: 8 warnings\n  C:\\Users\\iunkn\\AppData\\Roaming\\Python\\Python312\\site-packages\\urllib3\\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings\n    warnings.warn(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED flashloan/app_runtime/tests/unit/test_database_path.py::test_absolute_database_path_defaults_to_default_chain_database\nFAILED flashloan/app_runtime/tests/unit/test_database_url_helpers.py::test_database_url_defaults_to_default_chain_database\nFAILED flashloan/app_runtime/tests/unit/test_stock_token_registry.py::test_page_payload_default_anchor_symbols_include_stocks\n3 failed, 3262 passed, 3 skipped, 13 warnings in 1847.57s (0:30:47)\n",
+  "dataVersionAfter": 2,
+  "dataVersionBefore": 2,
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "fileStateAfter": {
+    "-shm": {
+      "mtimeNs": 1795545385916576200,
+      "size": 98304
+    },
+    "-wal": {
+      "mtimeNs": 1795545613500411700,
+      "size": 37137712
+    },
+    "main": {
+      "mtimeNs": 1795545463867805000,
+      "size": 12073435136
+    }
+  },
+  "fileStateBefore": {
+    "-shm": {
+      "mtimeNs": 1795543696858902400,
+      "size": 65536
+    },
+    "-wal": {
+      "mtimeNs": 1795543752262991500,
+      "size": 31019512
+    },
+    "main": {
+      "mtimeNs": 1795543697987935400,
+      "size": 11964166144
+    }
+  },
+  "gateDiff": {
+    "changedCount": 0,
+    "changedKeys": []
+  },
+  "gateKeyCount": 19,
+  "generatedAt": "2026-11-25T02:40:13.795+08:00",
+  "label": "full_guard_v3",
+  "metaDiff": {
+    "changedCount": 0,
+    "changedKeys": []
+  },
+  "observedDataVersionIncrements": 2,
+  "rowCountsAfter": {
+    "cow_execution_attempts": 0,
+    "cow_execution_reviews": 69881
+  },
+  "rowCountsBefore": {
+    "cow_execution_attempts": 0,
+    "cow_execution_reviews": 69276
+  },
+  "sampleCount": 3,
+  "windowSeconds": 1861.485
+}

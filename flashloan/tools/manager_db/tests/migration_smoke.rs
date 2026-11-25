@@ -2,7 +2,8 @@ use manager_db::{
     migrate, migration_checksum, preflight_read_only, schema_checksum, MigrationError,
     BROADCAST_MIGRATION_ID, CANDIDATE_EDGE_MIGRATION_ID, CANDIDATE_EXCHANGE_MIGRATION_ID,
     CLOSED_LOOP_MIGRATION_ID, COMPOSITE_MIGRATION_ID, LATEST_MIGRATION_ID, MIGRATION_ID,
-    MIGRATION_IDS, REVIEW_MIGRATION_ID, USDG_VALUATION_MIGRATION_ID,
+    MIGRATION_IDS, OBSERVATION_OPTIMAL_POOL_VIEW_MIGRATION_ID, REVIEW_MIGRATION_ID,
+    USDG_VALUATION_MIGRATION_ID,
 };
 use rusqlite::Connection;
 use std::path::Path;
@@ -291,4 +292,201 @@ fn legacy_candidate_tables_are_not_reused_by_manager_shadow_migration() {
         )
         .unwrap();
     assert_eq!(manager_present, 1);
+}
+
+/// The market observation's primary pool is a view over the direction layer.
+///
+/// The migration turns the stored primary into a derived one, so the two
+/// facts it has to hold are checked here: the rows survive the swap, and
+/// the view answers the pool the direction layer ranked first.  The writers
+/// are checked too, because a view cannot be written to and the managers
+/// publish the observation through the table name.
+#[test]
+fn the_observation_primary_pool_becomes_a_view_over_the_direction_layer() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("observation-view.sqlite3");
+
+    // The migration chain runs first, so the observation table and the
+    // direction layer both exist with their real shape.
+    migrate(&path).unwrap();
+
+    let connection = Connection::open(&path).unwrap();
+    let object_type: String = connection
+        .query_row(
+            "SELECT type FROM sqlite_master WHERE name = 'manager_market_observation_yz_pairs'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(object_type, "view");
+    let base_present: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master
+             WHERE type = 'table' AND name = 'manager_market_observation_yz_pairs_base'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(base_present, 1);
+
+    // Two pools of one pair, priced in both directions.  The direction
+    // layer ranks them differently in the two directions, so the view has
+    // a different answer for the two rows of the pair.
+    connection
+        .execute_batch(
+            "INSERT INTO manager_v4_directional_exchange_pools (
+                network, chain_id, protocol, scope_key, base_pool_id, direction,
+                directional_pool_id, pool_manager, pool_key_json, token0, token1,
+                token0_key_id, token1_key_id, fee, tick_spacing, hooks,
+                pair_key_id, input_token_key_id, output_token_key_id, zero_for_one,
+                sqrt_price_x96, tick, liquidity, price, depth_status,
+                liquidity_read_at, liquidity_block_number, evidence_source,
+                input_capacity_raw, input_capacity_measured, directional_output,
+                directional_output_measured, pair_direction_rank, pool_status,
+                pool_status_reason, source_block_number, source_tx_hash,
+                materialized_at, updated_at
+             ) VALUES
+             ('robinhood', 4663, 'uniswap_v4', 'candidate_exchange', 'pool-b', 0,
+              'dir-b-0', 'manager', '{}', '0x0', '0xb', 'robinhood:4663:0x0',
+              'robinhood:4663:0xb', 3000, 60, '0x0',
+              'pair:v1:4663:0x0:0xb', 'robinhood:4663:0xb', 'robinhood:4663:0x0', 0,
+              '1', 0, '1', '1', 'ok', 't', 1, 'src', '1', 1, '1', 1, 1, 'active',
+              NULL, 1, '0xsrc', 't', 't'),
+             ('robinhood', 4663, 'uniswap_v4', 'candidate_exchange', 'pool-b', 1,
+              'dir-b-1', 'manager', '{}', '0x0', '0xb', 'robinhood:4663:0x0',
+              'robinhood:4663:0xb', 3000, 60, '0x0',
+              'pair:v1:4663:0x0:0xb', 'robinhood:4663:0x0', 'robinhood:4663:0xb', 1,
+              '1', 0, '1', '1', 'ok', 't', 1, 'src', '1', 1, '1', 1, 2, 'active',
+              NULL, 1, '0xsrc', 't', 't'),
+             ('robinhood', 4663, 'uniswap_v4', 'candidate_exchange', 'pool-a', 0,
+              'dir-a-0', 'manager', '{}', '0x0', '0xb', 'robinhood:4663:0x0',
+              'robinhood:4663:0xb', 3000, 60, '0x0',
+              'pair:v1:4663:0x0:0xb', 'robinhood:4663:0xb', 'robinhood:4663:0x0', 0,
+              '1', 0, '1', '1', 'ok', 't', 1, 'src', '1', 1, '1', 1, 2, 'active',
+              NULL, 1, '0xsrc', 't', 't'),
+             ('robinhood', 4663, 'uniswap_v4', 'candidate_exchange', 'pool-a', 1,
+              'dir-a-1', 'manager', '{}', '0x0', '0xb', 'robinhood:4663:0x0',
+              'robinhood:4663:0xb', 3000, 60, '0x0',
+              'pair:v1:4663:0x0:0xb', 'robinhood:4663:0x0', 'robinhood:4663:0xb', 1,
+              '1', 0, '1', '1', 'ok', 't', 1, 'src', '1', 1, '1', 1, 1, 'active',
+              NULL, 1, '0xsrc', 't', 't');",
+        )
+        .unwrap();
+
+    // The writer publishes a row whose stored primary is the old answer.
+    connection
+        .execute_batch(
+            "INSERT INTO manager_market_observation_yz_pairs (
+                network, chain_id, protocol, scope_key, anchor_token_key_id,
+                direction_key, token_x_key_id, token_y_key_id, has_direct_swap_pool,
+                direct_swap_pool_count, pool_ids_json, optimal_pool_id,
+                observation_empty_reason, created_at, updated_at
+             ) VALUES
+             ('robinhood', 4663, 'uniswap_v4', 'candidate_exchange', 'anchor',
+              'robinhood:4663:0x0->robinhood:4663:0xb', 'robinhood:4663:0x0',
+              'robinhood:4663:0xb', 1, 2, '[\"pool-a\",\"pool-b\"]', 'pool-b', NULL, 't', 't'),
+             ('robinhood', 4663, 'uniswap_v4', 'candidate_exchange', 'anchor',
+              'robinhood:4663:0xb->robinhood:4663:0x0', 'robinhood:4663:0xb',
+              'robinhood:4663:0x0', 1, 2, '[\"pool-a\",\"pool-b\"]', 'pool-a', NULL, 't', 't');",
+        )
+        .unwrap();
+
+    // The view answers the rank 1 of the direction the row measured.
+    let forward: String = connection
+        .query_row(
+            "SELECT optimal_pool_id FROM manager_market_observation_yz_pairs
+             WHERE direction_key = 'robinhood:4663:0x0->robinhood:4663:0xb'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(forward, "pool-a");
+    let reverse: String = connection
+        .query_row(
+            "SELECT optimal_pool_id FROM manager_market_observation_yz_pairs
+             WHERE direction_key = 'robinhood:4663:0xb->robinhood:4663:0x0'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(reverse, "pool-b");
+
+    // The rows survive the swap, and the stored value is kept as the record
+    // of what the writer published.
+    let stored: String = connection
+        .query_row(
+            "SELECT optimal_pool_id FROM manager_market_observation_yz_pairs_base
+             WHERE direction_key = 'robinhood:4663:0x0->robinhood:4663:0xb'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(stored, "pool-b");
+    let rows: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM manager_market_observation_yz_pairs",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(rows, 2);
+
+    // A row the direction layer did not price has no primary.
+    connection
+        .execute_batch(
+            "INSERT INTO manager_market_observation_yz_pairs (
+                network, chain_id, protocol, scope_key, anchor_token_key_id,
+                direction_key, token_x_key_id, token_y_key_id, has_direct_swap_pool,
+                direct_swap_pool_count, pool_ids_json, optimal_pool_id,
+                observation_empty_reason, created_at, updated_at
+             ) VALUES
+             ('robinhood', 4663, 'uniswap_v4', 'candidate_exchange', 'anchor',
+              'robinhood:4663:0xc->robinhood:4663:0xd', 'robinhood:4663:0xc',
+              'robinhood:4663:0xd', 0, 0, '[]', NULL, 'no_reachable_v4_pool', 't', 't');",
+        )
+        .unwrap();
+    let unpriced: Option<String> = connection
+        .query_row(
+            "SELECT optimal_pool_id FROM manager_market_observation_yz_pairs
+             WHERE direction_key = 'robinhood:4663:0xc->robinhood:4663:0xd'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(unpriced, None);
+
+    // The writers still work: the managers delete the scope they republish
+    // and insert the rows again.
+    connection
+        .execute(
+            "DELETE FROM manager_market_observation_yz_pairs
+             WHERE network = 'robinhood' AND chain_id = 4663 AND protocol = 'uniswap_v4'
+               AND scope_key = 'candidate_exchange'",
+            [],
+        )
+        .unwrap();
+    let remaining: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM manager_market_observation_yz_pairs",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(remaining, 0);
+    let base_remaining: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM manager_market_observation_yz_pairs_base",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(base_remaining, 0);
+
+    // The migration is recorded, and a second run changes nothing.
+    let report = migrate(&path).unwrap();
+    assert!(!report.applied_now);
+    assert_eq!(report.migration_id, LATEST_MIGRATION_ID);
+    assert!(report
+        .migration_ids
+        .contains(&OBSERVATION_OPTIMAL_POOL_VIEW_MIGRATION_ID.to_owned()));
 }

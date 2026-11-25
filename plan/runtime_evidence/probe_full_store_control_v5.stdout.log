@@ -1,0 +1,107 @@
+{
+  "after": {
+    "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+    "generatedAt": "2026-11-25T03:51:15.137+08:00",
+    "kvEntriesCount": 6068,
+    "kvEntriesRows": {
+      "chain_markets|dex-arbitrage-0-cow-protocol": {
+        "updated_at": "2026-10-30T06:48:16.220+00:00",
+        "v": "9daac4cb642d825e"
+      },
+      "chain_markets|dex-arbitrage-1-balancer-v2": {
+        "updated_at": "2026-10-30T06:48:16.049+00:00",
+        "v": "9b72ea0b97017c6e"
+      },
+      "chain_markets|dex-arbitrage-1-uniswap-v2": {
+        "updated_at": "2026-10-30T06:48:16.032+00:00",
+        "v": "0e58996fd400c5d2"
+      },
+      "chain_markets|dex-arbitrage-1-uniswap-v3": {
+        "updated_at": "2026-10-30T06:48:16.013+00:00",
+        "v": "820a56fade32def3"
+      },
+      "chain_markets|dex-arbitrage-137-balancer-v2": {
+        "updated_at": "2026-10-30T06:48:16.146+00:00",
+        "v": "15c4a94d566a354a"
+      },
+      "chain_markets|dex-arbitrage-137-quickswap-v2": {
+        "updated_at": "2026-10-30T06:48:16.122+00:00",
+        "v": "a496944c11228322"
+      },
+      "chain_markets|dex-arbitrage-137-uniswap-v3": {
+        "updated_at": "2026-10-30T06:48:16.086+00:00",
+        "v": "1abbb296e60883d7"
+      },
+      "chain_markets|dex-arbitrage-43114-curve": {
+        "updated_at": "2026-10-30T06:48:16.207+00:00",
+        "v": "01410c132cee0c6b"
+      },
+      "chain_markets|dex-arbitrage-43114-traderjoe-v2": {
+        "updated_at": "2026-10-30T06:48:16.183+00:00",
+        "v": "75bffd2fdd36364f"
+      },
+      "chain_markets|dex-arbitrage-43114-uniswap-v3": {
+        "updated_at": "2026-10-30T06:48:16.165+00:00",
+        "v": "1c6c01a28589f055"
+      },
+      "chain_markets|dex-arbitrage-4663-morpho-blue": {
+        "updated_at": "2026-10-30T06:48:16.324+00:00",
+        "v": "5e37a0b8e810fe8c"
+      },
+      "chain_markets|dex-arbitrage-4663-uniswap-v2": {
+        "updated_at": "2026-10-30T06:48:16.307+00:00",
+        "v": "15953f96a8aa9c4c"
+      },
+      "chain_markets|dex-arbitrage-4663-uniswap-v3": {
+        "updated_at": "2026-10-30T06:48:16.244+00:00",
+        "v": "9d8bd29fc9289c97"
+      },
+      "chain_markets|dex-arbitrage-4663-uniswap-v4": {
+        "updated_at": "2026-10-30T06:48:16.258+00:00",
+        "v": "c554ffed4bddcf4b"
+      },
+      "chain_markets|dex-arbitrage-46630-uniswap-v4": {
+        "updated_at": "2026-10-30T06:48:16.270+00:00",
+        "v": "509d50e0ff2bd823"
+      },
+      "chain_markets|dex-arbitrage-56-biswap-v2": {
+        "updated_at": "2026-10-30T06:48:15.987+00:00",
+        "v": "0dc628455c12015e"
+      },
+      "chain_markets|dex-arbitrage-56-pancakeswap-v2": {
+        "updated_at": "2026-10-30T06:48:15.962+00:00",
+        "v": "14b2a19e4ac06491"
+      },
+      "chain_markets|dex-arbitrage-56-pancakeswap-v3": {
+        "updated_at": "2026-10-30T06:48:15.939+00:00",
+        "v": "3e543edf7d434ac6"
+      },
+      "chain_markets|dex-arbitrage-hyperliquid-hyperliquid-native": {
+        "updated_at": "2026-10-30T06:48:16.386+00:00",
+        "v": "53ab29089517f7b6"
+      },
+      "chain_markets|liquidation-0-cow-protocol": {
+        "updated_at": "2026-10-30T06:48:15.921+00:00",
+        "v": "f08194ce98e46f26"
+      },
+      "chain_markets|liquidation-1-aave-v3": {
+        "updated_at": "2026-10-30T06:48:15.899+00:00",
+        "v": "03a20dd841d06aa3"
+      },
+      "chain_markets|liquidation-137-aave-v3": {
+        "updated_at": "2026-10-30T06:48:15.879+00:00",
+        "v": "274e65ad2d3f3279"
+      },
+      "chain_markets|liquidation-43114-aave-v3": {
+        "updated_at": "2026-10-30T06:48:15.810+00:00",
+        "v": "f4769fc11cc2ba37"
+      },
+      "chain_markets|liquidation-4663-aave-v3": {
+        "updated_at": "2026-10-30T06:48:16.370+00:00",
+        "v": "2d67bf015984cfb3"
+      },
+      "chain_markets|liquidation-4663-morpho-blue": {
+        "updated_at": "2026-10-30T06:48:16.345+00:00",
+        "v": "ae9a89e246c2826c"
+      },
+      "chain_markets|liquidation-46630-m

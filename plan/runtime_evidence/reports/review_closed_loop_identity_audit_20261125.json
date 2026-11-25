@@ -1,0 +1,54 @@
+{
+  "schema": "review-closed-loop-identity-audit-v1",
+  "generatedAt": "2026-11-25T01:08:33.432057+00:00",
+  "task": "T-复.02",
+  "mode": "read-only (mode=ro + PRAGMA query_only = ON)",
+  "store": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "network": "robinhood",
+  "chainId": 4663,
+  "protocol": "uniswap_v4",
+  "scopeKey": "core4",
+  "reviewLibraryState": {
+    "closedLoopVersion": 20,
+    "loopCount": 174,
+    "reviewedCount": 174,
+    "generatedAt": "2026-11-25T01:06:58.855668500+00:00"
+  },
+  "catalog": {
+    "loops": 174
+  },
+  "reviews": {
+    "rows": 174,
+    "distinctReviewedAt": 174,
+    "closedLoopVersions": [
+      20
+    ]
+  },
+  "threeStates": {
+    "matched": 174,
+    "mismatch": 0,
+    "unmeasured": 0,
+    "note": "unmeasured (no identity published at all) is counted on its own and is never folded into mismatch"
+  },
+  "publisherClaims": {
+    "closedLoopIdentityStatus": {
+      "matched": 174,
+      "mismatch": 0,
+      "other": 0,
+      "absent": 0
+    },
+    "closedLoopPoolIdentityStatus": {
+      "verified": 174,
+      "unverifiable": 0,
+      "mismatch": 0,
+      "absent": 0
+    },
+    "repairTargets": {}
+  },
+  "disagreements": [],
+  "verdict": {
+    "passed": true,
+    "failureCount": 0,
+    "failures": []
+  }
+}

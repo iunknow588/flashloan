@@ -1,0 +1,17 @@
+........................................................................ [ 24%]
+........................................................................ [ 48%]
+........................................................................ [ 72%]
+........................................................................ [ 97%]
+........                                                                 [100%]
+============================ slowest 10 durations =============================
+25.53s call     flashloan/app_runtime/tests/functional/test_web_app_assembly_workflows.py::test_dex_surface_payload_apis_are_distinct
+25.52s call     flashloan/app_runtime/tests/functional/test_api_handler_payload_contract.py::test_read_only_handlers_return_contract_valid_json_payloads
+20.19s call     flashloan/app_runtime/tests/functional/test_api_handler_payload_contract.py::test_read_only_handler_payloads_include_request_correlation_header
+15.06s call     flashloan/app_runtime/tests/functional/test_navigation_flow.py::test_control_panel_navigation_chain_links_expected_pages
+9.89s call     flashloan/app_runtime/tests/functional/test_web_app_assembly.py::test_robinhood_mainnet_dex_surface_apis_use_chain_flows
+7.96s call     flashloan/app_runtime/tests/functional/test_web_app_assembly_workflows.py::test_robinhood_shadow_uses_the_shared_dex_surfaces
+4.83s call     flashloan/app_runtime/tests/functional/test_web_app_assembly_dex_records.py::test_four_independent_submission_record_apis_are_separate
+4.17s call     flashloan/app_runtime/tests/functional/test_web_app_assembly_scope_api.py::test_app_shell_owns_one_visible_global_chain_selector
+4.15s call     flashloan/app_runtime/tests/functional/test_web_app_assembly.py::test_dex_pages_expose_shared_chain_selector_and_scope_defaults
+4.12s call     flashloan/app_runtime/tests/functional/test_api_handler_payload_contract.py::test_unknown_market_error_shape_is_uniform_across_scope_required_api_families
+296 passed in 257.46s (0:04:17)

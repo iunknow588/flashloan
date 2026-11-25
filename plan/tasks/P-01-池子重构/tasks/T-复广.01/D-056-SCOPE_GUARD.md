@@ -26,8 +26,8 @@
 >
 | 模块 | 代码落点（文件级） | 与他任务**同文件** |
 |---|---|---|
-| `M-6` | `flashloan/tools/review_manager/examples/p0_6_single_tick_gate_probe.rs`<br>`flashloan/tools/review_manager/examples/t401_profit_drop_probe.rs`<br>`flashloan/tools/review_manager/src/lib.rs`<br>`flashloan/tools/review_manager/src/parity.rs`<br>`flashloan/tools/review_manager/src/records.rs`<br>`flashloan/tools/review_manager/src/runtime.rs`<br>`flashloan/tools/review_manager/src/shadow.rs`<br>`flashloan/tools/review_manager/src/single_tick.rs`<br>`flashloan/tools/review_manager/src/state_transition_gate.rs` | `flashloan/tools/review_manager/examples/p0_6_single_tick_gate_probe.rs`<br>↔ 与 T-复.02 / T-复广.02 / T-复编.02 同文件<br>`flashloan/tools/review_manager/examples/t401_profit_drop_probe.rs`<br>↔ 与 T-复.02 / T-复广.02 / T-复编.02 同文件<br>`flashloan/tools/review_manager/src/lib.rs`<br>↔ 与 T-复.02 / T-复广.02 / T-复编.02 同文件<br>`flashloan/tools/review_manager/src/parity.rs`<br>↔ 与 T-复.02 / T-复广.02 / T-复编.02 同文件<br>`flashloan/tools/review_manager/src/records.rs`<br>↔ 与 T-复.02 / T-复广.02 / T-复编.02 同文件<br>`flashloan/tools/review_manager/src/runtime.rs`<br>↔ 与 T-复.02 / T-复广.02 / T-复编.02 同文件<br>`flashloan/tools/review_manager/src/shadow.rs`<br>↔ 与 T-复.02 / T-复广.02 / T-复编.02 同文件<br>`flashloan/tools/review_manager/src/single_tick.rs`<br>↔ 与 T-复.02 / T-复广.02 / T-复编.02 同文件<br>`flashloan/tools/review_manager/src/state_transition_gate.rs`<br>↔ 与 T-复.02 / T-复广.02 / T-复编.02 同文件 |
-| `M-7` | `flashloan/tools/broadcast_manager/src/lib.rs`<br>`flashloan/tools/broadcast_manager/src/runtime.rs` | `flashloan/tools/broadcast_manager/src/lib.rs`<br>↔ 与 T-复广.02 / T-广.01 同文件<br>`flashloan/tools/broadcast_manager/src/runtime.rs`<br>↔ 与 T-复广.02 / T-广.01 同文件 |
+| `M-6` | `flashloan/tools/review_manager/examples/p0_6_single_tick_gate_probe.rs`<br>`flashloan/tools/review_manager/examples/t401_profit_drop_probe.rs`<br>`flashloan/tools/review_manager/src/lib.rs`<br>`flashloan/tools/review_manager/src/parity.rs`<br>`flashloan/tools/review_manager/src/records.rs`<br>`flashloan/tools/review_manager/src/runtime.rs`<br>`flashloan/tools/review_manager/src/shadow.rs`<br>`flashloan/tools/review_manager/src/single_tick.rs`<br>`flashloan/tools/review_manager/src/state_transition_gate.rs` | `flashloan/tools/review_manager/examples/p0_6_single_tick_gate_probe.rs`<br>↔ 与 T-复编.02 同文件<br>`flashloan/tools/review_manager/examples/t401_profit_drop_probe.rs`<br>↔ 与 T-复编.02 同文件<br>`flashloan/tools/review_manager/src/lib.rs`<br>↔ 与 T-复编.02 同文件<br>`flashloan/tools/review_manager/src/parity.rs`<br>↔ 与 T-复编.02 同文件<br>`flashloan/tools/review_manager/src/records.rs`<br>↔ 与 T-复编.02 同文件<br>`flashloan/tools/review_manager/src/runtime.rs`<br>↔ 与 T-复编.02 同文件<br>`flashloan/tools/review_manager/src/shadow.rs`<br>↔ 与 T-复编.02 同文件<br>`flashloan/tools/review_manager/src/single_tick.rs`<br>↔ 与 T-复编.02 同文件<br>`flashloan/tools/review_manager/src/state_transition_gate.rs`<br>↔ 与 T-复编.02 同文件 |
+| `M-7` | `flashloan/tools/broadcast_manager/src/admission.rs`<br>`flashloan/tools/broadcast_manager/src/lib.rs`<br>`flashloan/tools/broadcast_manager/src/runtime.rs` | **无**（本任务独占） |
 
 **判定规则**：
 
@@ -42,7 +42,9 @@
 
 > **本任务的独占文件**（**无争用** ⇒ 本任务可与其它任务**同时施工**）：
 >
-> - **无**（本任务的每个文件都与其它任务同文件 ⇒ 提交必须错开）
+> - `flashloan/tools/broadcast_manager/src/admission.rs`
+> - `flashloan/tools/broadcast_manager/src/lib.rs`
+> - `flashloan/tools/broadcast_manager/src/runtime.rs`
 ## 2. 逐模块回归命令（**可逐条复制执行**）
 
 | 模块 | 名称 | 命令 |

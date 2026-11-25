@@ -1,0 +1,94 @@
+{
+  "activityTable": {
+    "lookbackDays": [
+      60
+    ],
+    "rowCount": 2550,
+    "scanBlockNumbers": [
+      122604589
+    ]
+  },
+  "criterion": "direction_integrity._pool_has_liquidity (has_liquidity==1 or recent_swap_active==1 or liquidity>0)",
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "layer6": {
+    "readings": {
+      "confirmedByMarkerOnly": 0,
+      "confirmedWithoutMarker": 124,
+      "executableConfirmed": 124,
+      "markerActive": 124,
+      "markerInactive": 0,
+      "markerMeasured": 124,
+      "markerUnmeasured": 0,
+      "notExecutableAndMarkerZero": 0,
+      "poolCount": 124
+    },
+    "rule": "a backup pool whose window was scanned and did not trade is aged out"
+  },
+  "layer7": {
+    "readings": {
+      "confirmedByMarkerOnly": 0,
+      "confirmedWithoutMarker": 222,
+      "executableConfirmed": 222,
+      "markerActive": 222,
+      "markerInactive": 0,
+      "markerMeasured": 222,
+      "markerUnmeasured": 0,
+      "notExecutableAndMarkerZero": 0,
+      "poolCount": 222
+    },
+    "rule": "a group short of pools is topped up with the pools that did trade"
+  },
+  "libraryPoolCount": 2550,
+  "measuredAt": "2026-11-25T00:42:56Z",
+  "readOnly": true,
+  "readings": {
+    "candidateRecommendationBackupTier": {
+      "confirmedByMarkerOnly": 0,
+      "confirmedWithoutMarker": 124,
+      "executableConfirmed": 124,
+      "markerActive": 124,
+      "markerInactive": 0,
+      "markerMeasured": 124,
+      "markerUnmeasured": 0,
+      "notExecutableAndMarkerZero": 0,
+      "poolCount": 124
+    },
+    "candidateRecommendationRank1": {
+      "confirmedByMarkerOnly": 0,
+      "confirmedWithoutMarker": 216,
+      "executableConfirmed": 216,
+      "markerActive": 216,
+      "markerInactive": 0,
+      "markerMeasured": 216,
+      "markerUnmeasured": 0,
+      "notExecutableAndMarkerZero": 0,
+      "poolCount": 216
+    },
+    "directionalRank1": {
+      "confirmedByMarkerOnly": 0,
+      "confirmedWithoutMarker": 222,
+      "executableConfirmed": 222,
+      "markerActive": 222,
+      "markerInactive": 0,
+      "markerMeasured": 222,
+      "markerUnmeasured": 0,
+      "notExecutableAndMarkerZero": 0,
+      "poolCount": 222
+    },
+    "libraryAll": {
+      "confirmedByMarkerOnly": 258,
+      "confirmedWithoutMarker": 1353,
+      "executableConfirmed": 1611,
+      "markerActive": 784,
+      "markerInactive": 1766,
+      "markerMeasured": 2550,
+      "markerUnmeasured": 0,
+      "notExecutableAndMarkerZero": 939,
+      "poolCount": 2550
+    }
+  },
+  "snapshotTable": {
+    "rowCount": 2486,
+    "rowsWithMarkerMeasured": 2486
+  }
+}

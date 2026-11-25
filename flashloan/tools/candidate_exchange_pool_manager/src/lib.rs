@@ -8,6 +8,17 @@ use std::fmt;
 use std::path::Path;
 
 const NETWORK_PROTOCOL: &str = "uniswap_v4";
+const SCOPE_KEY: &str = "core4";
+
+/// The table the direction layer materialises its rows into.
+///
+/// The direction layer owns the ranking of the pools of one token pair:
+/// it priced both directions of every base pool and gave the rows of one
+/// direction a `pair_direction_rank` inside their group.  The exchange
+/// layer used to rank the pools by their liquidity index; it now reads
+/// the direction layer's rank instead, so the intermediate pool universe
+/// and the closed loop cannot drift apart.
+const DIRECTIONAL_POOL_TABLE: &str = "manager_v4_directional_exchange_pools";
 const CANDIDATE_SCOPE_KEY: &str = "core4";
 const EXCHANGE_SCOPE_KEY: &str = "candidate_exchange";
 const MAX_REQUEST_ID_LENGTH: usize = 128;
@@ -377,6 +388,14 @@ struct ExchangeInput {
     catalog: BTreeMap<String, CatalogToken>,
     anchors: BTreeMap<String, BTreeSet<String>>,
     pools: Vec<ScopePool>,
+    /// The direction layer's ranking of the pools, keyed by
+    /// `(pair_key_id, base_pool_id, direction_key)`.
+    ///
+    /// The exchange layer does not rank the pools itself any more: it
+    /// reads the order the direction layer published.  A pool the
+    /// direction layer did not rank is **not** a candidate -- an unpriced
+    /// pool was never a candidate of its group.
+    directional_ranks: BTreeMap<(String, String, String), Option<i64>>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -692,12 +711,14 @@ fn read_exchange_input(
         anchor_groups.candidate_token_count,
     )?;
     let pools = read_scope_pools(connection, network, chain_id)?;
+    let directional_ranks = read_directional_ranks(connection, network, chain_id)?;
     Ok(ExchangeInput {
         candidate_edge,
         pool_scope,
         catalog,
         anchors: anchor_groups.groups,
         pools,
+        directional_ranks,
     })
 }
 
@@ -970,6 +991,69 @@ fn read_scope_pools(
     Ok(rows.collect::<Result<Vec<_>, _>>()?)
 }
 
+/// Read the direction layer's ranking of the pools of every direction.
+///
+/// The exchange layer no longer ranks the pools by their liquidity index,
+/// so the order it publishes has to come from the direction layer.  This
+/// reads the rank the direction layer gave every pool of every direction.
+///
+/// A row without a rank is **not** a candidate.  The direction layer only
+/// ranks the pools it priced, so an unranked row was never priced and
+/// never was a candidate of its group.  The closed loop already follows
+/// this rule, so the intermediate universe and the closed loop agree on
+/// which pools exist.
+///
+/// A store that does not carry the direction table yet has **no**
+/// direction layer: the exchange layer then has no ranking to read and
+/// keeps its own order, rather than publishing an order of its own that
+/// could not be compared with the closed loop.
+fn read_directional_ranks(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+) -> Result<BTreeMap<(String, String, String), Option<i64>>, CandidateExchangeError> {
+    let mut ranks = BTreeMap::new();
+    let table_exists: bool = connection.query_row(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
+        params![DIRECTIONAL_POOL_TABLE],
+        |row| row.get::<_, i64>(0),
+    )? > 0;
+    if !table_exists {
+        return Ok(ranks);
+    }
+    let sql = format!(
+        "SELECT pair_key_id, base_pool_id, input_token_key_id, output_token_key_id,
+                pair_direction_rank
+         FROM {DIRECTIONAL_POOL_TABLE}
+         WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4
+         ORDER BY pair_key_id, base_pool_id, direction"
+    );
+    let mut statement = connection.prepare(&sql)?;
+    let rows = statement.query_map(
+        params![network, chain_id, NETWORK_PROTOCOL, SCOPE_KEY],
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, Option<i64>>(4)?,
+            ))
+        },
+    )?;
+    for row in rows {
+        let (pair_key_id, base_pool_id, input_token_key_id, output_token_key_id, rank) = row?;
+        let direction_key = format!("{input_token_key_id}>{output_token_key_id}");
+        ranks.insert((pair_key_id, base_pool_id, direction_key), rank);
+    }
+    Ok(ranks)
+}
+
+/// The direction layer's rank of a pool inside its direction.
+///
+/// The rank is the direction layer's own ordering of the pools of the
+/// group.  A pool the direction layer did not rank has **no** rank: it
+/// was never priced and is not a candidate of the group.
 fn build_exchange_rows(
     input: &ExchangeInput,
 ) -> Result<DesiredExchangeData, CandidateExchangeError> {
@@ -1020,10 +1104,21 @@ fn build_exchange_rows(
             }
         }
         for pools in active_by_pair.values_mut() {
+            // The order comes from the direction layer: it priced both
+            // directions of every base pool and ranked the pools of each
+            // direction.  The exchange layer publishes that order instead
+            // of ranking the pools by their liquidity index a second time.
+            //
+            // The group is a **canonical** token pair -- the pair key does
+            // not carry a direction -- so the rank of a pool inside the
+            // group is the better of the two directions it was priced in.
+            let pair_key = pools
+                .first()
+                .map(|pool| canonical_pair_key(&pool.token0_key_id, &pool.token1_key_id))
+                .unwrap_or_default();
             pools.sort_by(|left, right| {
-                pool_score(right)
-                    .partial_cmp(&pool_score(left))
-                    .unwrap_or(std::cmp::Ordering::Equal)
+                directional_group_rank(&input.directional_ranks, &pair_key, left)
+                    .cmp(&directional_group_rank(&input.directional_ranks, &pair_key, right))
                     .then_with(|| left.pool_id.cmp(&right.pool_id))
             });
         }
@@ -1089,9 +1184,8 @@ fn build_exchange_rows(
             .copied()
             .collect::<Vec<_>>();
         anchor_active.sort_by(|left, right| {
-            pool_score(right)
-                .partial_cmp(&pool_score(left))
-                .unwrap_or(std::cmp::Ordering::Equal)
+            directional_group_rank(&input.directional_ranks, &canonical_pair_key(&left.token0_key_id, &left.token1_key_id), left)
+                .cmp(&directional_group_rank(&input.directional_ranks, &canonical_pair_key(&right.token0_key_id, &right.token1_key_id), right))
                 .then_with(|| left.pool_id.cmp(&right.pool_id))
         });
         for (index, pool) in anchor_active.into_iter().enumerate() {
@@ -1156,10 +1250,102 @@ fn canonical_pair_key(left: &str, right: &str) -> String {
     }
 }
 
-fn pool_score(pool: &ScopePool) -> f64 {
-    pool.liquidity_index
-        .filter(|value| value.is_finite() && *value > 0.0)
-        .unwrap_or(0.0)
+/// The direction layer's rank of a pool inside its **canonical** group.
+///
+/// The canonical group is the token pair without a direction, so a pool
+/// that was priced in both directions carries two ranks.  The better
+/// rank is the one the pool reached in the direction that was priced
+/// best; the exchange layer publishes the intermediate pools of one
+/// anchor, and the direction layer priced each of them in the direction
+/// the anchor trades it in.
+///
+/// A pool the direction layer did not rank has **no** rank.  It sorts
+/// after every ranked pool, because a pool that was never priced cannot
+/// be the first choice of a group.
+fn directional_group_rank(
+    ranks: &BTreeMap<(String, String, String), Option<i64>>,
+    canonical_pair_key: &str,
+    pool: &ScopePool,
+) -> Option<i64> {
+    let mut best: Option<i64> = None;
+    for ((pair_key_id, base_pool_id, direction_key), rank) in ranks {
+        if base_pool_id != &pool.pool_id {
+            continue;
+        }
+        // The rank belongs to one direction of one pair.  The pair key of
+        // the direction layer identifies that pair, and the direction key
+        // says which of the two directions of the pool's own token pair
+        // the rank belongs to.  Both have to match, otherwise a rank of
+        // another pair would leak into this group.
+        if !pair_key_matches_tokens(&pair_key_id, canonical_pair_key, &pool.token0_key_id, &pool.token1_key_id)
+        {
+            continue;
+        }
+        if !direction_key_matches_pair(&direction_key, &pool.token0_key_id, &pool.token1_key_id) {
+            continue;
+        }
+        let Some(rank) = rank else {
+            // An unranked row was never priced, so it is not a candidate.
+            continue;
+        };
+        best = Some(match best {
+            Some(current) => current.min(*rank),
+            None => *rank,
+        });
+    }
+    best
+}
+
+/// Whether a direction layer pair key is the pair of the two tokens.
+///
+/// The direction layer's pair key is built from the **token addresses**
+/// of the pair (`pair:v1:<chain>:<address>:<address>`), while the
+/// exchange layer groups by the **token key ids**.  A token key id ends
+/// in the address of its token, so the pair key of a pair can be
+/// recognised by the two addresses it carries: the pair matches when the
+/// key holds the addresses of the group's two tokens, in either order.
+fn pair_key_matches_tokens(
+    pair_key_id: &str,
+    canonical_pair_key: &str,
+    token0_key_id: &str,
+    token1_key_id: &str,
+) -> bool {
+    let token0_address = token_address_of(token0_key_id);
+    let token1_address = token_address_of(token1_key_id);
+    let (Some(token0_address), Some(token1_address)) = (token0_address, token1_address) else {
+        return false;
+    };
+    // The canonical pair key names the two token key ids of the group; it
+    // is the identity of the group, and the pair key of the direction
+    // layer has to name the same two tokens.
+    if !canonical_pair_key.contains(token0_key_id) || !canonical_pair_key.contains(token1_key_id) {
+        return false;
+    }
+    pair_key_id.contains(token0_address) && pair_key_id.contains(token1_address)
+}
+
+/// The address a token key id ends in.
+///
+/// A token key id is `<library>:<chain>:<address>`; the address is the
+/// last segment.  A key id that does not carry an address has none.
+fn token_address_of(token_key_id: &str) -> Option<&str> {
+    token_key_id
+        .rsplit(':')
+        .next()
+        .filter(|segment| segment.starts_with("0x"))
+}
+
+/// Whether a direction key is one of the two directions of a token pair.
+fn direction_key_matches_pair(
+    direction_key: &str,
+    token0_key_id: &str,
+    token1_key_id: &str,
+) -> bool {
+    let Some((input_token_key_id, output_token_key_id)) = direction_key.split_once('>') else {
+        return false;
+    };
+    (input_token_key_id == token0_key_id && output_token_key_id == token1_key_id)
+        || (input_token_key_id == token1_key_id && output_token_key_id == token0_key_id)
 }
 
 /// Fee ceiling used by the **label** only.
@@ -2768,6 +2954,7 @@ mod tests {
         drop(connection);
         materialize_scope(&path, NETWORK, CHAIN_ID, "candidate_exchange", true).unwrap();
         let connection = Connection::open(&path).unwrap();
+        seed_directional_pools(&connection);
         seed_candidate_edge_state(&connection);
         create_consumer_markers(&connection);
         (directory, path)
@@ -3007,6 +3194,94 @@ mod tests {
             Some(1),
             Some(4.0),
         );
+    }
+
+    /// Insert a row of the direction layer.
+    ///
+    /// The exchange layer reads the order of the pools from the direction
+    /// layer, so a fixture that wants a direction to carry a pool has to
+    /// give the direction layer a row to read.  The `pair_key_id` is built
+    /// the way the direction layer builds it, from the **token addresses**
+    /// of the pair.
+    fn insert_directional_pool(
+        connection: &Connection,
+        pool_id: &str,
+        token0: &str,
+        token1: &str,
+        direction: i64,
+        rank: Option<i64>,
+    ) {
+        let token0_key_id = format!("{NETWORK}:{CHAIN_ID}:{token0}");
+        let token1_key_id = format!("{NETWORK}:{CHAIN_ID}:{token1}");
+        // The direction layer's pair key carries the two token addresses
+        // of the pair, in a fixed order.
+        let (pair_address_a, pair_address_b) = if token0.to_lowercase() <= token1.to_lowercase() {
+            (token0, token1)
+        } else {
+            (token1, token0)
+        };
+        let pair_key_id = format!("pair:v1:{CHAIN_ID}:{pair_address_a}:{pair_address_b}");
+        let (input_token_key_id, output_token_key_id) = if direction == 0 {
+            (token0_key_id.clone(), token1_key_id.clone())
+        } else {
+            (token1_key_id.clone(), token0_key_id.clone())
+        };
+        connection
+            .execute(
+                "INSERT INTO manager_v4_directional_exchange_pools (
+                    network, chain_id, protocol, scope_key, base_pool_id,
+                    direction, directional_pool_id, pool_manager, pool_key_json,
+                    token0, token1, token0_key_id, token1_key_id, fee,
+                    tick_spacing, hooks, pair_key_id, input_token_key_id,
+                    output_token_key_id, zero_for_one, pair_direction_rank,
+                    pool_status, materialized_at, updated_at
+                 ) VALUES (?1, ?2, 'uniswap_v4', 'candidate_exchange', ?3, ?4, ?5, ?6, '{}',
+                           ?7, ?8, ?9, ?10, 500, 10, ?11, ?12, ?13, ?14,
+                           ?15, ?16, 'active',
+                           '2026-11-04T00:00:00Z', '2026-11-04T00:00:00Z')",
+                params![
+                    NETWORK,
+                    CHAIN_ID,
+                    pool_id,
+                    direction,
+                    format!("dpool:v1:robinhood:{CHAIN_ID}:candidate_exchange:{pool_id}:{direction}"),
+                    POOL_MANAGER,
+                    token0,
+                    token1,
+                    token0_key_id,
+                    token1_key_id,
+                    ZERO_HOOK,
+                    pair_key_id,
+                    input_token_key_id,
+                    output_token_key_id,
+                    direction == 0,
+                    rank,
+                ],
+            )
+            .unwrap();
+    }
+
+    /// Give the direction layer a row for every pool of the fixture.
+    ///
+    /// The exchange layer takes the order of a group from the direction
+    /// layer, and a pool the direction layer did not rank was never priced
+    /// and is therefore not a candidate of the group.  Every pool of the
+    /// fixture is ranked first in its own group, because the fixture has
+    /// one pool per token pair.
+    fn seed_directional_pools(connection: &Connection) {
+        for (token0, token1) in [
+            (ANCHOR, STOCK),
+            (STOCK, EXT_A),
+            (ANCHOR, EXT_B),
+            (EXT_A, EXT_B),
+            (ANCHOR, EXT_A),
+        ] {
+            let pool_id = pool_key(token0, token1, 500, 10, ZERO_HOOK)
+                .pool_id()
+                .unwrap();
+            insert_directional_pool(connection, &pool_id, token0, token1, 0, Some(1));
+            insert_directional_pool(connection, &pool_id, token0, token1, 1, Some(1));
+        }
     }
 
     fn seed_candidate_edge_state(connection: &Connection) {

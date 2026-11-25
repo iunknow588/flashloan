@@ -1,0 +1,59 @@
+{
+  "command": null,
+  "commandExitCode": null,
+  "commandStderrTail": null,
+  "commandStdoutTail": null,
+  "dataVersionAfter": 2,
+  "dataVersionBefore": 2,
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "fileStateAfter": {
+    "-shm": {
+      "mtimeNs": 1795538406292515200,
+      "size": 32768
+    },
+    "-wal": {
+      "mtimeNs": 1795538530032558700,
+      "size": 9995152
+    },
+    "main": {
+      "mtimeNs": 1795538476347618900,
+      "size": 11581308928
+    }
+  },
+  "fileStateBefore": {
+    "-shm": {
+      "mtimeNs": 1795538406292515200,
+      "size": 32768
+    },
+    "-wal": {
+      "mtimeNs": 1795538530032558700,
+      "size": 9995152
+    },
+    "main": {
+      "mtimeNs": 1795538476347618900,
+      "size": 11581308928
+    }
+  },
+  "gateDiff": {
+    "changedCount": 0,
+    "changedKeys": []
+  },
+  "gateKeyCount": 19,
+  "generatedAt": "2026-11-25T00:42:43.704+08:00",
+  "label": "silent-control-30s",
+  "metaDiff": {
+    "changedCount": 0,
+    "changedKeys": []
+  },
+  "observedDataVersionIncrements": 0,
+  "rowCountsAfter": {
+    "cow_execution_attempts": 0,
+    "cow_execution_reviews": 67041
+  },
+  "rowCountsBefore": {
+    "cow_execution_attempts": 0,
+    "cow_execution_reviews": 67041
+  },
+  "sampleCount": 75,
+  "windowSeconds": 30.094
+}

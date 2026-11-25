@@ -377,6 +377,28 @@ def main():
     ages = [r["ageSeconds"] for r in reviews if r["ageSeconds"] is not None]
     broadcastable = [r for r in reviews if r.get("withinAutomaticBroadcastAgeLimit")]
     not_broadcastable = [r for r in reviews if not r.get("withinAutomaticBroadcastAgeLimit")]
+    # The gate is applied **per review, when that review is published**
+    # (`review_manager/src/lib.rs`: `review_is_fresh_for_automatic_broadcast`
+    # is evaluated on the row that is being written).  The distribution above
+    # measures the window at *reading* time, which is a different question.
+    # These counters answer the gate's own question: did it refuse a
+    # positive review?  The refusal says so in the row's own reason.
+    positive_reviews = [r for r in reviews if r["pnlState"] == "positive"]
+    refused_stale = [
+        r for r in positive_reviews
+        if r.get("reviewReason") and "is stale and cannot trigger automatic broadcast" in r["reviewReason"]
+    ]
+    refused_price_limits = [
+        r for r in positive_reviews
+        if r.get("reviewReason") and "no complete per-hop price limits" in r["reviewReason"]
+    ]
+    reviewed_at_values = sorted(
+        value for value in (r.get("reviewedAt") for r in reviews) if value
+    )
+    generation_span_seconds = None
+    if len(reviewed_at_values) >= 2:
+        span = parse_iso(reviewed_at_values[-1]) - parse_iso(reviewed_at_values[0])
+        generation_span_seconds = span.total_seconds()
 
     loop_keys = [r["loopKey"] for r in reviews]
     duplicated_loop_keys = sorted({k for k in loop_keys if loop_keys.count(k) > 1})
@@ -709,6 +731,10 @@ def main():
                 "staleReviews": len(stale),
                 "oldestAgeSeconds": max(ages) if ages else None,
                 "youngestAgeSeconds": min(ages) if ages else None,
+                # How long the generation itself took to write.  A generation
+                # that takes longer than the observation window cannot have
+                # every one of its reviews fresh at reading time.
+                "generationSpanSeconds": generation_span_seconds,
             },
             "met": bool(reviews) and not stale,
         },
@@ -790,6 +816,31 @@ def main():
                 ),
             },
             "met": True,
+        },
+        {
+            "name": "B7",
+            "group": "freshness",
+            "requirement": (
+                "the gate's own verdict on the new reviews: it refused no "
+                "positive review"
+            ),
+            "observations": {
+                # The gate is applied per review, when that review is
+                # published, so the read-time distribution above answers a
+                # different question.  This one answers the gate's question.
+                "positiveReviews": len(positive_reviews),
+                "refusedByFreshnessGate": len(refused_stale),
+                "refusedByMissingHopPriceLimits": len(refused_price_limits),
+                "broadcastRequestsGenerated": len(broadcast_requests),
+                "generationSpanSeconds": generation_span_seconds,
+                "statement": (
+                    "the freshness gate and the per-hop price-limit gate are "
+                    "judged per review when the review is published; a refusal "
+                    "is written into the row's own reason, so the count of "
+                    "refused positive reviews is the gate's own verdict"
+                ),
+            },
+            "met": bool(positive_reviews) and not refused_stale and not refused_price_limits,
         },
         {
             "name": "C1",

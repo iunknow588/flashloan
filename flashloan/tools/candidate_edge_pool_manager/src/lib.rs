@@ -2,7 +2,6 @@ use manager_contracts::{normalize_address, PairKeyId, TokenKeyId};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::Path;
@@ -12,6 +11,25 @@ const PROTOCOL: &str = "uniswap_v4";
 const SCOPE_KEY: &str = "core4";
 const MAX_RECOMMENDATIONS_PER_HOP: usize = 5;
 
+/// The table the direction layer materialises its rows into.
+///
+/// The direction layer owns the ranking of the pools of one token pair:
+/// it prices both directions of every base pool and gives the rows of one
+/// direction a `pair_direction_rank` inside their group.  The candidate
+/// edge layer used to rank the pools itself; that ranking is now read
+/// from here, so the candidate universe and the closed loop cannot drift
+/// apart.
+const DIRECTIONAL_POOL_TABLE: &str = "manager_v4_directional_exchange_pools";
+
+/// The stable wire label for the version 2 directional ranking.
+///
+/// The order is now the direction layer's `pair_direction_rank`; the
+/// candidate layer no longer prices the pools itself.  The label is a
+/// public compatibility contract: pool pairs, recommendations, manager
+/// views and materialized checksums must all report the same value.
+pub const SELECTION_BASIS_DIRECTIONAL_PAIR_DIRECTION_RANK: &str =
+    "directional_pair_direction_rank";
+
 /// The libraries that hold **fund tokens**.
 ///
 /// A fund token is an asset the flash-loan arbiter may borrow and repay.
@@ -20,14 +38,6 @@ const MAX_RECOMMENDATIONS_PER_HOP: usize = 5;
 /// `TZ` is a fund token filed in the `test` library, so anchoring on
 /// `core` alone would drop a legitimate fund token.
 const FUND_TOKEN_LIBRARY_KEYS: &[&str] = &["core", "stocks", "test"];
-/// The stable wire label for the version 1 directional ranking.
-///
-/// Candidates are ranked by normalized single-tick exact output first,
-/// then by the directional tick ordering, fee and pool id. The label is a
-/// public compatibility contract: pool pairs, recommendations, manager
-/// views and materialized checksums must all report the same value.
-pub const SELECTION_BASIS_DIRECTION_SINGLE_TICK_EXACT_OUTPUT_THEN_TICK_FEE_POOL_ID: &str =
-    "direction_single_tick_exact_output_then_tick_fee_pool_id";
 /// The reference trade is this fraction of the pool's own single-tick
 /// capacity.
 ///
@@ -42,7 +52,6 @@ const REFERENCE_TRADE_CAPACITY_FRACTION: u128 = 16;
 const MAX_REQUEST_ID_LENGTH: usize = 128;
 const MAX_IDEMPOTENCY_KEY_LENGTH: usize = 256;
 const MAX_SNAPSHOT_LIMIT: usize = 1_000;
-const Q96: f64 = 79_228_162_514_264_337_593_543_950_336.0;
 
 #[derive(Debug)]
 pub enum CandidateEdgeError {
@@ -535,6 +544,25 @@ struct CandidateInput {
     catalog: BTreeMap<String, CatalogToken>,
     anchors: BTreeSet<String>,
     pools: Vec<ScopePool>,
+    /// The direction layer's ranking of the pools, keyed by
+    /// `(pair_key_id, base_pool_id, direction_key)`.
+    ///
+    /// The candidate layer does not price the pools any more: it reads the
+    /// order the direction layer published.  A pool that the direction
+    /// layer did not rank is **not** a candidate -- an unpriced pool was
+    /// never a candidate of its group.
+    directional_ranks: BTreeMap<(String, String, String), Option<i64>>,
+}
+
+/// The ranking of the pools of one direction, as the direction layer
+/// published it.
+#[derive(Debug, Clone, Default)]
+struct DirectionalRanking {
+    /// The rank of every ranked pool of the group, in rank order.
+    ///
+    /// The key is the base pool id and the value is the rank the
+    /// direction layer gave that pool inside its group.
+    ranked: BTreeMap<String, i64>,
 }
 
 #[derive(Default)]
@@ -554,11 +582,11 @@ struct DesiredCandidateData {
 #[derive(Debug, Clone)]
 struct Recommendation {
     pool_id: String,
+    /// The score the recommendation is published with.
+    ///
+    /// The order comes from the direction layer's rank, so the score the
+    /// recommendation carries is that rank.
     score: f64,
-    /// The tick ordering rank of the pool for the ranked direction.
-    tick_rank: Option<i64>,
-    /// The exact output of the reference single-tick swap, in decimal units.
-    exact_output: Option<f64>,
     fee: i64,
 }
 
@@ -992,6 +1020,7 @@ fn read_candidate_input(
         })
     })?;
     let pools = pool_rows.collect::<Result<Vec<_>, _>>()?;
+    let directional_ranks = read_directional_ranks(connection, network, chain_id)?;
 
     Ok(CandidateInput {
         pool_scope_checksum,
@@ -1000,7 +1029,113 @@ fn read_candidate_input(
         catalog,
         anchors,
         pools,
+        directional_ranks,
     })
+}
+
+/// Read the direction layer's ranking of the pools of every direction.
+///
+/// The candidate layer no longer prices the pools itself, so the order it
+/// publishes has to come from the direction layer.  This reads the rank
+/// the direction layer gave every pool of every direction.
+///
+/// A row without a rank is **not** a candidate.  The direction layer only
+/// ranks the pools it priced, so an unranked row was never priced and
+/// never was a candidate of its group.  The closed loop already follows
+/// this rule, so the candidate universe and the closed loop agree on
+/// which pools exist.
+///
+/// A store that does not carry the direction table yet has **no**
+/// direction layer: the candidate layer then has no ranking to read and
+/// publishes no recommendation, rather than publishing one of its own.
+fn read_directional_ranks(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+) -> Result<BTreeMap<(String, String, String), Option<i64>>, CandidateEdgeError> {
+    let mut ranks = BTreeMap::new();
+    let table_exists: bool = connection.query_row(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
+        params![DIRECTIONAL_POOL_TABLE],
+        |row| row.get::<_, i64>(0),
+    )? > 0;
+    if !table_exists {
+        return Ok(ranks);
+    }
+    // A store written before the rank column existed has no ranking to
+    // read.  The reader asks the store instead of assuming.
+    let has_rank = table_has_column(connection, DIRECTIONAL_POOL_TABLE, "pair_direction_rank")?;
+    let rank_expression = if has_rank { "pair_direction_rank" } else { "NULL" };
+    let sql = format!(
+        "SELECT pair_key_id, base_pool_id, input_token_key_id, output_token_key_id,
+                {rank_expression}
+         FROM {DIRECTIONAL_POOL_TABLE}
+         WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4
+         ORDER BY pair_key_id, base_pool_id, direction"
+    );
+    let mut statement = connection.prepare(&sql)?;
+    let rows = statement.query_map(
+        params![network, chain_id, PROTOCOL, SCOPE_KEY],
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, Option<i64>>(4)?,
+            ))
+        },
+    )?;
+    for row in rows {
+        let (pair_key_id, base_pool_id, input_token_key_id, output_token_key_id, rank) = row?;
+        let direction_key = format!("{input_token_key_id}>{output_token_key_id}");
+        ranks.insert((pair_key_id, base_pool_id, direction_key), rank);
+    }
+    Ok(ranks)
+}
+
+/// Whether a table carries a column.
+///
+/// A store that was written before a column existed still answers the
+/// other questions, so the reader asks the store instead of assuming.
+fn table_has_column(
+    connection: &Connection,
+    table: &str,
+    column: &str,
+) -> Result<bool, CandidateEdgeError> {
+    let Ok(mut statement) = connection.prepare(&format!("PRAGMA table_info({table})")) else {
+        return Ok(false);
+    };
+    let Ok(rows) = statement.query_map([], |row| row.get::<_, String>(1)) else {
+        return Ok(false);
+    };
+    let found = rows.flatten().any(|name| name == column);
+    Ok(found)
+}
+
+/// The direction layer's ranking of the pools of one direction.
+///
+/// The group is the set of pools of one token pair in one direction.  The
+/// rank the direction layer gave a pool inside that group is the order
+/// the candidate layer publishes.  Only a ranked pool is a member: a pool
+/// the direction layer did not price is not a candidate of the group.
+fn directional_ranking(
+    ranks: &BTreeMap<(String, String, String), Option<i64>>,
+    pair_key_id: &str,
+    direction_key: &str,
+) -> DirectionalRanking {
+    let mut ranking = DirectionalRanking::default();
+    for ((rank_pair_key_id, base_pool_id, rank_direction_key), rank) in ranks {
+        if rank_pair_key_id != pair_key_id || rank_direction_key != direction_key {
+            continue;
+        }
+        let Some(rank) = rank else {
+            // An unranked row was never priced, so it is not a candidate.
+            continue;
+        };
+        ranking.ranked.insert(base_pool_id.clone(), *rank);
+    }
+    ranking
 }
 
 fn validate_expected_upstream(
@@ -1039,6 +1174,42 @@ fn validate_expected_upstream(
         }
     }
     Ok(())
+}
+
+/// The recommendations of one direction, in the direction layer's order.
+///
+/// The direction layer's rank is the order.  A pool the direction layer
+/// ranked is a recommendation; a pool it did not rank was never priced
+/// and is not a candidate of the group.  The recommendations are capped
+/// at `MAX_RECOMMENDATIONS_PER_HOP` exactly like the ranking they replace.
+fn recommendations_from_ranking(
+    ranking: &DirectionalRanking,
+    active_pools: &[ScopePool],
+) -> Vec<Recommendation> {
+    let mut ranked_ids = ranking
+        .ranked
+        .iter()
+        .map(|(pool_id, rank)| (pool_id.clone(), *rank))
+        .collect::<Vec<_>>();
+    ranked_ids.sort_by(|left, right| left.1.cmp(&right.1).then_with(|| left.0.cmp(&right.0)));
+    let mut recommendations = Vec::new();
+    for (pool_id, rank) in ranked_ids {
+        if recommendations.len() >= MAX_RECOMMENDATIONS_PER_HOP {
+            break;
+        }
+        // The ranking names a pool of the group; the pool itself comes
+        // from the scope.  A pool the scope does not carry is not a
+        // candidate of the scope, so it is not published.
+        let Some(pool) = active_pools.iter().find(|pool| pool.pool_id == pool_id) else {
+            continue;
+        };
+        recommendations.push(Recommendation {
+            pool_id: pool.pool_id.clone(),
+            score: rank as f64,
+            fee: pool.fee,
+        });
+    }
+    recommendations
 }
 
 fn build_candidate_rows(
@@ -1100,18 +1271,26 @@ fn build_candidate_rows(
             .cloned()
             .collect::<Vec<_>>();
         if !active_pools.is_empty() {
-            let first_recommendations = recommend_direction(
-                &active_pools,
-                &anchor_token_key_id,
-                &candidate_token_key_id,
-                &input.catalog,
+            // The order comes from the direction layer: it priced both
+            // directions of every base pool and ranked the pools of each
+            // direction.  The candidate layer publishes that order
+            // instead of pricing the pools a second time.
+            let first_ranking = directional_ranking(
+                &input.directional_ranks,
+                &pair_key_id,
+                &first_direction_key,
             );
-            let third_recommendations = recommend_direction(
-                &active_pools,
-                &candidate_token_key_id,
-                &anchor_token_key_id,
-                &input.catalog,
+            let third_ranking = directional_ranking(
+                &input.directional_ranks,
+                &pair_key_id,
+                &third_direction_key,
             );
+            let first_recommendations = recommendations_from_ranking(
+                &first_ranking,
+                &active_pools,
+            );
+            let third_recommendations =
+                recommendations_from_ranking(&third_ranking, &active_pools);
             let first_ids = first_recommendations
                 .iter()
                 .map(|item| item.pool_id.clone())
@@ -1148,7 +1327,7 @@ fn build_candidate_rows(
                 first_backup_pool_ids: first_ids.iter().skip(1).cloned().collect(),
                 third_backup_pool_ids: third_ids.iter().skip(1).cloned().collect(),
                 selection_basis:
-                    SELECTION_BASIS_DIRECTION_SINGLE_TICK_EXACT_OUTPUT_THEN_TICK_FEE_POOL_ID
+                    SELECTION_BASIS_DIRECTIONAL_PAIR_DIRECTION_RANK
                         .to_owned(),
             });
 
@@ -1204,7 +1383,7 @@ fn build_candidate_rows(
                         depth_score: recommendation.score,
                         fee: recommendation.fee,
                         selection_basis:
-                            SELECTION_BASIS_DIRECTION_SINGLE_TICK_EXACT_OUTPUT_THEN_TICK_FEE_POOL_ID
+                            SELECTION_BASIS_DIRECTIONAL_PAIR_DIRECTION_RANK
                                 .to_owned(),
                     });
                 }
@@ -1325,100 +1504,6 @@ fn validate_scope_pool(
     Ok(())
 }
 
-fn recommend_direction(
-    pools: &[ScopePool],
-    token_in_key_id: &str,
-    token_out_key_id: &str,
-    catalog: &BTreeMap<String, CatalogToken>,
-) -> Vec<Recommendation> {
-    let mut recommendations = pools
-        .iter()
-        .map(|pool| Recommendation {
-            pool_id: pool.pool_id.clone(),
-            score: directional_score(pool, token_in_key_id, token_out_key_id, catalog),
-            // The direction the pool is priced in, expressed as the tick
-            // ordering: a rising tick means the token1 leg gets cheaper in
-            // token0 terms. See `tick_ordering_rank`.
-            tick_rank: tick_ordering_rank(pool, token_in_key_id),
-            // The exact output the pool would produce for the reference
-            // trade, in decimal-normalised output units. This is the
-            // quantity the arbiter actually executes, so it is the ranking
-            // key that matches the decision.
-            exact_output: exact_directional_output(pool, token_in_key_id, catalog),
-            fee: pool.fee,
-        })
-        .collect::<Vec<_>>();
-    // The price ordering of two pools of the SAME token pair is exactly the
-    // ordering of their ticks: the tick is the log-price of the pool, so it
-    // is a strictly monotone function of the price. Within one tick range
-    // the liquidity is constant, which is the regime the first arbitrage
-    // version prices in, so the tick comparison is an EXACT comparison and
-    // not an approximation.
-    //
-    // The tick alone is not the whole answer, because the fee decides how
-    // much of the input reaches the curve. The old ranking used the
-    // floating-point rate multiplied by the fee complement, which is the
-    // MARGINAL rate and therefore only correct to first order. The ranking
-    // now uses the exact single-tick swap output, which is what the
-    // arbiter actually executes.
-    //
-    // The exact output is compared on decimal-normalised units, so pools
-    // with different token decimals stay comparable.
-    recommendations.sort_by(|left, right| {
-        // The exact output is the strongest signal: it is the amount the
-        // arbiter would really receive.
-        match (left.exact_output, right.exact_output) {
-            (Some(left_output), Some(right_output)) => right_output
-                .partial_cmp(&left_output)
-                .unwrap_or(Ordering::Equal)
-                // Two pools can share a tick and still differ in price: the
-                // tick is a coarse bucket on the log-price scale, so two
-                // pools whose prices differ by less than one tick unit land
-                // in the same bucket. The tick orders the buckets exactly,
-                // and the exact output breaks the tie inside a bucket.
-                .then_with(|| {
-                    right
-                        .tick_rank
-                        .partial_cmp(&left.tick_rank)
-                        .unwrap_or(Ordering::Equal)
-                })
-                .then_with(|| left.fee.cmp(&right.fee))
-                .then_with(|| left.pool_id.cmp(&right.pool_id)),
-            _ => match (left.tick_rank, right.tick_rank) {
-                (Some(left_rank), Some(right_rank)) => right_rank
-                    .cmp(&left_rank)
-                    .then_with(|| {
-                        right
-                            .score
-                            .partial_cmp(&left.score)
-                            .unwrap_or(Ordering::Equal)
-                    })
-                    .then_with(|| left.fee.cmp(&right.fee))
-                    .then_with(|| left.pool_id.cmp(&right.pool_id)),
-                _ => right
-                    .score
-                    .partial_cmp(&left.score)
-                    .unwrap_or(Ordering::Equal)
-                    .then_with(|| left.fee.cmp(&right.fee))
-                    .then_with(|| left.pool_id.cmp(&right.pool_id)),
-            },
-        }
-    });
-    recommendations.truncate(MAX_RECOMMENDATIONS_PER_HOP);
-    recommendations
-}
-
-/// The tick ordering of a pool for one direction, or `None` when the pool
-/// carries no usable tick.
-///
-/// The tick is the pool's own log-price coordinate. For a token0 -> token1
-/// swap a HIGHER tick means more token1 per token0, so the higher tick is
-/// the better price and the rank is the tick itself. For a token1 -> token0
-/// swap the direction is reversed, so the rank is the negated tick: the
-/// higher the rank, the better the price.
-///
-/// The two directions therefore rank the same pool set in opposite orders,
-/// which is what lets the YC and ZC legs pick different pools.
 fn tick_ordering_rank(pool: &ScopePool, token_in_key_id: &str) -> Option<i64> {
     let tick = pool.tick?;
     if tick == 0 && pool.sqrt_price_x96.is_none() {
@@ -1592,72 +1677,6 @@ fn parse_u128(value: &str) -> Option<u128> {
         u128::from_str_radix(hex, 16).ok()
     } else {
         value.parse::<u128>().ok()
-    }
-}
-
-fn directional_score(
-    pool: &ScopePool,
-    token_in_key_id: &str,
-    token_out_key_id: &str,
-    catalog: &BTreeMap<String, CatalogToken>,
-) -> f64 {
-    let fee_factor = 1.0 - (pool.fee.max(0) as f64 / 1_000_000.0);
-    let token_in = catalog.get(token_in_key_id);
-    let token_out = catalog.get(token_out_key_id);
-    let sqrt_price = pool
-        .sqrt_price_x96
-        .as_deref()
-        .and_then(parse_integerish)
-        .map(|value| value / Q96)
-        .unwrap_or(0.0);
-    if sqrt_price > 0.0 {
-        let token0_price = sqrt_price * sqrt_price;
-        if token0_price.is_finite() && token0_price > 0.0 {
-            let mut rate = if token_in_key_id == pool.token0_key_id {
-                token0_price
-            } else {
-                1.0 / token0_price
-            };
-            if let (Some(token_in), Some(token_out)) = (token_in, token_out) {
-                let exponent =
-                    i32::from(token_out.token_decimals) - i32::from(token_in.token_decimals);
-                rate *= 10_f64.powi(exponent);
-            }
-            if rate.is_finite() && rate > 0.0 {
-                return rate.max(0.0) * fee_factor;
-            }
-        }
-    }
-    if let Some(price) = pool.price.filter(|value| value.is_finite() && *value > 0.0) {
-        let rate = if token_in_key_id == pool.token1_key_id {
-            1.0 / price
-        } else {
-            price
-        };
-        return rate.max(0.0) * fee_factor;
-    }
-    pool.liquidity_index
-        .filter(|value| value.is_finite() && *value > 0.0)
-        .unwrap_or(fee_factor)
-}
-
-fn parse_integerish(value: &str) -> Option<f64> {
-    let value = value.trim();
-    if let Some(hex) = value
-        .strip_prefix("0x")
-        .or_else(|| value.strip_prefix("0X"))
-    {
-        if hex.is_empty() {
-            return None;
-        }
-        let mut parsed = 0.0;
-        for digit in hex.bytes() {
-            let value = (digit as char).to_digit(16)? as f64;
-            parsed = parsed * 16.0 + value;
-        }
-        Some(parsed)
-    } else {
-        value.parse::<f64>().ok()
     }
 }
 
@@ -3173,7 +3192,7 @@ mod tests {
         compare_candidate_edges, materialize_candidate_edges, materialize_candidate_edges_write,
         read_candidate_snapshot, CandidateEdgeError, CandidateEdgeSnapshot,
         CandidateEdgeWriteRequest, ExpectedUpstream,
-        SELECTION_BASIS_DIRECTION_SINGLE_TICK_EXACT_OUTPUT_THEN_TICK_FEE_POOL_ID,
+        SELECTION_BASIS_DIRECTIONAL_PAIR_DIRECTION_RANK,
     };
     use rusqlite::{params, Connection};
 
@@ -3370,6 +3389,71 @@ mod tests {
                     tick,
                     liquidity_index,
                     status
+                ],
+            )
+            .unwrap();
+    }
+
+    /// Insert a row of the direction layer.
+    ///
+    /// The candidate layer reads the order of the pools from the direction
+    /// layer, so a fixture that wants a recommendation has to give the
+    /// direction layer a row to read.  The `pair_key_id` is built the way
+    /// the direction layer builds it, from the **token addresses** of the
+    /// pair.
+    fn insert_directional_pool(
+        connection: &Connection,
+        pool_id: &str,
+        token0: &str,
+        token1: &str,
+        direction: i64,
+        rank: Option<i64>,
+    ) {
+        let token0_key_id = format!("{NETWORK}:{CHAIN_ID}:{token0}");
+        let token1_key_id = format!("{NETWORK}:{CHAIN_ID}:{token1}");
+        // The direction layer's pair key carries the two token addresses
+        // of the pair, in a fixed order.
+        let (pair_address_a, pair_address_b) = if token0.to_lowercase() <= token1.to_lowercase() {
+            (token0, token1)
+        } else {
+            (token1, token0)
+        };
+        let pair_key_id = format!("pair:v1:{CHAIN_ID}:{pair_address_a}:{pair_address_b}");
+        let (input_token_key_id, output_token_key_id) = if direction == 0 {
+            (token0_key_id.clone(), token1_key_id.clone())
+        } else {
+            (token1_key_id.clone(), token0_key_id.clone())
+        };
+        connection
+            .execute(
+                "INSERT INTO manager_v4_directional_exchange_pools (
+                    network, chain_id, protocol, scope_key, base_pool_id,
+                    direction, directional_pool_id, pool_manager, pool_key_json,
+                    token0, token1, token0_key_id, token1_key_id, fee,
+                    tick_spacing, hooks, pair_key_id, input_token_key_id,
+                    output_token_key_id, zero_for_one, pair_direction_rank,
+                    pool_status, materialized_at, updated_at
+                 ) VALUES (?1, ?2, 'uniswap_v4', 'core4', ?3, ?4, ?5, ?6, '{}',
+                           ?7, ?8, ?9, ?10, 500, 10, ?11, ?12, ?13, ?14,
+                           ?15, ?16, 'active',
+                           '2026-11-04T00:00:00Z', '2026-11-04T00:00:00Z')",
+                params![
+                    NETWORK,
+                    CHAIN_ID,
+                    pool_id,
+                    direction,
+                    format!("dpool:v1:robinhood:{CHAIN_ID}:core4:{pool_id}:{direction}"),
+                    POOL_MANAGER,
+                    token0,
+                    token1,
+                    token0_key_id,
+                    token1_key_id,
+                    ZERO_HOOK,
+                    pair_key_id,
+                    input_token_key_id,
+                    output_token_key_id,
+                    direction == 0,
+                    rank,
                 ],
             )
             .unwrap();
@@ -3650,6 +3734,12 @@ mod tests {
             None,
             Some(0.1),
         );
+        // The candidate layer publishes the order of the direction layer,
+        // so the fixtures have to give the direction layer its rows.
+        insert_directional_pool(&connection, "pool-usdg-ta", USDG, TA, 0, Some(1));
+        insert_directional_pool(&connection, "pool-usdg-ta", USDG, TA, 1, Some(1));
+        insert_directional_pool(&connection, "pool-usdg-tb", USDG, TB, 0, Some(1));
+        insert_directional_pool(&connection, "pool-usdg-tb", USDG, TB, 1, Some(1));
         drop(connection);
 
         let dry = materialize_candidate_edges(&database, NETWORK, CHAIN_ID, false).unwrap();
@@ -3739,17 +3829,12 @@ mod tests {
     }
 
     #[test]
-    fn the_two_directions_rank_the_same_pools_in_opposite_tick_order() {
+    fn the_candidate_edge_publishes_the_order_of_the_direction_layer() {
         let (_directory, database) = database();
         let connection = Connection::open(&database).unwrap();
-        // Three pools of the SAME token pair. Within one pair the tick is a
-        // strictly monotone function of the price, so the price ordering and
-        // the tick ordering are the same ordering.
-        //
-        // Each pool carries a price that is CONSISTENT with its tick, the
-        // way a real pool state does: the price of a pool at tick T is
-        // 1.0001^T, so a pool at tick 0 sits at price 1 and a pool at tick
-        // 600 sits at 1.0001^600.
+        // Three pools of the SAME token pair.  The direction layer priced
+        // both directions of every one of them and ranked them inside
+        // their group; the candidate layer publishes that order.
         for (pool_id, tick, sqrt_price_x96) in [
             (
                 "pool-usdg-ta-low",
@@ -3775,14 +3860,27 @@ mod tests {
                 tick,
             );
         }
+        // The direction layer ranked the first hop (USDG -> TA) with the
+        // high pool first, and the third hop (TA -> USDG) with the low
+        // pool first -- the two directions are priced in opposite
+        // orders, exactly as they were when the candidate layer priced
+        // the pools itself.
+        for (pool_id, first_rank, third_rank) in [
+            ("pool-usdg-ta-high", Some(1_i64), Some(3_i64)),
+            ("pool-usdg-ta-mid", Some(2_i64), Some(2_i64)),
+            ("pool-usdg-ta-low", Some(3_i64), Some(1_i64)),
+        ] {
+            insert_directional_pool(&connection, pool_id, USDG, TA, 0, first_rank);
+            insert_directional_pool(&connection, pool_id, USDG, TA, 1, third_rank);
+        }
         drop(connection);
 
         let result = materialize_candidate_edges(&database, NETWORK, CHAIN_ID, true).unwrap();
         assert_eq!(result.recommendation_count, 6);
         let snapshot = read_candidate_snapshot(&database, NETWORK, CHAIN_ID, None, 100).unwrap();
 
-        // USDG is the token0 of every pool, so the first hop is token0 ->
-        // token1, where a HIGHER tick is the better price.
+        // The first hop publishes the direction layer's order of the
+        // USDG -> TA direction.
         let first: Vec<&str> = snapshot
             .recommendations
             .iter()
@@ -3792,11 +3890,11 @@ mod tests {
         assert_eq!(
             first,
             vec!["pool-usdg-ta-high", "pool-usdg-ta-mid", "pool-usdg-ta-low"],
-            "the first hop must rank by descending tick: {first:?}"
+            "the first hop must publish the rank of the direction layer: {first:?}"
         );
 
-        // The third hop is token1 -> token0, where a LOWER tick is the
-        // better price, so the order is reversed.
+        // The third hop publishes the direction layer's order of the
+        // TA -> USDG direction.
         let third: Vec<&str> = snapshot
             .recommendations
             .iter()
@@ -3806,16 +3904,46 @@ mod tests {
         assert_eq!(
             third,
             vec!["pool-usdg-ta-low", "pool-usdg-ta-mid", "pool-usdg-ta-high"],
-            "the third hop must rank by ascending tick: {third:?}"
+            "the third hop must publish the rank of the direction layer: {third:?}"
         );
     }
 
     #[test]
-    fn the_tick_ordering_beats_the_float_rate_when_the_rates_are_nearly_equal() {
+    fn a_pool_the_direction_layer_did_not_rank_is_not_a_candidate() {
         let (_directory, database) = database();
         let connection = Connection::open(&database).unwrap();
-        // Two pools whose rates differ far below the resolution of the
-        // floating point path. The tick ordering separates them exactly.
+        insert_scope_pool(&connection, "pool-usdg-ta", USDG, TA, "active", 500, None, Some(0.25));
+        insert_scope_pool(&connection, "pool-usdg-tb", USDG, TB, "active", 500, None, Some(0.25));
+        // The direction layer priced one pool of the pair and did not price
+        // the other one: the unpriced pool has no rank.
+        insert_directional_pool(&connection, "pool-usdg-ta", USDG, TA, 0, Some(1));
+        insert_directional_pool(&connection, "pool-usdg-ta", USDG, TA, 1, Some(1));
+        insert_directional_pool(&connection, "pool-usdg-tb", USDG, TB, 0, None);
+        insert_directional_pool(&connection, "pool-usdg-tb", USDG, TB, 1, None);
+        drop(connection);
+
+        materialize_candidate_edges(&database, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_candidate_snapshot(&database, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let recommended: Vec<&str> = snapshot
+            .recommendations
+            .iter()
+            .map(|row| row.pool_id.as_str())
+            .collect();
+        assert_eq!(
+            recommended,
+            vec!["pool-usdg-ta", "pool-usdg-ta"],
+            "only a pool the direction layer ranked is a candidate: {recommended:?}"
+        );
+    }
+
+    #[test]
+    fn the_candidate_edge_does_not_price_the_pools_itself() {
+        let (_directory, database) = database();
+        let connection = Connection::open(&database).unwrap();
+        // Two pools of the same pair whose rates differ far below the
+        // resolution of the floating point path.  The candidate layer does
+        // not price them any more: the direction layer did, and its order
+        // is the order that is published.
         insert_scope_pool_with_tick(
             &connection,
             "pool-usdg-ta-lower",
@@ -3838,6 +3966,14 @@ mod tests {
             Some(0.25),
             1,
         );
+        // The direction layer ranked the LOWER tick first.  The candidate
+        // layer has to publish that order, even though the tick of the
+        // pool would have decided the other way when the candidate layer
+        // priced the pools itself.
+        insert_directional_pool(&connection, "pool-usdg-ta-lower", USDG, TA, 0, Some(1));
+        insert_directional_pool(&connection, "pool-usdg-ta-lower", USDG, TA, 1, Some(1));
+        insert_directional_pool(&connection, "pool-usdg-ta-higher", USDG, TA, 0, Some(2));
+        insert_directional_pool(&connection, "pool-usdg-ta-higher", USDG, TA, 1, Some(2));
         drop(connection);
 
         materialize_candidate_edges(&database, NETWORK, CHAIN_ID, true).unwrap();
@@ -3848,17 +3984,17 @@ mod tests {
             .filter(|row| row.hop == "first")
             .map(|row| row.pool_id.as_str())
             .collect();
-        assert_eq!(first[0], "pool-usdg-ta-higher", "{first:?}");
+        assert_eq!(
+            first,
+            vec!["pool-usdg-ta-lower", "pool-usdg-ta-higher"],
+            "the candidate layer must publish the order of the direction layer: {first:?}"
+        );
     }
 
     #[test]
-    fn a_pool_without_a_price_never_outranks_a_pool_with_one() {
+    fn a_pool_the_direction_layer_ranked_beats_a_pool_it_did_not_rank() {
         let (_directory, database) = database();
         let connection = Connection::open(&database).unwrap();
-        // The pool WITHOUT a price has a low tick and a low fee, so the
-        // floating-point fallback used to score it at the fee complement
-        // (close to 1.0) and it won the recommendation even though it
-        // carries no price at all.
         insert_scope_pool_with_tick(
             &connection,
             "pool-usdg-ta-no-price",
@@ -3870,8 +4006,6 @@ mod tests {
             Some(0.25),
             -600,
         );
-        // The pool WITH a price has a higher tick and a higher fee, so its
-        // marginal rate is lower than the priceless pool's fallback score.
         let priced = sqrt_price_at_tick(600);
         insert_scope_pool_with_tick(
             &connection,
@@ -3884,6 +4018,11 @@ mod tests {
             Some(0.25),
             600,
         );
+        // The direction layer priced only the priced pool.
+        insert_directional_pool(&connection, "pool-usdg-ta-priced", USDG, TA, 0, Some(1));
+        insert_directional_pool(&connection, "pool-usdg-ta-priced", USDG, TA, 1, Some(1));
+        insert_directional_pool(&connection, "pool-usdg-ta-no-price", USDG, TA, 0, None);
+        insert_directional_pool(&connection, "pool-usdg-ta-no-price", USDG, TA, 1, None);
         drop(connection);
 
         materialize_candidate_edges(&database, NETWORK, CHAIN_ID, true).unwrap();
@@ -3895,28 +4034,16 @@ mod tests {
             .map(|row| row.pool_id.as_str())
             .collect();
         assert_eq!(
-            first[0], "pool-usdg-ta-priced",
-            "a pool without a price must never win the recommendation: {first:?}"
+            first,
+            vec!["pool-usdg-ta-priced"],
+            "a pool the direction layer did not price is not a candidate: {first:?}"
         );
     }
 
     #[test]
-    fn the_exact_output_ranking_beats_the_marginal_rate_ranking() {
+    fn the_candidate_edge_publishes_every_pool_the_direction_layer_ranked() {
         let (_directory, database) = database();
         let connection = Connection::open(&database).unwrap();
-        // Two pools of the same pair:
-        //
-        // * the first has the BETTER price but a much higher fee;
-        // * the second has the WORSE price but a much lower fee.
-        //
-        // The marginal rate (price x fee complement) prefers the first pool.
-        // The exact single-tick output for one whole input token prefers the
-        // second pool, because the fee is taken off the input before the
-        // curve is walked, so a high fee costs more than the marginal rate
-        // suggests once the trade is large enough to move the price.
-        //
-        // The arbiter executes the exact output, so the ranking has to
-        // follow the exact output.
         let low_fee_high_price = sqrt_price_at_tick(0);
         let high_fee_low_price = sqrt_price_at_tick(-600);
         insert_scope_pool_with_tick(
@@ -3941,6 +4068,10 @@ mod tests {
             Some(0.25),
             -600,
         );
+        insert_directional_pool(&connection, "pool-usdg-ta-cheap-fee", USDG, TA, 0, Some(1));
+        insert_directional_pool(&connection, "pool-usdg-ta-cheap-fee", USDG, TA, 1, Some(1));
+        insert_directional_pool(&connection, "pool-usdg-ta-dear-fee", USDG, TA, 0, Some(2));
+        insert_directional_pool(&connection, "pool-usdg-ta-dear-fee", USDG, TA, 1, Some(2));
         drop(connection);
 
         materialize_candidate_edges(&database, NETWORK, CHAIN_ID, true).unwrap();
@@ -3952,26 +4083,23 @@ mod tests {
             .map(|row| row.pool_id.as_str())
             .collect();
         assert_eq!(first.len(), 2, "{first:?}");
-        // The exact output decides, not the marginal rate.
         assert_eq!(
-            first[0], "pool-usdg-ta-cheap-fee",
-            "the exact single-tick output must decide the ranking: {first:?}"
+            first,
+            vec!["pool-usdg-ta-cheap-fee", "pool-usdg-ta-dear-fee"],
+            "the candidate layer must publish the order of the direction layer: {first:?}"
         );
     }
 
     #[test]
-    fn two_pools_with_the_same_tick_are_ordered_by_their_price() {
+    fn the_recommendation_order_follows_the_rank_and_not_the_pool_id() {
         let (_directory, database) = database();
         let connection = Connection::open(&database).unwrap();
-        // Two pools whose prices differ by less than one tick unit land in
-        // the SAME tick bucket. The tick orders the buckets; the price
-        // breaks the tie inside a bucket.
-        //
-        // The higher price is the one with the LARGER sqrt price, and for
-        // a token0 -> token1 swap the larger sqrt price is the better rate.
+        // Two pools of the same pair.  The pool ids and the ranks of the
+        // direction layer disagree, so the published order can only come
+        // from the rank.
         insert_scope_pool_with_tick(
             &connection,
-            "pool-usdg-ta-same-tick-lower-price",
+            "pool-usdg-ta-aaa",
             USDG,
             TA,
             "active",
@@ -3982,7 +4110,7 @@ mod tests {
         );
         insert_scope_pool_with_tick(
             &connection,
-            "pool-usdg-ta-same-tick-higher-price",
+            "pool-usdg-ta-zzz",
             USDG,
             TA,
             "active",
@@ -3991,6 +4119,10 @@ mod tests {
             Some(0.25),
             42,
         );
+        insert_directional_pool(&connection, "pool-usdg-ta-zzz", USDG, TA, 0, Some(1));
+        insert_directional_pool(&connection, "pool-usdg-ta-zzz", USDG, TA, 1, Some(1));
+        insert_directional_pool(&connection, "pool-usdg-ta-aaa", USDG, TA, 0, Some(2));
+        insert_directional_pool(&connection, "pool-usdg-ta-aaa", USDG, TA, 1, Some(2));
         drop(connection);
 
         materialize_candidate_edges(&database, NETWORK, CHAIN_ID, true).unwrap();
@@ -4002,13 +4134,14 @@ mod tests {
             .map(|row| row.pool_id.as_str())
             .collect();
         assert_eq!(
-            first[0], "pool-usdg-ta-same-tick-higher-price",
-            "the higher price must win inside one tick bucket: {first:?}"
+            first,
+            vec!["pool-usdg-ta-zzz", "pool-usdg-ta-aaa"],
+            "the rank of the direction layer must decide the order, not the pool id: {first:?}"
         );
     }
 
     #[test]
-    fn the_recommendation_basis_records_the_single_tick_exact_output_ordering() {
+    fn the_recommendation_basis_records_the_directional_rank_ordering() {
         let (_directory, database) = database();
         let connection = Connection::open(&database).unwrap();
         insert_scope_pool_with_tick(
@@ -4022,6 +4155,8 @@ mod tests {
             Some(0.25),
             120,
         );
+        insert_directional_pool(&connection, "pool-usdg-ta", USDG, TA, 0, Some(1));
+        insert_directional_pool(&connection, "pool-usdg-ta", USDG, TA, 1, Some(1));
         drop(connection);
 
         materialize_candidate_edges(&database, NETWORK, CHAIN_ID, true).unwrap();
@@ -4030,14 +4165,14 @@ mod tests {
         for row in &snapshot.recommendations {
             assert_eq!(
                 row.selection_basis,
-                SELECTION_BASIS_DIRECTION_SINGLE_TICK_EXACT_OUTPUT_THEN_TICK_FEE_POOL_ID,
+                SELECTION_BASIS_DIRECTIONAL_PAIR_DIRECTION_RANK,
                 "{row:?}"
             );
         }
         for row in &snapshot.pool_pairs {
             assert_eq!(
                 row.selection_basis,
-                SELECTION_BASIS_DIRECTION_SINGLE_TICK_EXACT_OUTPUT_THEN_TICK_FEE_POOL_ID,
+                SELECTION_BASIS_DIRECTIONAL_PAIR_DIRECTION_RANK,
                 "{row:?}"
             );
         }
@@ -4087,7 +4222,7 @@ mod tests {
         assert!(!labels.is_empty(), "{snapshot:#?}");
         for label in &labels {
             assert_eq!(
-                *label, SELECTION_BASIS_DIRECTION_SINGLE_TICK_EXACT_OUTPUT_THEN_TICK_FEE_POOL_ID,
+                *label, SELECTION_BASIS_DIRECTIONAL_PAIR_DIRECTION_RANK,
                 "the pool pairs and the recommendations must report one label: {labels:?}"
             );
             assert_ne!(

@@ -497,32 +497,50 @@ fn read_pool_baseline(
             candidate_scope_out_of_policy_pool_count += 1;
         }
     }
-    let recommendation_count = count_where(
-        connection,
-        "manager_dex_candidate_pool_recommendations",
-        network,
-        chain_id,
-        Some("scope_key = 'core4'"),
-    )?;
-    let top1_recommendation_count = count_where(
-        connection,
-        "manager_dex_candidate_pool_recommendations",
-        network,
-        chain_id,
-        Some("scope_key = 'core4' AND rank = 1"),
-    )?;
-    let recommendation_invalid_pool_reference_count = connection.query_row(
-        "SELECT COUNT(*) FROM manager_dex_candidate_pool_recommendations r
-         WHERE r.network = ?1 AND r.chain_id = ?2 AND r.protocol = ?3 AND r.scope_key = ?4
-           AND NOT EXISTS (
-               SELECT 1 FROM v4_exchange_pools_core4 p
-               WHERE p.network = r.network AND p.chain_id = r.chain_id
-                 AND p.protocol = r.protocol AND p.pool_id = r.pool_id
-                 AND p.pool_status = 'active'
-           )",
-        params![network, chain_id, PROTOCOL, CANDIDATE_SCOPE],
-        |row| row.get(0),
-    )?;
+    // The recommendation universe is the direction layer's ranking: the
+    // candidate edge publishes the order the direction layer gave, so the
+    // audit reads that order and not the candidate table's own `rank`
+    // column, which the downline of the old ordering removed.
+    //
+    // A pool the direction layer did not rank was never priced and is not
+    // a candidate of its group, so only the ranked rows are counted.
+    //
+    // A store that does not carry the direction layer has no ranking to
+    // audit.  That is a coverage gap of the audit, not a market
+    // conclusion, so the counters stay at zero instead of failing.
+    let (recommendation_count, top1_recommendation_count, recommendation_invalid_pool_reference_count) =
+        if table_exists(connection, "manager_v4_directional_exchange_pools")? {
+            let count = count_where(
+                connection,
+                "manager_v4_directional_exchange_pools",
+                network,
+                chain_id,
+                Some("scope_key = 'core4' AND pair_direction_rank IS NOT NULL"),
+            )?;
+            let top1 = count_where(
+                connection,
+                "manager_v4_directional_exchange_pools",
+                network,
+                chain_id,
+                Some("scope_key = 'core4' AND pair_direction_rank = 1"),
+            )?;
+            let invalid = connection.query_row(
+                "SELECT COUNT(*) FROM manager_v4_directional_exchange_pools r
+                 WHERE r.network = ?1 AND r.chain_id = ?2 AND r.protocol = ?3 AND r.scope_key = ?4
+                   AND r.pair_direction_rank IS NOT NULL
+                   AND NOT EXISTS (
+                       SELECT 1 FROM v4_exchange_pools_core4 p
+                       WHERE p.network = r.network AND p.chain_id = r.chain_id
+                         AND p.protocol = r.protocol AND p.pool_id = r.base_pool_id
+                         AND p.pool_status = 'active'
+                   )",
+                params![network, chain_id, PROTOCOL, CANDIDATE_SCOPE],
+                |row| row.get(0),
+            )?;
+            (count, top1, invalid)
+        } else {
+            (0, 0, 0)
+        };
     let candidate_pair_count = count_where(
         connection,
         "manager_dex_candidate_pool_pairs",

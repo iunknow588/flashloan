@@ -1,0 +1,9 @@
+   Compiling pyo3-build-config v0.23.5
+   Compiling composite-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\composite_manager)
+   Compiling pyo3-macros-backend v0.23.5
+   Compiling pyo3-ffi v0.23.5
+   Compiling pyo3 v0.23.5
+   Compiling pyo3-macros v0.23.5
+   Compiling flashloan-rs v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\rs-src)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 48s
+     Running unittests src\lib.rs (target\debug\deps\flashloan_rs-7fe644539b55e008.exe)

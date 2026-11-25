@@ -1,0 +1,39 @@
+   Compiling pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\pool_manager)
+   Compiling directional-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\directional_pool_manager)
+   Compiling closed-loop-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\closed_loop_manager)
+   Compiling review-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\review_manager)
+   Compiling composite-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\composite_manager)
+   Compiling manager-api v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\manager_api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 51.10s
+     Running unittests src\lib.rs (target\debug\deps\broadcast_manager-01f2d8ed03b9da38.exe)
+     Running unittests src\lib.rs (target\debug\deps\candidate_edge_pool_manager-36a9de80c9e25a8e.exe)
+     Running unittests src\lib.rs (target\debug\deps\candidate_exchange_pool_manager-cfb9d5a1e65bd0bb.exe)
+     Running unittests src\lib.rs (target\debug\deps\closed_loop_manager-55105ea2dc721e31.exe)
+     Running unittests src\lib.rs (target\debug\deps\composite_manager-ef6ba66d9b2ae427.exe)
+     Running unittests src\main.rs (target\debug\deps\composite_manager-3cc3ee468f4185d1.exe)
+     Running unittests src\lib.rs (target\debug\deps\directional_pool_manager-a5bbb9db25de2aaa.exe)
+     Running tests\directional_pools.rs (target\debug\deps\directional_pools-d549a1349f96276e.exe)
+     Running unittests src\lib.rs (target\debug\deps\manager_api-5484c3f95012b716.exe)
+     Running unittests src\main.rs (target\debug\deps\manager_api-a9d504a23b4130f2.exe)
+     Running unittests src\lib.rs (target\debug\deps\manager_contracts-ed52fc3c3da9c3b3.exe)
+     Running tests\ids_golden.rs (target\debug\deps\ids_golden-81163ebdeecb71f5.exe)
+     Running unittests src\lib.rs (target\debug\deps\manager_db-cf53c3d7b5d5901c.exe)
+     Running unittests src\main.rs (target\debug\deps\manager_db-dcab64e8ba5cbab8.exe)
+     Running tests\migration_smoke.rs (target\debug\deps\migration_smoke-4e334b79ccc44bba.exe)
+     Running unittests src\lib.rs (target\debug\deps\pool_manager-35699381a1c8dcd2.exe)
+     Running unittests src\main.rs (target\debug\deps\pool_manager-20b96251d9a90c58.exe)
+     Running unittests src\lib.rs (target\debug\deps\review_manager-1ba835cb8ef61b9c.exe)
+     Running unittests src\lib.rs (target\debug\deps\token_manager-96acaa227fa8eca7.exe)
+     Running unittests src\main.rs (target\debug\deps\token_manager-6eed585503dde4f8.exe)
+   Doc-tests broadcast_manager
+   Doc-tests candidate_edge_pool_manager
+   Doc-tests candidate_exchange_pool_manager
+   Doc-tests closed_loop_manager
+   Doc-tests composite_manager
+   Doc-tests directional_pool_manager
+   Doc-tests manager_api
+   Doc-tests manager_contracts
+   Doc-tests manager_db
+   Doc-tests pool_manager
+   Doc-tests review_manager
+   Doc-tests token_manager

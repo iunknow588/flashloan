@@ -1,0 +1,65 @@
+{
+  "columns": [
+    "network",
+    "chain_id",
+    "protocol",
+    "scope_key",
+    "anchor_token_key_id",
+    "candidate_token_key_id",
+    "pair_key_id",
+    "direction_key",
+    "hop",
+    "rank",
+    "pool_id",
+    "depth_score",
+    "fee",
+    "selection_basis",
+    "created_at",
+    "updated_at"
+  ],
+  "primary_key": [
+    "network",
+    "chain_id",
+    "protocol",
+    "scope_key",
+    "anchor_token_key_id",
+    "candidate_token_key_id",
+    "hop",
+    "rank"
+  ],
+  "rank_in_primary_key": true,
+  "total_rows": 340,
+  "by_scope": {
+    "core4": 340
+  },
+  "selection_basis": {
+    "direction_single_tick_exact_output_then_tick_fee_pool_id": 340
+  },
+  "last_write": {
+    "2026-11-24T08:41:55.837653+00:00": "2026-11-24T08:41:55.837653+00:00"
+  },
+  "live_table_written_by_new_producer": false,
+  "group_count": 216,
+  "rank_shape": {
+    "groups": 216,
+    "dense_one_to_n": 216,
+    "groups_with_gaps": 0,
+    "groups_with_ties": 0,
+    "groups_starting_at_one": 216
+  },
+  "depth_score_shape": {
+    "groups_with_null_depth": 0,
+    "groups_with_depth_ties": 0,
+    "rows_depth_equals_rank": 0,
+    "rows_depth_differs_from_rank": 340
+  },
+  "order_equivalence": {
+    "same_order": 134,
+    "different_order": 82,
+    "incomparable_null_depth": 0
+  },
+  "zero_rank_rows": 0,
+  "null_depth_score_rows": 0,
+  "directional_rows": 692,
+  "directional_rank_duplicate_groups": 0
+}

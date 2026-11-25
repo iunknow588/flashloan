@@ -13,7 +13,9 @@ from datetime import datetime, timezone
 from decimal import Decimal, getcontext
 import json
 import os
+import random
 from pathlib import Path
+import threading
 import time
 from typing import Any
 import urllib.error
@@ -494,6 +496,535 @@ def _mark_recent_swap_activity_for_pool_ids(
         "recentSwapPoolCount": len(active),
         "recentSwapScannedPoolCount": len(all_pool_ids),
     }
+
+
+RECENT_SWAP_SCAN_MAX_MATCHED_LOGS = 10_000
+RECENT_SWAP_SCAN_BLOCK_SPAN = 100_000
+RECENT_SWAP_SCAN_MAX_TOPIC_POOL_IDS = 900
+RECENT_SWAP_SCAN_POOL_BATCH_SIZE = 900
+RECENT_SWAP_SCAN_TIMEOUT_SECONDS = 120
+RECENT_SWAP_SCAN_MIN_REQUEST_INTERVAL_SECONDS = 0.25
+RECENT_SWAP_SCAN_MAX_BACKOFF_SECONDS = 30.0
+RECENT_SWAP_SCAN_MAX_SPLIT_DEPTH = 24
+
+
+class RecentSwapScanError(RuntimeError):
+    """Raised when the swap window could not be scanned to its end."""
+
+    def __init__(self, message: str, *, retry_after: float | None = None) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
+class _ScanTelemetry:
+    """Count what a scan costs and pace the requests it sends.
+
+    The endpoint answers a burst with HTTP 429, and a plain exponential
+    backoff makes that worse: every worker wakes up at the same moment and
+    collides again.  One shared pacer therefore holds the whole scan to a
+    single rate, slows itself down when the endpoint pushes back, and eases
+    back up when the endpoint stops pushing back.
+    """
+
+    def __init__(
+        self,
+        min_interval: float = RECENT_SWAP_SCAN_MIN_REQUEST_INTERVAL_SECONDS,
+    ) -> None:
+        self._min_interval = max(0.0, float(min_interval))
+        self._interval = self._min_interval
+        self._lock = threading.Lock()
+        self._next_allowed_at = 0.0
+        self.request_count = 0
+        self.rate_limited_count = 0
+        self.failed_request_count = 0
+        self.split_count = 0
+
+    def wait(self) -> None:
+        """Hold the caller until the next request may leave."""
+
+        with self._lock:
+            now = time.monotonic()
+            delay = max(0.0, self._next_allowed_at - now)
+            self._next_allowed_at = max(now, self._next_allowed_at) + self._interval
+        if delay > 0:
+            time.sleep(delay)
+
+    def penalize(self) -> None:
+        """Slow the whole scan down after the endpoint pushed back."""
+
+        with self._lock:
+            self._interval = min(
+                RECENT_SWAP_SCAN_MAX_BACKOFF_SECONDS,
+                max(self._interval * 1.6, self._interval + 0.2),
+            )
+
+    def relax(self) -> None:
+        """Ease the scan back towards the configured rate."""
+
+        with self._lock:
+            if self._interval <= self._min_interval:
+                return
+            self._interval = max(self._min_interval, self._interval * 0.9)
+
+    def record_request(self) -> None:
+        with self._lock:
+            self.request_count += 1
+
+    def record_rate_limited(self) -> None:
+        with self._lock:
+            self.rate_limited_count += 1
+
+    def record_failed(self) -> None:
+        with self._lock:
+            self.failed_request_count += 1
+
+    def record_split(self) -> None:
+        with self._lock:
+            self.split_count += 1
+
+    def snapshot(self) -> dict[str, Any]:
+        with self._lock:
+            return {
+                "requestCount": int(self.request_count),
+                "rateLimitedCount": int(self.rate_limited_count),
+                "failedRequestCount": int(self.failed_request_count),
+                "splitCount": int(self.split_count),
+                "requestIntervalSeconds": round(float(self._interval), 3),
+            }
+
+
+def _rpc_error_is_retryable(text: str) -> bool:
+    """Tell a transient failure apart from a refusal that will not change.
+
+    A range that matched too many logs is answered by splitting the range,
+    and an archive gate is answered by a different endpoint; neither gets
+    better by waiting.
+    """
+
+    lowered = str(text).lower()
+    if "exceeds limit" in lowered:
+        return False
+    if "archive requests require" in lowered:
+        return False
+    return any(
+        marker in lowered
+        for marker in (
+            "http 429",
+            "too many requests",
+            "http 500",
+            "http 502",
+            "http 503",
+            "http 504",
+            "timed out",
+            "timeout",
+            "connection reset",
+            "connection aborted",
+            "failed:",
+        )
+    )
+
+
+def _rpc_call_once(
+    rpc_url: str,
+    method: str,
+    params: list[Any],
+    *,
+    timeout: int,
+) -> Any:
+    """One JSON-RPC attempt, with the provider's own wording kept intact."""
+
+    body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}).encode("utf-8")
+    request = urllib.request.Request(
+        str(rpc_url),
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "flashloan-recent-swap-scan/1.0",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8", errors="replace"))
+    except urllib.error.HTTPError as error:
+        detail = ""
+        try:
+            detail = error.read().decode("utf-8", errors="replace")[:400]
+        except Exception:
+            detail = str(error)
+        retry_after: float | None = None
+        try:
+            header = error.headers.get("Retry-After") if error.headers else None
+            if header:
+                retry_after = float(str(header).strip())
+        except (TypeError, ValueError):
+            retry_after = None
+        raise RecentSwapScanError(
+            f"{method} failed with HTTP {error.code}: {detail}",
+            retry_after=retry_after,
+        ) from error
+    except (urllib.error.URLError, TimeoutError, OSError) as error:
+        raise RecentSwapScanError(f"{method} failed: {error}") from error
+    if isinstance(payload, dict) and payload.get("error"):
+        error = payload["error"]
+        message = error.get("message") if isinstance(error, dict) else str(error)
+        raise RecentSwapScanError(f"{method} returned an error: {message}")
+    return payload.get("result") if isinstance(payload, dict) else payload
+
+
+def _rpc_call(
+    rpc_url: str,
+    method: str,
+    params: list[Any],
+    *,
+    timeout: int = RECENT_SWAP_SCAN_TIMEOUT_SECONDS,
+    attempts: int = 6,
+    telemetry: _ScanTelemetry | None = None,
+) -> Any:
+    """Run one JSON-RPC call, retrying only what a wait can fix.
+
+    The wait carries a random factor on purpose.  The endpoint answers a
+    burst with HTTP 429; workers that back off by the same amount wake up
+    together and collide again, which is how a scan that could finish in
+    half an hour turns into one that never finishes.
+    """
+
+    delay = 1.0
+    last_error: Exception | None = None
+    for attempt in range(max(1, int(attempts))):
+        if telemetry is not None:
+            telemetry.wait()
+            telemetry.record_request()
+        try:
+            result = _rpc_call_once(rpc_url, method, params, timeout=timeout)
+        except RecentSwapScanError as error:
+            last_error = error
+            if telemetry is not None:
+                if "429" in str(error) or "too many requests" in str(error).lower():
+                    telemetry.record_rate_limited()
+                else:
+                    telemetry.record_failed()
+            if not _rpc_error_is_retryable(str(error)):
+                raise
+            if attempt + 1 >= max(1, int(attempts)):
+                break
+            if telemetry is not None:
+                telemetry.penalize()
+            if error.retry_after:
+                time.sleep(max(0.05, float(error.retry_after)))
+            else:
+                time.sleep(max(0.05, delay * (0.5 + random.random())))
+            delay = min(delay * 2, RECENT_SWAP_SCAN_MAX_BACKOFF_SECONDS)
+            continue
+        if telemetry is not None:
+            telemetry.relax()
+        return result
+    raise RecentSwapScanError(f"{method} failed after {attempts} attempts: {last_error}")
+
+
+def _rpc_block_timestamp(rpc_url: str, block_number: int) -> int:
+    """Read the timestamp of one block from the endpoint."""
+
+    result = _rpc_call(rpc_url, "eth_getBlockByNumber", [hex(int(block_number)), False])
+    if not isinstance(result, dict) or result.get("timestamp") is None:
+        raise RecentSwapScanError(f"block {block_number} came back without a timestamp")
+    return int(str(result["timestamp"]), 16)
+
+
+def rpc_start_block_for_lookback(
+    rpc_url: str,
+    *,
+    scan_block_number: int,
+    lookback_days: int = RECENT_SWAP_LOOKBACK_DAYS,
+) -> int:
+    """Locate the first block of the lookback window by timestamp.
+
+    The window is a time window, not a block count: the block time is not
+    constant, so the start block is found by bisecting on the block
+    timestamp instead of multiplying a nominal blocks-per-day constant.
+    """
+
+    tip = int(scan_block_number)
+    target = _rpc_block_timestamp(rpc_url, tip) - max(1, int(lookback_days)) * 86_400
+    low, high = 0, tip
+    while low < high:
+        middle = (low + high) // 2
+        if _rpc_block_timestamp(rpc_url, middle) < target:
+            low = middle + 1
+        else:
+            high = middle
+    return low
+
+
+def _scan_swap_range(
+    rpc_url: str,
+    pool_manager: str,
+    from_block: int,
+    to_block: int,
+    pool_ids: list[str] | None = None,
+    *,
+    telemetry: _ScanTelemetry | None = None,
+    depth: int = 0,
+) -> tuple[set[str], int]:
+    """Return the pool ids that swapped inside one block range.
+
+    A range the endpoint refuses because it matched too many logs is
+    split and retried, so one dense range can never silently truncate the
+    window.  A refusal about the topic list is not answered by splitting
+    the range -- the pool batch is what has to shrink -- so that refusal
+    ends the scan with a message that names the cause.
+    """
+
+    topics: list[Any] = [V4_SWAP_TOPIC]
+    if pool_ids:
+        topics.append(list(pool_ids))
+    try:
+        result = _rpc_call(
+            rpc_url,
+            "eth_getLogs",
+            [
+                {
+                    "address": pool_manager,
+                    "fromBlock": hex(int(from_block)),
+                    "toBlock": hex(int(to_block)),
+                    "topics": topics,
+                }
+            ],
+            telemetry=telemetry,
+        )
+    except RecentSwapScanError as error:
+        text = str(error)
+        lowered = text.lower()
+        if "topic" in lowered:
+            raise RecentSwapScanError(
+                "the endpoint refused the topic list of this batch; "
+                f"a smaller pool batch is needed: {text}"
+            ) from error
+        splittable = "exceeds limit" in lowered or "are allowed" in lowered
+        if (
+            splittable
+            and int(to_block) > int(from_block)
+            and depth < RECENT_SWAP_SCAN_MAX_SPLIT_DEPTH
+        ):
+            if telemetry is not None:
+                telemetry.record_split()
+            middle = (int(from_block) + int(to_block)) // 2
+            left_ids, left_count = _scan_swap_range(
+                rpc_url,
+                pool_manager,
+                from_block,
+                middle,
+                pool_ids,
+                telemetry=telemetry,
+                depth=depth + 1,
+            )
+            right_ids, right_count = _scan_swap_range(
+                rpc_url,
+                pool_manager,
+                middle + 1,
+                to_block,
+                pool_ids,
+                telemetry=telemetry,
+                depth=depth + 1,
+            )
+            return left_ids | right_ids, left_count + right_count
+        raise
+    pool_ids_seen: set[str] = set()
+    count = 0
+    for entry in result or []:
+        topics_of_entry = entry.get("topics") or []
+        if len(topics_of_entry) > 1:
+            pool_ids_seen.add(str(topics_of_entry[1]).lower())
+        count += 1
+    return pool_ids_seen, count
+
+
+def _scan_chunk_with_retry(
+    rpc_url: str,
+    pool_manager: str,
+    from_block: int,
+    to_block: int,
+    pool_batches: list[list[str]],
+    *,
+    telemetry: _ScanTelemetry | None = None,
+) -> tuple[set[str], int]:
+    """Scan one block range for every pool batch of the library."""
+
+    found: set[str] = set()
+    count = 0
+    for batch in pool_batches:
+        batch_ids, batch_count = _scan_swap_range(
+            rpc_url,
+            pool_manager,
+            from_block,
+            to_block,
+            batch,
+            telemetry=telemetry,
+        )
+        found |= batch_ids
+        count += batch_count
+    return found, count
+
+
+def collect_recent_swap_activity_markers(
+    *,
+    rpc_url: str,
+    pool_manager: str,
+    pool_ids: list[str],
+    lookback_days: int = RECENT_SWAP_LOOKBACK_DAYS,
+    scan_block_number: int | None = None,
+    block_span: int = RECENT_SWAP_SCAN_BLOCK_SPAN,
+    pool_batch_size: int = RECENT_SWAP_SCAN_POOL_BATCH_SIZE,
+    concurrency: int = 3,
+    min_request_interval: float = RECENT_SWAP_SCAN_MIN_REQUEST_INTERVAL_SECONDS,
+    checkpoint_path: Path | None = None,
+    resume: bool = False,
+    progress: Any | None = None,
+) -> dict[str, Any]:
+    """Measure whether each pool swapped inside the lookback window.
+
+    The window is pinned to one chain tip for the whole pass, so the answer
+    for every pool belongs to the same moment.  A pool that swapped inside
+    the window is marked active; a pool that did not is marked inactive.
+    A pool that was never scanned keeps no marker at all -- unmeasured and
+    measured-without-trades are different facts.
+    """
+
+    wanted = sorted({str(pool_id).strip().lower() for pool_id in pool_ids if str(pool_id).strip()})
+    batch_size = max(1, min(int(pool_batch_size), RECENT_SWAP_SCAN_MAX_TOPIC_POOL_IDS))
+    pool_batches = [
+        wanted[offset : offset + batch_size]
+        for offset in range(0, len(wanted), batch_size)
+    ]
+    telemetry = _ScanTelemetry(min_request_interval)
+    tip = int(scan_block_number) if scan_block_number is not None else int(
+        _rpc_call(rpc_url, "eth_blockNumber", [], telemetry=telemetry),
+        16,
+    )
+    start_block = rpc_start_block_for_lookback(
+        rpc_url,
+        scan_block_number=tip,
+        lookback_days=lookback_days,
+    )
+    span = max(1, int(block_span))
+    chunks: list[tuple[int, int]] = []
+    cursor = tip
+    while cursor >= start_block:
+        chunk_start = max(start_block, cursor - span + 1)
+        chunks.append((chunk_start, cursor))
+        cursor = chunk_start - 1
+
+    found: set[str] = set()
+    completed: set[tuple[int, int]] = set()
+    matched_logs = 0
+    checkpoint: dict[str, Any] | None = None
+    if checkpoint_path is not None and resume and checkpoint_path.exists():
+        try:
+            checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            checkpoint = None
+    if checkpoint:
+        same_window = (
+            int(checkpoint.get("scanBlockNumber") or -1) == tip
+            and int(checkpoint.get("startBlock") or -1) == start_block
+            and int(checkpoint.get("lookbackDays") or 0) == int(lookback_days)
+            and int(checkpoint.get("poolBatchSize") or 0) == batch_size
+        )
+        if same_window:
+            found = {str(value).lower() for value in checkpoint.get("foundPoolIds") or []}
+            completed = {
+                (int(pair[0]), int(pair[1]))
+                for pair in checkpoint.get("completedChunks") or []
+                if isinstance(pair, (list, tuple)) and len(pair) == 2
+            }
+            matched_logs = int(checkpoint.get("matchedLogCount") or 0)
+
+    pending = [chunk for chunk in chunks if chunk not in completed]
+    workers = max(1, min(int(concurrency), len(pending) or 1))
+
+    def _save_checkpoint() -> None:
+        if checkpoint_path is None:
+            return
+        payload = {
+            "rpcUrl": str(rpc_url),
+            "poolManager": str(pool_manager),
+            "scanBlockNumber": tip,
+            "startBlock": start_block,
+            "lookbackDays": int(lookback_days),
+            "blockSpan": span,
+            "poolBatchSize": batch_size,
+            "completedChunks": sorted([list(chunk) for chunk in completed]),
+            "foundPoolIds": sorted(found),
+            "matchedLogCount": int(matched_logs),
+            "updatedAt": _stamp(),
+        }
+        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        checkpoint_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+    started = time.time()
+    if pending:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {
+                executor.submit(
+                    _scan_chunk_with_retry,
+                    rpc_url,
+                    pool_manager,
+                    chunk[0],
+                    chunk[1],
+                    pool_batches,
+                    telemetry=telemetry,
+                ): chunk
+                for chunk in pending
+            }
+            done_count = 0
+            for future in futures:
+                chunk = futures[future]
+                pool_ids_seen, count = future.result()
+                found |= pool_ids_seen
+                matched_logs += count
+                completed.add(chunk)
+                done_count += 1
+                if progress is not None:
+                    progress(
+                        {
+                            "completedChunks": done_count,
+                            "totalChunks": len(pending),
+                            "matchedLogCount": matched_logs,
+                            "distinctPoolIds": len(found),
+                            "requestCount": telemetry.request_count,
+                            "rateLimitedCount": telemetry.rate_limited_count,
+                            "latestChunk": list(chunk),
+                        }
+                    )
+                if done_count % 10 == 0:
+                    _save_checkpoint()
+    _save_checkpoint()
+
+    active = sorted(found & set(wanted))
+    inactive = sorted(set(wanted) - set(found))
+    result = {
+        "scanBlockNumber": tip,
+        "startBlock": start_block,
+        "lookbackDays": int(lookback_days),
+        "blockSpan": span,
+        "chunkCount": len(chunks),
+        "scannedChunkCount": len(completed),
+        "matchedLogCount": int(matched_logs),
+        "distinctPoolIds": len(found),
+        "requestedPoolCount": len(wanted),
+        "poolBatchCount": len(pool_batches),
+        "poolBatchSize": batch_size,
+        "activePoolCount": len(active),
+        "inactivePoolCount": len(inactive),
+        "activePoolIds": active,
+        "inactivePoolIds": inactive,
+        "elapsedSeconds": round(time.time() - started, 3),
+        "completedAt": _stamp(),
+    }
+    result.update(telemetry.snapshot())
+    return result
 
 
 def _int_or_none(value: object) -> int | None:

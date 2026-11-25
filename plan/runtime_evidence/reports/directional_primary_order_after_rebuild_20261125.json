@@ -1,0 +1,695 @@
+{
+  "tool": "compare_directional_primary_order_20261125.py",
+  "measuredAt": "2026-11-25T00:26:21.957444+00:00",
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "network": "robinhood",
+  "chainId": 4663,
+  "readOnly": true,
+  "directionLayer": {
+    "rows": 692,
+    "rankedRows": 342,
+    "groups": 222,
+    "statusCounts": {
+      "active": 356,
+      "invalid": 336
+    }
+  },
+  "candidateEdge": {
+    "first": {
+      "legacyRank1Count": 108,
+      "comparable": 108,
+      "groupMissing": 0,
+      "changed": 13,
+      "changeRatePercent": 12.037,
+      "examples": [
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0x0000000000000000000000000000000000000000",
+          "tokenOut": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "pairKeyId": "pair:v1:4663:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "direction": 1,
+          "groupFound": true,
+          "groupSize": 3,
+          "legacyPoolId": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+          "directionPoolId": "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0x0000000000000000000000000000000000000000",
+          "tokenOut": "robinhood:4663:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "pairKeyId": "pair:v1:4663:0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "direction": 1,
+          "groupFound": true,
+          "groupSize": 2,
+          "legacyPoolId": "0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748",
+          "directionPoolId": "0x10906975ba92bce9209431984d3e3e4b0eac706db274e8d1a29358331a555987",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "tokenOut": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "pairKeyId": "pair:v1:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "direction": 1,
+          "groupFound": true,
+          "groupSize": 4,
+          "legacyPoolId": "0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288",
+          "directionPoolId": "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "tokenOut": "robinhood:4663:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "pairKeyId": "pair:v1:4663:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "direction": 0,
+          "groupFound": true,
+          "groupSize": 2,
+          "legacyPoolId": "0x6ba18d461bfe3df70a80b50a4700e330e49efdaf597901b931f210554a5035d2",
+          "directionPoolId": "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "tokenOut": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "pairKeyId": "pair:v1:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "direction": 0,
+          "groupFound": true,
+          "groupSize": 4,
+          "legacyPoolId": "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+          "directionPoolId": "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "tokenOut": "robinhood:4663:0x1b0e319c6a659f002271b69db8a7df2f911c153e",
+          "pairKeyId": "pair:v1:4663:0x1b0e319c6a659f002271b69db8a7df2f911c153e:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "direction": 0,
+          "groupFound": true,
+          "groupSize": 2,
+          "legacyPoolId": "0x3f05d2b224a67d723e3a7ea46d229a3d8e106b56ffaa335229eb28ae8fc21a16",
+          "directionPoolId": "0x659e64f089e5d9ea30c4c50d01d365008cfd336b396c05853ea7700af3eb78f5",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "tokenOut": "robinhood:4663:0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "pairKeyId": "pair:v1:4663:0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "direction": 0,
+          "groupFound": true,
+          "groupSize": 3,
+          "legacyPoolId": "0xa5f23cae4e5c3388c5a8a6b08a83f53e56df8f1a63757e606b362994b68a2361",
+          "directionPoolId": "0xa7a475ddd5b32b74b7cd23d715270cd9b3ba65d1d25f1a19b8427c28fd76d566",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "tokenOut": "robinhood:4663:0x5e81213613b6b86eab4c6c50d718d34359459786",
+          "pairKeyId": "pair:v1:4663:0x5e81213613b6b86eab4c6c50d718d34359459786:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "direction": 0,
+          "groupFound": true,
+          "groupSize": 3,
+          "legacyPoolId": "0xf425e1582a4935dfd5e0384d86379e6b40fa4fac2d51137456aca636b56d7731",
+          "directionPoolId": "0xc9dad63b6fb9afe1fe888ebc7b023c587c58b9498f5bd17166226c0995dbc4eb",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "tokenOut": "robinhood:4663:0x980dcf6766fa79f5cf0c4aadb3ab477ff15a9619",
+          "pairKeyId": "pair:v1:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x980dcf6766fa79f5cf0c4aadb3ab477ff15a9619",
+          "direction": 1,
+          "groupFound": true,
+          "groupSize": 3,
+          "legacyPoolId": "0xfefcd3697193dacac74626b2c8ca15937479605b4ee074670186f746b448028a",
+          "directionPoolId": "0x2e6acf0380143b920c5ce7cf90da73e01d6bb70be9c09004fdd34e713f4a3b7f",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+          "tokenOut": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "pairKeyId": "pair:v1:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+          "direction": 0,
+          "groupFound": true,
+          "groupSize": 2,
+          "legacyPoolId": "0x5875d407a42965b0e768c8925cea290e06fa50603ef34fc99eb92a1050e6ae36",
+          "directionPoolId": "0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "tokenOut": "robinhood:4663:0x0000000000000000000000000000000000000000",
+          "pairKeyId": "pair:v1:4663:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "direction": 0,
+          "groupFound": true,
+          "groupSize": 2,
+          "legacyPoolId": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+          "directionPoolId": "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "tokenOut": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "pairKeyId": "pair:v1:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "direction": 0,
+          "groupFound": true,
+          "groupSize": 1,
+          "legacyPoolId": "0x84e2847d2fe2dab492ca065326efa51b6f7e0924f200f983b9939530834df815",
+          "directionPoolId": "0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0xec262a75e413fafd0df80480274532c79d42da09",
+          "tokenOut": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "pairKeyId": "pair:v1:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xec262a75e413fafd0df80480274532c79d42da09",
+          "direction": 0,
+          "groupFound": true,
+          "groupSize": 2,
+          "legacyPoolId": "0x0b7651084eb6758980efbccf73d95c680dd26e80800fbc91927d94a7f804d8bf",
+          "directionPoolId": "0x319bac87e616a89e241c10aeb8afd4892a852cdd8b373cd9765ecddc40b87cfe",
+          "changed": true
+        }
+      ]
+    },
+    "third": {
+      "legacyRank1Count": 108,
+      "comparable": 108,
+      "groupMissing": 0,
+      "changed": 13,
+      "changeRatePercent": 12.037,
+      "examples": [
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "tokenOut": "robinhood:4663:0x0000000000000000000000000000000000000000",
+          "pairKeyId": "pair:v1:4663:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "direction": 0,
+          "groupFound": true,
+          "groupSize": 2,
+          "legacyPoolId": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+          "directionPoolId": "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "tokenOut": "robinhood:4663:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "pairKeyId": "pair:v1:4663:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "direction": 0,
+          "groupFound": true,
+          "groupSize": 2,
+          "legacyPoolId": "0x6ba18d461bfe3df70a80b50a4700e330e49efdaf597901b931f210554a5035d2",
+          "directionPoolId": "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "tokenOut": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "pairKeyId": "pair:v1:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "direction": 0,
+          "groupFound": true,
+          "groupSize": 4,
+          "legacyPoolId": "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+          "directionPoolId": "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "tokenOut": "robinhood:4663:0x1b0e319c6a659f002271b69db8a7df2f911c153e",
+          "pairKeyId": "pair:v1:4663:0x1b0e319c6a659f002271b69db8a7df2f911c153e:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "direction": 0,
+          "groupFound": true,
+          "groupSize": 2,
+          "legacyPoolId": "0x3f05d2b224a67d723e3a7ea46d229a3d8e106b56ffaa335229eb28ae8fc21a16",
+          "directionPoolId": "0x659e64f089e5d9ea30c4c50d01d365008cfd336b396c05853ea7700af3eb78f5",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "tokenOut": "robinhood:4663:0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "pairKeyId": "pair:v1:4663:0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "direction": 0,
+          "groupFound": true,
+          "groupSize": 3,
+          "legacyPoolId": "0xa5f23cae4e5c3388c5a8a6b08a83f53e56df8f1a63757e606b362994b68a2361",
+          "directionPoolId": "0xa7a475ddd5b32b74b7cd23d715270cd9b3ba65d1d25f1a19b8427c28fd76d566",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "tokenOut": "robinhood:4663:0x5e81213613b6b86eab4c6c50d718d34359459786",
+          "pairKeyId": "pair:v1:4663:0x5e81213613b6b86eab4c6c50d718d34359459786:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "direction": 0,
+          "groupFound": true,
+          "groupSize": 3,
+          "legacyPoolId": "0xf425e1582a4935dfd5e0384d86379e6b40fa4fac2d51137456aca636b56d7731",
+          "directionPoolId": "0xc9dad63b6fb9afe1fe888ebc7b023c587c58b9498f5bd17166226c0995dbc4eb",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0x0000000000000000000000000000000000000000",
+          "tokenOut": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "pairKeyId": "pair:v1:4663:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "direction": 1,
+          "groupFound": true,
+          "groupSize": 3,
+          "legacyPoolId": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+          "directionPoolId": "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "tokenOut": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "pairKeyId": "pair:v1:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "direction": 1,
+          "groupFound": true,
+          "groupSize": 4,
+          "legacyPoolId": "0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288",
+          "directionPoolId": "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+          "tokenOut": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "pairKeyId": "pair:v1:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+          "direction": 0,
+          "groupFound": true,
+          "groupSize": 2,
+          "legacyPoolId": "0x5875d407a42965b0e768c8925cea290e06fa50603ef34fc99eb92a1050e6ae36",
+          "directionPoolId": "0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "tokenOut": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "pairKeyId": "pair:v1:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "direction": 0,
+          "groupFound": true,
+          "groupSize": 1,
+          "legacyPoolId": "0x84e2847d2fe2dab492ca065326efa51b6f7e0924f200f983b9939530834df815",
+          "directionPoolId": "0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0xec262a75e413fafd0df80480274532c79d42da09",
+          "tokenOut": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "pairKeyId": "pair:v1:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xec262a75e413fafd0df80480274532c79d42da09",
+          "direction": 0,
+          "groupFound": true,
+          "groupSize": 2,
+          "legacyPoolId": "0x0b7651084eb6758980efbccf73d95c680dd26e80800fbc91927d94a7f804d8bf",
+          "directionPoolId": "0x319bac87e616a89e241c10aeb8afd4892a852cdd8b373cd9765ecddc40b87cfe",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "tokenOut": "robinhood:4663:0x980dcf6766fa79f5cf0c4aadb3ab477ff15a9619",
+          "pairKeyId": "pair:v1:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x980dcf6766fa79f5cf0c4aadb3ab477ff15a9619",
+          "direction": 1,
+          "groupFound": true,
+          "groupSize": 3,
+          "legacyPoolId": "0xfefcd3697193dacac74626b2c8ca15937479605b4ee074670186f746b448028a",
+          "directionPoolId": "0x2e6acf0380143b920c5ce7cf90da73e01d6bb70be9c09004fdd34e713f4a3b7f",
+          "changed": true
+        },
+        {
+          "scope": "core4",
+          "tokenIn": "robinhood:4663:0x0000000000000000000000000000000000000000",
+          "tokenOut": "robinhood:4663:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "pairKeyId": "pair:v1:4663:0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "direction": 1,
+          "groupFound": true,
+          "groupSize": 2,
+          "legacyPoolId": "0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748",
+          "directionPoolId": "0x10906975ba92bce9209431984d3e3e4b0eac706db274e8d1a29358331a555987",
+          "changed": true
+        }
+      ]
+    }
+  },
+  "yzObservation": {
+    "legacyOptimalCount": 1420,
+    "comparable": 386,
+    "groupMissing": 1034,
+    "changed": 88,
+    "changeRatePercent": 22.7979,
+    "examples": [
+      {
+        "scope": "candidate_exchange",
+        "tokenIn": "robinhood:4663:0x0000000000000000000000000000000000000000",
+        "tokenOut": "robinhood:4663:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+        "pairKeyId": "pair:v1:4663:0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+        "direction": 1,
+        "groupFound": true,
+        "groupSize": 2,
+        "legacyPoolId": "0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748",
+        "directionPoolId": "0x10906975ba92bce9209431984d3e3e4b0eac706db274e8d1a29358331a555987",
+        "changed": true
+      },
+      {
+        "scope": "candidate_exchange",
+        "tokenIn": "robinhood:4663:0x0000000000000000000000000000000000000000",
+        "tokenOut": "robinhood:4663:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "pairKeyId": "pair:v1:4663:0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "direction": 1,
+        "groupFound": true,
+        "groupSize": 3,
+        "legacyPoolId": "0x881b4219078c86ac3a3930a6c229c2c846209fe9b4f0b8671772d42e2a799796",
+        "directionPoolId": "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237",
+        "changed": true
+      },
+      {
+        "scope": "candidate_exchange",
+        "tokenIn": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "tokenOut": "robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+        "pairKeyId": "pair:v1:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+        "direction": 1,
+        "groupFound": true,
+        "groupSize": 2,
+        "legacyPoolId": "0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30",
+        "directionPoolId": "0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e",
+        "changed": true
+      },
+      {
+        "scope": "candidate_exchange",
+        "tokenIn": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "tokenOut": "robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+        "pairKeyId": "pair:v1:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+        "direction": 1,
+        "groupFound": true,
+        "groupSize": 2,
+        "legacyPoolId": "0x8dc0387af606d84be8e4c2fc1da7bdc6d467337e9f3e075113f968922a190847",
+        "directionPoolId": "0xe6b713cf680868a40aafca45810b0c894eb5c696f5a2230d4816e6695e90e681",
+        "changed": true
+      },
+      {
+        "scope": "candidate_exchange",
+        "tokenIn": "robinhood:4663:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+        "tokenOut": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "pairKeyId": "pair:v1:4663:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "direction": 1,
+        "groupFound": true,
+        "groupSize": 2,
+        "legacyPoolId": "0xcb6ffbcc84359535c2cc0a5688c0a76520ea6e0a4820fddd3ac8d7880e576370",
+        "directionPoolId": "0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448",
+        "changed": true
+      },
+      {
+        "scope": "candidate_exchange",
+        "tokenIn": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "tokenOut": "robinhood:4663:0x0000000000000000000000000000000000000000",
+        "pairKeyId": "pair:v1:4663:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "direction": 0,
+        "groupFound": true,
+        "groupSize": 4,
+        "legacyPoolId": "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "directionPoolId": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+        "changed": true
+      },
+      {
+        "scope": "candidate_exchange",
+        "tokenIn": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "tokenOut": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "pairKeyId": "pair:v1:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "direction": 0,
+        "groupFound": true,
+        "groupSize": 4,
+        "legacyPoolId": "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+        "directionPoolId": "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9",
+        "changed": true
+      },
+      {
+        "scope": "candidate_exchange",
+        "tokenIn": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "tokenOut": "robinhood:4663:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+        "pairKeyId": "pair:v1:4663:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "direction": 0,
+        "groupFound": true,
+        "groupSize": 2,
+        "legacyPoolId": "0xcb6ffbcc84359535c2cc0a5688c0a76520ea6e0a4820fddd3ac8d7880e576370",
+        "directionPoolId": "0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448",
+        "changed": true
+      },
+      {
+        "scope": "candidate_exchange",
+        "tokenIn": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "tokenOut": "robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+        "pairKeyId": "pair:v1:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+        "direction": 1,
+        "groupFound": true,
+        "groupSize": 2,
+        "legacyPoolId": "0x5875d407a42965b0e768c8925cea290e06fa50603ef34fc99eb92a1050e6ae36",
+        "directionPoolId": "0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f",
+        "changed": true
+      },
+      {
+        "scope": "candidate_exchange",
+        "tokenIn": "robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+        "tokenOut": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "pairKeyId": "pair:v1:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+        "direction": 0,
+        "groupFound": true,
+        "groupSize": 2,
+        "legacyPoolId": "0x5875d407a42965b0e768c8925cea290e06fa50603ef34fc99eb92a1050e6ae36",
+        "directionPoolId": "0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f",
+        "changed": true
+      },
+      {
+        "scope": "candidate_exchange",
+        "tokenIn": "robinhood:4663:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "tokenOut": "robinhood:4663:0x0000000000000000000000000000000000000000",
+        "pairKeyId": "pair:v1:4663:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "direction": 0,
+        "groupFound": true,
+        "groupSize": 2,
+        "legacyPoolId": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+        "directionPoolId": "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35",
+        "changed": true
+      },
+      {
+        "scope": "candidate_exchange",
+        "tokenIn": "robinhood:4663:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+        "tokenOut": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "pairKeyId": "pair:v1:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+        "direction": 0,
+        "groupFound": true,
+        "groupSize": 2,
+        "legacyPoolId": "0x628c98ab436ee34a6a7decd606242890582591bdf7c9a35d90e0d08021c31ea0",
+        "directionPoolId": "0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00",
+        "changed": true
+      },
+      {
+        "scope": "candidate_exchange",
+        "tokenIn": "robinhood:4663:0xec262a75e413fafd0df80480274532c79d42da09",
+        "tokenOut": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "pairKeyId": "pair:v1:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xec262a75e413fafd0df80480274532c79d42da09",
+        "direction": 0,
+        "groupFound": true,
+        "groupSize": 3,
+        "legacyPoolId": "0x319bac87e616a89e241c10aeb8afd4892a852cdd8b373cd9765ecddc40b87cfe",
+        "directionPoolId": "0xc105b8300ff65d750a0e4e63c7a879e20504069b770713464a5315e797735326",
+        "changed": true
+      },
+      {
+        "scope": "candidate_exchange",
+        "tokenIn": "robinhood:4663:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "tokenOut": "robinhood:4663:0x0000000000000000000000000000000000000000",
+        "pairKeyId": "pair:v1:4663:0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "direction": 0,
+        "groupFound": true,
+        "groupSize": 3,
+        "legacyPoolId": "0x881b4219078c86ac3a3930a6c229c2c846209fe9b4f0b8671772d42e2a799796",
+        "directionPoolId": "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237",
+        "changed": true
+      },
+      {
+        "scope": "candidate_exchange",
+        "tokenIn": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "tokenOut": "robinhood:4663:0x0000000000000000000000000000000000000000",
+        "pairKeyId": "pair:v1:4663:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "direction": 0,
+        "groupFound": true,
+        "groupSize": 4,
+        "legacyPoolId": "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "directionPoolId": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+        "changed": true
+      },
+      {
+        "scope": "candidate_exchange",
+        "tokenIn": "robinhood:4663:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "tokenOut": "robinhood:4663:0x0000000000000000000000000000000000000000",
+        "pairKeyId": "pair:v1:4663:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "direction": 0,
+        "groupFound": true,
+        "groupSize": 2,
+        "legacyPoolId": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+        "directionPoolId": "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35",
+        "changed": true
+      },
+      {
+        "scope": "candidate_exchange",
+        "tokenIn": "robinhood:4663:0x0000000000000000000000000000000000000000",
+        "tokenOut": "robinhood:4663:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "pairKeyId": "pair:v1:4663:0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "direction": 1,
+        "groupFound": true,
+        "groupSize": 3,
+        "legacyPoolId": "0x881b4219078c86ac3a3930a6c229c2c846209fe9b4f0b8671772d42e2a799796",
+        "directionPoolId": "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237",
+        "changed": true
+      },
+      {
+        "scope": "candidate_exchange",
+        "tokenIn": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "tokenOut": "robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+        "pairKeyId": "pair:v1:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+        "direction": 1,
+        "groupFound": true,
+        "groupSize": 2,
+        "legacyPoolId": "0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30",
+        "directionPoolId": "0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e",
+        "changed": true
+      },
+      {
+        "scope": "candidate_exchange",
+        "tokenIn": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "tokenOut": "robinhood:4663:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "pairKeyId": "pair:v1:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "direction": 1,
+        "groupFound": true,
+        "groupSize": 2,
+        "legacyPoolId": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+        "directionPoolId": "0xa821b3724b451b22476c5347471b2a96d185b86af8760f226273e34ab4b2b8a0",
+        "changed": true
+      },
+      {
+        "scope": "candidate_exchange",
+        "tokenIn": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "tokenOut": "robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+        "pairKeyId": "pair:v1:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+        "direction": 1,
+        "groupFound": true,
+        "groupSize": 2,
+        "legacyPoolId": "0x8dc0387af606d84be8e4c2fc1da7bdc6d467337e9f3e075113f968922a190847",
+        "directionPoolId": "0xe6b713cf680868a40aafca45810b0c894eb5c696f5a2230d4816e6695e90e681",
+        "changed": true
+      }
+    ]
+  },
+  "tierPosition": {
+    "candidateTier": {
+      "comparable": 216,
+      "positionHistogram": {
+        "1": 190,
+        "2": 22,
+        "3": 4
+      },
+      "notInTier": 0,
+      "notInTierPercent": 0.0
+    },
+    "yzTier": {
+      "comparable": 386,
+      "positionHistogram": {
+        "1": 298,
+        "2": 62,
+        "3": 16,
+        "4": 10
+      },
+      "notInTier": 0,
+      "notInTierPercent": 0.0
+    },
+    "legacyTruncationWindow": 5
+  },
+  "hops": {
+    "hopCount": 522,
+    "comparable": 522,
+    "changed": 0,
+    "changeRatePercent": 0.0,
+    "affectedLoopCount": 0,
+    "perHopName": {
+      "y-z": {
+        "hops": 174,
+        "primary": 174,
+        "primaryChanged": 0,
+        "changed": 0,
+        "comparable": 174
+      },
+      "yc": {
+        "hops": 174,
+        "primary": 174,
+        "primaryChanged": 0,
+        "changed": 0,
+        "comparable": 174
+      },
+      "zc": {
+        "hops": 174,
+        "primary": 174,
+        "primaryChanged": 0,
+        "changed": 0,
+        "comparable": 174
+      }
+    },
+    "rankHistogram": {
+      "1": 522
+    },
+    "selectionBasisHistogram": {
+      "directional_pair_direction_rank:1": 522
+    },
+    "affectedLoops": []
+  },
+  "loops": {
+    "loopCount": 174,
+    "statusCounts": {
+      "active": 174
+    },
+    "capacityMeasured": 174,
+    "identityRule": "loop_key = anchor:tokenY:tokenZ (the token triple, not the pool set)",
+    "identityStability": "a different primary pool does not change the token triple, so the loop identity is unchanged by construction; the folded capacity and the profit are NOT measured here (they need a kernel re-fold)"
+  },
+  "legacyTables": {
+    "manager_dex_candidate_pool_recommendations": {
+      "rows": 340,
+      "lastWrittenAt": "2026-11-24T08:41:55.837653+00:00",
+      "firstWrittenAt": "2026-11-24T08:41:55.837653+00:00"
+    },
+    "manager_market_observation_yz_pairs": {
+      "rows": 1420,
+      "lastWrittenAt": "2026-11-22T12:33:58.783619100+00:00",
+      "firstWrittenAt": "2026-11-22T12:33:58.783619100+00:00"
+    },
+    "manager_market_observation_intermediate_pools": {
+      "rows": 348,
+      "lastWrittenAt": "2026-11-22T12:33:58.783619100+00:00",
+      "firstWrittenAt": "2026-11-22T12:33:58.783619100+00:00"
+    },
+    "manager_v4_directional_exchange_pools": {
+      "rows": 692,
+      "lastWrittenAt": "2026-11-23T22:46:22.591455600+00:00",
+      "firstWrittenAt": null
+    },
+    "manager_v4_closed_loop_hops": {
+      "rows": 522,
+      "lastWrittenAt": "2026-11-25T00:25:59.044457300+00:00",
+      "firstWrittenAt": "2026-11-25T00:25:59.044457300+00:00"
+    }
+  }
+}

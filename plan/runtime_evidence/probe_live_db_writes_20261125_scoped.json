@@ -1,0 +1,104 @@
+{
+  "command": "python -m pytest flashloan/app_runtime/tests/functional/page_state flashloan/app_runtime/tests/unit/test_cow_candidate_queue.py flashloan/app_runtime/tests/unit/test_control_panel_config.py -q",
+  "commandExitCode": 0,
+  "commandStderrTail": "",
+  "commandStdoutTail": "............................                                             [100%]\n28 passed in 9.32s\n",
+  "dataVersionAfter": 2,
+  "dataVersionBefore": 2,
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "fileStateAfter": {
+    "-shm": {
+      "mtimeNs": 1795538406292515200,
+      "size": 32768
+    },
+    "-wal": {
+      "mtimeNs": 1795538688297470500,
+      "size": 9995152
+    },
+    "main": {
+      "mtimeNs": 1795538650329829400,
+      "size": 11588456448
+    }
+  },
+  "fileStateBefore": {
+    "-shm": {
+      "mtimeNs": 1795538406292515200,
+      "size": 32768
+    },
+    "-wal": {
+      "mtimeNs": 1795538672832247200,
+      "size": 9995152
+    },
+    "main": {
+      "mtimeNs": 1795538650329829400,
+      "size": 11588456448
+    }
+  },
+  "gateDiff": {
+    "changedCount": 4,
+    "changedKeys": [
+      {
+        "after": {
+          "updated_at": "2026-11-24T16:44:47.773+00:00",
+          "value": "{\"namespace\":\"page_state\",\"parameter_key\":\"account_scan\",\"value_json\":\"{\\\"context\\\":{\\\"account_pool\\\":{\\\"account_count\\\":1,\\\"account_source\\\":\\\"database\\\",\\\"ready\\\":true,\\\"reason\\\":\\\"account pool is ready\\\",\\\"registry_window\\\":{\\\"active_count\\\":1,\\\"latest_scan_end_at\\\":\\\"2026-08-02T00:00:00+00:00\\\",\\\"total_count\\\":1},\\\"result\\\":\\\"ACCOUNT_POOL_READY\\\"},\\\"backfill\\\":{\\\"error\\\":null,\\\"finished_at\\\":null,\\\"last_result\\\":{},\\\"progress\\\":{},\\\"running\\\":false,\\\"stage\\\":\\\"idle\\\",\\\"started_at\\\":null},\\\"discovery\\\":{\\\"error\\\":null,\\\"finished_at\\\":\\\"2026-11-24T16:06:54+00:00\\\",\\\"last_result\\\":{},\\\"progress\\\":{\\\"chunk_size\\\":1000,\\\"external_index\\\":{\\\"configured\\\":false,\\\"count\\\":0,\\\"enabled\\\":false,\\\"error\\\":null,\\\"requires_onchain_verification\\\":true,\\\"source\\\":\\\"external-index-coarse\\\"},\\\"from_block\\\":102,\\\"limit\\\":5000,\\\"rpc_url\\\":\\\"https://rpc.example\\\",\\\"to_block\\\":200},\\\"reason\\\":null,\\\"running\\\":false,\\\"skipped\\\":false,\\\"stage\\\":\\\"idle\\\",\\\"started_at\\\":\\\"2026-11-24T16:06:31+00:00\\\"}},\\\"last_error\\\":null,\\\"message\\\":\\\"account pool is ready\\\",\\\"page\\\":\\\"account_scan\\\",\\\"result\\\":null,\\\"source_event_id\\\":null,\\\"status\\\":\\\"SHOWING_ACCOUNT_POOL\\\",\\\"updated_at\\\":\\\"2026-11-24T16:09:22+00:00\\\"}\"}"
+        },
+        "before": {
+          "updated_at": "2026-11-24T16:09:45.677+00:00",
+          "value": "{\"namespace\":\"page_state\",\"parameter_key\":\"account_scan\",\"value_json\":\"{\\\"context\\\":{\\\"account_pool\\\":{\\\"account_count\\\":1,\\\"account_source\\\":\\\"database\\\",\\\"ready\\\":true,\\\"reason\\\":\\\"account pool is ready\\\",\\\"registry_window\\\":{\\\"active_count\\\":1,\\\"latest_scan_end_at\\\":\\\"2026-08-02T00:00:00+00:00\\\",\\\"total_count\\\":1},\\\"result\\\":\\\"ACCOUNT_POOL_READY\\\"},\\\"backfill\\\":{\\\"error\\\":null,\\\"finished_at\\\":null,\\\"last_result\\\":{},\\\"progress\\\":{},\\\"running\\\":false,\\\"stage\\\":\\\"idle\\\",\\\"started_at\\\":null},\\\"discovery\\\":{\\\"error\\\":null,\\\"finished_at\\\":\\\"2026-11-24T16:06:54+00:00\\\",\\\"last_result\\\":{},\\\"progress\\\":{\\\"chunk_size\\\":1000,\\\"external_index\\\":{\\\"configured\\\":false,\\\"count\\\":0,\\\"enabled\\\":false,\\\"error\\\":null,\\\"requires_onchain_verification\\\":true,\\\"source\\\":\\\"external-index-coarse\\\"},\\\"from_block\\\":102,\\\"limit\\\":5000,\\\"rpc_url\\\":\\\"https://rpc.example\\\",\\\"to_block\\\":200},\\\"reason\\\":null,\\\"running\\\":false,\\\"skipped\\\":false,\\\"stage\\\":\\\"idle\\\",\\\"started_at\\\":\\\"2026-11-24T16:06:31+00:00\\\"}},\\\"last_error\\\":null,\\\"message\\\":\\\"account pool is ready\\\",\\\"page\\\":\\\"account_scan\\\",\\\"result\\\":null,\\\"source_event_id\\\":null,\\\"status\\\":\\\"SHOWING_ACCOUNT_POOL\\\",\\\"updated_at\\\":\\\"2026-11-24T16:09:22+00:00\\\"}\"}"
+        },
+        "key": "page_state|account_scan"
+      },
+      {
+        "after": {
+          "updated_at": "2026-11-24T16:44:47.781+00:00",
+          "value": "{\"namespace\":\"page_state\",\"parameter_key\":\"debt_pool\",\"value_json\":\"{\\\"context\\\":{\\\"account_pool\\\":{\\\"account_count\\\":1,\\\"account_source\\\":\\\"database\\\",\\\"ready\\\":true,\\\"reason\\\":\\\"account pool is ready\\\",\\\"registry_window\\\":{\\\"active_count\\\":1,\\\"latest_scan_end_at\\\":\\\"2026-08-02T00:00:00+00:00\\\",\\\"total_count\\\":1},\\\"result\\\":\\\"ACCOUNT_POOL_READY\\\"},\\\"debt_pool_decision\\\":{},\\\"event_received\\\":false,\\\"finished_at\\\":null,\\\"last_result\\\":{},\\\"market_event\\\":{\\\"active_sample_count\\\":6,\\\"affected_assets\\\":[\\\"AVAXUSDT\\\",\\\"BTCUSDT\\\"],\\\"consumed_at\\\":\\\"2026-11-24T16:44:43+00:00\\\",\\\"consumer_page\\\":\\\"debt_pool\\\",\\\"event_id\\\":\\\"521cebde88a8f7cce60f66d9\\\",\\\"event_type\\\":\\\"MARKET_VOLATILITY_ALERT\\\",\\\"expires_at\\\":\\\"2026-11-24T16:46:42+00:00\\\",\\\"gainer_count\\\":3,\\\"loser_count\\\":3,\\\"market_divergence_index\\\":2.0,\\\"max_abs_change_percent\\\":3.2,\\\"min_change_percent\\\":0.3,\\\"observed_at\\\":\\\"2026-11-24T16:44:42+00:00\\\",\\\"payload\\\":{\\\"active_sample_count\\\":6,\\\"bottom\\\":[{\\\"change_percent\\\":-2.4,\\\"symbol\\\":\\\"BTCUSDT\\\"}],\\\"gainer_count\\\":3,\\\"loser_count\\\":3,\\\"market_divergence_index\\\":2.0,\\\"min_change_percent\\\":0.3,\\\"observed_at\\\":\\\"2026-11-24T16:44:42+00:00\\\",\\\"sample_count\\\":12,\\\"top\\\":[{\\\"change_percent\\\":3.2,\\\"symbol\\\":\\\"AVAXUSDT\\\"}],\\\"window_seconds\\\":1.0},\\\"recorded_at\\\":\\\"2026-11-24T16:44:43+00:00\\\",\\\"sample_count\\\":12,\\\"severity\\\":\\\"medium\\\",\\\"store_status\\\":\\\"consumed\\\",\\\"trigger_reason\\\":\\\"medium_volatility: 3 gainers / 3 losers in 1.0s\\\",\\\"window_seconds\\\":1.0},\\\"progress\\\":{},\\\"route_intent\\\":null,\\\"running\\\":false,\\\"stage\\\":\\\"idle\\\",\\\"started_at\\\":null},\\\"last_error\\\":null,\\\"message\\\":null,\\\"page\\\":\\\"debt_pool\\\",\\\"result\\\":null,\\\"source_event_id\\\":null,\\\"status\\\":\\\"IDLE_FRESH\\\",\\\"updated_at\\\":\\\"2026-11-24T16:44:43+00:00\\\"}\"}"
+        },
+        "before": {
+          "updated_at": "2026-11-24T16:09:45.692+00:00",
+          "value": "{\"namespace\":\"page_state\",\"parameter_key\":\"debt_pool\",\"value_json\":\"{\\\"context\\\":{\\\"account_pool\\\":{\\\"account_count\\\":1,\\\"account_source\\\":\\\"database\\\",\\\"ready\\\":true,\\\"reason\\\":\\\"account pool is ready\\\",\\\"registry_window\\\":{\\\"active_count\\\":1,\\\"latest_scan_end_at\\\":\\\"2026-08-02T00:00:00+00:00\\\",\\\"total_count\\\":1},\\\"result\\\":\\\"ACCOUNT_POOL_READY\\\"},\\\"debt_pool_decision\\\":{},\\\"event_received\\\":false,\\\"finished_at\\\":\\\"2026-11-24T16:06:25+00:00\\\",\\\"last_result\\\":{},\\\"market_event\\\":null,\\\"progress\\\":{\\\"account_count\\\":2,\\\"rpc_url\\\":\\\"https://robinhood-mainnet.g.alchemy.com/v2/alch_X81ySO9Rq5_9fARKfxR_T\\\",\\\"scanned_count\\\":2,\\\"source\\\":\\\"database\\\"},\\\"route_intent\\\":null,\\\"running\\\":false,\\\"stage\\\":\\\"idle\\\",\\\"started_at\\\":\\\"2026-11-24T16:06:25+00:00\\\"},\\\"last_error\\\":null,\\\"message\\\":null,\\\"page\\\":\\\"debt_pool\\\",\\\"result\\\":null,\\\"source_event_id\\\":null,\\\"status\\\":\\\"IDLE_FRESH\\\",\\\"updated_at\\\":\\\"2026-11-24T16:09:45+00:00\\\"}\"}"
+        },
+        "key": "page_state|debt_pool"
+      },
+      {
+        "after": {
+          "updated_at": "2026-11-24T16:44:47.796+00:00",
+          "value": "{\"namespace\":\"page_state\",\"parameter_key\":\"execution\",\"value_json\":\"{\\\"context\\\":{\\\"account\\\":\\\"0x0000000000000000000000000000000000000001\\\",\\\"block_level\\\":\\\"hard\\\",\\\"blocked_reasons\\\":[\\\"fork_simulation_failed\\\"],\\\"candidate_status\\\":\\\"liquidatable\\\",\\\"execution_target\\\":{},\\\"force_allowed\\\":false,\\\"mode\\\":\\\"flashloan\\\",\\\"request\\\":{\\\"collateralAsset\\\":\\\"0x0000000000000000000000000000000000000003\\\",\\\"deadline\\\":\\\"9999999999\\\",\\\"debtAsset\\\":\\\"0x0000000000000000000000000000000000000004\\\",\\\"debtToCover\\\":\\\"1000\\\",\\\"gasLimit\\\":\\\"0\\\",\\\"minCollateralSwapOut\\\":\\\"1\\\",\\\"minProfitAmount\\\":\\\"1\\\",\\\"swapPath\\\":[],\\\"user\\\":\\\"0x0000000000000000000000000000000000000001\\\"},\\\"static_call_passed\\\":true,\\\"static_call_status\\\":\\\"passed\\\",\\\"submission_allowed\\\":false},\\\"last_error\\\":\\\"submission blocked: fork_simulation_failed\\\",\\\"message\\\":\\\"submission blocked: fork_simulation_failed\\\",\\\"page\\\":\\\"execution\\\",\\\"result\\\":\\\"submission_blocked\\\",\\\"source_event_id\\\":null,\\\"status\\\":\\\"HARD_BLOCKED\\\",\\\"updated_at\\\":\\\"2026-11-24T16:44:47+00:00\\\"}\"}"
+        },
+        "before": {
+          "updated_at": "2026-11-24T16:09:45.708+00:00",
+          "value": "{\"namespace\":\"page_state\",\"parameter_key\":\"execution\",\"value_json\":\"{\\\"context\\\":{\\\"account\\\":\\\"0x0000000000000000000000000000000000000001\\\",\\\"blocked_reasons\\\":[],\\\"execution_target\\\":{},\\\"mode\\\":\\\"flashloan\\\",\\\"phase\\\":\\\"context_received\\\",\\\"request\\\":{\\\"account\\\":\\\"0x0000000000000000000000000000000000000001\\\"},\\\"request_id\\\":\\\"7fc894e45a904f1db1af964c388b4466\\\"},\\\"last_error\\\":\\\"missing LIQUIDATION_EXECUTOR_ADDRESS\\\",\\\"message\\\":\\\"missing LIQUIDATION_EXECUTOR_ADDRESS\\\",\\\"page\\\":\\\"execution\\\",\\\"result\\\":null,\\\"source_event_id\\\":null,\\\"status\\\":\\\"ERROR\\\",\\\"updated_at\\\":\\\"2026-11-24T16:09:23+00:00\\\"}\"}"
+        },
+        "key": "page_state|execution"
+      },
+      {
+        "after": {
+          "updated_at": "2026-11-24T16:44:47.813+00:00",
+          "value": "{\"namespace\":\"page_state\",\"parameter_key\":\"market_observation\",\"value_json\":\"{\\\"context\\\":{\\\"liquidation_daemon\\\":{},\\\"market_event\\\":null,\\\"pid\\\":null,\\\"route_intent\\\":null},\\\"last_error\\\":null,\\\"message\\\":null,\\\"page\\\":\\\"market_observation\\\",\\\"result\\\":null,\\\"source_event_id\\\":null,\\\"status\\\":\\\"IDLE\\\",\\\"updated_at\\\":\\\"2026-11-24T16:09:22+00:00\\\"}\"}"
+        },
+        "before": {
+          "updated_at": "2026-11-24T16:09:45.739+00:00",
+          "value": "{\"namespace\":\"page_state\",\"parameter_key\":\"market_observation\",\"value_json\":\"{\\\"context\\\":{\\\"liquidation_daemon\\\":{},\\\"market_event\\\":null,\\\"pid\\\":null,\\\"route_intent\\\":null},\\\"last_error\\\":null,\\\"message\\\":null,\\\"page\\\":\\\"market_observation\\\",\\\"result\\\":null,\\\"source_event_id\\\":null,\\\"status\\\":\\\"IDLE\\\",\\\"updated_at\\\":\\\"2026-11-24T16:09:22+00:00\\\"}\"}"
+        },
+        "key": "page_state|market_observation"
+      }
+    ]
+  },
+  "gateKeyCount": 19,
+  "generatedAt": "2026-11-25T00:44:49.542+08:00",
+  "label": "scoped-page_state-cow-control",
+  "metaDiff": {
+    "changedCount": 0,
+    "changedKeys": []
+  },
+  "observedDataVersionIncrements": 0,
+  "rowCountsAfter": {
+    "cow_execution_attempts": 0,
+    "cow_execution_reviews": 67084
+  },
+  "rowCountsBefore": {
+    "cow_execution_attempts": 0,
+    "cow_execution_reviews": 67084
+  },
+  "sampleCount": 3,
+  "windowSeconds": 16.625
+}

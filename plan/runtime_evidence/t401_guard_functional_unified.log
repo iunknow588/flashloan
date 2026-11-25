@@ -1,0 +1,19 @@
+........................................................................ [ 24%]
+........................................................................ [ 48%]
+........................................................................ [ 72%]
+........................................................................ [ 97%]
+........                                                                 [100%]
+============================ slowest 12 durations =============================
+28.28s call     flashloan/app_runtime/tests/functional/test_api_handler_payload_contract.py::test_read_only_handler_payloads_include_request_correlation_header
+27.62s call     flashloan/app_runtime/tests/functional/test_web_app_assembly_workflows.py::test_dex_surface_payload_apis_are_distinct
+26.22s call     flashloan/app_runtime/tests/functional/test_api_handler_payload_contract.py::test_read_only_handlers_return_contract_valid_json_payloads
+15.98s call     flashloan/app_runtime/tests/functional/test_navigation_flow.py::test_control_panel_navigation_chain_links_expected_pages
+9.56s call     flashloan/app_runtime/tests/functional/test_web_app_assembly.py::test_robinhood_mainnet_dex_surface_apis_use_chain_flows
+9.34s call     flashloan/app_runtime/tests/functional/test_web_app_assembly_workflows.py::test_robinhood_shadow_uses_the_shared_dex_surfaces
+7.02s call     flashloan/app_runtime/tests/functional/test_web_app_assembly_workflows.py::test_account_pool_gate_covers_missing_empty_incomplete_and_ready
+6.27s call     flashloan/app_runtime/tests/functional/test_web_app_assembly_scope_api.py::test_app_shell_owns_one_visible_global_chain_selector
+5.60s call     flashloan/app_runtime/tests/functional/test_web_app_assembly_workflows.py::test_dex_page_variants_follow_market_type
+5.02s call     flashloan/app_runtime/tests/functional/test_api_handler_payload_contract.py::test_unknown_market_error_shape_is_uniform_across_scope_required_api_families
+4.77s call     flashloan/app_runtime/tests/functional/test_web_app_assembly.py::test_flash_loan_pool_page_is_independent_shared_capability_view
+4.37s call     flashloan/app_runtime/tests/functional/test_web_app_assembly_dex_records.py::test_four_independent_submission_record_apis_are_separate
+296 passed in 301.33s (0:05:01)

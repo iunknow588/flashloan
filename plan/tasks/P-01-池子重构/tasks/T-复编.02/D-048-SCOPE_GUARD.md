@@ -14,6 +14,7 @@
 | `M-6` | 复核层（**扩范围 · 事后补记**） | ``flashloan/rs-src/src/review_publish.rs`` | 是 |
 | `M-8` | 编排层（**扩范围 · 事后补记**） | ``flashloan/src/dex/runtime/dex_opportunity_scanner_rust_mixin.py``<br>``flashloan/src/dex/runtime/closed_loop_state_machine.py``<br>``flashloan/src/dex/runtime/rust_closed_loop.py``<br>``flashloan/app_runtime/.env.example`` | 是 |
 | `M-8` | 编排层（**扩范围 · 第三次**） | ``flashloan/tools/composite_manager/src/overview.rs`` | 是 |
+| `M-8` | 编排层（**扩范围 · 第四次 · 测试基础设施**） | ``flashloan/app_runtime/tests/unit/test_run_port.py`` | 是 |
 
 > **扩范围原因（`D-047` §1.3 同步登记）**：本任务的**复核发布**链路本身正确，
 > 但它在实盘**一次都没有落地**。实测根因在**编排层**的**常驻方向组容量**：
@@ -65,6 +66,28 @@
 > **为什么只能在 `M-8` 内改**：`overview.rs` 是**编排层**的一致性**呈现**副本，
 > 改它不会触碰任何**数据产生**逻辑；改 `M-6`/`M-7` 只能绕开症状。
 
+**第四次扩范围（`M-8` · 测试基础设施 · 端口回收用例的副作用）**：
+
+> **扩的落点**：`flashloan/app_runtime/tests/unit/test_run_port.py`。
+>
+> **为什么必须扩**：本任务的**全部读数**都来自**被监督的那个运行时**；而实测发现
+> 该测试文件里的端口回收用例**会真的杀掉那个运行时**（见下）⇒ 它是**读数管线的前置条件**，
+> 不是「顺手改的测试」。
+>
+> **实测根因（已受控复现）**：该用例**只 mock 了 `_port_in_use`**，**未 mock**
+> `_try_close_port_owner` 内部的 `netstat` 与 `taskkill` ⇒ 执行时会**真的 `taskkill /F`**
+> 掉 **5000 端口的持有者**；被杀进程**静默退出码 1、无 traceback、无自诊断信息**。
+> 2026-11-24/25 实测期间运行时因此被**静默重启 3 次**（`22:23:11` / `23:00:06` /
+> `23:55:57`），其中前两次**都落在全量回归窗口内**。
+>
+> **改了什么**：新增 autouse fixture，同时 mock `_port_process_ids` 与 `subprocess.run`
+> ⇒ **保留**断言覆盖、**去掉**真实 kill 副作用。**产品代码一字未改**。
+>
+> **⚠️ 流程欠账（如实登记）**：§4 的「**先扩后跑**」被**顺序倒置**（先改后登记）。
+> **⚠️ 跑了全量（如实登记）**：§2 写明「**不得**跑全量」，本次跑了一次全量，
+> 理由是**必须证明「全量跑完不再杀掉运行时」**（该用例只在全量套件里才被触发）。
+> 详见 [`D-047` §1.3.5](./D-047-PLAN.md) 与 [`D-104` §4](./docs/D-104-复核完整性实测.md)。
+
 **改动模块集合 = 回归范围。** 未列入本表的模块**一律不跑测试**。
 
 ---
@@ -78,8 +101,8 @@
 >
 | 模块 | 代码落点（文件级） | 与他任务**同文件** |
 |---|---|---|
-| `M-6` | `flashloan/rs-src/src/review_publish.rs`<br>`flashloan/tools/review_manager/examples/p0_6_single_tick_gate_probe.rs`<br>`flashloan/tools/review_manager/examples/t401_profit_drop_probe.rs`<br>`flashloan/tools/review_manager/src/lib.rs`<br>`flashloan/tools/review_manager/src/parity.rs`<br>`flashloan/tools/review_manager/src/records.rs`<br>`flashloan/tools/review_manager/src/runtime.rs`<br>`flashloan/tools/review_manager/src/shadow.rs`<br>`flashloan/tools/review_manager/src/single_tick.rs`<br>`flashloan/tools/review_manager/src/state_transition_gate.rs` | `flashloan/tools/review_manager/examples/p0_6_single_tick_gate_probe.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 同文件<br>`flashloan/tools/review_manager/examples/t401_profit_drop_probe.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 同文件<br>`flashloan/tools/review_manager/src/lib.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 同文件<br>`flashloan/tools/review_manager/src/parity.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 同文件<br>`flashloan/tools/review_manager/src/records.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 同文件<br>`flashloan/tools/review_manager/src/runtime.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 同文件<br>`flashloan/tools/review_manager/src/shadow.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 同文件<br>`flashloan/tools/review_manager/src/single_tick.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 同文件<br>`flashloan/tools/review_manager/src/state_transition_gate.rs`<br>↔ 与 T-复.02 / T-复广.01 / T-复广.02 同文件 |
-| `M-8` | `flashloan/tools/composite_manager/src/overview.rs` | `flashloan/tools/composite_manager/src/overview.rs`<br>↔ 与 T-候编.01 / T-编.01 同文件 |
+| `M-6` | `flashloan/rs-src/src/review_publish.rs`<br>`flashloan/tools/review_manager/examples/p0_6_single_tick_gate_probe.rs`<br>`flashloan/tools/review_manager/examples/t401_profit_drop_probe.rs`<br>`flashloan/tools/review_manager/src/lib.rs`<br>`flashloan/tools/review_manager/src/parity.rs`<br>`flashloan/tools/review_manager/src/records.rs`<br>`flashloan/tools/review_manager/src/runtime.rs`<br>`flashloan/tools/review_manager/src/shadow.rs`<br>`flashloan/tools/review_manager/src/single_tick.rs`<br>`flashloan/tools/review_manager/src/state_transition_gate.rs` | `flashloan/tools/review_manager/examples/p0_6_single_tick_gate_probe.rs`<br>↔ 与 T-复广.01 同文件<br>`flashloan/tools/review_manager/examples/t401_profit_drop_probe.rs`<br>↔ 与 T-复广.01 同文件<br>`flashloan/tools/review_manager/src/lib.rs`<br>↔ 与 T-复广.01 同文件<br>`flashloan/tools/review_manager/src/parity.rs`<br>↔ 与 T-复广.01 同文件<br>`flashloan/tools/review_manager/src/records.rs`<br>↔ 与 T-复广.01 同文件<br>`flashloan/tools/review_manager/src/runtime.rs`<br>↔ 与 T-复广.01 同文件<br>`flashloan/tools/review_manager/src/shadow.rs`<br>↔ 与 T-复广.01 同文件<br>`flashloan/tools/review_manager/src/single_tick.rs`<br>↔ 与 T-复广.01 同文件<br>`flashloan/tools/review_manager/src/state_transition_gate.rs`<br>↔ 与 T-复广.01 同文件 |
+| `M-8` | `flashloan/app_runtime/tests/unit/test_run_port.py`<br>`flashloan/tools/composite_manager/src/overview.rs` | `flashloan/tools/composite_manager/src/overview.rs`<br>↔ 与 T-候编储.01 / T-编.01 同文件 |
 
 **判定规则**：
 
@@ -94,6 +117,7 @@
 
 > **本任务的独占文件**（**无争用** ⇒ 本任务可与其它任务**同时施工**）：
 >
+> - `flashloan/app_runtime/tests/unit/test_run_port.py`
 > - `flashloan/rs-src/src/review_publish.rs`
 ## 2. 逐模块回归命令（**可逐条复制执行**）
 
@@ -103,6 +127,7 @@
 | `M-6` | 复核层（**扩范围**：Rust 原生发布层） | `cargo test --offline --release`（工作目录 `flashloan/rs-src/`） |
 | `M-8` | 编排层（**扩范围 · 第三次**：一致性判定） | `cargo test --offline -p composite-manager`（工作目录 `flashloan/tools/`） |
 | `M-8` | 编排层（扩范围） | `python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py flashloan/app_runtime/tests/unit/test_dynamic_closed_loop_workers.py flashloan/app_runtime/tests/unit/test_chain_scoped_parameter_layering.py flashloan/app_runtime/tests/unit/test_secret_leakage_guards.py flashloan/app_runtime/tests/unit/test_dex_route_test.py flashloan/app_runtime/tests/unit/test_d4_capacity_informed_ladder.py flashloan/app_runtime/tests/unit/test_manager_overview_closed_loop_identity.py -q` |
+| `M-8` | 编排层（**扩范围 · 第四次**：端口回收用例的副作用） | `python -m pytest flashloan/app_runtime/tests/unit/test_run_port.py -q` |
 
 ```powershell
 # 本任务的完整回归范围 = 上表所有模块的命令之并集
@@ -110,6 +135,7 @@ cargo test --offline -p review-manager
 cargo test --offline --release            # 工作目录 flashloan/rs-src/
 cargo test --offline -p composite-manager   # 工作目录 flashloan/tools/
 python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_bridge.py flashloan/app_runtime/tests/unit/test_dynamic_closed_loop_workers.py flashloan/app_runtime/tests/unit/test_chain_scoped_parameter_layering.py flashloan/app_runtime/tests/unit/test_secret_leakage_guards.py flashloan/app_runtime/tests/unit/test_dex_route_test.py flashloan/app_runtime/tests/unit/test_d4_capacity_informed_ladder.py flashloan/app_runtime/tests/unit/test_manager_overview_closed_loop_identity.py -q
+python -m pytest flashloan/app_runtime/tests/unit/test_run_port.py -q
 ```
 
 > **只跑上面这些。** 未改动模块**不重跑**。
@@ -153,3 +179,12 @@ python -m pytest flashloan/app_runtime/tests/unit/test_rust_closed_loop_worker_b
 - [ ] §2 的**全部**命令**已执行**且**全绿**
 - [ ] §3 的禁止触碰项**确未被触碰**
 - [ ] **未**因本任务跑过**全量**测试（若跑了，需说明原因）
+
+> **⚠️ 本轮的全量偏离（如实登记 · 不勾选此项）**
+> —— 本轮**跑过一次全量**（`pytest flashloan scripts -q`），原因是：
+> **第四次扩范围**修的是「**测试自己会杀掉运行时**」这一缺陷，
+> 它**只在全量套件里才被触发**（该用例在全量收集顺序中的位置 ≈ **80 %**），
+> 且**必须证明「全量跑完不再杀掉运行时」**——否则本任务的读数管线仍然不可信。
+> 回归读数见 [`D-047` §3.2](./D-047-PLAN.md)；
+> 根因与受控复现见 [`D-104` §4](./docs/D-104-复核完整性实测.md)。
+> ⇒ 此项**按事实登记为「跑过全量」**，**不**勾选成「未跑过」。

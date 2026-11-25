@@ -11,6 +11,7 @@ Usage:
 """
 
 import json
+import os
 import sys
 
 
@@ -92,12 +93,28 @@ def comparison(current, baseline):
 def main():
     current = load(sys.argv[1])
     baseline = load(sys.argv[2]) if len(sys.argv) > 2 else None
+    source_name = os.path.basename(sys.argv[1])
+    library_state = current.get("reviewLibraryState") or {}
+    collected_at = "—"
+    for item in current.get("checklist") or []:
+        if item.get("name") == "D4":
+            collected_at = (item.get("observations") or {}).get("collectedAt", "—")
+            break
 
     out = []
     out.append("### 3.1 采集器一次性输出（**%d** 项）" % len(current.get("checklist", [])))
     out.append("")
     out.append("采集时间：`%s`；判定口径：`%s`；存储：`%s`"
                % (current.get("generatedAt"), current.get("mode"), current.get("store")))
+    out.append("")
+    out.append("**读数出处（钉住快照）**：`plan/runtime_evidence/%s` —— "
+               "`review_version = %s`、闭环数 = **%s**、采集完成于 `%s`。"
+               "（**滚动文件** `t401_review_integrity.json` 会被采集器按新代次覆盖，"
+               "**本文档只认上面这个钉住快照**；两者不可混用。）"
+               % (source_name,
+                  library_state.get("review_version"),
+                  library_state.get("loop_count"),
+                  collected_at))
     out.append("")
     out.append(item_table(current))
     out.append("")

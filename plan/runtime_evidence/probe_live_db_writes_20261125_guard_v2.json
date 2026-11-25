@@ -1,0 +1,59 @@
+{
+  "command": "python -m pytest flashloan/app_runtime/tests/functional/page_state flashloan/app_runtime/tests/unit/test_cow_candidate_queue.py flashloan/app_runtime/tests/unit/test_control_panel_config.py -q",
+  "commandExitCode": 0,
+  "commandStderrTail": "",
+  "commandStdoutTail": "............................                                             [100%]\n28 passed in 8.85s\n",
+  "dataVersionAfter": 2,
+  "dataVersionBefore": 2,
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "fileStateAfter": {
+    "-shm": {
+      "mtimeNs": 1795540258705115800,
+      "size": 65536
+    },
+    "-wal": {
+      "mtimeNs": 1795540353019345600,
+      "size": 17147472
+    },
+    "main": {
+      "mtimeNs": 1795540259292580600,
+      "size": 11684069376
+    }
+  },
+  "fileStateBefore": {
+    "-shm": {
+      "mtimeNs": 1795540258705115800,
+      "size": 65536
+    },
+    "-wal": {
+      "mtimeNs": 1795540353019345600,
+      "size": 17147472
+    },
+    "main": {
+      "mtimeNs": 1795540259292580600,
+      "size": 11684069376
+    }
+  },
+  "gateDiff": {
+    "changedCount": 0,
+    "changedKeys": []
+  },
+  "gateKeyCount": 19,
+  "generatedAt": "2026-11-25T01:12:55.044+08:00",
+  "label": "guard-scoped-v2",
+  "metaDiff": {
+    "changedCount": 0,
+    "changedKeys": []
+  },
+  "observedDataVersionIncrements": 0,
+  "rowCountsAfter": {
+    "cow_execution_attempts": 0,
+    "cow_execution_reviews": 67639
+  },
+  "rowCountsBefore": {
+    "cow_execution_attempts": 0,
+    "cow_execution_reviews": 67639
+  },
+  "sampleCount": 3,
+  "windowSeconds": 18.938
+}

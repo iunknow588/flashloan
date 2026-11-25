@@ -1,0 +1,16 @@
+   Compiling pyo3-build-config v0.23.5
+   Compiling pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\pool_manager)
+   Compiling pyo3-ffi v0.23.5
+   Compiling pyo3-macros-backend v0.23.5
+   Compiling pyo3 v0.23.5
+   Compiling pyo3-macros v0.23.5
+   Compiling candidate-edge-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\candidate_edge_pool_manager)
+   Compiling directional-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\directional_pool_manager)
+   Compiling candidate-exchange-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\candidate_exchange_pool_manager)
+   Compiling closed-loop-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\closed_loop_manager)
+   Compiling review-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\review_manager)
+   Compiling broadcast-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\broadcast_manager)
+   Compiling composite-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\composite_manager)
+   Compiling flashloan-rs v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\rs-src)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4m 38s
+     Running unittests src\lib.rs (target\debug\deps\flashloan_rs-7fe644539b55e008.exe)

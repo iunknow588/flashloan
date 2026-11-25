@@ -1,0 +1,1 @@
+python -m pytest flashloan/app_runtime/tests/functional/page_state flashloan/app_runtime/tests/unit/test_cow_candidate_queue.py flashloan/app_runtime/tests/unit/test_control_panel_config.py -q

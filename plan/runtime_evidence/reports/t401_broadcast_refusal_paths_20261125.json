@@ -1,0 +1,682 @@
+{
+  "schema": "t-guang-01-broadcast-refusal-paths-v1",
+  "task": "T-广.01",
+  "api": "http://127.0.0.1:8092",
+  "fixtureStore": "E:\\2026OPC大赛\\flashLoan\\plan\\runtime_evidence\\broadcast_admission_fixture_20261125.sqlite3",
+  "note": "the fixture store is a separate database file; the live store was not touched",
+  "cases": [
+    {
+      "case": "profit-zero",
+      "class": "profit<=0",
+      "expectedRule": "BC-1.pnl_positive",
+      "ruleHeld": true,
+      "dryRun": {
+        "httpStatus": 409,
+        "errorCode": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+        "failedRules": [
+          "BC-1.pnl_positive"
+        ],
+        "payload": {
+          "ok": false,
+          "version": "manager_dto_v1",
+          "generatedAt": "2026-11-25T01:24:11.125487200+00:00",
+          "chainId": 4663,
+          "requestId": "t401-dry-profit-zero",
+          "data": null,
+          "error": {
+            "code": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+            "message": "request fixture:profit-zero was refused by the admission decision;                  unsatisfied rules: BC-1.pnl_positive; BC-1.pnl_positive",
+            "retryable": false,
+            "stage": "broadcast.submit",
+            "details": {
+              "chainId": 4663,
+              "detail": "BC-1.pnl_positive",
+              "loopKey": "fixture:profit-zero",
+              "reason": "request fixture:profit-zero was refused by the admission decision;                  unsatisfied rules: BC-1.pnl_positive; BC-1.pnl_positive",
+              "reasons": [
+                "BC-1.pnl_positive"
+              ]
+            }
+          }
+        }
+      },
+      "apply": {
+        "httpStatus": 409,
+        "errorCode": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+        "failedRules": [
+          "BC-1.pnl_positive"
+        ],
+        "payload": {
+          "ok": false,
+          "version": "manager_dto_v1",
+          "generatedAt": "2026-11-25T01:24:11.853223600+00:00",
+          "chainId": 4663,
+          "requestId": "t401-apply-profit-zero",
+          "data": null,
+          "error": {
+            "code": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+            "message": "request fixture:profit-zero was refused by the admission decision;                  unsatisfied rules: BC-1.pnl_positive; BC-1.pnl_positive",
+            "retryable": false,
+            "stage": "broadcast.submit",
+            "details": {
+              "chainId": 4663,
+              "detail": "BC-1.pnl_positive",
+              "loopKey": "fixture:profit-zero",
+              "reason": "request fixture:profit-zero was refused by the admission decision;                  unsatisfied rules: BC-1.pnl_positive; BC-1.pnl_positive",
+              "reasons": [
+                "BC-1.pnl_positive"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "profit-negative",
+      "class": "profit<=0",
+      "expectedRule": "BC-1.pnl_positive",
+      "ruleHeld": true,
+      "dryRun": {
+        "httpStatus": 409,
+        "errorCode": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+        "failedRules": [
+          "BC-1.pnl_positive"
+        ],
+        "payload": {
+          "ok": false,
+          "version": "manager_dto_v1",
+          "generatedAt": "2026-11-25T01:24:11.860768800+00:00",
+          "chainId": 4663,
+          "requestId": "t401-dry-profit-negative",
+          "data": null,
+          "error": {
+            "code": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+            "message": "request fixture:profit-negative was refused by the admission decision;                  unsatisfied rules: BC-1.pnl_positive; BC-1.pnl_positive",
+            "retryable": false,
+            "stage": "broadcast.submit",
+            "details": {
+              "chainId": 4663,
+              "detail": "BC-1.pnl_positive",
+              "loopKey": "fixture:profit-negative",
+              "reason": "request fixture:profit-negative was refused by the admission decision;                  unsatisfied rules: BC-1.pnl_positive; BC-1.pnl_positive",
+              "reasons": [
+                "BC-1.pnl_positive"
+              ]
+            }
+          }
+        }
+      },
+      "apply": {
+        "httpStatus": 409,
+        "errorCode": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+        "failedRules": [
+          "BC-1.pnl_positive"
+        ],
+        "payload": {
+          "ok": false,
+          "version": "manager_dto_v1",
+          "generatedAt": "2026-11-25T01:24:12.450279200+00:00",
+          "chainId": 4663,
+          "requestId": "t401-apply-profit-negative",
+          "data": null,
+          "error": {
+            "code": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+            "message": "request fixture:profit-negative was refused by the admission decision;                  unsatisfied rules: BC-1.pnl_positive; BC-1.pnl_positive",
+            "retryable": false,
+            "stage": "broadcast.submit",
+            "details": {
+              "chainId": 4663,
+              "detail": "BC-1.pnl_positive",
+              "loopKey": "fixture:profit-negative",
+              "reason": "request fixture:profit-negative was refused by the admission decision;                  unsatisfied rules: BC-1.pnl_positive; BC-1.pnl_positive",
+              "reasons": [
+                "BC-1.pnl_positive"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "profit-unmeasured",
+      "class": "profit-or-amount-unknown",
+      "expectedRule": "BC-1.pnl_measured",
+      "ruleHeld": true,
+      "dryRun": {
+        "httpStatus": 409,
+        "errorCode": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+        "failedRules": [
+          "BC-1.pnl_measured"
+        ],
+        "payload": {
+          "ok": false,
+          "version": "manager_dto_v1",
+          "generatedAt": "2026-11-25T01:24:12.459737+00:00",
+          "chainId": 4663,
+          "requestId": "t401-dry-profit-unmeasured",
+          "data": null,
+          "error": {
+            "code": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+            "message": "request fixture:profit-unmeasured was refused by the admission decision;                  unsatisfied rules: BC-1.pnl_measured; BC-1.pnl_measured",
+            "retryable": false,
+            "stage": "broadcast.submit",
+            "details": {
+              "chainId": 4663,
+              "detail": "BC-1.pnl_measured",
+              "loopKey": "fixture:profit-unmeasured",
+              "reason": "request fixture:profit-unmeasured was refused by the admission decision;                  unsatisfied rules: BC-1.pnl_measured; BC-1.pnl_measured",
+              "reasons": [
+                "BC-1.pnl_measured"
+              ]
+            }
+          }
+        }
+      },
+      "apply": {
+        "httpStatus": 409,
+        "errorCode": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+        "failedRules": [
+          "BC-1.pnl_measured"
+        ],
+        "payload": {
+          "ok": false,
+          "version": "manager_dto_v1",
+          "generatedAt": "2026-11-25T01:24:12.483687300+00:00",
+          "chainId": 4663,
+          "requestId": "t401-apply-profit-unmeasured",
+          "data": null,
+          "error": {
+            "code": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+            "message": "request fixture:profit-unmeasured was refused by the admission decision;                  unsatisfied rules: BC-1.pnl_measured; BC-1.pnl_measured",
+            "retryable": false,
+            "stage": "broadcast.submit",
+            "details": {
+              "chainId": 4663,
+              "detail": "BC-1.pnl_measured",
+              "loopKey": "fixture:profit-unmeasured",
+              "reason": "request fixture:profit-unmeasured was refused by the admission decision;                  unsatisfied rules: BC-1.pnl_measured; BC-1.pnl_measured",
+              "reasons": [
+                "BC-1.pnl_measured"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "price-limits-missing",
+      "class": "profit-or-amount-unknown",
+      "expectedRule": "BC-1.price_limits_complete",
+      "ruleHeld": true,
+      "dryRun": {
+        "httpStatus": 409,
+        "errorCode": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+        "failedRules": [
+          "BC-1.price_limits_complete"
+        ],
+        "payload": {
+          "ok": false,
+          "version": "manager_dto_v1",
+          "generatedAt": "2026-11-25T01:24:12.495388600+00:00",
+          "chainId": 4663,
+          "requestId": "t401-dry-price-limits-missing",
+          "data": null,
+          "error": {
+            "code": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+            "message": "request fixture:price-limits-missing was refused by the admission decision;                  unsatisfied rules: BC-1.price_limits_complete; BC-1.price_limits_complete",
+            "retryable": false,
+            "stage": "broadcast.submit",
+            "details": {
+              "chainId": 4663,
+              "detail": "BC-1.price_limits_complete",
+              "loopKey": "fixture:price-limits-missing",
+              "reason": "request fixture:price-limits-missing was refused by the admission decision;                  unsatisfied rules: BC-1.price_limits_complete; BC-1.price_limits_complete",
+              "reasons": [
+                "BC-1.price_limits_complete"
+              ]
+            }
+          }
+        }
+      },
+      "apply": {
+        "httpStatus": 409,
+        "errorCode": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+        "failedRules": [
+          "BC-1.price_limits_complete"
+        ],
+        "payload": {
+          "ok": false,
+          "version": "manager_dto_v1",
+          "generatedAt": "2026-11-25T01:24:12.521873200+00:00",
+          "chainId": 4663,
+          "requestId": "t401-apply-price-limits-missing",
+          "data": null,
+          "error": {
+            "code": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+            "message": "request fixture:price-limits-missing was refused by the admission decision;                  unsatisfied rules: BC-1.price_limits_complete; BC-1.price_limits_complete",
+            "retryable": false,
+            "stage": "broadcast.submit",
+            "details": {
+              "chainId": 4663,
+              "detail": "BC-1.price_limits_complete",
+              "loopKey": "fixture:price-limits-missing",
+              "reason": "request fixture:price-limits-missing was refused by the admission decision;                  unsatisfied rules: BC-1.price_limits_complete; BC-1.price_limits_complete",
+              "reasons": [
+                "BC-1.price_limits_complete"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "review-stale",
+      "class": "stale-state",
+      "expectedRule": "BC-1.review_fresh",
+      "ruleHeld": true,
+      "dryRun": {
+        "httpStatus": 409,
+        "errorCode": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+        "failedRules": [
+          "BC-1.review_fresh"
+        ],
+        "payload": {
+          "ok": false,
+          "version": "manager_dto_v1",
+          "generatedAt": "2026-11-25T01:24:12.527767800+00:00",
+          "chainId": 4663,
+          "requestId": "t401-dry-review-stale",
+          "data": null,
+          "error": {
+            "code": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+            "message": "request fixture:review-stale was refused by the admission decision;                  unsatisfied rules: BC-1.review_fresh; BC-1.review_fresh",
+            "retryable": false,
+            "stage": "broadcast.submit",
+            "details": {
+              "chainId": 4663,
+              "detail": "BC-1.review_fresh",
+              "loopKey": "fixture:review-stale",
+              "reason": "request fixture:review-stale was refused by the admission decision;                  unsatisfied rules: BC-1.review_fresh; BC-1.review_fresh",
+              "reasons": [
+                "BC-1.review_fresh"
+              ]
+            }
+          }
+        }
+      },
+      "apply": {
+        "httpStatus": 409,
+        "errorCode": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+        "failedRules": [
+          "BC-1.review_fresh"
+        ],
+        "payload": {
+          "ok": false,
+          "version": "manager_dto_v1",
+          "generatedAt": "2026-11-25T01:24:12.551787800+00:00",
+          "chainId": 4663,
+          "requestId": "t401-apply-review-stale",
+          "data": null,
+          "error": {
+            "code": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+            "message": "request fixture:review-stale was refused by the admission decision;                  unsatisfied rules: BC-1.review_fresh; BC-1.review_fresh",
+            "retryable": false,
+            "stage": "broadcast.submit",
+            "details": {
+              "chainId": 4663,
+              "detail": "BC-1.review_fresh",
+              "loopKey": "fixture:review-stale",
+              "reason": "request fixture:review-stale was refused by the admission decision;                  unsatisfied rules: BC-1.review_fresh; BC-1.review_fresh",
+              "reasons": [
+                "BC-1.review_fresh"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "guard-account-mismatch",
+      "class": "guardrail-mismatch",
+      "expectedRule": "BC-2.account_matches",
+      "ruleHeld": true,
+      "dryRun": {
+        "httpStatus": 409,
+        "errorCode": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+        "failedRules": [
+          "BC-2.account_matches"
+        ],
+        "payload": {
+          "ok": false,
+          "version": "manager_dto_v1",
+          "generatedAt": "2026-11-25T01:24:12.559483900+00:00",
+          "chainId": 4663,
+          "requestId": "t401-dry-guard-account-mismatch",
+          "data": null,
+          "error": {
+            "code": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+            "message": "request fixture:guard-account-mismatch was refused by the admission decision;                  unsatisfied rules: BC-2.account_matches; BC-2.account_matches",
+            "retryable": false,
+            "stage": "broadcast.submit",
+            "details": {
+              "chainId": 4663,
+              "detail": "BC-2.account_matches",
+              "loopKey": "fixture:guard-account-mismatch",
+              "reason": "request fixture:guard-account-mismatch was refused by the admission decision;                  unsatisfied rules: BC-2.account_matches; BC-2.account_matches",
+              "reasons": [
+                "BC-2.account_matches"
+              ]
+            }
+          }
+        }
+      },
+      "apply": {
+        "httpStatus": 409,
+        "errorCode": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+        "failedRules": [
+          "BC-2.account_matches"
+        ],
+        "payload": {
+          "ok": false,
+          "version": "manager_dto_v1",
+          "generatedAt": "2026-11-25T01:24:12.608036+00:00",
+          "chainId": 4663,
+          "requestId": "t401-apply-guard-account-mismatch",
+          "data": null,
+          "error": {
+            "code": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+            "message": "request fixture:guard-account-mismatch was refused by the admission decision;                  unsatisfied rules: BC-2.account_matches; BC-2.account_matches",
+            "retryable": false,
+            "stage": "broadcast.submit",
+            "details": {
+              "chainId": 4663,
+              "detail": "BC-2.account_matches",
+              "loopKey": "fixture:guard-account-mismatch",
+              "reason": "request fixture:guard-account-mismatch was refused by the admission decision;                  unsatisfied rules: BC-2.account_matches; BC-2.account_matches",
+              "reasons": [
+                "BC-2.account_matches"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "guard-amount-over-limit",
+      "class": "guardrail-mismatch",
+      "expectedRule": "BC-2.amount_within_limit",
+      "ruleHeld": true,
+      "dryRun": {
+        "httpStatus": 409,
+        "errorCode": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+        "failedRules": [
+          "BC-2.amount_within_limit"
+        ],
+        "payload": {
+          "ok": false,
+          "version": "manager_dto_v1",
+          "generatedAt": "2026-11-25T01:24:12.613619100+00:00",
+          "chainId": 4663,
+          "requestId": "t401-dry-guard-amount-over-limit",
+          "data": null,
+          "error": {
+            "code": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+            "message": "request fixture:guard-amount-over-limit was refused by the admission decision;                  unsatisfied rules: BC-2.amount_within_limit; BC-2.amount_within_limit",
+            "retryable": false,
+            "stage": "broadcast.submit",
+            "details": {
+              "chainId": 4663,
+              "detail": "BC-2.amount_within_limit",
+              "loopKey": "fixture:guard-amount-over-limit",
+              "reason": "request fixture:guard-amount-over-limit was refused by the admission decision;                  unsatisfied rules: BC-2.amount_within_limit; BC-2.amount_within_limit",
+              "reasons": [
+                "BC-2.amount_within_limit"
+              ]
+            }
+          }
+        }
+      },
+      "apply": {
+        "httpStatus": 409,
+        "errorCode": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+        "failedRules": [
+          "BC-2.amount_within_limit"
+        ],
+        "payload": {
+          "ok": false,
+          "version": "manager_dto_v1",
+          "generatedAt": "2026-11-25T01:24:12.635995600+00:00",
+          "chainId": 4663,
+          "requestId": "t401-apply-guard-amount-over-limit",
+          "data": null,
+          "error": {
+            "code": "BROADCAST_REQUEST_NOT_ELIGIBLE",
+            "message": "request fixture:guard-amount-over-limit was refused by the admission decision;                  unsatisfied rules: BC-2.amount_within_limit; BC-2.amount_within_limit",
+            "retryable": false,
+            "stage": "broadcast.submit",
+            "details": {
+              "chainId": 4663,
+              "detail": "BC-2.amount_within_limit",
+              "loopKey": "fixture:guard-amount-over-limit",
+              "reason": "request fixture:guard-amount-over-limit was refused by the admission decision;                  unsatisfied rules: BC-2.amount_within_limit; BC-2.amount_within_limit",
+              "reasons": [
+                "BC-2.amount_within_limit"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "positive-control",
+      "class": "positive-control",
+      "expectedRule": null,
+      "ruleHeld": true,
+      "dryRun": {
+        "httpStatus": 200,
+        "errorCode": null,
+        "failedRules": [],
+        "payload": {
+          "ok": true,
+          "version": "manager_dto_v1",
+          "generatedAt": "2026-11-25T01:24:12.644166100+00:00",
+          "chainId": 4663,
+          "requestId": "t401-dry-positive-control",
+          "data": {
+            "network": "robinhood",
+            "chainId": 4663,
+            "protocol": "uniswap_v4",
+            "scopeKey": "core4",
+            "apply": false,
+            "dryRun": true,
+            "reviewVersion": 9,
+            "reviewChecksum": "sha256:review",
+            "closedLoopVersion": 7,
+            "closedLoopChecksum": "sha256:closed-loop",
+            "requestCount": 8,
+            "attemptCount": 1,
+            "pendingCount": 1,
+            "successCount": 0,
+            "failedCount": 0,
+            "terminalCount": 0,
+            "changedRows": 1,
+            "broadcastVersion": 1,
+            "materializedChecksum": "sha256:8548761b22cfcf0996afb46cef7a5ccf621a2399a3b927377bf8b1276dc17f06",
+            "idempotentReplay": false
+          },
+          "error": null
+        }
+      },
+      "apply": {
+        "httpStatus": 200,
+        "errorCode": null,
+        "failedRules": [],
+        "payload": {
+          "ok": true,
+          "version": "manager_dto_v1",
+          "generatedAt": "2026-11-25T01:24:12.666435400+00:00",
+          "chainId": 4663,
+          "requestId": "t401-apply-positive-control",
+          "data": {
+            "network": "robinhood",
+            "chainId": 4663,
+            "protocol": "uniswap_v4",
+            "scopeKey": "core4",
+            "apply": true,
+            "dryRun": false,
+            "reviewVersion": 9,
+            "reviewChecksum": "sha256:review",
+            "closedLoopVersion": 7,
+            "closedLoopChecksum": "sha256:closed-loop",
+            "requestCount": 8,
+            "attemptCount": 1,
+            "pendingCount": 1,
+            "successCount": 0,
+            "failedCount": 0,
+            "terminalCount": 0,
+            "changedRows": 1,
+            "broadcastVersion": 1,
+            "materializedChecksum": "sha256:c97021496b3f3d902ecf756e83cc26e1d0fa970aea145c35e24aaf9a49cfeaf4",
+            "idempotentReplay": false
+          },
+          "error": null
+        }
+      }
+    }
+  ],
+  "idempotency": {
+    "firstStatus": 200,
+    "firstErrorCode": null,
+    "secondStatus": 409,
+    "secondErrorCode": "IDEMPOTENCY_KEY_REUSED",
+    "secondMessage": "Idempotency-Key t401-idem-probe was already used for different request content",
+    "rejected": true
+  },
+  "refusalTrails": [
+    {
+      "diagnosticCode": "BC-1_BC-2_ADMISSION_REFUSED",
+      "diagnosticType": "evidence_incomplete",
+      "message": "BC-1.pnl_positive",
+      "observedAt": "2026-11-25T01:24:11.130654800+00:00",
+      "payload": {
+        "broadcasted": false,
+        "outcome": "refused",
+        "unsatisfiedRules": [
+          "BC-1.pnl_positive"
+        ]
+      }
+    },
+    {
+      "diagnosticCode": "BC-1_BC-2_ADMISSION_REFUSED",
+      "diagnosticType": "evidence_incomplete",
+      "message": "BC-1.pnl_positive",
+      "observedAt": "2026-11-25T01:24:11.873356300+00:00",
+      "payload": {
+        "broadcasted": false,
+        "outcome": "refused",
+        "unsatisfiedRules": [
+          "BC-1.pnl_positive"
+        ]
+      }
+    },
+    {
+      "diagnosticCode": "BC-1_BC-2_ADMISSION_REFUSED",
+      "diagnosticType": "evidence_incomplete",
+      "message": "BC-1.pnl_measured",
+      "observedAt": "2026-11-25T01:24:12.465311300+00:00",
+      "payload": {
+        "broadcasted": false,
+        "outcome": "refused",
+        "unsatisfiedRules": [
+          "BC-1.pnl_measured"
+        ]
+      }
+    },
+    {
+      "diagnosticCode": "BC-1_BC-2_ADMISSION_REFUSED",
+      "diagnosticType": "evidence_incomplete",
+      "message": "BC-1.price_limits_complete",
+      "observedAt": "2026-11-25T01:24:12.503647800+00:00",
+      "payload": {
+        "broadcasted": false,
+        "outcome": "refused",
+        "unsatisfiedRules": [
+          "BC-1.price_limits_complete"
+        ]
+      }
+    },
+    {
+      "diagnosticCode": "BC-1_BC-2_ADMISSION_REFUSED",
+      "diagnosticType": "evidence_incomplete",
+      "message": "BC-1.review_fresh",
+      "observedAt": "2026-11-25T01:24:12.532900200+00:00",
+      "payload": {
+        "broadcasted": false,
+        "outcome": "refused",
+        "unsatisfiedRules": [
+          "BC-1.review_fresh"
+        ]
+      }
+    },
+    {
+      "diagnosticCode": "BC-1_BC-2_ADMISSION_REFUSED",
+      "diagnosticType": "evidence_incomplete",
+      "message": "BC-2.account_matches",
+      "observedAt": "2026-11-25T01:24:12.590162700+00:00",
+      "payload": {
+        "broadcasted": false,
+        "outcome": "refused",
+        "unsatisfiedRules": [
+          "BC-2.account_matches"
+        ]
+      }
+    },
+    {
+      "diagnosticCode": "BC-1_BC-2_ADMISSION_REFUSED",
+      "diagnosticType": "evidence_incomplete",
+      "message": "BC-2.amount_within_limit",
+      "observedAt": "2026-11-25T01:24:12.619924900+00:00",
+      "payload": {
+        "broadcasted": false,
+        "outcome": "refused",
+        "unsatisfiedRules": [
+          "BC-2.amount_within_limit"
+        ]
+      }
+    }
+  ],
+  "attempts": [
+    {
+      "attemptId": "attempt-idem-probe",
+      "loopKey": "fixture:positive-control",
+      "status": "pending",
+      "txHash": null
+    },
+    {
+      "attemptId": "attempt-positive-control",
+      "loopKey": "fixture:positive-control",
+      "status": "pending",
+      "txHash": null
+    }
+  ],
+  "broadcastLibraryState": [
+    [
+      2,
+      2,
+      2,
+      0,
+      0
+    ]
+  ],
+  "verdict": {
+    "everyExpectedRuleHeld": true,
+    "failedCases": [],
+    "refusalTrailsRecorded": 7,
+    "attemptRows": 2,
+    "txHashesPresent": [],
+    "pendingAttempts": [
+      "attempt-idem-probe",
+      "attempt-positive-control"
+    ]
+  }
+}

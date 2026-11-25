@@ -643,12 +643,11 @@ fn pool_id_of(salt: &str) -> String {
 ///   4. the pool id, ascending.
 ///
 /// The directional layer ranks the rows of one `(pair_key_id, direction)`
-/// group by the very same key.  Both take the output from the **same**
-/// function: `price_directional_output` is the public wrapper around the
-/// `exact_directional_output` that `recommend_direction` sorts on, and it
-/// reports the very same tick ordering rank.  The order of the directional
-/// table and the order of the recommendation list are therefore equal row
-/// by row, and the closed loop can switch over without moving a pool.
+/// group by that group's price key.  The candidate edge layer used to rank
+/// the same group itself; it was removed, and the candidate layer now
+/// reads the rank this table publishes.  The order of the directional
+/// table is therefore the order the candidate layer publishes, and the
+/// closed loop can switch over without moving a pool.
 ///
 /// The test recomputes the expected order from that public function and
 /// compares it with the published ranks, so it fails as soon as either

@@ -25,7 +25,7 @@
 >
 | 模块 | 代码落点（文件级） | 与他任务**同文件** |
 |---|---|---|
-| `M-5` | `flashloan/tools/candidate_edge_pool_manager/src/lib.rs` | `flashloan/tools/candidate_edge_pool_manager/src/lib.rs`<br>↔ 与 T-候编.01 同文件 |
+| `M-5` | `flashloan/tools/candidate_edge_pool_manager/src/lib.rs` | `flashloan/tools/candidate_edge_pool_manager/src/lib.rs`<br>↔ 与 T-候编储.01 同文件 |
 
 **判定规则**：
 

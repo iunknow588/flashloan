@@ -1,0 +1,82 @@
+........................................................................ [ 24%]
+........................................................................ [ 48%]
+...............................................................FF....... [ 72%]
+........................................................................ [ 97%]
+........                                                                 [100%]
+================================== FAILURES ===================================
+_____ test_flash_loan_pool_page_keeps_robinhood_testnet_on_its_own_scope ______
+
+    def test_flash_loan_pool_page_keeps_robinhood_testnet_on_its_own_scope():
+        client = app.test_client()
+    
+        response = client.get("/flash-loan/pools?chain_id=46630&protocols=uniswap_v4")
+        payload = client.get("/api/flash-loan/pools?chain_id=46630&protocols=uniswap_v4").get_json()
+        rebuilt_payload = client.get(
+            "/api/flash-loan/pools?chain_id=46630&protocols=uniswap_v4&rebuild=1"
+        ).get_json()
+    
+        assert response.status_code == 200
+        assert response.location is None
+        body = response.get_data(as_text=True)
+        assert 'data-flash-loan-protocol-link="uniswap_v4"' in body
+        assert payload["ok"] is True
+        assert payload["scope"]["chain_id"] == 46630
+        assert [provider["chain_id"] for provider in payload["providers"]] == [46630]
+        assert payload["protocol_views"][0]["cache"]["source"] == "chains/robinhood-testnet/chain.json"
+        assert payload["protocol_views"][0]["cache"]["pool_address"] == ""
+        assert payload["protocol_views"][0]["cache"]["pool_manager_address"] == "0x8366a39CC670B4001A1121B8F6A443A643e40951"
+        assert payload["protocol_views"][0]["cache"]["identities"][0]["kind"] == "pool_manager"
+        assert payload["protocol_views"][0]["cache"]["identities"][0]["value"] == "0x8366a39CC670B4001A1121B8F6A443A643e40951"
+        assert payload["protocol_views"][0].get("_static_pool_source") is None
+        assert payload["protocol_views"][0]["static_pool_store"]["exists"] is False
+>       assert payload["protocol_views"][0]["summary"]["borrow_asset_count"] > 0
+E       assert 0 > 0
+
+E:\2026OPC大赛\flashLoan\flashloan\app_runtime\tests\functional\test_web_app_assembly.py:458: AssertionError
+________ test_flash_loan_pool_page_prepares_robinhood_mainnet_v4_scope ________
+
+    def test_flash_loan_pool_page_prepares_robinhood_mainnet_v4_scope():
+        client = app.test_client()
+    
+        response = client.get("/flash-loan/pools?chain_id=4663&protocols=uniswap_v4")
+        payload = client.get("/api/flash-loan/pools?chain_id=4663&protocols=uniswap_v4").get_json()
+        view = payload["protocol_views"][0]
+    
+        assert response.status_code == 200
+        assert response.location is None
+        assert payload["ok"] is True
+        assert payload["scope"]["chain_id"] == 4663
+        assert payload["scope"]["protocols"] == ["uniswap_v4"]
+        assert payload["providers"][0]["network"] == "robinhood"
+        assert payload["providers"][0]["chain_id"] == 4663
+        assert payload["providers"][0]["protocol"] == "uniswap_v4"
+        assert view["protocol"] == "uniswap_v4"
+        assert view.get("status") != "chain_protocol_not_supported"
+        assert view["processing"]["network"] == "robinhood"
+        assert view["processing"]["chain_id"] == 4663
+        assert view["processing"]["handler"] == "intent_trade.chains.robinhood.flash_loan_pools:flash_loan_pool_protocol_view"
+        assert "uniswap_v4" in view["processing"]["allowed_protocols"]
+>       assert "status" not in view
+E       AssertionError: assert 'status' not in {'active': True, 'borrow_target_universe': None, 'cache': {'asset_count': 0, 'block_number': None, 'capabilities': {'b..., 'flash_capable': False, 'has_concrete_pools': False, ...}, 'chain_id': None, ...}, 'display_name': 'Uniswap V4', ...}
+
+E:\2026OPC大赛\flashLoan\flashloan\app_runtime\tests\functional\test_web_app_assembly.py:500: AssertionError
+============================ slowest 15 durations =============================
+43.54s call     flashloan/app_runtime/tests/functional/test_api_handler_payload_contract.py::test_read_only_handlers_return_contract_valid_json_payloads
+41.62s call     flashloan/app_runtime/tests/functional/test_web_app_assembly_workflows.py::test_dex_surface_payload_apis_are_distinct
+31.15s call     flashloan/app_runtime/tests/functional/test_api_handler_payload_contract.py::test_read_only_handler_payloads_include_request_correlation_header
+24.00s call     flashloan/app_runtime/tests/functional/test_navigation_flow.py::test_control_panel_navigation_chain_links_expected_pages
+12.30s call     flashloan/app_runtime/tests/functional/test_web_app_assembly_workflows.py::test_robinhood_shadow_uses_the_shared_dex_surfaces
+11.30s call     flashloan/app_runtime/tests/functional/test_web_app_assembly_dex_records.py::test_four_independent_submission_record_apis_are_separate
+10.76s call     flashloan/app_runtime/tests/functional/test_web_app_assembly.py::test_robinhood_mainnet_dex_surface_apis_use_chain_flows
+9.53s call     flashloan/app_runtime/tests/functional/test_web_app_assembly_workflows.py::test_account_pool_gate_covers_missing_empty_incomplete_and_ready
+8.83s call     flashloan/app_runtime/tests/functional/test_web_app_assembly_scope_api.py::test_app_shell_owns_one_visible_global_chain_selector
+8.26s call     flashloan/app_runtime/tests/functional/test_api_handler_payload_contract.py::test_unknown_market_error_shape_is_uniform_across_scope_required_api_families
+7.09s call     flashloan/app_runtime/tests/functional/test_web_app_assembly.py::test_dex_pages_expose_shared_chain_selector_and_scope_defaults
+6.77s call     flashloan/app_runtime/tests/functional/test_web_app_assembly.py::test_dex_quotes_ui_refresh_interval_is_independent_from_worker_cadence
+6.30s call     flashloan/app_runtime/tests/functional/test_web_app_assembly_workflows.py::test_dex_page_variants_follow_market_type
+6.30s call     flashloan/app_runtime/tests/functional/test_web_app_assembly_dex_records.py::test_four_independent_submission_record_pages_use_own_endpoints
+5.12s call     flashloan/app_runtime/tests/functional/test_api_handler_payload_contract.py::test_scope_mismatch_error_shape_is_uniform_across_scope_required_api_families
+=========================== short test summary info ===========================
+FAILED flashloan/app_runtime/tests/functional/test_web_app_assembly.py::test_flash_loan_pool_page_keeps_robinhood_testnet_on_its_own_scope
+FAILED flashloan/app_runtime/tests/functional/test_web_app_assembly.py::test_flash_loan_pool_page_prepares_robinhood_mainnet_v4_scope
+2 failed, 294 passed in 460.29s (0:07:40)

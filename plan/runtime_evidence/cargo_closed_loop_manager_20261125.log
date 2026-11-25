@@ -1,0 +1,60 @@
+   Compiling closed-loop-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\closed_loop_manager)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 18.85s
+     Running unittests src\lib.rs (target\debug\deps\closed_loop_manager-1d8fe489d2f22258.exe)
+
+running 46 tests
+test tests::a_hop_without_a_published_state_has_no_folded_capacity ... ok
+test tests::a_pool_the_direction_layer_does_not_publish_is_a_topology_error ... ok
+test tests::a_loop_without_tick_states_publishes_no_folded_capacity ... ok
+test tests::a_mismatched_expected_scope_checksum_refuses_to_write ... ok
+test tests::a_row_that_trades_the_other_way_is_a_topology_error ... ok
+test tests::a_hop_that_cannot_carry_a_position_inside_its_tick_range_disqualifies_the_path ... ok
+test tests::a_hop_whose_primary_fails_the_capacity_gate_is_taken_over_by_its_next_candidate ... ok
+test tests::a_pool_without_a_rank_stays_behind_the_ranked_pools ... ok
+test tests::a_hop_below_the_capacity_floor_disqualifies_the_whole_path ... ok
+test tests::a_backup_of_the_direction_layer_takes_over_a_hop_the_candidate_list_could_not_serve ... ok
+test tests::a_hop_with_room_inside_its_tick_range_admits_the_loop ... ok
+test tests::anchor_metadata_is_loaded_from_token_catalog_when_candidate_rows_exclude_self ... ok
+test tests::builds_three_token_loop_without_usd_depth_dependency ... ok
+test tests::a_stale_scope_checksum_is_repaired_and_the_drift_is_removed ... ok
+test tests::an_unmeasured_hop_does_not_disqualify_the_path ... ok
+test tests::every_hop_carries_the_direction_layer_identity ... ok
+test tests::every_hop_above_the_capacity_floor_admits_the_loop ... ok
+test tests::the_candidate_combinations_are_tried_from_the_primary_outward ... ok
+test tests::the_closed_loop_floor_is_the_pool_manager_admission_floor ... ok
+test tests::comparison_reports_exact_legacy_topology ... ok
+test tests::an_optimization_that_failed_the_gate_is_recorded_as_expired ... ok
+test tests::the_direction_of_a_hop_never_flips ... ok
+test tests::one_anchor_publishes_two_independent_directed_closed_loops ... ok
+test tests::the_folded_capacity_is_equal_to_the_legacy_fold ... ok
+test tests::stale_observation_candidate_version_is_rejected ... ok
+test tests::the_hop_direction_is_read_from_the_directional_row ... ok
+test tests::repeated_apply_is_stable_and_idempotent ... ok
+test tests::the_path_capacity_is_folded_into_the_anchor_token ... ok
+test tests::the_closed_loop_state_records_the_direction_layer_identity ... ok
+test tests::the_closed_loop_layer_publishes_its_own_scope_checksum ... ok
+test tests::the_primary_order_switch_is_read_from_the_environment ... ok
+test tests::repairing_the_scope_checksum_is_idempotent ... ok
+test tests::the_single_tick_bound_is_taken_from_the_direction_of_the_row ... ok
+test tests::the_usdg_path_publishes_a_capacity_when_the_pool_order_is_inverted ... ok
+test usdg_valuation::tests::a_token_paired_with_usdg_at_the_peg_is_worth_one_usdg ... ok
+test tests::only_the_optimizations_in_effect_are_consumed_and_the_rest_stand_by ... ok
+test tests::the_direction_rank_decides_the_primary_of_a_hop ... ok
+test usdg_valuation::tests::a_token_without_a_usdg_route_has_no_valuation ... ok
+test usdg_valuation::tests::a_token_without_known_decimals_has_no_valuation ... ok
+test usdg_valuation::tests::the_usdg_side_of_the_pool_may_be_either_token ... ok
+test usdg_valuation::tests::usdg_unit_value_does_not_require_a_self_pair_pool ... ok
+test tests::the_folded_single_tick_capacity_is_published_on_the_loop ... ok
+test tests::the_path_minimum_is_the_binding_capacity ... ok
+test tests::the_search_over_the_combinations_stays_bounded ... ok
+test tests::the_legacy_order_is_kept_when_the_switch_is_off ... ok
+test tests::the_reordering_keeps_the_membership_of_the_candidate_list ... ok
+
+test result: ok. 46 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.86s
+
+   Doc-tests closed_loop_manager
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

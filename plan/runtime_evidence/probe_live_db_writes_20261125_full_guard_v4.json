@@ -1,0 +1,59 @@
+{
+  "command": "python -m pytest flashloan scripts -q -p no:cacheprovider",
+  "commandExitCode": 0,
+  "commandStderrTail": "",
+  "commandStdoutTail": "................................................................... [ 70%]\n........................................................................ [ 72%]\n........................................................................ [ 74%]\n........................................................................ [ 77%]\n........................................................................ [ 79%]\n.......................................................s................ [ 81%]\n........................................................................ [ 83%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 90%]\n........................................................................ [ 92%]\n........................................................................ [ 94%]\n........................................................................ [ 96%]\n........................................................................ [ 99%]\n..............................                                           [100%]\n============================== warnings summary ===============================\nflashloan/app_runtime/tests/unit/test_dex_onchain_quote_evidence.py: 4 warnings\nflashloan/app_runtime/tests/unit/test_flash_loan_pools_robinhood.py: 1 warning\nflashloan/app_runtime/tests/unit/test_pool_candidates_scanner.py: 8 warnings\n  C:\\Users\\iunkn\\AppData\\Roaming\\Python\\Python312\\site-packages\\urllib3\\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-sepolia-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings\n    warnings.warn(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3267 passed, 3 skipped, 13 warnings in 1289.65s (0:21:29)\n",
+  "dataVersionAfter": 2,
+  "dataVersionBefore": 2,
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "fileStateAfter": {
+    "-shm": {
+      "mtimeNs": 1795547054671980400,
+      "size": 131072
+    },
+    "-wal": {
+      "mtimeNs": 1795547260360719400,
+      "size": 55401672
+    },
+    "main": {
+      "mtimeNs": 1795547178188627000,
+      "size": 12223111168
+    }
+  },
+  "fileStateBefore": {
+    "-shm": {
+      "mtimeNs": 1795545854338347500,
+      "size": 65536
+    },
+    "-wal": {
+      "mtimeNs": 1795546011513190300,
+      "size": 33166032
+    },
+    "main": {
+      "mtimeNs": 1795546007793515300,
+      "size": 12126711808
+    }
+  },
+  "gateDiff": {
+    "changedCount": 0,
+    "changedKeys": []
+  },
+  "gateKeyCount": 19,
+  "generatedAt": "2026-11-25T03:08:35.361+08:00",
+  "label": "full_guard_v4",
+  "metaDiff": {
+    "changedCount": 0,
+    "changedKeys": []
+  },
+  "observedDataVersionIncrements": 0,
+  "rowCountsAfter": {
+    "cow_execution_attempts": 0,
+    "cow_execution_reviews": 70779
+  },
+  "rowCountsBefore": {
+    "cow_execution_attempts": 0,
+    "cow_execution_reviews": 70224
+  },
+  "sampleCount": 3,
+  "windowSeconds": 1303.734
+}

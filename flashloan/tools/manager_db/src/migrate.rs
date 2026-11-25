@@ -27,6 +27,8 @@ pub const REVIEW_CLOSED_LOOP_IDENTITY_MIGRATION_ID: &str =
 pub const DIRECTIONAL_POOL_MIGRATION_ID: &str = "20261123_015_directional_pool_schema";
 pub const CLOSED_LOOP_DIRECTIONAL_MIGRATION_ID: &str =
     "20261124_016_closed_loop_directional_wiring";
+pub const OBSERVATION_OPTIMAL_POOL_VIEW_MIGRATION_ID: &str =
+    "20261125_017_observation_optimal_pool_view";
 pub const MIGRATION_IDS: &[&str] = &[
     MIGRATION_ID,
     CANDIDATE_EDGE_MIGRATION_ID,
@@ -45,8 +47,9 @@ pub const MIGRATION_IDS: &[&str] = &[
     REVIEW_CLOSED_LOOP_IDENTITY_MIGRATION_ID,
     DIRECTIONAL_POOL_MIGRATION_ID,
     CLOSED_LOOP_DIRECTIONAL_MIGRATION_ID,
+    OBSERVATION_OPTIMAL_POOL_VIEW_MIGRATION_ID,
 ];
-pub const LATEST_MIGRATION_ID: &str = CLOSED_LOOP_DIRECTIONAL_MIGRATION_ID;
+pub const LATEST_MIGRATION_ID: &str = OBSERVATION_OPTIMAL_POOL_VIEW_MIGRATION_ID;
 
 const PREFERRED_LEDGER: &str = "schema_migrations";
 const FALLBACK_LEDGER: &str = "manager_schema_migrations";
@@ -124,6 +127,10 @@ const MIGRATIONS: &[MigrationDefinition] = &[
     MigrationDefinition {
         id: CLOSED_LOOP_DIRECTIONAL_MIGRATION_ID,
         sql: include_str!("../migrations/20261124_016_closed_loop_directional_wiring.sql"),
+    },
+    MigrationDefinition {
+        id: OBSERVATION_OPTIMAL_POOL_VIEW_MIGRATION_ID,
+        sql: include_str!("../migrations/20261125_017_observation_optimal_pool_view.sql"),
     },
 ];
 
@@ -238,6 +245,17 @@ const CLOSED_LOOP_DIRECTIONAL_TABLES: &[&str] = &[
     "manager_v4_closed_loop_library_state",
     "manager_v4_closed_loops",
     "manager_v4_closed_loop_hops",
+];
+
+/// The tables the observation's primary-pool migration touches.
+///
+/// The migration turns the market observation's primary pool column into a
+/// view over the directional layer, so both sides of the wire are part of
+/// its compatibility contract: the observation that answers the primary and
+/// the direction layer that decides it.
+const OBSERVATION_OPTIMAL_POOL_VIEW_TABLES: &[&str] = &[
+    "manager_market_observation_yz_pairs",
+    "manager_v4_directional_exchange_pools",
 ];
 
 /// The columns each `ALTER TABLE` migration adds.
@@ -707,6 +725,7 @@ fn ensure_migration_tables_compatible(
         REVIEW_CLOSED_LOOP_IDENTITY_MIGRATION_ID => REVIEW_CLOSED_LOOP_IDENTITY_TABLES,
         DIRECTIONAL_POOL_MIGRATION_ID => DIRECTIONAL_POOL_TABLES,
         CLOSED_LOOP_DIRECTIONAL_MIGRATION_ID => CLOSED_LOOP_DIRECTIONAL_TABLES,
+        OBSERVATION_OPTIMAL_POOL_VIEW_MIGRATION_ID => OBSERVATION_OPTIMAL_POOL_VIEW_TABLES,
         _ => unreachable!("migration id is a fixed internal enum"),
     };
     for table in tables {

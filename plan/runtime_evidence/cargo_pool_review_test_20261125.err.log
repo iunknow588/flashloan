@@ -1,0 +1,12 @@
+   Compiling pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\pool_manager)
+   Compiling candidate-edge-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\candidate_edge_pool_manager)
+   Compiling directional-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\directional_pool_manager)
+   Compiling candidate-exchange-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\candidate_exchange_pool_manager)
+   Compiling closed-loop-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\closed_loop_manager)
+   Compiling review-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\review_manager)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 08s
+     Running unittests src\lib.rs (target\debug\deps\pool_manager-8072875818439ae2.exe)
+     Running unittests src\main.rs (target\debug\deps\pool_manager-1afd99d76a13db89.exe)
+     Running unittests src\lib.rs (target\debug\deps\review_manager-db2c16b42b7ae5f0.exe)
+   Doc-tests pool_manager
+   Doc-tests review_manager
