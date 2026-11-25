@@ -4,6 +4,7 @@ from pathlib import Path
 
 from core.db.chain_database_context import chain_database_scope
 from core.db.database_path import absolute_database_path
+from app_runtime.tests.live_chain_store_guard import unguarded_default_store
 
 
 def test_absolute_database_path_resolves_relative_paths_against_cwd(tmp_path, monkeypatch):
@@ -20,7 +21,14 @@ def test_absolute_database_path_keeps_absolute_input(tmp_path):
 def test_absolute_database_path_defaults_to_default_chain_database(monkeypatch):
     monkeypatch.delenv("FLASHLOAN_KV_PATH", raising=False)
     monkeypatch.delenv("FLASHLOAN_RUNTIME_DIR", raising=False)
-    resolved = absolute_database_path()
+    # The test session redirects the unbound process default to a sandbox
+    # store so that a test can never write the production chain store.  This
+    # test asserts the *product* rule, so it observes the production
+    # resolution through the guard's explicit escape hatch.  Writes stay
+    # blocked: the escape hatch restores the resolution, not the write
+    # protection.
+    with unguarded_default_store():
+        resolved = absolute_database_path()
     assert resolved.is_absolute()
     assert resolved.name == "local_store_4663.sqlite3"
     assert resolved == (Path(__file__).resolve().parents[3] / "db" / "local_store_4663.sqlite3").resolve()

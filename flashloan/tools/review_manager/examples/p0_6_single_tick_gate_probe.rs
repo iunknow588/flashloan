@@ -41,6 +41,7 @@ fn extra(pool_id: &str, version: &str) -> SingleTickHopState {
         tick: 0,
         tick_spacing: 60,
         pool_state_version: Some(version.to_string()),
+        snapshot_batch: None,
     }
 }
 

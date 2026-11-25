@@ -10,6 +10,7 @@ from core.db.import_existing_json import _token_rows_from_v4_index
 from core.db import page_payloads
 from core.db.storage_chain_core import load_chain_tokens
 from core.db.storage_schema import ensure_database_schema
+from app_runtime.tests.live_chain_store_guard import unguarded_default_store
 from dex.tools.build_robinhood_stock_token_registry import build_registry
 from dex.intent_trade.chains.robinhood_common.stock_token_registry import (
     apply_stock_token_metadata,
@@ -376,7 +377,12 @@ def test_builders_resolve_stock_anchor_addresses_without_chain_tokens():
 
 
 def test_page_payload_default_anchor_symbols_include_stocks():
-    mainnet = page_payloads._default_anchor_symbols(4663)
+    # The mainnet stock identities live in the production chain store, and
+    # the test session redirects the unbound process default to a sandbox
+    # store (the live chain store guard).  The escape hatch restores the
+    # production resolution for this read; writes stay blocked.
+    with unguarded_default_store():
+        mainnet = page_payloads._default_anchor_symbols(4663)
     assert "AAPL" in mainnet
     assert "AMD" in mainnet
     testnet = page_payloads._default_anchor_symbols(46630)

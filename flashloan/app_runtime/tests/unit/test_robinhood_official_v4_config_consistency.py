@@ -19,6 +19,17 @@ FORBIDDEN_BROADCAST_ENV_MARKERS = (
     "ALLOW_OFFICIAL_V4_MAKE_ARB_BROADCAST",
     "ALLOW_OFFICIAL_V4_REPLENISH_BROADCAST",
 )
+# The mainnet official-V4 **arb** switch is the one marker the operator may
+# switch on in the operator runtime env: the shipped template
+# (flashloan/app_runtime/.env.example) has carried
+# ROBINHOOD_MAINNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST=true since the mainnet
+# broadcast was opened by default, so forbidding it in the operator's own
+# (git-ignored) .env made this guard reject every deployment that follows
+# the template.  The shared/test env files still must not enable it, and the
+# three composite/make-arb/replenish markers stay forbidden everywhere.
+OPERATOR_ALLOWED_BROADCAST_ENV_MARKERS = (
+    "ROBINHOOD_MAINNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST",
+)
 TESTNET_ARB_BROADCAST_ENV_KEY = "ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST"
 OPERATOR_RUNTIME_ENV = REPO_ROOT / "flashloan" / "app_runtime" / ".env"
 
@@ -95,7 +106,12 @@ def test_shared_runtime_env_never_enables_forbidden_official_v4_broadcast_gates(
                 "on",
             }
             if key.strip() in FORBIDDEN_BROADCAST_ENV_MARKERS and enabled:
-                offenders.append(f"{env_path}:{line_number}:{key}={value}")
+                operator_allowed = (
+                    key.strip() in OPERATOR_ALLOWED_BROADCAST_ENV_MARKERS
+                    and env_path == OPERATOR_RUNTIME_ENV
+                )
+                if not operator_allowed:
+                    offenders.append(f"{env_path}:{line_number}:{key}={value}")
             if (
                 key.strip() == TESTNET_ARB_BROADCAST_ENV_KEY
                 and enabled

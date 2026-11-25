@@ -56,6 +56,17 @@ pub struct PoolParityState {
     pub liquidity: u128,
     /// The moment the liquidity state was read.
     pub liquidity_read_at: Option<String>,
+    /// The materialisation batch that wrote this state.
+    ///
+    /// Pool Manager stamps every row of one refresh run with the same batch
+    /// id, so the batch is the **snapshot identity** of the state: two pools
+    /// that carry the same batch were measured in one run, and two pools that
+    /// carry different batches were measured in two different runs.
+    ///
+    /// The read timestamp cannot answer that question: pools are read one
+    /// after the other, so two pools of the same batch always carry two
+    /// different timestamps.  The batch is published for that reason.
+    pub materialization_batch: Option<String>,
     /// Where the liquidity evidence came from.
     pub evidence_source: Option<String>,
 }
@@ -359,6 +370,21 @@ pub fn resolve_pool_ids_by_key_on_connection(
         .collect())
 }
 
+/// Whether a table carries a column.
+///
+/// The published read has to work on a store that was written before a
+/// column existed, so the reader asks the store instead of assuming.
+fn table_has_column(connection: &Connection, table: &str, column: &str) -> bool {
+    let Ok(mut statement) = connection.prepare(&format!("PRAGMA table_info({table})")) else {
+        return false;
+    };
+    let Ok(rows) = statement.query_map([], |row| row.get::<_, String>(1)) else {
+        return false;
+    };
+    let found = rows.flatten().any(|name| name == column);
+    found
+}
+
 /// Parses a raw 128-bit value that is stored as text.
 ///
 /// The pool snapshot table stores `sqrt_price_x96` and `liquidity` as text,
@@ -413,9 +439,22 @@ pub fn read_pool_parity_states_on_connection(
         std::collections::BTreeMap::new();
     for chunk in wanted.chunks(400) {
         let placeholders = chunk.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-        let sql = format!(
-            "SELECT p.pool_id, p.token0, p.token1, p.fee, p.tick_spacing, p.hooks,
-                    s.sqrt_price_x96, s.tick, s.liquidity, s.liquidity_read_at, s.evidence_source
+            // The batch column is read only when the table carries it.  A
+            // store written before the column existed still answers the
+            // other questions, so the read must not fail because of it.
+            let batch_column = if table_has_column(
+                connection,
+                "v4_exchange_pool_liquidity_snapshots",
+                "materialization_batch",
+            ) {
+                "s.materialization_batch"
+            } else {
+                "NULL"
+            };
+            let sql = format!(
+                "SELECT p.pool_id, p.token0, p.token1, p.fee, p.tick_spacing, p.hooks,
+                    s.sqrt_price_x96, s.tick, s.liquidity, s.liquidity_read_at, s.evidence_source,
+                    {batch_column}
              FROM v4_exchange_pools p
              JOIN v4_exchange_pool_liquidity_snapshots s
                ON s.network = p.network AND s.chain_id = p.chain_id
@@ -450,6 +489,7 @@ pub fn read_pool_parity_states_on_connection(
                 let liquidity: Option<String> = row.get(8)?;
                 let liquidity_read_at: Option<String> = row.get(9)?;
                 let evidence_source: Option<String> = row.get(10)?;
+                let materialization_batch: Option<String> = row.get(11)?;
                 Ok((
                     pool_id,
                     token0,
@@ -462,6 +502,7 @@ pub fn read_pool_parity_states_on_connection(
                     liquidity,
                     liquidity_read_at,
                     evidence_source,
+                    materialization_batch,
                 ))
             })
             .map_err(|error| PoolStateReadError::Sqlite(error.to_string()))?;
@@ -478,6 +519,7 @@ pub fn read_pool_parity_states_on_connection(
                 liquidity,
                 liquidity_read_at,
                 evidence_source,
+                materialization_batch,
             ) = row;
             let Some(sqrt_price_x96) = sqrt_price_x96
                 .as_deref()
@@ -512,6 +554,7 @@ pub fn read_pool_parity_states_on_connection(
                     tick: tick.unwrap_or_default(),
                     liquidity,
                     liquidity_read_at,
+                    materialization_batch,
                     evidence_source,
                 },
             );
@@ -674,6 +717,64 @@ mod tests {
         );
         assert_eq!(parse_raw_u128(""), None);
         assert_eq!(parse_raw_u128("not-a-number"), None);
+    }
+
+    /// The snapshot identity is published with the state, because it is the
+    /// only field that can say "these pools were measured in one run".
+    #[test]
+    fn the_materialization_batch_is_published_with_the_state() {
+        let directory = tempfile::tempdir().expect("tempdir");
+        let path = directory.path().join("pools.sqlite3");
+        database(&path);
+        {
+            let connection = rusqlite::Connection::open(&path).expect("open");
+            connection
+                .execute_batch(
+                    "ALTER TABLE v4_exchange_pool_liquidity_snapshots
+                         ADD COLUMN materialization_batch TEXT;
+                     UPDATE v4_exchange_pool_liquidity_snapshots
+                         SET materialization_batch = 'pool-manager-batch-1';",
+                )
+                .expect("batch");
+        }
+
+        let states = read_pool_parity_states(
+            &path,
+            "robinhood",
+            4663,
+            "uniswap_v4",
+            &["pool-a".to_owned()],
+        )
+        .expect("states");
+        assert_eq!(states.len(), 1);
+        assert_eq!(
+            states[0].materialization_batch.as_deref(),
+            Some("pool-manager-batch-1")
+        );
+    }
+
+    /// A store written before the batch column existed still answers every
+    /// other question, so the published read must not fail because of it.
+    #[test]
+    fn a_store_without_the_batch_column_still_publishes_the_other_fields() {
+        let directory = tempfile::tempdir().expect("tempdir");
+        let path = directory.path().join("pools.sqlite3");
+        database(&path);
+
+        let states = read_pool_parity_states(
+            &path,
+            "robinhood",
+            4663,
+            "uniswap_v4",
+            &["pool-a".to_owned()],
+        )
+        .expect("states");
+        assert_eq!(states.len(), 1);
+        assert_eq!(states[0].materialization_batch, None);
+        assert_eq!(
+            states[0].liquidity_read_at.as_deref(),
+            Some("2026-11-09T03:08:30.458976Z")
+        );
     }
 
     #[test]

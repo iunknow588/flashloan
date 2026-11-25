@@ -475,3 +475,37 @@
 | 实盘生效 | **未做**（二进制 mtime **2026-11-24 08:06**；并行进程在途 ⇒ 不重建、不重启） | **须随下次运行期重建 ＋ 重启生效** |
 
 **完整方法、代码改动与诚实边界**：见 `T-方.01` 的 `D-122` §1.3/§1.5 ＋ `D-125`。
+
+## 2026-11-25 增量报告索引（剩余任务总结与分类裁定 · `D-136`）
+
+> 本节登记本轮（2026-11-25 11:45 +08）新增的工具、脚本与实测读数。
+> 结论文档见 `plan/tasks/P-01-池子重构/docs/D-136-剩余任务清单总结与分类裁定_20261125.md`。
+
+### 新增工具
+
+| 文件 | 内容 |
+|---|---|
+| `tools/update_d014_readings_20261125.py` | 重算 `D-014` §1.1 总读数 ＋ §1.2 任务表（**22** 行，未完成列合计 **36**） |
+| `tools/update_d014_class_20261125.py` | 写入 `D-014` §1.4 状态分类表 ＋ §1.3 对账块 |
+| `tools/update_d001_migration_20261125.py` | 修 `D-001` §7 迁移记录表头（散落的中段表头移回首行）＋ 登记 `D-136` ＋ 本轮两条迁移记录 |
+| `tools/update_p01_readme_table_20261125.py` | 重算 `P-01/README.md` 二级任务表（**22** 行）与合计读数 |
+| `tools/update_d004_readings_20261125.py` | 按实测读数重写 `D-004`（勾选 §1 **5** 项 ＋ §3 **3** 项，回填 §4 整体读数） |
+| `tools/mdpatch.py` | Markdown 补丁助手（`@` 占位反引号，避免脚本里转义反引号） |
+
+### 回归与读数
+
+| 文件 | 内容 |
+|---|---|
+| `py_arch_guards_only_20261125.log` | 架构守卫 **80 passed / 0 failed**（120.70 s） |
+| `py_arch_guards_20261125b.log` | 架构守卫 ＋ 记录层守卫 **90 passed / 0 failed**（125.61 s） |
+| `tools_m1m6_test_20261125.log` | `pool-manager` **167 passed** ＋ `review-manager` **161 passed** |
+| `tools_build_20261125c.log` | `cargo build --offline --workspace` ⇒ **exit 0**（3m 54s） |
+| `t401_publish_watch.jsonl` | 复核代次时间线：**rv 103 → 115**（08:39 → 10:35），此后**停在 115** |
+
+### 阻塞证据（`D-136` §3.3）
+
+| 文件 | 内容 |
+|---|---|
+| `logs/t401_runtime_sup/runtime_stderr.log` | 自 **11:00:50 +08** 起 **764** 条 `pool_manager_refresh_required` / **`refreshCause = candidate_pool_key_missing`** |
+
+**读数口径**：实盘全部**只读**（`mode=ro` ＋ `PRAGMA query_only = ON`）⇒ 实盘库写入 **0**。

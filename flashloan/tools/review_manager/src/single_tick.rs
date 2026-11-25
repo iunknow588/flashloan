@@ -69,6 +69,19 @@ pub struct SingleTickHopState {
     /// the review's own version, so a state that drifted mid-review is
     /// caught instead of being priced from two different markets.
     pub pool_state_version: Option<String>,
+    /// The materialisation batch the pool state was written by.
+    ///
+    /// This is the **snapshot identity** of the state.  Pool Manager stamps
+    /// every row of one refresh run with the same batch id, so "all hops of
+    /// the route carry the same batch" is the strongest statement the data
+    /// can make about "the route was priced from one market view".
+    ///
+    /// The per-pool read timestamp cannot make that statement: pools are
+    /// read one after the other, so two pools of the **same** batch always
+    /// carry two **different** timestamps.  Comparing timestamps for
+    /// equality therefore rejects every multi-hop route that has a read
+    /// timestamp at all, which is why the batch is carried next to it.
+    pub snapshot_batch: Option<String>,
 }
 
 /// The conclusion the gate reached for one hop.
@@ -267,15 +280,35 @@ pub fn evaluate_route_single_tick(
         };
     }
 
-    // Every hop of one route must be priced from the **same** pool state
-    // version. Two versions in one route mean the reviewer looked at two
-    // different markets, so the closure it proves is not the closure that
-    // would be executed.
-    let versions: Vec<&str> = extras
+    // Every hop of one route must be priced from the **same** market view.
+    // Two views in one route mean the reviewer looked at two different
+    // markets, so the closure it proves is not the closure that would be
+    // executed.
+    //
+    // The snapshot identity answers that question: Pool Manager stamps
+    // every row of one refresh run with the same batch id, so the hops of a
+    // route that carry one batch were measured in one run.
+    //
+    // The read timestamps cannot answer it.  Pools are read one after the
+    // other inside one run, so two pools of the **same** batch always carry
+    // two **different** timestamps; comparing them for equality rejects
+    // every multi-hop route that has a read timestamp at all.  The
+    // timestamp comparison is therefore only the fallback for a route
+    // whose pools carry no batch at all.
+    let batches: Vec<&str> = extras
         .iter()
-        .filter_map(|extra| extra.pool_state_version.as_deref())
+        .filter_map(|extra| extra.snapshot_batch.as_deref())
+        .filter(|batch| !batch.is_empty())
         .collect();
-    let version_drift = versions.windows(2).any(|pair| pair[0] != pair[1]);
+    let version_drift = if batches.len() == extras.len() && !batches.is_empty() {
+        batches.windows(2).any(|pair| pair[0] != pair[1])
+    } else {
+        let versions: Vec<&str> = extras
+            .iter()
+            .filter_map(|extra| extra.pool_state_version.as_deref())
+            .collect();
+        versions.windows(2).any(|pair| pair[0] != pair[1])
+    };
 
     // **Every** hop of the route is judged, not only the first and the
     // last.
@@ -359,6 +392,7 @@ mod tests {
             tick: 0,
             tick_spacing: 60,
             pool_state_version: Some("block:100".to_string()),
+            snapshot_batch: None,
         }
     }
 
@@ -483,6 +517,54 @@ mod tests {
     fn a_drifted_pool_state_version_blocks_the_route() {
         let (hops, mut extras) = closed_loop();
         extras[2].pool_state_version = Some("block:101".to_string());
+        let verdict = evaluate_route_single_tick(&hops, &extras, 1_000_000_000_000_000);
+        assert!(!verdict.executable);
+        assert_eq!(verdict.reason.unwrap(), "pool_state_version_drift");
+    }
+
+    /// One materialisation batch is one market view, so a route whose hops
+    /// all carry that batch is priced from one snapshot.
+    ///
+    /// The pools of one batch were read one after the other, so their read
+    /// timestamps differ by milliseconds.  The batch is the snapshot
+    /// identity; the timestamp is not, and a route must not be blocked
+    /// because of it.
+    #[test]
+    fn a_route_priced_from_one_materialization_batch_is_not_drift() {
+        let (hops, mut extras) = closed_loop();
+        for (index, extra) in extras.iter_mut().enumerate() {
+            extra.snapshot_batch = Some("pool-manager-batch-1".to_string());
+            extra.pool_state_version = Some(format!("2026-11-25T00:44:0{index}.0Z"));
+        }
+        let verdict = evaluate_route_single_tick(&hops, &extras, 1_000_000_000_000_000);
+        assert!(verdict.executable, "the route failed: {:?}", verdict.reason);
+        assert_eq!(verdict.reason, None);
+    }
+
+    /// Two batches are two market views, so the route is blocked even
+    /// though every hop carries a read timestamp.
+    #[test]
+    fn a_route_priced_from_two_materialization_batches_is_blocked() {
+        let (hops, mut extras) = closed_loop();
+        for extra in extras.iter_mut() {
+            extra.snapshot_batch = Some("pool-manager-batch-1".to_string());
+            extra.pool_state_version = Some("2026-11-25T00:44:04.0Z".to_string());
+        }
+        extras[2].snapshot_batch = Some("pool-manager-batch-2".to_string());
+        let verdict = evaluate_route_single_tick(&hops, &extras, 1_000_000_000_000_000);
+        assert!(!verdict.executable);
+        assert_eq!(verdict.reason.unwrap(), "pool_state_version_drift");
+    }
+
+    /// A route whose batch information is incomplete falls back to the
+    /// read timestamps, so an unprovable route stays blocked.
+    #[test]
+    fn a_route_without_batch_information_falls_back_to_the_timestamps() {
+        let (hops, mut extras) = closed_loop();
+        extras[0].snapshot_batch = Some("pool-manager-batch-1".to_string());
+        extras[1].snapshot_batch = None;
+        extras[2].snapshot_batch = None;
+        extras[2].pool_state_version = Some("2026-11-25T00:44:16.0Z".to_string());
         let verdict = evaluate_route_single_tick(&hops, &extras, 1_000_000_000_000_000);
         assert!(!verdict.executable);
         assert_eq!(verdict.reason.unwrap(), "pool_state_version_drift");

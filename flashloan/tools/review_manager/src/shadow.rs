@@ -2315,6 +2315,7 @@ mod tests {
             tick: 0,
             liquidity: 1_000_000_000_000_000_000,
             liquidity_read_at: Some("2026-11-13T03:08:30Z".to_string()),
+            materialization_batch: Some("test-batch".to_string()),
             evidence_source: Some("test".to_string()),
         }
     }

@@ -1,5 +1,6 @@
 import sys
 import os
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,15 @@ if str(SPLIT_SRC_ROOT) not in sys.path:
     sys.path.insert(1, str(SPLIT_SRC_ROOT))
 if str(SRC_ROOT) not in sys.path:
     sys.path.append(str(SRC_ROOT))
+
+
+from app_runtime.tests.live_chain_store_guard import (  # noqa: E402
+    is_live_chain_store,
+    install_rust_write_guard,
+    install_store_path_redirect,
+    live_chain_store_root,
+    open_live_chain_store_read_only,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -95,6 +105,44 @@ def _isolate_flashloan_kv_path():
             os.environ[key] = previous
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _sandbox_implicit_default_store(tmp_path_factory):
+    """Point the process default store at a sandbox file.
+
+    Several production read paths resolve "the" store without naming it
+    (``bot/page_state/store.py`` asks ``storage_common.database_url()``).
+    The registry default chain is the live mainnet store, so a test that
+    writes a page state would otherwise overwrite the production control
+    panel state - the two production pause guards included.
+
+    The redirect sits at the single root of the path resolution
+    (``core.db.database_path.resolve_database_path``) so it covers every
+    consumer: the KV store, the business tables, the page payload helpers
+    and the Rust bridge, which resolves its database path the same way.
+
+    Three targets stay untouched:
+
+    * a path the test passes **explicitly** - the caller named a store;
+    * a **bound chain scope** - the pages that read a real chain (the flash
+      loan pool page reads the borrow asset universe of a live chain) must
+      still see the production rows;
+    * a store that is not a live chain store.
+
+    The sandbox carries the same schema as the live store, so a read of a
+    KV table returns an empty result instead of failing on a missing table.
+    """
+
+    from core.db.storage_schema import ensure_database_schema
+
+    sandbox = tmp_path_factory.mktemp("default_store") / "local_store_sandbox.sqlite3"
+    ensure_database_schema(str(sandbox))
+
+    with pytest.MonkeyPatch.context() as patch:
+        install_store_path_redirect(sandbox, patch)
+        install_rust_write_guard(sandbox, patch)
+        yield sandbox
+
+
 @pytest.fixture(autouse=True)
 def _guard_real_chain_databases(monkeypatch: pytest.MonkeyPatch):
     """Block writes into the live mainnet and testnet databases.
@@ -106,68 +154,49 @@ def _guard_real_chain_databases(monkeypatch: pytest.MonkeyPatch):
     fixture rows straight into a production database, which silently
     corrupts the closed-loop evidence that the runtime later reads back.
 
-    The write helpers are intercepted instead of redirecting the database
-    root, so a test may still read the real chain metadata that it needs.
-    A write that targets a live chain store fails the test loudly.
+    The guard is installed on the **connections** instead of on the write
+    helpers.  Modules that import the write helpers by name
+    (``core/db/builders.py`` imports ``delete_rows`` and ``query`` directly)
+    keep their own binding, so a guard that only wrapped the functions in
+    ``storage_business_io`` could be bypassed by a single import statement.
+
+    A live chain store is opened with the read-only mode.  Every write then
+    fails inside SQLite, while the read paths that legitimately inspect the
+    live chain metadata keep working.
     """
-    from core.db import storage_business_io
+    from core import local_kv
+    from core.db.database import Database
 
-    live_root = (FLASHLOAN_ROOT / "db").resolve()
+    original_connect = Database.connect
+    original_local_connect = local_kv._connect
+    original_sqlite3_connect = sqlite3.connect
 
-    def _is_live_chain_store(database_url: str) -> bool:
-        try:
-            resolved = Path(str(database_url)).expanduser().resolve()
-        except (OSError, ValueError):
-            return False
-        return resolved.parent == live_root
+    def _guarded_connect(self):
+        if is_live_chain_store(self.path):
+            return open_live_chain_store_read_only(self.path)
+        return original_connect(self)
 
-    def _guard(operation_name: str):
-        original = getattr(storage_business_io, operation_name)
+    def _guarded_local_connect(path):
+        if is_live_chain_store(path):
+            # The schema initialiser issues DDL, so a live chain store is
+            # opened without it.
+            return open_live_chain_store_read_only(path)
+        return original_local_connect(path)
 
-        def _wrapped(database_url, *args, **kwargs):
-            if _is_live_chain_store(database_url):
-                raise AssertionError(
-                    "test attempted to write into the live chain database: "
-                    f"{database_url}"
-                )
-            return original(database_url, *args, **kwargs)
-
-        return _wrapped
-
-    guarded = (
-        "execute",
-        "executemany",
-        "replace_rows",
-        "transaction",
-        "delete_rows",
-    )
-    for operation_name in guarded:
-        if hasattr(storage_business_io, operation_name):
-            monkeypatch.setattr(
-                storage_business_io,
-                operation_name,
-                _guard(operation_name),
+    def _guarded_sqlite3_connect(database, *args, **kwargs):
+        # The backstop for the modules that open a store directly instead of
+        # going through one of the two connection factories.
+        if is_live_chain_store(database):
+            timeout = kwargs.get("timeout", 15.0)
+            return open_live_chain_store_read_only(
+                database,
+                timeout=float(timeout or 15.0),
             )
+        return original_sqlite3_connect(database, *args, **kwargs)
 
-    # Modules that import the write helpers by name keep their own
-    # binding, so the guard has to be installed there as well.
-    import importlib
-
-    for module_name in (
-        "dex.runtime.closed_loop_state_machine",
-        "dex.runtime.closed_loop_consumer",
-    ):
-        try:
-            module = importlib.import_module(module_name)
-        except Exception:
-            continue
-        for operation_name in guarded:
-            if hasattr(module, operation_name):
-                monkeypatch.setattr(
-                    module,
-                    operation_name,
-                    _guard(operation_name),
-                )
+    monkeypatch.setattr(Database, "connect", _guarded_connect)
+    monkeypatch.setattr(local_kv, "_connect", _guarded_local_connect)
+    monkeypatch.setattr(sqlite3, "connect", _guarded_sqlite3_connect)
 
 
 @pytest.fixture(autouse=True)

@@ -1640,6 +1640,7 @@ fn evaluate_final_single_tick_gate(
                     .map(|value| value.tick_spacing as i32)
                     .unwrap_or_default(),
                 pool_state_version: state.and_then(|value| value.liquidity_read_at.clone()),
+                snapshot_batch: state.and_then(|value| value.materialization_batch.clone()),
             }
         })
         .collect();

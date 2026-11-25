@@ -1213,6 +1213,7 @@ mod tests {
             tick: 0,
             liquidity: 1_000_000_000_000_000_000,
             liquidity_read_at: Some("2026-11-12T00:00:00+00:00".to_string()),
+            materialization_batch: Some("test-batch".to_string()),
             evidence_source: Some("test".to_string()),
         }
     }
@@ -1826,6 +1827,7 @@ impl ReviewTimePoolState {
             tick: self.tick,
             liquidity: self.liquidity,
             liquidity_read_at: self.liquidity_read_at.clone(),
+            materialization_batch: None,
             evidence_source: Some("review_time_recorded_state".to_string()),
         }
     }
@@ -3871,6 +3873,7 @@ mod evidence_tests {
                 tick: 0,
                 liquidity: 1_000_000_000_000_000_000_000,
                 liquidity_read_at: None,
+                materialization_batch: None,
                 evidence_source: None,
             },
         );
@@ -3887,6 +3890,7 @@ mod evidence_tests {
                 tick: 0,
                 liquidity: 1_000_000_000_000_000_000_000,
                 liquidity_read_at: None,
+                materialization_batch: None,
                 evidence_source: None,
             },
         );
