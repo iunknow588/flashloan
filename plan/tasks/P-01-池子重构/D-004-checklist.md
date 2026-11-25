@@ -80,13 +80,13 @@
 
 | 项 | 读数 | 来源 | 备注 |
 |---|---|---|---|
-| 二级任务闭合数 | **14 / 22** | `plan/tasks/P-01-池子重构/tasks/` ＋ `plan/archive/README.md` §1 | 在盘 **8** 个未闭合；已归档 **14** 个 `T-*`（另 **6** 个历史 `TASK-*` **不在**登记的 22 内） |
-| 未完成验收项总数 | **99** | 逐目录实测（**36** ＋ **8** ＋ **55**） | 本轮开始 **107**，本轮闭合 **8** |
-| 失效章节引用 | **0** | `check_markdown_links_20261125.py` | checked **298** / broken **0**（本轮修掉 **4** 条） |
+| 二级任务闭合数 | **15 / 22** | `plan/tasks/P-01-池子重构/tasks/` ＋ `plan/archive/README.md` §1 | 在盘 **7** 个未闭合；已归档 **15** 个 `T-*`（另 **6** 个历史 `TASK-*` **不在**登记的 22 内）；`T-方储.01` 于 2026-11-25 闭合归档（`M-4` 决策 `D-139`） |
+| 未完成验收项总数 | **88** | 逐目录实测（**25** ＋ **8** ＋ **55**），`recount_remaining_tasks_20261125.py` 可复算 | 本轮开始 **107**，累计闭合 **19**（**99 → 94 → 88**） |
+| 失效章节引用 | **0** | `check_markdown_links_20261125.py` | checked **317** / broken **0**（本轮修掉 **4** 条；归档重写后仍为 **0**） |
 | 架构守卫失败项 | **0** | `pytest .../test_architecture_guards.py` | 基线 **80** ／ 记录层 **90**，全绿 |
 | 分解表覆盖 | **22 / 22** | `check_decomposition_table_20261125.py` | 无遗漏 / 无多余 / 冲突 none |
 | 任务目录结构 | **PASS** | `check_task_dir_structure_20261125.py` | item1 / item2 / item3 全 PASS |
-| 实盘复核代次 | **115**（停在 **10:35:31 +08**） | `/v1/pipeline/status?chainId=4663` | 发布被 `candidate_pool_key_missing` 挡住 ⇒ 见 `D-136` §3.3 |
+| 实盘复核代次 | **115**（停在 **10:35:31 +08**） | `/api/dex/overview?chainId=4663`（只读） | 至 **13:52:47** 仍未前进（**3 h 17 min**）；发布被 `candidate_pool_key_missing` 挡住；根因指纹：`candidateExchange.poolScopeChecksum = 2bea9bb4…` ≠ `closedLoop.poolScopeChecksum = ae6b14ac…` ⇒ 见 `D-138` §4.1 |
 
 ---
 
@@ -98,7 +98,7 @@
 - [ ] 已登记到 `plan/archive/README.md` §1
 
 > **本节保持未勾（2026-11-25 裁定）**：
-> ① 在盘 **8** 个二级任务 ⇒ `tasks/` **非空**；
+> ① 在盘 **7** 个二级任务 ⇒ `tasks/` **非空**；
 > ② §2 **4** 项 ＋ §5 前三项**依赖**①；
 > ③ 本文件 §3 总回归**已全绿**（`cargo build` exit 0 ＋ 守卫 80/90 全绿），
 >    但「`SCOPE_GUARD.md` §2 总回归」**以全部二级闭合后的最终组合为准** ⇒ 最后一轮再勾。

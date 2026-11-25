@@ -509,3 +509,40 @@
 | `logs/t401_runtime_sup/runtime_stderr.log` | 自 **11:00:50 +08** 起 **764** 条 `pool_manager_refresh_required` / **`refreshCause = candidate_pool_key_missing`** |
 
 **读数口径**：实盘全部**只读**（`mode=ro` ＋ `PRAGMA query_only = ON`）⇒ 实盘库写入 **0**。
+
+---
+
+## 2026-11-25 第 3 轮增量索引（两项任务闭合 ＋ `M-4` 决策 · `D-138` / `D-139`）
+
+> 本节登记本轮（2026-11-25 13:35 – 13:53 +08）新增的工具、脚本与实测读数。
+> 结论文档见 `plan/tasks/P-01-池子重构/docs/D-138-剩余任务清单总结第3轮与任务闭合_20261125.md`
+> ＋ `plan/tasks/P-01-池子重构/docs/D-139-M4决策_rank列保留与删列豁免_20261125.md`。
+
+### 新增工具
+
+| 文件 | 内容 |
+|---|---|
+| `tools/recount_remaining_tasks_20261125.py` | **可复算**剩余读数（三层口径统一）：二级任务归属 **25** ＋ 一级特有 **8** ＋ 横切 **55** = **88** |
+| `tools/probe_rank_column_ruling_20261125.py` | 只读探针（`M-4` 决策的实测依据）：`rank` 形状 / `depth_score` 可替代性 / PRIMARY KEY 归属 |
+| `../flashloan/tools/review_manager/examples/fault_injection_matrix.rs` | 故障注入矩阵（**11 场景**）：独立 example、不入生产路径、全部跑在 `tempfile` 临时目录 |
+
+### 实测读数
+
+| 文件 | 内容 |
+|---|---|
+| `reports/rank_column_ruling_20261125.json` | `M-4` 决策读数：`rank` 在 PRIMARY KEY **true**；稠密 1..N **216/216** 组；`depth_score` 与 `rank` 相等 **0/340** 行、**排序不一致 82/216** 组；`rank = 0` 的行 **0** |
+| `reports/task182_fault_injection_matrix_20261125.json` | 故障注入矩阵结果：**`scenarios=11 passed=11 redFailures=0`**（2026-11-25T05:30:04Z） |
+| `reports/task182_fault_injection_matrix_20261125.md` | 同上的可读版（逐场景读数） |
+| `t401_publish_watch.jsonl` | 复核代次时间线（续）：至 **13:52:47** 仍**停在 `review_version = 115`**、`completed_count = 0`、`not_executable_count = 154` |
+
+### 阻塞指纹（`D-138` §4.1）
+
+| 观测项 | 读数（只读 HTTP overview · `/api/dex/overview?chainId=4663`） |
+|---|---|
+| `candidateExchange.poolScopeChecksum` | **`2bea9bb4…`** |
+| `closedLoop.poolScopeChecksum` | **`ae6b14ac…`** |
+| `runtimeCore.generation` | **473** |
+
+⇒ **两个池域校验和仍然不同** ⇒ **缺陷 B 未消除** ⇒ 剩余 **25** 项 C 类阻塞**全部**挂在同一个解锁条件上。
+
+**读数口径**：实盘全部**只读**（`mode=ro` ＋ `PRAGMA query_only = ON`）⇒ 实盘库写入 **0**。
