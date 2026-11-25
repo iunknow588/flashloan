@@ -546,3 +546,78 @@
 ⇒ **两个池域校验和仍然不同** ⇒ **缺陷 B 未消除** ⇒ 剩余 **25** 项 C 类阻塞**全部**挂在同一个解锁条件上。
 
 **读数口径**：实盘全部**只读**（`mode=ro` ＋ `PRAGMA query_only = ON`）⇒ 实盘库写入 **0**。
+
+> **⚠️ 订正（2026-11-25 第 4 轮 · `D-140` §1）**：上面的「两个池域校验和仍然不同 ⇒ 缺陷 B 未消除」
+> **已被实测推翻** —— 那两个校验和是**两个不同作用域各自的合法身份**，不是缺陷。
+> **真因是「表对错配」**（闭环发布到**管理镜像表**，桥接层只读**活表**）。
+> 详见下一节与 [`D-140`](../tasks/P-01-池子重构/docs/D-140-剩余任务清单总结第4轮与复核发布根因订正_20261125.md)。
+
+---
+
+## 2026-11-25 第 4 轮增量索引（复核发布根因订正 ＋ 性能基线 · `D-140`）
+
+> 本节登记本轮（2026-11-25 15:11 – 15:55 +08）新增的工具、脚本与实测读数。
+> 结论文档见 `plan/tasks/P-01-池子重构/docs/D-140-剩余任务清单总结第4轮与复核发布根因订正_20261125.md`。
+
+### 新增工具
+
+| 文件 | 内容 |
+|---|---|
+| `tools/probe_bridge_coverage_20261125.py` | 复刻桥接层的池键解析（行选取 / 归一化 / 每跳 `[:8]` 截断 / `64` 组上限），在 **live** ／ **manager** ／ **live+manager** 三个面上比较可解析的闭环数 |
+| `tools/probe_missing_edge_sources_20261125.py` | 逐面定位缺失边的来源（活表 vs 管理镜像） |
+| `tools/probe_incomplete_vs_unresolvable_20261125.py` | 比对「缺 PnL 的复核」与「桥接层解析不到的池」**是不是同一批** |
+| `tools/watch_review_version_20261125.py` | 监视复核代次是否前进（只读轮询 `manager_review_library_state`） |
+| `tools/collect_on_review_bump_20261125.py` | 代次前进**瞬间**自动采集两份证据（闭合读数 + 完整性读数） |
+| `tools/probe_remaining_closure_20261125.py` | 一次性读出剩余 **25** 项的**逐条判据**（漂移拒绝数 / 完成数 / 缺字段 / 广播库行数 / 一致性） |
+| `tools/probe_performance_baseline_20261125.py` | **性能基线**（复核扫描跨度 / 发布延迟 / 写库窗口 / 物化耗时 / 记录层落盘） |
+| `tools/build_window_evidence_20261125.py` | 把稳定采样切成 **30 分钟窗口**，逐窗给出四项判据的成立与否（**不挑窗口、不丢窗口**） |
+| `tools/probe_overview_shape_20261125.py` | overview / reviews 接口结构探针（只读） |
+
+### 实测读数
+
+| 文件 | 内容 |
+|---|---|
+| `reports/bridge_coverage_20261125.json` | **live** 可解析 **57 / 174**；**manager** **174 / 174**；**live+manager** **174 / 174** |
+| `reports/missing_edge_sources_20261125.json` | 缺失边逐面来源 |
+| `reports/incomplete_vs_unresolvable_20261125.json` | 已发布池 **49** 个，其中 **10** 个在活表里解析不到；**20** 条缺 PnL 的复核中 **13** 条命中这批池 |
+| `reports/performance_baseline_v115_20261125.json` | 复核扫描跨度 **914.679 s**；发布延迟 **915.066 s**；写库窗口 **0.0 s**；闭环重建 **1631.809 s**；**广播准备耗时 = 未测量**（0 条请求） |
+| `reports/window_evidence_20261125.{json,md}` | 主网稳定窗口证据包：**19** 个 30 分钟窗口、合格 **0** 个、最长连续合格 **0** |
+| `t401_review_integrity_v115_20261125.json` | `review_version = 115` 的完整性读数：A1 完整 **150/174**；A2 金额 measured **166** ／ missing **8**；A3 PnL missing **20**；A4 `bestAmountMissing` **8**；A8 healer missing **8** ／ ladderIncomplete **8** ／ failClosed **true**；C4 `blockers = [pools, reviews, broadcast]` |
+| `review_watch_20261125.log` ／ `review_bump_watch_20261125.log` | 代次时间线（**停在 115**） |
+
+**读数口径**：实盘全部**只读**（`mode=ro` ＋ `PRAGMA query_only = ON`）⇒ 实盘库写入 **0**。
+
+---
+
+## 2026-11-25 第 5 轮增量索引（复核代次前进 116 ＋ 方向层计时 ＋ `T-储.02` 归档 · `D-141`）
+
+> 本节登记本轮（2026-11-25 16:08 – 16:30 +08）新增的工具、脚本与实测读数。
+> 结论文档见 `plan/tasks/P-01-池子重构/docs/D-141-剩余任务清单总结第5轮与复核代次前进116_20261125.md`。
+
+### 新增工具 / 产物
+
+| 文件 | 内容 |
+|---|---|
+| `flashloan/tools/directional_pool_manager/examples/materialization_timing.rs` | **方向层**投影耗时 ＋ **方向表**装载耗时的 Rust 侧实测（`apply = false`、**只读**开库；每作用域跑 **3** 次取 min/中位/max） |
+| `tools/probe_performance_baseline_20261125.py`（**已扩展**） | 新增 `--directional-timing`（把 Rust 侧的 JSON 折进基线）＋ 把**候选边物化耗时**从裸 `0.0` 改成 `measured = false` ＋ 理由 |
+| `directional_timing_20261125.json` | 方向层原始读数：`core4` 投影 **0.467–0.529 s** ／ 装载 **0.0238 s**；`candidate_exchange` 投影 **0.462–0.550 s** ／ 装载 **0.0258 s** |
+| `cargo_chu02_mgrdb_20261125.log` | `T-储.02` 归档前回归：`cargo test --offline -p manager-db` ⇒ **6 passed / 0 failed** |
+| `cargo_chu02_revbcast_20261125.log` | `T-储.02` 归档前回归：`cargo test --offline -p review-manager -p broadcast-manager` ⇒ **193 passed / 0 failed**（**161** ＋ **32**） |
+| `pytest_guards_chu02_20261125.log` | `T-储.02` 归档前回归：`test_record_layer_guards.py`（**10**）＋ `test_architecture_guards.py`（**80**）⇒ **90 passed / 0 failed** |
+
+### 实测读数
+
+| 文件 | 内容 |
+|---|---|
+| `reports/remaining_closure_v116_20261125.json` | **`review_version = 116`**（`updatedAt = 16:08:44 +08`）：**漂移拒绝归零**（`driftRejections = 0`、`singleTickGateFailures = 0`）；`completedCount = 0`、`dataIncompleteCount = 21`、`notExecutableCount = 153`；`signedPnlMissing = 21`、`bestAmountMissing = 8`、`missingWithoutReason = []`；`pnlSigns = positive 3 / negative 150 / missing 21`；广播库行数 **0** |
+| `reports/performance_baseline_v116_20261125.json` | 复核扫描 **1092.045 s** ＋ 发布 **1092.924 s** ＋ 写库窗口 **0.0 s** ＋ 单条归档延迟中位 **0.0 s**；闭环重建 **1631.809 s**；**方向层** `core4` **0.467–0.529 s** ／ 装载 **0.0238 s**，`candidate_exchange` **0.462–0.550 s** ／ 装载 **0.0258 s**；**候选边物化 = `measured: false`**（耗时不可分离）；**广播准备耗时 = 未测量** |
+| `review_bump_watch_20261125.log` | 代次时间线：`16:08:50` 捕获 **115 → 116** ⇒ 自动产出上表的闭合读数 |
+
+**读数口径**：实盘全部**只读**（`mode=ro` ＋ `PRAGMA query_only = ON`）⇒ 实盘库写入 **0**。
+
+> **第 4 轮「阻塞指纹」的最终订正（`D-141` §1）**：
+> 「复核代次停在 `review_version = 115`」这条**阻塞源已消失** —— 代次**已前进到 116**，
+> **漂移拒绝归零**。剩余 **C 类 22 项**的阻塞源变为
+> **链上金额 / 容量证据缺口**（`signedPnlMissing = 21`、`bestAmountMissing = 8`）、
+> **市场条件**（`completedCount = 0` ⇒ 广播请求 **0** 条）与
+> **测试网链上流动性**。

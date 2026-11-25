@@ -1,0 +1,149 @@
+{
+  "schema": "performance-baseline-v1",
+  "generatedAt": "2026-11-25T16:12:30.933785+08:00",
+  "mode": "read-only",
+  "store": {
+    "path": "E:/2026OPC大赛/flashLoan/flashloan/db/local_store_4663.sqlite3",
+    "openedReadOnly": true,
+    "queryOnly": true,
+    "writesByThisProbe": 0
+  },
+  "generation": {
+    "reviewVersion": 116,
+    "loopCount": 174,
+    "completedCount": 0,
+    "dataIncompleteCount": 21,
+    "notExecutableCount": 153,
+    "generatedAt": "2026-11-25T08:08:44.327558300+00:00"
+  },
+  "reviewTiming": {
+    "measured": true,
+    "sweepSpanSeconds": {
+      "count": 1,
+      "minSeconds": 1092.045,
+      "medianSeconds": 1092.045,
+      "maxSeconds": 1092.045,
+      "meanSeconds": 1092.045
+    },
+    "publishLatencySeconds": {
+      "count": 1,
+      "minSeconds": 1092.924,
+      "medianSeconds": 1092.924,
+      "maxSeconds": 1092.924,
+      "meanSeconds": 1092.924
+    },
+    "writeWindowSeconds": {
+      "count": 1,
+      "minSeconds": 0.0,
+      "medianSeconds": 0.0,
+      "maxSeconds": 0.0,
+      "meanSeconds": 0.0
+    },
+    "perRouteFileLatencySeconds": {
+      "count": 174,
+      "minSeconds": 0.0,
+      "medianSeconds": 0.0,
+      "maxSeconds": 0.0,
+      "meanSeconds": 0.0
+    },
+    "meaning": {
+      "sweepSpanSeconds": "first route measured to last route measured",
+      "publishLatencySeconds": "first route measured to the generation was written",
+      "writeWindowSeconds": "first row written to last row written",
+      "perRouteFileLatencySeconds": "route measured to the review row was filed"
+    }
+  },
+  "materializationTiming": {
+    "closedLoopRebuildSeconds": {
+      "count": 1,
+      "minSeconds": 1631.809,
+      "medianSeconds": 1631.809,
+      "maxSeconds": 1631.809,
+      "meanSeconds": 1631.809
+    },
+    "candidateEdgeMaterializationSeconds": {
+      "measured": false,
+      "reason": "the candidate edge layer stamps one instant for the whole materialization, so the duration is not separable from the timestamp pair; the observable delta of 0.0 s is **not** a measured zero duration",
+      "observableDeltaSeconds": 0.0
+    },
+    "directionalLayer": {
+      "measured": true,
+      "reason": null,
+      "source": "plan/runtime_evidence/directional_timing_20261125.json",
+      "note": "the projection is computed with apply = false against a read-only store; the table load is the read of the published directional pool rows",
+      "scopes": [
+        {
+          "scopeKey": "core4",
+          "measured": true,
+          "projectionSeconds": {
+            "count": 3,
+            "minSeconds": 0.467,
+            "medianSeconds": 0.501,
+            "maxSeconds": 0.529
+          },
+          "tableLoadSeconds": 0.0238383,
+          "directionalPoolCount": 340,
+          "basePoolCount": 488,
+          "direction0Count": 170,
+          "direction1Count": 170,
+          "snapshotChecksum": "sha256:01adb94a1b66b123f5bd5ec32125b32154afe03b08b6fa71730bc7662f83e471",
+          "poolScopeChecksum": "sha256:ae6b14ac4d533b80ca8493310e413b51ed2f5c6f2d4e72ac83a0e39a50ff12c6"
+        },
+        {
+          "scopeKey": "candidate_exchange",
+          "measured": true,
+          "projectionSeconds": {
+            "count": 3,
+            "minSeconds": 0.462,
+            "medianSeconds": 0.487,
+            "maxSeconds": 0.55
+          },
+          "tableLoadSeconds": 0.0258059,
+          "directionalPoolCount": 352,
+          "basePoolCount": 494,
+          "direction0Count": 176,
+          "direction1Count": 176,
+          "snapshotChecksum": "sha256:01adb94a1b66b123f5bd5ec32125b32154afe03b08b6fa71730bc7662f83e471",
+          "poolScopeChecksum": "sha256:2bea9bb4c62f4b1bacc4dd8731a3e05b0b26514f5f58b31f4bff69b6a51f7f75"
+        }
+      ]
+    },
+    "directionalPoolRows": [
+      {
+        "scopeKey": "candidate_exchange",
+        "version": 2,
+        "generatedAt": "2026-11-23T22:46:06.910687+00:00",
+        "updatedAt": "2026-11-23T22:46:06.910687+00:00"
+      },
+      {
+        "scopeKey": "core4",
+        "version": 2,
+        "generatedAt": "2026-11-23T22:46:22.601732800+00:00",
+        "updatedAt": "2026-11-23T22:46:22.601732800+00:00"
+      }
+    ],
+    "note": "a materialization that wrote its state row in one instant reports a delta of 0.0 s; that is the observable value of the two timestamps, not a measured zero duration.  The real duration is only separable when the layer stamps a start instant as well."
+  },
+  "broadcastTiming": {
+    "measured": false,
+    "reason": "no broadcast request has been published yet",
+    "broadcastRequestRows": 0,
+    "managerBroadcastLibraryStateRows": 0
+  },
+  "recordLayer": {
+    "reviewJsonl": {
+      "present": true,
+      "files": 352,
+      "bytes": 13195506,
+      "lines": 13204,
+      "newestWriteAt": "2026-11-25T16:08:45.110795+08:00"
+    },
+    "broadcastSqlite": {
+      "present": true,
+      "files": 0,
+      "bytes": 0,
+      "lines": 0,
+      "newestWriteAt": null
+    }
+  }
+}

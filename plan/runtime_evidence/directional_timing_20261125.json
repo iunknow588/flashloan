@@ -1,0 +1,44 @@
+{
+  "chainId": 4663,
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "mode": "read-only (apply = false; the store is opened read-only)",
+  "network": "robinhood",
+  "scopes": [
+    {
+      "basePoolCount": 488,
+      "direction0Count": 170,
+      "direction1Count": 170,
+      "directionalPoolCount": 340,
+      "loadedRows": 340,
+      "poolScopeChecksum": "sha256:ae6b14ac4d533b80ca8493310e413b51ed2f5c6f2d4e72ac83a0e39a50ff12c6",
+      "projectionMaxSeconds": 0.5285656,
+      "projectionMinSeconds": 0.4671235,
+      "projectionSeconds": [
+        0.5007795,
+        0.5285656,
+        0.4671235
+      ],
+      "scopeKey": "core4",
+      "snapshotChecksum": "sha256:01adb94a1b66b123f5bd5ec32125b32154afe03b08b6fa71730bc7662f83e471",
+      "tableLoadSeconds": 0.0238383
+    },
+    {
+      "basePoolCount": 494,
+      "direction0Count": 176,
+      "direction1Count": 176,
+      "directionalPoolCount": 352,
+      "loadedRows": 352,
+      "poolScopeChecksum": "sha256:2bea9bb4c62f4b1bacc4dd8731a3e05b0b26514f5f58b31f4bff69b6a51f7f75",
+      "projectionMaxSeconds": 0.5495025,
+      "projectionMinSeconds": 0.4621466,
+      "projectionSeconds": [
+        0.486935,
+        0.4621466,
+        0.5495025
+      ],
+      "scopeKey": "candidate_exchange",
+      "snapshotChecksum": "sha256:01adb94a1b66b123f5bd5ec32125b32154afe03b08b6fa71730bc7662f83e471",
+      "tableLoadSeconds": 0.0258059
+    }
+  ]
+}

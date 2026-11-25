@@ -1,0 +1,633 @@
+{
+  "schema": "window-evidence-package-v1",
+  "generatedAt": "2026-11-25T15:50:45.381307+08:00",
+  "samples": {
+    "path": "E:/2026OPC大赛/flashLoan/plan/runtime_evidence/stability_window_20261125.jsonl",
+    "count": 318,
+    "first": "2026-11-25T01:37:40.649955+00:00",
+    "last": "2026-11-25T07:50:01.562121+00:00"
+  },
+  "windowSeconds": 1800,
+  "windows": [
+    {
+      "start": "2026-11-25T01:37:40.649955+00:00",
+      "end": "2026-11-25T01:46:39.480249+00:00",
+      "spanSeconds": 538.830294,
+      "sampleCount": 9,
+      "readings": {
+        "reviewVersion": [
+          111
+        ],
+        "closedLoopVersion": [
+          20
+        ],
+        "reviewCompletedCountMax": 0,
+        "reviewCompletedCountMin": 0,
+        "pnlMissingCountMax": 20,
+        "profitableRouteCountMin": 7,
+        "profitableRouteCountMax": 7,
+        "bestObservedNetProfitUsdMax": 0.000262,
+        "broadcastRequestCountMax": 0,
+        "broadcastSuccessCountMax": 0,
+        "missingPoolReferenceCountMax": 0,
+        "consistencyIssuesMax": 0,
+        "upstreamIssuesMax": 0
+      },
+      "criteria": {
+        "blockersEmpty": true,
+        "missingValueZero": false,
+        "positive": true,
+        "receiptCorrelated": false
+      },
+      "qualifies": false
+    },
+    {
+      "start": "2026-11-25T01:47:50.868596+00:00",
+      "end": "2026-11-25T01:53:38.864438+00:00",
+      "spanSeconds": 347.995842,
+      "sampleCount": 6,
+      "readings": {
+        "reviewVersion": [
+          112
+        ],
+        "closedLoopVersion": [
+          20
+        ],
+        "reviewCompletedCountMax": 0,
+        "reviewCompletedCountMin": 0,
+        "pnlMissingCountMax": 20,
+        "profitableRouteCountMin": 6,
+        "profitableRouteCountMax": 6,
+        "bestObservedNetProfitUsdMax": 1.4e-05,
+        "broadcastRequestCountMax": 0,
+        "broadcastSuccessCountMax": 0,
+        "missingPoolReferenceCountMax": 0,
+        "consistencyIssuesMax": 0,
+        "upstreamIssuesMax": 0
+      },
+      "criteria": {
+        "blockersEmpty": true,
+        "missingValueZero": false,
+        "positive": true,
+        "receiptCorrelated": false
+      },
+      "qualifies": false
+    },
+    {
+      "start": "2026-11-25T01:54:56.375316+00:00",
+      "end": "2026-11-25T02:14:28.800975+00:00",
+      "spanSeconds": 1172.425659,
+      "sampleCount": 18,
+      "readings": {
+        "reviewVersion": [
+          113
+        ],
+        "closedLoopVersion": [
+          20
+        ],
+        "reviewCompletedCountMax": 0,
+        "reviewCompletedCountMin": 0,
+        "pnlMissingCountMax": 20,
+        "profitableRouteCountMin": 6,
+        "profitableRouteCountMax": 6,
+        "bestObservedNetProfitUsdMax": 0.000429,
+        "broadcastRequestCountMax": 0,
+        "broadcastSuccessCountMax": 0,
+        "missingPoolReferenceCountMax": 0,
+        "consistencyIssuesMax": 0,
+        "upstreamIssuesMax": 0
+      },
+      "criteria": {
+        "blockersEmpty": true,
+        "missingValueZero": false,
+        "positive": true,
+        "receiptCorrelated": false
+      },
+      "qualifies": false
+    },
+    {
+      "start": "2026-11-25T02:15:39.540294+00:00",
+      "end": "2026-11-25T02:34:40.428930+00:00",
+      "spanSeconds": 1140.888636,
+      "sampleCount": 17,
+      "readings": {
+        "reviewVersion": [
+          114
+        ],
+        "closedLoopVersion": [
+          20
+        ],
+        "reviewCompletedCountMax": 0,
+        "reviewCompletedCountMin": 0,
+        "pnlMissingCountMax": 21,
+        "profitableRouteCountMin": 5,
+        "profitableRouteCountMax": 5,
+        "bestObservedNetProfitUsdMax": 1.4e-05,
+        "broadcastRequestCountMax": 0,
+        "broadcastSuccessCountMax": 0,
+        "missingPoolReferenceCountMax": 0,
+        "consistencyIssuesMax": 0,
+        "upstreamIssuesMax": 0
+      },
+      "criteria": {
+        "blockersEmpty": true,
+        "missingValueZero": false,
+        "positive": true,
+        "receiptCorrelated": false
+      },
+      "qualifies": false
+    },
+    {
+      "start": "2026-11-25T02:35:59.612633+00:00",
+      "end": "2026-11-25T02:44:58.495395+00:00",
+      "spanSeconds": 538.882762,
+      "sampleCount": 8,
+      "readings": {
+        "reviewVersion": [
+          115
+        ],
+        "closedLoopVersion": [
+          20
+        ],
+        "reviewCompletedCountMax": 0,
+        "reviewCompletedCountMin": 0,
+        "pnlMissingCountMax": 20,
+        "profitableRouteCountMin": 4,
+        "profitableRouteCountMax": 4,
+        "bestObservedNetProfitUsdMax": 1.4e-05,
+        "broadcastRequestCountMax": 0,
+        "broadcastSuccessCountMax": 0,
+        "missingPoolReferenceCountMax": 0,
+        "consistencyIssuesMax": 0,
+        "upstreamIssuesMax": 0
+      },
+      "criteria": {
+        "blockersEmpty": true,
+        "missingValueZero": false,
+        "positive": true,
+        "receiptCorrelated": false
+      },
+      "qualifies": false
+    },
+    {
+      "start": "2026-11-25T02:46:00.859088+00:00",
+      "end": "2026-11-25T02:53:17.001592+00:00",
+      "spanSeconds": 436.142504,
+      "sampleCount": 8,
+      "readings": {
+        "reviewVersion": [
+          null
+        ],
+        "closedLoopVersion": [
+          null
+        ],
+        "reviewCompletedCountMax": 0,
+        "reviewCompletedCountMin": 0,
+        "pnlMissingCountMax": 0,
+        "profitableRouteCountMin": 0,
+        "profitableRouteCountMax": 0,
+        "bestObservedNetProfitUsdMax": 0.0,
+        "broadcastRequestCountMax": 0,
+        "broadcastSuccessCountMax": 0,
+        "missingPoolReferenceCountMax": 0,
+        "consistencyIssuesMax": 0,
+        "upstreamIssuesMax": 0
+      },
+      "criteria": {
+        "blockersEmpty": true,
+        "missingValueZero": true,
+        "positive": false,
+        "receiptCorrelated": false
+      },
+      "qualifies": false
+    },
+    {
+      "start": "2026-11-25T02:54:25.957254+00:00",
+      "end": "2026-11-25T03:23:31.998025+00:00",
+      "spanSeconds": 1746.040771,
+      "sampleCount": 25,
+      "readings": {
+        "reviewVersion": [
+          115
+        ],
+        "closedLoopVersion": [
+          20
+        ],
+        "reviewCompletedCountMax": 0,
+        "reviewCompletedCountMin": 0,
+        "pnlMissingCountMax": 20,
+        "profitableRouteCountMin": 4,
+        "profitableRouteCountMax": 4,
+        "bestObservedNetProfitUsdMax": 1.4e-05,
+        "broadcastRequestCountMax": 0,
+        "broadcastSuccessCountMax": 0,
+        "missingPoolReferenceCountMax": 0,
+        "consistencyIssuesMax": 0,
+        "upstreamIssuesMax": 0
+      },
+      "criteria": {
+        "blockersEmpty": true,
+        "missingValueZero": false,
+        "positive": true,
+        "receiptCorrelated": false
+      },
+      "qualifies": false
+    },
+    {
+      "start": "2026-11-25T03:24:38.881093+00:00",
+      "end": "2026-11-25T03:52:57.849416+00:00",
+      "spanSeconds": 1698.968323,
+      "sampleCount": 25,
+      "readings": {
+        "reviewVersion": [
+          115
+        ],
+        "closedLoopVersion": [
+          20
+        ],
+        "reviewCompletedCountMax": 0,
+        "reviewCompletedCountMin": 0,
+        "pnlMissingCountMax": 20,
+        "profitableRouteCountMin": 4,
+        "profitableRouteCountMax": 4,
+        "bestObservedNetProfitUsdMax": 1.4e-05,
+        "broadcastRequestCountMax": 0,
+        "broadcastSuccessCountMax": 0,
+        "missingPoolReferenceCountMax": 0,
+        "consistencyIssuesMax": 0,
+        "upstreamIssuesMax": 0
+      },
+      "criteria": {
+        "blockersEmpty": true,
+        "missingValueZero": false,
+        "positive": true,
+        "receiptCorrelated": false
+      },
+      "qualifies": false
+    },
+    {
+      "start": "2026-11-25T03:55:01.005175+00:00",
+      "end": "2026-11-25T04:24:10.403578+00:00",
+      "spanSeconds": 1749.398403,
+      "sampleCount": 26,
+      "readings": {
+        "reviewVersion": [
+          115
+        ],
+        "closedLoopVersion": [
+          20
+        ],
+        "reviewCompletedCountMax": 0,
+        "reviewCompletedCountMin": 0,
+        "pnlMissingCountMax": 20,
+        "profitableRouteCountMin": 4,
+        "profitableRouteCountMax": 4,
+        "bestObservedNetProfitUsdMax": 1.4e-05,
+        "broadcastRequestCountMax": 0,
+        "broadcastSuccessCountMax": 0,
+        "missingPoolReferenceCountMax": 0,
+        "consistencyIssuesMax": 0,
+        "upstreamIssuesMax": 0
+      },
+      "criteria": {
+        "blockersEmpty": true,
+        "missingValueZero": false,
+        "positive": true,
+        "receiptCorrelated": false
+      },
+      "qualifies": false
+    },
+    {
+      "start": "2026-11-25T04:25:17.566310+00:00",
+      "end": "2026-11-25T04:54:25.799429+00:00",
+      "spanSeconds": 1748.233119,
+      "sampleCount": 25,
+      "readings": {
+        "reviewVersion": [
+          115
+        ],
+        "closedLoopVersion": [
+          20
+        ],
+        "reviewCompletedCountMax": 0,
+        "reviewCompletedCountMin": 0,
+        "pnlMissingCountMax": 20,
+        "profitableRouteCountMin": 4,
+        "profitableRouteCountMax": 4,
+        "bestObservedNetProfitUsdMax": 1.4e-05,
+        "broadcastRequestCountMax": 0,
+        "broadcastSuccessCountMax": 0,
+        "missingPoolReferenceCountMax": 0,
+        "consistencyIssuesMax": 0,
+        "upstreamIssuesMax": 0
+      },
+      "criteria": {
+        "blockersEmpty": true,
+        "missingValueZero": false,
+        "positive": true,
+        "receiptCorrelated": false
+      },
+      "qualifies": false
+    },
+    {
+      "start": "2026-11-25T04:55:37.381600+00:00",
+      "end": "2026-11-25T05:25:07.797368+00:00",
+      "spanSeconds": 1770.415768,
+      "sampleCount": 27,
+      "readings": {
+        "reviewVersion": [
+          115
+        ],
+        "closedLoopVersion": [
+          20
+        ],
+        "reviewCompletedCountMax": 0,
+        "reviewCompletedCountMin": 0,
+        "pnlMissingCountMax": 20,
+        "profitableRouteCountMin": 4,
+        "profitableRouteCountMax": 4,
+        "bestObservedNetProfitUsdMax": 1.4e-05,
+        "broadcastRequestCountMax": 0,
+        "broadcastSuccessCountMax": 0,
+        "missingPoolReferenceCountMax": 0,
+        "consistencyIssuesMax": 0,
+        "upstreamIssuesMax": 0
+      },
+      "criteria": {
+        "blockersEmpty": true,
+        "missingValueZero": false,
+        "positive": true,
+        "receiptCorrelated": false
+      },
+      "qualifies": false
+    },
+    {
+      "start": "2026-11-25T05:26:14.265387+00:00",
+      "end": "2026-11-25T05:55:29.287043+00:00",
+      "spanSeconds": 1755.021656,
+      "sampleCount": 27,
+      "readings": {
+        "reviewVersion": [
+          115
+        ],
+        "closedLoopVersion": [
+          20
+        ],
+        "reviewCompletedCountMax": 0,
+        "reviewCompletedCountMin": 0,
+        "pnlMissingCountMax": 20,
+        "profitableRouteCountMin": 4,
+        "profitableRouteCountMax": 4,
+        "bestObservedNetProfitUsdMax": 1.4e-05,
+        "broadcastRequestCountMax": 0,
+        "broadcastSuccessCountMax": 0,
+        "missingPoolReferenceCountMax": 0,
+        "consistencyIssuesMax": 0,
+        "upstreamIssuesMax": 0
+      },
+      "criteria": {
+        "blockersEmpty": true,
+        "missingValueZero": false,
+        "positive": true,
+        "receiptCorrelated": false
+      },
+      "qualifies": false
+    },
+    {
+      "start": "2026-11-25T05:56:36.398246+00:00",
+      "end": "2026-11-25T06:26:07.445606+00:00",
+      "spanSeconds": 1771.04736,
+      "sampleCount": 25,
+      "readings": {
+        "reviewVersion": [
+          115
+        ],
+        "closedLoopVersion": [
+          20
+        ],
+        "reviewCompletedCountMax": 0,
+        "reviewCompletedCountMin": 0,
+        "pnlMissingCountMax": 20,
+        "profitableRouteCountMin": 4,
+        "profitableRouteCountMax": 4,
+        "bestObservedNetProfitUsdMax": 1.4e-05,
+        "broadcastRequestCountMax": 0,
+        "broadcastSuccessCountMax": 0,
+        "missingPoolReferenceCountMax": 0,
+        "consistencyIssuesMax": 0,
+        "upstreamIssuesMax": 0
+      },
+      "criteria": {
+        "blockersEmpty": true,
+        "missingValueZero": false,
+        "positive": true,
+        "receiptCorrelated": false
+      },
+      "qualifies": false
+    },
+    {
+      "start": "2026-11-25T06:27:21.052236+00:00",
+      "end": "2026-11-25T06:29:45.072013+00:00",
+      "spanSeconds": 144.019777,
+      "sampleCount": 3,
+      "readings": {
+        "reviewVersion": [
+          115
+        ],
+        "closedLoopVersion": [
+          20
+        ],
+        "reviewCompletedCountMax": 0,
+        "reviewCompletedCountMin": 0,
+        "pnlMissingCountMax": 20,
+        "profitableRouteCountMin": 4,
+        "profitableRouteCountMax": 4,
+        "bestObservedNetProfitUsdMax": 1.4e-05,
+        "broadcastRequestCountMax": 0,
+        "broadcastSuccessCountMax": 0,
+        "missingPoolReferenceCountMax": 0,
+        "consistencyIssuesMax": 0,
+        "upstreamIssuesMax": 0
+      },
+      "criteria": {
+        "blockersEmpty": true,
+        "missingValueZero": false,
+        "positive": true,
+        "receiptCorrelated": false
+      },
+      "qualifies": false
+    },
+    {
+      "start": "2026-11-25T06:30:47.095295+00:00",
+      "end": "2026-11-25T06:40:07.032501+00:00",
+      "spanSeconds": 559.937206,
+      "sampleCount": 10,
+      "readings": {
+        "reviewVersion": [
+          null
+        ],
+        "closedLoopVersion": [
+          null
+        ],
+        "reviewCompletedCountMax": 0,
+        "reviewCompletedCountMin": 0,
+        "pnlMissingCountMax": 0,
+        "profitableRouteCountMin": 0,
+        "profitableRouteCountMax": 0,
+        "bestObservedNetProfitUsdMax": 0.0,
+        "broadcastRequestCountMax": 0,
+        "broadcastSuccessCountMax": 0,
+        "missingPoolReferenceCountMax": 0,
+        "consistencyIssuesMax": 0,
+        "upstreamIssuesMax": 0
+      },
+      "criteria": {
+        "blockersEmpty": true,
+        "missingValueZero": true,
+        "positive": false,
+        "receiptCorrelated": false
+      },
+      "qualifies": false
+    },
+    {
+      "start": "2026-11-25T06:41:16.989972+00:00",
+      "end": "2026-11-25T07:10:11.646213+00:00",
+      "spanSeconds": 1734.656241,
+      "sampleCount": 25,
+      "readings": {
+        "reviewVersion": [
+          115
+        ],
+        "closedLoopVersion": [
+          20
+        ],
+        "reviewCompletedCountMax": 0,
+        "reviewCompletedCountMin": 0,
+        "pnlMissingCountMax": 20,
+        "profitableRouteCountMin": 4,
+        "profitableRouteCountMax": 4,
+        "bestObservedNetProfitUsdMax": 1.4e-05,
+        "broadcastRequestCountMax": 0,
+        "broadcastSuccessCountMax": 0,
+        "missingPoolReferenceCountMax": 0,
+        "consistencyIssuesMax": 0,
+        "upstreamIssuesMax": 0
+      },
+      "criteria": {
+        "blockersEmpty": true,
+        "missingValueZero": false,
+        "positive": true,
+        "receiptCorrelated": false
+      },
+      "qualifies": false
+    },
+    {
+      "start": "2026-11-25T07:11:13.981007+00:00",
+      "end": "2026-11-25T07:11:13.981007+00:00",
+      "spanSeconds": 0.0,
+      "sampleCount": 1,
+      "readings": {
+        "reviewVersion": [
+          null
+        ],
+        "closedLoopVersion": [
+          null
+        ],
+        "reviewCompletedCountMax": 0,
+        "reviewCompletedCountMin": 0,
+        "pnlMissingCountMax": 0,
+        "profitableRouteCountMin": 0,
+        "profitableRouteCountMax": 0,
+        "bestObservedNetProfitUsdMax": 0.0,
+        "broadcastRequestCountMax": 0,
+        "broadcastSuccessCountMax": 0,
+        "missingPoolReferenceCountMax": 0,
+        "consistencyIssuesMax": 0,
+        "upstreamIssuesMax": 0
+      },
+      "criteria": {
+        "blockersEmpty": true,
+        "missingValueZero": true,
+        "positive": false,
+        "receiptCorrelated": false
+      },
+      "qualifies": false
+    },
+    {
+      "start": "2026-11-25T07:13:14.041639+00:00",
+      "end": "2026-11-25T07:43:13.360174+00:00",
+      "spanSeconds": 1799.318535,
+      "sampleCount": 27,
+      "readings": {
+        "reviewVersion": [
+          115
+        ],
+        "closedLoopVersion": [
+          20
+        ],
+        "reviewCompletedCountMax": 0,
+        "reviewCompletedCountMin": 0,
+        "pnlMissingCountMax": 20,
+        "profitableRouteCountMin": 4,
+        "profitableRouteCountMax": 4,
+        "bestObservedNetProfitUsdMax": 1.4e-05,
+        "broadcastRequestCountMax": 0,
+        "broadcastSuccessCountMax": 0,
+        "missingPoolReferenceCountMax": 0,
+        "consistencyIssuesMax": 0,
+        "upstreamIssuesMax": 0
+      },
+      "criteria": {
+        "blockersEmpty": true,
+        "missingValueZero": false,
+        "positive": true,
+        "receiptCorrelated": false
+      },
+      "qualifies": false
+    },
+    {
+      "start": "2026-11-25T07:44:23.757258+00:00",
+      "end": "2026-11-25T07:50:01.562121+00:00",
+      "spanSeconds": 337.804863,
+      "sampleCount": 6,
+      "readings": {
+        "reviewVersion": [
+          115
+        ],
+        "closedLoopVersion": [
+          20
+        ],
+        "reviewCompletedCountMax": 0,
+        "reviewCompletedCountMin": 0,
+        "pnlMissingCountMax": 20,
+        "profitableRouteCountMin": 4,
+        "profitableRouteCountMax": 4,
+        "bestObservedNetProfitUsdMax": 1.4e-05,
+        "broadcastRequestCountMax": 0,
+        "broadcastSuccessCountMax": 0,
+        "missingPoolReferenceCountMax": 0,
+        "consistencyIssuesMax": 0,
+        "upstreamIssuesMax": 0
+      },
+      "criteria": {
+        "blockersEmpty": true,
+        "missingValueZero": false,
+        "positive": true,
+        "receiptCorrelated": false
+      },
+      "qualifies": false
+    }
+  ],
+  "windowCount": 19,
+  "qualifyingWindows": 0,
+  "longestConsecutiveQualifyingRun": 0,
+  "receiptEvidence": {
+    "attempts": 0,
+    "receiptLinked": 0,
+    "available": false
+  },
+  "verdict": {
+    "threeConsecutiveWindows": false,
+    "note": "a window qualifies only when all four criteria hold for every sample inside it; windows that do not qualify are kept and reported with their readings"
+  }
+}

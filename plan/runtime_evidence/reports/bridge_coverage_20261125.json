@@ -1,0 +1,25 @@
+{
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "mode": "ro",
+  "closedLoops": 174,
+  "perHopCut": 8,
+  "groupCap": 64,
+  "live": {
+    "resolved": 57,
+    "unresolvedEdge": 108,
+    "publishedPoolNotInGroup": 0,
+    "publishedPoolUnresolvable": 9
+  },
+  "manager": {
+    "resolved": 174,
+    "unresolvedEdge": 0,
+    "publishedPoolNotInGroup": 0,
+    "publishedPoolUnresolvable": 0
+  },
+  "live+manager": {
+    "resolved": 174,
+    "unresolvedEdge": 0,
+    "publishedPoolNotInGroup": 0,
+    "publishedPoolUnresolvable": 0
+  }
+}

@@ -1,0 +1,8 @@
+   Compiling directional-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\directional_pool_manager)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2m 09s
+     Running `target\debug\examples\materialization_timing.exe flashloan/db/local_store_4663.sqlite3 robinhood 4663`
+
+thread 'main' (29148) panicked at directional_pool_manager\examples\materialization_timing.rs:51:37:
+the projection failed: sqlite error: unable to open database file: flashloan/db/local_store_4663.sqlite3
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: process didn't exit successfully: `target\debug\examples\materialization_timing.exe flashloan/db/local_store_4663.sqlite3 robinhood 4663` (exit code: 101)

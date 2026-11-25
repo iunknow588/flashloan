@@ -1,0 +1,108 @@
+{
+  "schema": "performance-baseline-v1",
+  "generatedAt": "2026-11-25T15:38:32.954990+08:00",
+  "mode": "read-only",
+  "store": {
+    "path": "E:/2026OPC大赛/flashLoan/flashloan/db/local_store_4663.sqlite3",
+    "openedReadOnly": true,
+    "queryOnly": true,
+    "writesByThisProbe": 0
+  },
+  "generation": {
+    "reviewVersion": 115,
+    "loopCount": 174,
+    "completedCount": 0,
+    "dataIncompleteCount": 20,
+    "notExecutableCount": 154,
+    "generatedAt": "2026-11-25T02:35:31.359191600+00:00"
+  },
+  "reviewTiming": {
+    "measured": true,
+    "sweepSpanSeconds": {
+      "count": 1,
+      "minSeconds": 914.679,
+      "medianSeconds": 914.679,
+      "maxSeconds": 914.679,
+      "meanSeconds": 914.679
+    },
+    "publishLatencySeconds": {
+      "count": 1,
+      "minSeconds": 915.066,
+      "medianSeconds": 915.066,
+      "maxSeconds": 915.066,
+      "meanSeconds": 915.066
+    },
+    "writeWindowSeconds": {
+      "count": 1,
+      "minSeconds": 0.0,
+      "medianSeconds": 0.0,
+      "maxSeconds": 0.0,
+      "meanSeconds": 0.0
+    },
+    "perRouteFileLatencySeconds": {
+      "count": 174,
+      "minSeconds": 0.0,
+      "medianSeconds": 0.0,
+      "maxSeconds": 0.0,
+      "meanSeconds": 0.0
+    },
+    "meaning": {
+      "sweepSpanSeconds": "first route measured to last route measured",
+      "publishLatencySeconds": "first route measured to the generation was written",
+      "writeWindowSeconds": "first row written to last row written",
+      "perRouteFileLatencySeconds": "route measured to the review row was filed"
+    }
+  },
+  "materializationTiming": {
+    "closedLoopRebuildSeconds": {
+      "count": 1,
+      "minSeconds": 1631.809,
+      "medianSeconds": 1631.809,
+      "maxSeconds": 1631.809,
+      "meanSeconds": 1631.809
+    },
+    "candidateEdgeMaterializationSeconds": {
+      "count": 1,
+      "minSeconds": 0.0,
+      "medianSeconds": 0.0,
+      "maxSeconds": 0.0,
+      "meanSeconds": 0.0
+    },
+    "directionalPoolRows": [
+      {
+        "scopeKey": "candidate_exchange",
+        "version": 2,
+        "generatedAt": "2026-11-23T22:46:06.910687+00:00",
+        "updatedAt": "2026-11-23T22:46:06.910687+00:00"
+      },
+      {
+        "scopeKey": "core4",
+        "version": 2,
+        "generatedAt": "2026-11-23T22:46:22.601732800+00:00",
+        "updatedAt": "2026-11-23T22:46:22.601732800+00:00"
+      }
+    ]
+  },
+  "broadcastTiming": {
+    "measured": false,
+    "reason": "no broadcast request has been published yet",
+    "broadcastRequestRows": 0,
+    "managerBroadcastLibraryStateRows": 0
+  },
+  "recordLayer": {
+    "reviewJsonl": {
+      "present": true,
+      "files": 352,
+      "bytes": 13043324,
+      "lines": 13052,
+      "newestWriteAt": "2026-11-25T10:35:31.578733+08:00"
+    },
+    "broadcastSqlite": {
+      "present": true,
+      "files": 0,
+      "bytes": 0,
+      "lines": 0,
+      "newestWriteAt": null
+    }
+  }
+}

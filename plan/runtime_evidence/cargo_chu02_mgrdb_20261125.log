@@ -1,0 +1,26 @@
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.45s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.63s
+
+
+running 6 tests
+test read_only_preflight_does_not_apply_migration ... ok
+test incompatible_manager_target_table_blocks_migration_atomically ... ok
+test legacy_candidate_tables_are_not_reused_by_manager_shadow_migration ... ok
+test migration_is_idempotent_and_creates_only_empty_control_schema ... ok
+test existing_foreign_schema_migration_ledger_uses_manager_fallback ... ok
+test the_observation_primary_pool_becomes_a_view_over_the_direction_layer ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.54s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+

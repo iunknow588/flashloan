@@ -3252,6 +3252,13 @@ def _candidate_pool_key_groups_from_database(
     The middle Y-Z hop is not anchor-adjacent, so it is also authorized by
     ``market_observation_intermediate_pools`` and resolved back to
     ``v4_exchange_pools`` when the observation row does not carry a PoolKey.
+
+    The **manager surfaces** are read as well.  The closed-loop Manager
+    published the route from ``manager_dex_candidate_pools`` and
+    ``manager_market_observation_intermediate_pools``; a hop whose pool the
+    Manager published but the live surface does not carry has no PoolKey to
+    price, so the resolver has to read the generation the publisher wrote.
+    The manager rows are added to the live rows and never replace them.
     """
     normalized_route_addresses = [
         str(item).strip().lower()
@@ -3315,6 +3322,60 @@ def _candidate_pool_key_groups_from_database(
         except Exception:
             # Older database fixtures may not yet expose the observation
             # surface; candidate-only resolution remains valid when it does.
+            pass
+        # The **manager surfaces** are the surfaces the closed-loop Manager
+        # published the route from.  The bridge resolves a hop to a PoolKey,
+        # so it has to read the generation the publisher wrote: a hop whose
+        # pool the Manager published but the live surface does not carry has
+        # no PoolKey to price, and the route is then skipped with
+        # ``candidate_pool_key_missing`` even though the Manager's own hop
+        # is complete.
+        #
+        # The manager rows are **added** to the live rows and never replace
+        # them: the live surface keeps its order and its meaning, and a pool
+        # the Manager published that the live surface does not carry becomes
+        # resolvable as well.  The two manager surfaces are read separately,
+        # so a store that carries only one of them still resolves with the
+        # one it has.
+        try:
+            manager_candidate_rows = query(
+                str(database_path),
+                """
+                SELECT mc.token0, mc.token1, mc.fee, mc.tick_spacing,
+                       mc.hooks, mc.pool_key_json,
+                       1 AS usable_for_observation
+                FROM manager_dex_candidate_pools mc
+                WHERE mc.network = ? AND mc.chain_id = ? AND mc.protocol = ?
+                """,
+                (network, int(chain_id), protocol),
+            )
+            rows = [*rows, *manager_candidate_rows]
+        except Exception:
+            # A store without the candidate Manager surface still resolves
+            # through the live surfaces.
+            pass
+        try:
+            manager_observation_rows = query(
+                str(database_path),
+                """
+                SELECT mo.token0, mo.token1, mo.fee, mo.tick_spacing,
+                       mo.hooks,
+                       CASE WHEN TRIM(COALESCE(mo.pool_key_json, '')) IN ('', '{}', 'null')
+                            THEN vp.pool_key_json
+                            ELSE mo.pool_key_json END AS pool_key_json,
+                       1 AS usable_for_observation
+                FROM manager_market_observation_intermediate_pools mo
+                LEFT JOIN v4_exchange_pools vp
+                  ON vp.network = mo.network AND vp.chain_id = mo.chain_id
+                 AND vp.protocol = mo.protocol AND vp.pool_id = mo.pool_id
+                WHERE mo.network = ? AND mo.chain_id = ? AND mo.protocol = ?
+                """,
+                (network, int(chain_id), protocol),
+            )
+            rows = [*rows, *manager_observation_rows]
+        except Exception:
+            # A store without the observation Manager surface still resolves
+            # through the live surfaces.
             pass
     except Exception as exc:
         return {

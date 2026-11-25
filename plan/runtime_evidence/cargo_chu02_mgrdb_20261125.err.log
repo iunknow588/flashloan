@@ -1,0 +1,6 @@
+   Compiling manager-db v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\manager_db)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 30.57s
+     Running unittests src\lib.rs (target\debug\deps\manager_db-d908a0f71ac4cb7d.exe)
+     Running unittests src\main.rs (target\debug\deps\manager_db-3938ea6c2ef9d827.exe)
+     Running tests\migration_smoke.rs (target\debug\deps\migration_smoke-c2132e2923a05ece.exe)
+   Doc-tests manager_db

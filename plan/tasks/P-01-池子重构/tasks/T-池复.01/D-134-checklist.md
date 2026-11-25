@@ -74,17 +74,49 @@
 
 ## 4. 实盘复测（**读数以重启后为准**）
 
-- [ ] 实盘漂移拒绝**归零**
+- [x] 实盘漂移拒绝**归零**
 
       > 判据：`/v1/reviews` 中 `reviewReason` **不再**出现
       > `single_tick_gate_failed:pool_state_version_drift`。
+      >
+      > **读数（2026-11-25 16:08 +08 · `review_version=116` · `plan/runtime_evidence/reports/remaining_closure_v116_20261125.json`）**：
+      > `poolScope.driftRejections = 0`、`singleTickGateFailures = 0`、
+      > `singleTickGateFailuresOtherThanDrift = 0`、`otherGateReasons = []`、
+      > `driftExamples = []`。
+      >
+      > 逐条复核 `/v1/reviews?chainId=4663&limit=200`（174 条）：`reviewReason` 分布 =
+      > `runArbitrage returned ok=false` **150**、`signed PnL is missing or incomplete` **21**、
+      > `state_transition_gate_failed:expected_pool_state_unavailable:0x632d…` **2**、
+      > `state_transition_gate_failed:expected_amount_crosses_tick:0x2410…` **1**。
+      > ⇒ **漂移拒绝由 5 归零**，单 tick 门禁的**拒绝原因整体消失**；
+      > 剩下的 3 条是**状态迁移门禁**（另一条门禁），**不是**漂移。
+      >
+      > **诚实边界**：漂移归零**不等于**「路线可执行」——`completedCount = 0` 仍为 **0**
+      > （见下一项），原因见 §5 与 `remaining_closure_v116_20261125.json` 的
+      > `reviewIntegrity.signedPnlMissing = 21` / `bestAmountMissing = 8`。
 
 - [ ] `completed` **不再恒为 0**
 
       > 判据：`/v1/reviews` 的 `completedCount > 0`
       > （前提：存在**正利润且通过容量门禁**的路线）。
 
-- [ ] 实盘库**零写入**
+- [x] 实盘库**零写入**
 
       > 判据：本任务**不写**实盘库；只读脚本一律 `mode=ro` ＋ `query_only`。
+      >
+      > **读数（2026-11-25 16:12 +08）**：
+      > - 本任务的**唯一**实盘读取脚本
+      >   `plan/runtime_evidence/tools/probe_single_tick_drift_pool_versions_20261125.py`
+      >   **L57** `uri = f"file:{DB.as_posix()}?mode=ro"`、**L58** `sqlite3.connect(..., uri=True)`、
+      >   **L60** `PRAGMA query_only = ON` ⇒ **只读**；
+      > - 本轮复核用的两个探针同样只读：
+      >   `probe_remaining_closure_20261125.py` 与 `probe_performance_baseline_20261125.py`
+      >   ⇒ `openedReadOnly = true`、`queryOnly = true`、`writesByThisProbe = 0`；
+      > - 物化计时由 **Rust** 侧 `materialization_timing` example 执行，`apply = false`
+      >   且复合管理器在**非 apply** 分支以 `SQLITE_OPEN_READ_ONLY` 打开库
+      >   （`flashloan/tools/composite_manager/src/main.rs:44`）；
+      > - 本任务的**代码改动**只落在 `pool_manager` / `review_manager` 的**判定与字段**，
+      >   **未新增任何写入路径**（见 §2 与 `D-133§ §1 的允许改动清单）。
+      >
+      > ⇒ 本任务**零实盘写入**。
 

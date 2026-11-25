@@ -1,0 +1,1527 @@
+{
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "mode": "ro",
+  "publishedPools": 49,
+  "liveUnresolvablePools": 10,
+  "liveUnresolvablePoolIds": [
+    "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+    "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+    "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6",
+    "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e",
+    "0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448",
+    "0x982af6ff6a2169c91a78634d3d10b3e1fe1e6a7e76387de04167234a41d50e4c",
+    "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e",
+    "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+    "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35",
+    "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+  ],
+  "statusCounts": {
+    "not_executable": 154,
+    "data_incomplete": 20
+  },
+  "statusTouchingUnresolvable": {
+    "not_executable": 104,
+    "data_incomplete": 13
+  },
+  "detail": [
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+        "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6"
+      ]
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35"
+      ]
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35"
+      ]
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+        "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e"
+      ]
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+        "0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448"
+      ]
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6"
+      ]
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e"
+      ]
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448"
+      ]
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982"
+      ]
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35"
+      ]
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982"
+      ]
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xec262a75e413fafd0df80480274532c79d42da09",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982"
+      ]
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982"
+      ]
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e"
+      ]
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "data_incomplete",
+      "reviewReason": "signed PnL is missing or incomplete",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e"
+      ]
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "data_incomplete",
+      "reviewReason": "signed PnL is missing or incomplete",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e"
+      ]
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xec262a75e413fafd0df80480274532c79d42da09:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "data_incomplete",
+      "reviewReason": "signed PnL is missing or incomplete",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e"
+      ]
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e"
+      ]
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35"
+      ]
+    },
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6"
+      ]
+    },
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+        "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6"
+      ]
+    },
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6"
+      ]
+    },
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35"
+      ]
+    },
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "data_incomplete",
+      "reviewReason": "signed PnL is missing or incomplete",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6"
+      ]
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e",
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e",
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e",
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e",
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35"
+      ]
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "data_incomplete",
+      "reviewReason": "signed PnL is missing or incomplete",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e"
+      ]
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e",
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+        "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e"
+      ]
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e",
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e",
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e",
+        "0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448"
+      ]
+    },
+    {
+      "loopKey": "0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e",
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e",
+        "0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448"
+      ]
+    },
+    {
+      "loopKey": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448"
+      ]
+    },
+    {
+      "loopKey": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e",
+        "0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448"
+      ]
+    },
+    {
+      "loopKey": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+        "0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448"
+      ]
+    },
+    {
+      "loopKey": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e",
+        "0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+        "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+        "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+        "0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "reviewStatus": "data_incomplete",
+      "reviewReason": "signed PnL is missing or incomplete",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+      "reviewStatus": "not_executable",
+      "reviewReason": "single_tick_gate_failed:pool_state_version_drift",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xec262a75e413fafd0df80480274532c79d42da09",
+      "reviewStatus": "data_incomplete",
+      "reviewReason": "signed PnL is missing or incomplete",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "reviewStatus": "data_incomplete",
+      "reviewReason": "signed PnL is missing or incomplete",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e",
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e",
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x982af6ff6a2169c91a78634d3d10b3e1fe1e6a7e76387de04167234a41d50e4c",
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "reviewStatus": "data_incomplete",
+      "reviewReason": "signed PnL is missing or incomplete",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e",
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e",
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e",
+        "0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e",
+        "0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x6330d8c3178a418788df01a47479c0ce7ccf450b:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x982af6ff6a2169c91a78634d3d10b3e1fe1e6a7e76387de04167234a41d50e4c",
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+      "reviewStatus": "not_executable",
+      "reviewReason": "single_tick_gate_failed:pool_state_version_drift",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "reviewStatus": "data_incomplete",
+      "reviewReason": "signed PnL is missing or incomplete",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xec262a75e413fafd0df80480274532c79d42da09:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "reviewStatus": "data_incomplete",
+      "reviewReason": "signed PnL is missing or incomplete",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "data_incomplete",
+      "reviewReason": "signed PnL is missing or incomplete",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "data_incomplete",
+      "reviewReason": "signed PnL is missing or incomplete",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0x02a0bacc642d501422af804a462f98335b2bbf09:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xa8cf7c51eee671646ba440ffa180f970902fd2fb:0xd1b532ea8dbda84e6937fedabb2fd5c33a049830:0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982"
+      ]
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e"
+      ]
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35"
+      ]
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35"
+      ]
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+        "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35"
+      ]
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35"
+      ]
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6"
+      ]
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "data_incomplete",
+      "reviewReason": "signed PnL is missing or incomplete",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e"
+      ]
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "reviewStatus": "data_incomplete",
+      "reviewReason": "signed PnL is missing or incomplete",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6"
+      ]
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "data_incomplete",
+      "reviewReason": "signed PnL is missing or incomplete",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+      "reviewStatus": "data_incomplete",
+      "reviewReason": "signed PnL is missing or incomplete",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "reviewStatus": "data_incomplete",
+      "reviewReason": "signed PnL is missing or incomplete",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982"
+      ]
+    },
+    {
+      "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "single_tick_gate_failed:pool_state_version_drift",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e"
+      ]
+    },
+    {
+      "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+      "reviewStatus": "not_executable",
+      "reviewReason": "single_tick_gate_failed:pool_state_version_drift",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xec262a75e413fafd0df80480274532c79d42da09:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982"
+      ]
+    },
+    {
+      "loopKey": "0xec262a75e413fafd0df80480274532c79d42da09:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "data_incomplete",
+      "reviewReason": "signed PnL is missing or incomplete",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e"
+      ]
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982"
+      ]
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907"
+      ]
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e"
+      ]
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+      ]
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": true,
+      "unresolvablePoolIds": [
+        "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35"
+      ]
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "reviewStatus": "not_executable",
+      "reviewReason": "runArbitrage returned ok=false",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewStatus": "data_incomplete",
+      "reviewReason": "signed PnL is missing or incomplete",
+      "touchesLiveUnresolvable": false,
+      "unresolvablePoolIds": []
+    }
+  ]
+}

@@ -1299,6 +1299,239 @@ def test_candidate_pool_key_groups_resolves_middle_edge_from_observation_surface
     assert details["groups"][0][1]["tickSpacing"] == 60
 
 
+def test_candidate_pool_key_groups_resolves_hop_from_the_manager_surface(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A hop the Manager published resolves even when the live surface lacks it.
+
+    The closed-loop Manager publishes its hops from the manager surfaces.  A
+    hop whose pool the Manager published but the live surface does not carry
+    has no PoolKey to price, so the route used to be skipped with
+    ``candidate_pool_key_missing`` even though the Manager's hop was
+    complete.  The resolver therefore reads the manager surfaces as well.
+    """
+
+    import sqlite3
+
+    database = tmp_path / "manager_surface_hop.sqlite3"
+    connection = sqlite3.connect(str(database))
+    connection.executescript(
+        """
+        CREATE TABLE dex_candidate_pools (
+            network TEXT NOT NULL,
+            chain_id INTEGER NOT NULL,
+            protocol TEXT NOT NULL,
+            pool_id TEXT NOT NULL,
+            token0 TEXT NOT NULL,
+            token1 TEXT NOT NULL,
+            fee INTEGER NOT NULL,
+            tick_spacing INTEGER NOT NULL,
+            hooks TEXT NOT NULL,
+            pool_key_json TEXT NOT NULL,
+            usable_for_observation INTEGER NOT NULL,
+            PRIMARY KEY (network, chain_id, protocol, pool_id)
+        );
+        CREATE TABLE manager_dex_candidate_pools (
+            network TEXT NOT NULL,
+            chain_id INTEGER NOT NULL,
+            protocol TEXT NOT NULL,
+            pool_id TEXT NOT NULL,
+            token0 TEXT NOT NULL,
+            token1 TEXT NOT NULL,
+            fee INTEGER NOT NULL,
+            tick_spacing INTEGER NOT NULL,
+            hooks TEXT NOT NULL,
+            pool_key_json TEXT NOT NULL,
+            PRIMARY KEY (network, chain_id, protocol, pool_id)
+        );
+        CREATE TABLE v4_exchange_pools (
+            network TEXT NOT NULL,
+            chain_id INTEGER NOT NULL,
+            protocol TEXT NOT NULL,
+            pool_id TEXT NOT NULL,
+            pool_key_json TEXT,
+            PRIMARY KEY (network, chain_id, protocol, pool_id)
+        )
+        """
+    )
+    a = "0x" + ("1" * 40)
+    b = "0x" + ("2" * 40)
+    c = "0x" + ("3" * 40)
+    zero_hook = "0x0000000000000000000000000000000000000000"
+
+    def pool_key(token0: str, token1: str, fee: int, tick_spacing: int) -> str:
+        return json.dumps(
+            {
+                "currency0": token0,
+                "currency1": token1,
+                "fee": fee,
+                "tickSpacing": tick_spacing,
+                "hooks": zero_hook,
+            }
+        )
+
+    for pool_id, token0, token1 in (("p-a-b", a, b), ("p-c-a", c, a)):
+        connection.execute(
+            """
+            INSERT INTO dex_candidate_pools (
+                network, chain_id, protocol, pool_id, token0, token1, fee,
+                tick_spacing, hooks, pool_key_json, usable_for_observation
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "robinhood",
+                4663,
+                "uniswap_v4",
+                pool_id,
+                token0,
+                token1,
+                3000,
+                60,
+                zero_hook,
+                pool_key(token0, token1, 3000, 60),
+                1,
+            ),
+        )
+    # The middle hop exists only on the manager surface.
+    connection.execute(
+        """
+        INSERT INTO manager_dex_candidate_pools (
+            network, chain_id, protocol, pool_id, token0, token1, fee,
+            tick_spacing, hooks, pool_key_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "robinhood",
+            4663,
+            "uniswap_v4",
+            "p-b-c",
+            b,
+            c,
+            500,
+            10,
+            zero_hook,
+            pool_key(b, c, 500, 10),
+        ),
+    )
+    connection.commit()
+    connection.close()
+
+    monkeypatch.setattr(
+        rust_closed_loop,
+        "resolve_runtime",
+        lambda chain_id=None, **kwargs: {
+            "databasePath": str(database),
+            "source": "explicit",
+        },
+    )
+
+    details = rust_closed_loop._candidate_pool_key_groups_from_database(
+        chain_id=4663,
+        route_addresses=[a, b, c, a],
+        network="robinhood",
+        protocols=["uniswap_v4"],
+        return_details=True,
+    )
+
+    assert isinstance(details, dict)
+    assert details["ok"] is True
+    assert details["missingEdges"] == []
+    assert len(details["groups"]) == 1
+    assert len(details["groups"][0]) == 3
+    assert details["groups"][0][1]["currency0"] == b
+    assert details["groups"][0][1]["currency1"] == c
+    assert details["groups"][0][1]["fee"] == 500
+    assert details["groups"][0][1]["tickSpacing"] == 10
+
+
+def test_candidate_pool_key_groups_still_resolves_without_the_manager_surfaces(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A store without the manager surfaces keeps resolving through the live ones."""
+
+    import sqlite3
+
+    database = tmp_path / "no_manager_surface.sqlite3"
+    connection = sqlite3.connect(str(database))
+    connection.executescript(
+        """
+        CREATE TABLE dex_candidate_pools (
+            network TEXT NOT NULL,
+            chain_id INTEGER NOT NULL,
+            protocol TEXT NOT NULL,
+            pool_id TEXT NOT NULL,
+            token0 TEXT NOT NULL,
+            token1 TEXT NOT NULL,
+            fee INTEGER NOT NULL,
+            tick_spacing INTEGER NOT NULL,
+            hooks TEXT NOT NULL,
+            pool_key_json TEXT NOT NULL,
+            usable_for_observation INTEGER NOT NULL,
+            PRIMARY KEY (network, chain_id, protocol, pool_id)
+        )
+        """
+    )
+    a = "0x" + ("1" * 40)
+    b = "0x" + ("2" * 40)
+    zero_hook = "0x0000000000000000000000000000000000000000"
+    connection.execute(
+        """
+        INSERT INTO dex_candidate_pools (
+            network, chain_id, protocol, pool_id, token0, token1, fee,
+            tick_spacing, hooks, pool_key_json, usable_for_observation
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "robinhood",
+            4663,
+            "uniswap_v4",
+            "p-a-b",
+            a,
+            b,
+            3000,
+            60,
+            zero_hook,
+            json.dumps(
+                {
+                    "currency0": a,
+                    "currency1": b,
+                    "fee": 3000,
+                    "tickSpacing": 60,
+                    "hooks": zero_hook,
+                }
+            ),
+            1,
+        ),
+    )
+    connection.commit()
+    connection.close()
+
+    monkeypatch.setattr(
+        rust_closed_loop,
+        "resolve_runtime",
+        lambda chain_id=None, **kwargs: {
+            "databasePath": str(database),
+            "source": "explicit",
+        },
+    )
+
+    details = rust_closed_loop._candidate_pool_key_groups_from_database(
+        chain_id=4663,
+        route_addresses=[a, b, a, a],
+        network="robinhood",
+        protocols=["uniswap_v4"],
+        return_details=True,
+    )
+
+    assert isinstance(details, dict)
+    # The second hop has no pool anywhere, so the route is still reported as
+    # missing -- but the resolver did not fail on the absent manager tables.
+    assert details["ok"] is False
+    assert details["reason"] == "candidate_pool_key_missing"
+
+
 def test_route_task_config_replaces_stale_route_pool_keys_with_candidate_surface(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

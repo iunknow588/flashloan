@@ -20,8 +20,9 @@
 
 - [x] 每个二级任务有**自己的**目录与**四部分固定文件**
 
-      > **读数（2026-11-25）**：`python plan/runtime_evidence/tools/check_task_dir_structure_20261125.py`
-      > item1 ⇒ **PASS**（在盘 **8** 个任务目录，均含 `PLAN.md` / `SCOPE_GUARD.md` / `checklist.md` / `README.md`）。
+      > **读数（2026-11-25 16:12 +08）**：`python plan/runtime_evidence/tools/check_task_dir_structure_20261125.py`
+      > item1 ⇒ **PASS**（在盘 **6** 个任务目录，均含 `PLAN.md` / `SCOPE_GUARD.md` / `checklist.md` / `README.md`；
+      > `T-储.02` 已于本轮归档 ⇒ **8 → 6**）。
 
 - [x] 每个二级任务有**自己的**回归命令（**可逐条复制执行**）
 
@@ -80,13 +81,14 @@
 
 | 项 | 读数 | 来源 | 备注 |
 |---|---|---|---|
-| 二级任务闭合数 | **15 / 22** | `plan/tasks/P-01-池子重构/tasks/` ＋ `plan/archive/README.md` §1 | 在盘 **7** 个未闭合；已归档 **15** 个 `T-*`（另 **6** 个历史 `TASK-*` **不在**登记的 22 内）；`T-方储.01` 于 2026-11-25 闭合归档（`M-4` 决策 `D-139`） |
-| 未完成验收项总数 | **88** | 逐目录实测（**25** ＋ **8** ＋ **55**），`recount_remaining_tasks_20261125.py` 可复算 | 本轮开始 **107**，累计闭合 **19**（**99 → 94 → 88**） |
-| 失效章节引用 | **0** | `check_markdown_links_20261125.py` | checked **317** / broken **0**（本轮修掉 **4** 条；归档重写后仍为 **0**） |
+| 二级任务闭合数 | **16 / 22** | `plan/tasks/P-01-池子重构/tasks/` ＋ `plan/archive/README.md` §1 | 在盘 **6** 个未闭合；已归档 **16** 个 `T-*`（另 **6** 个历史 `TASK-*` **不在**登记的 22 内）；`T-方储.01`（`M-4` 决策 `D-139`）与 `T-储.02` 于 2026-11-25 闭合归档 |
+| 未完成验收项总数 | **81** | 逐目录实测（**22** ＋ **8** ＋ **51**），`survey_open_tasks_20261123.py` 可复算 | 本轮开始 **107**，累计闭合 **26**（**99 → 94 → 88 → 81**）；本轮闭合 **7** 项（`T-池复.01` **2** ＋ `T-编.01` **1** ＋ `D-011` §3 **4**） |
+| 失效章节引用 | **0** | `check_markdown_links_20261125.py` | checked **327** / broken **0**（`T-储.02` 归档后**入向链接重写**完成，仍为 **0**） |
 | 架构守卫失败项 | **0** | `pytest .../test_architecture_guards.py` | 基线 **80** ／ 记录层 **90**，全绿 |
 | 分解表覆盖 | **22 / 22** | `check_decomposition_table_20261125.py` | 无遗漏 / 无多余 / 冲突 none |
-| 任务目录结构 | **PASS** | `check_task_dir_structure_20261125.py` | item1 / item2 / item3 全 PASS |
-| 实盘复核代次 | **115**（停在 **10:35:31 +08**） | `/api/dex/overview?chainId=4663`（只读） | 至 **13:52:47** 仍未前进（**3 h 17 min**）；发布被 `candidate_pool_key_missing` 挡住；根因指纹：`candidateExchange.poolScopeChecksum = 2bea9bb4…` ≠ `closedLoop.poolScopeChecksum = ae6b14ac…` ⇒ 见 `D-138` §4.1 |
+| 任务目录结构 | **PASS** | `check_task_dir_structure_20261125.py` | item1 / item2 / item3 全 PASS（在盘 **6** 个任务目录） |
+| 实盘复核代次 | **116**（**16:08:44 +08**） | `/api/dex/overview?chainId=4663`（只读）＋ `remaining_closure_v116_20261125.json` | 桥接层修复后**已前进**（115 → 116）；**漂移拒绝归零**（`driftRejections = 0`）；`completedCount` 仍 **0** ⇒ 见 `D-141` §1 |
+| 性能基线 | **已建立** | `performance_baseline_v116_20261125.json` | review 扫描 **1092.045 s** ＋ 发布 **1092.924 s** ＋ 方向层投影 **0.462–0.550 s** ＋ 方向表装载 **0.024–0.026 s** ＋ 闭环重建 **1631.809 s**；广播准备耗时 **未测量**（**不记零**） |
 
 ---
 
@@ -97,8 +99,8 @@
 - [ ] `SCOPE_GUARD.md` §2 总回归**全绿**
 - [ ] 已登记到 `plan/archive/README.md` §1
 
-> **本节保持未勾（2026-11-25 裁定）**：
-> ① 在盘 **7** 个二级任务 ⇒ `tasks/` **非空**；
+> **本节保持未勾（2026-11-25 16:12 +08 复核）**：
+> ① 在盘 **6** 个二级任务 ⇒ `tasks/` **非空**；
 > ② §2 **4** 项 ＋ §5 前三项**依赖**①；
 > ③ 本文件 §3 总回归**已全绿**（`cargo build` exit 0 ＋ 守卫 80/90 全绿），
 >    但「`SCOPE_GUARD.md` §2 总回归」**以全部二级闭合后的最终组合为准** ⇒ 最后一轮再勾。
