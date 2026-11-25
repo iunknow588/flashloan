@@ -1,0 +1,77 @@
+{
+  "schema": "remaining-closure-readings-v1",
+  "generatedAt": "2026-11-25T16:38:45.794332+08:00",
+  "mode": "read-only",
+  "store": {
+    "path": "E:/2026OPC大赛/flashLoan/flashloan/db/local_store_4663.sqlite3",
+    "openedReadOnly": true,
+    "queryOnly": true,
+    "writesByThisProbe": 0
+  },
+  "reviewGeneration": {
+    "reviewVersion": 118,
+    "closedLoopVersion": 20,
+    "candidateEdgeVersion": 9,
+    "observationVersion": 12,
+    "loopCount": 174,
+    "completedCount": 0,
+    "dataIncompleteCount": 20,
+    "notExecutableCount": 154,
+    "failedCount": 0,
+    "broadcastRequestCount": 0,
+    "updatedAt": null,
+    "reviewStatusCounts": {
+      "not_executable": 154,
+      "data_incomplete": 20
+    }
+  },
+  "poolScope": {
+    "driftRejections": 0,
+    "singleTickGateFailures": 0,
+    "singleTickGateFailuresOtherThanDrift": 0,
+    "otherGateReasons": [],
+    "driftExamples": []
+  },
+  "reviewIntegrity": {
+    "reviews": 174,
+    "incompleteFieldReviews": 24,
+    "signedPnlMissing": 20,
+    "bestAmountMissing": 8,
+    "missingFieldHistogram": {
+      "staticPreview.bestAmountCalculation.bestAmountRaw": 8,
+      "staticPreview.bestAmountCalculation.bestAmountMeasured": 8,
+      "signedPnl.raw": 20,
+      "signedPnl.currency": 20,
+      "signedPnl.unit": 20,
+      "signedPnl.source": 20
+    },
+    "pnlSigns": {
+      "positive": 4,
+      "zero": 0,
+      "negative": 150,
+      "missing": 20
+    },
+    "missingWithoutReason": []
+  },
+  "broadcast": {
+    "managerBroadcastLibraryStateRows": 0,
+    "managerBroadcastRequestRows": 0
+  },
+  "runtimeState": {
+    "rows": 69,
+    "priced": 69
+  },
+  "overview": {
+    "reviewVersion": 118,
+    "versionsConsistent": true,
+    "consistencyIssues": [],
+    "broadcastVersion": 0,
+    "broadcastEnabled": false,
+    "broadcastRequestCount": 0,
+    "candidateExchangePoolScopeChecksum": "sha256:2bea9bb4c62f4b1bacc4dd8731a3e05b0b26514f5f58b31f4bff69b6a51f7f75",
+    "closedLoopPoolScopeChecksum": "sha256:ae6b14ac4d533b80ca8493310e413b51ed2f5c6f2d4e72ac83a0e39a50ff12c6",
+    "runtimeCoreGeneration": 240,
+    "runtimeCoreSnapshotAvailable": true,
+    "runtimeCoreLastError": null
+  }
+}

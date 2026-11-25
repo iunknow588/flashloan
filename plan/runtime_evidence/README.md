@@ -612,6 +612,7 @@
 | `reports/remaining_closure_v116_20261125.json` | **`review_version = 116`**（`updatedAt = 16:08:44 +08`）：**漂移拒绝归零**（`driftRejections = 0`、`singleTickGateFailures = 0`）；`completedCount = 0`、`dataIncompleteCount = 21`、`notExecutableCount = 153`；`signedPnlMissing = 21`、`bestAmountMissing = 8`、`missingWithoutReason = []`；`pnlSigns = positive 3 / negative 150 / missing 21`；广播库行数 **0** |
 | `reports/performance_baseline_v116_20261125.json` | 复核扫描 **1092.045 s** ＋ 发布 **1092.924 s** ＋ 写库窗口 **0.0 s** ＋ 单条归档延迟中位 **0.0 s**；闭环重建 **1631.809 s**；**方向层** `core4` **0.467–0.529 s** ／ 装载 **0.0238 s**，`candidate_exchange` **0.462–0.550 s** ／ 装载 **0.0258 s**；**候选边物化 = `measured: false`**（耗时不可分离）；**广播准备耗时 = 未测量** |
 | `review_bump_watch_20261125.log` | 代次时间线：`16:08:50` 捕获 **115 → 116** ⇒ 自动产出上表的闭合读数 |
+| `reports/remaining_closure_v118_20261125.json` | **`review_version = 118`**（`updatedAt = 16:37:26 +08`）：**漂移拒绝仍为 0**、`singleTickGateFailures = 0`；`completedCount = 0`、`signedPnlMissing = 20`、`bestAmountMissing = 8`、`pnlSigns = positive 4 / negative 150 / missing 20`、`missingWithoutReason = []`；广播库 **0** 行 |
 
 **读数口径**：实盘全部**只读**（`mode=ro` ＋ `PRAGMA query_only = ON`）⇒ 实盘库写入 **0**。
 
