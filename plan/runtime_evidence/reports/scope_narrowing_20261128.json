@@ -1,0 +1,1259 @@
+{
+  "probe": "scope_narrowing_20261128",
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "readOnly": true,
+  "tables": [
+    "bnb_market_observations",
+    "bnb_market_snapshots",
+    "chain_business_initialization",
+    "chain_configs",
+    "chain_contracts",
+    "chain_data_files",
+    "chain_flows",
+    "chain_info",
+    "chain_markets",
+    "chain_registry",
+    "chain_registry_meta",
+    "chain_tokens",
+    "cow_execution_attempts",
+    "cow_execution_reviews",
+    "dex_candidate_abnormal_anchor_tokens",
+    "dex_candidate_abnormal_pool_pairs",
+    "dex_candidate_abnormal_pools",
+    "dex_candidate_abnormal_pools_directional_v1",
+    "dex_candidate_anchor_tokens",
+    "dex_candidate_pool_pairs",
+    "dex_candidate_pool_recommendations",
+    "dex_candidate_pools",
+    "dex_surface_snapshots",
+    "kv_entries",
+    "kv_meta",
+    "manager_broadcast_attempt_diagnostics",
+    "manager_broadcast_library_state",
+    "manager_cow_execution_attempts",
+    "manager_dex_candidate_abnormal_anchor_tokens",
+    "manager_dex_candidate_abnormal_pool_pairs",
+    "manager_dex_candidate_abnormal_pools",
+    "manager_dex_candidate_anchor_tokens",
+    "manager_dex_candidate_library_state",
+    "manager_dex_candidate_pool_pairs",
+    "manager_dex_candidate_pool_recommendations",
+    "manager_dex_candidate_pools",
+    "manager_events",
+    "manager_market_observation_abnormal_intermediate_pools",
+    "manager_market_observation_abnormal_yz_pairs",
+    "manager_market_observation_intermediate_pools",
+    "manager_market_observation_library_state",
+    "manager_market_observation_liquidity_snapshots",
+    "manager_market_observation_yz_pairs_base",
+    "manager_pipeline_events",
+    "manager_pipeline_runs",
+    "manager_pipeline_steps",
+    "manager_review_library_state",
+    "manager_v4_closed_loop_hops",
+    "manager_v4_closed_loop_library_state",
+    "manager_v4_closed_loop_optimizations",
+    "manager_v4_closed_loop_runtime_state",
+    "manager_v4_closed_loop_skipped_tokens",
+    "manager_v4_closed_loops",
+    "manager_v4_directional_exchange_pools",
+    "manager_v4_directional_pool_library_state",
+    "manager_v4_review_broadcast_requests",
+    "manager_v4_review_diagnostics",
+    "manager_v4_reviews",
+    "manager_write_requests",
+    "market_observation_abnormal_intermediate_pools",
+    "market_observation_abnormal_yz_pairs",
+    "market_observation_intermediate_pools",
+    "market_observation_liquidity_snapshots",
+    "market_observation_yz_pairs",
+    "pool_scope_config",
+    "schema_migrations",
+    "sqlite_sequence",
+    "token_admission_events",
+    "token_core",
+    "token_extension",
+    "token_library_state",
+    "token_stocks",
+    "token_test",
+    "token_usdg_valuations",
+    "v4_closed_loop_error_isolation",
+    "v4_closed_loop_hops",
+    "v4_closed_loop_optimizations",
+    "v4_closed_loop_runtime_state",
+    "v4_closed_loops",
+    "v4_exchange_pool_liquidity_snapshots",
+    "v4_exchange_pool_recent_swap_activity",
+    "v4_exchange_pools",
+    "v4_exchange_pools_candidate_exchange",
+    "v4_exchange_pools_core4"
+  ],
+  "scopeConfig": [
+    {
+      "network": "robinhood",
+      "chainId": 4663,
+      "scopeKey": "candidate_exchange",
+      "poolTable": "v4_exchange_pools_candidate_exchange",
+      "libraryKeys": [
+        "core",
+        "stocks"
+      ]
+    },
+    {
+      "network": "robinhood",
+      "chainId": 4663,
+      "scopeKey": "core4",
+      "poolTable": "v4_exchange_pools_core4",
+      "libraryKeys": [
+        "core",
+        "stocks"
+      ]
+    }
+  ],
+  "rowCounts": {
+    "v4_exchange_pools": 2550,
+    "v4_exchange_pools_core4": 434,
+    "v4_exchange_pools_candidate_exchange": 434,
+    "manager_dex_candidate_pools": 52,
+    "v4_exchange_pool_liquidity_snapshots": 2486
+  },
+  "tokenLibraries": {
+    "token_core": {
+      "rows": 4,
+      "admitted": 4
+    },
+    "token_stocks": {
+      "rows": 194,
+      "admitted": 194
+    },
+    "token_extension": {
+      "rows": 162,
+      "admitted": 2
+    },
+    "token_test": {
+      "rows": 1,
+      "admitted": 1
+    }
+  },
+  "valueLessReviews": {
+    "count": 19,
+    "distinctPoolHashes": 15,
+    "poolLiveness": {
+      "0x1dae69f15c48eef452c79360cc8df58f5d5c3c1e6324ff8777d58c1feb053cdc": {
+        "inMasterPoolTable": 1,
+        "inCore4Scope": 1,
+        "inCandidateExchangeScope": 1,
+        "inCandidateScope": 2,
+        "liquiditySnapshotRows": 1,
+        "aliveInPoolTable": true,
+        "coveredByAnyScope": true,
+        "tokenLibraries": [
+          "core",
+          "stocks"
+        ]
+      },
+      "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e": {
+        "inMasterPoolTable": 1,
+        "inCore4Scope": 0,
+        "inCandidateExchangeScope": 0,
+        "inCandidateScope": 0,
+        "liquiditySnapshotRows": 1,
+        "aliveInPoolTable": true,
+        "coveredByAnyScope": false,
+        "tokenLibraries": [
+          "core"
+        ]
+      },
+      "0x319bac87e616a89e241c10aeb8afd4892a852cdd8b373cd9765ecddc40b87cfe": {
+        "inMasterPoolTable": 1,
+        "inCore4Scope": 1,
+        "inCandidateExchangeScope": 1,
+        "inCandidateScope": 0,
+        "liquiditySnapshotRows": 1,
+        "aliveInPoolTable": true,
+        "coveredByAnyScope": true,
+        "tokenLibraries": [
+          "core",
+          "stocks"
+        ]
+      },
+      "0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1": {
+        "inMasterPoolTable": 1,
+        "inCore4Scope": 1,
+        "inCandidateExchangeScope": 1,
+        "inCandidateScope": 0,
+        "liquiditySnapshotRows": 1,
+        "aliveInPoolTable": true,
+        "coveredByAnyScope": true,
+        "tokenLibraries": [
+          "core",
+          "stocks"
+        ]
+      },
+      "0x5fb97aef826b674c4bc76707563816f171043a3b1bf91431b7f82acd6381876b": {
+        "inMasterPoolTable": 1,
+        "inCore4Scope": 1,
+        "inCandidateExchangeScope": 1,
+        "inCandidateScope": 2,
+        "liquiditySnapshotRows": 1,
+        "aliveInPoolTable": true,
+        "coveredByAnyScope": true,
+        "tokenLibraries": [
+          "core",
+          "stocks"
+        ]
+      },
+      "0x647836c4965c512f0d82a2128abe7826eacf5a79d2dbed252a89ba5c591d1e87": {
+        "inMasterPoolTable": 1,
+        "inCore4Scope": 1,
+        "inCandidateExchangeScope": 1,
+        "inCandidateScope": 0,
+        "liquiditySnapshotRows": 1,
+        "aliveInPoolTable": true,
+        "coveredByAnyScope": true,
+        "tokenLibraries": [
+          "core",
+          "stocks"
+        ]
+      },
+      "0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659": {
+        "inMasterPoolTable": 1,
+        "inCore4Scope": 1,
+        "inCandidateExchangeScope": 1,
+        "inCandidateScope": 0,
+        "liquiditySnapshotRows": 1,
+        "aliveInPoolTable": true,
+        "coveredByAnyScope": true,
+        "tokenLibraries": [
+          "core",
+          "stocks"
+        ]
+      },
+      "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c": {
+        "inMasterPoolTable": 1,
+        "inCore4Scope": 1,
+        "inCandidateExchangeScope": 1,
+        "inCandidateScope": 2,
+        "liquiditySnapshotRows": 1,
+        "aliveInPoolTable": true,
+        "coveredByAnyScope": true,
+        "tokenLibraries": [
+          "core",
+          "stocks"
+        ]
+      },
+      "0x7b1c4469fbc25827332bcf7a4c273fcbb5d60815c03e5844c74feb51c2313cc7": {
+        "inMasterPoolTable": 1,
+        "inCore4Scope": 1,
+        "inCandidateExchangeScope": 1,
+        "inCandidateScope": 2,
+        "liquiditySnapshotRows": 1,
+        "aliveInPoolTable": true,
+        "coveredByAnyScope": true,
+        "tokenLibraries": [
+          "stocks"
+        ]
+      },
+      "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6": {
+        "inMasterPoolTable": 1,
+        "inCore4Scope": 0,
+        "inCandidateExchangeScope": 0,
+        "inCandidateScope": 0,
+        "liquiditySnapshotRows": 1,
+        "aliveInPoolTable": true,
+        "coveredByAnyScope": false,
+        "tokenLibraries": [
+          "core"
+        ]
+      },
+      "0x928965e3f578b9825df398cfb31595201b32fc9e58b28ade4b2b48b68ea88e5b": {
+        "inMasterPoolTable": 1,
+        "inCore4Scope": 1,
+        "inCandidateExchangeScope": 1,
+        "inCandidateScope": 2,
+        "liquiditySnapshotRows": 1,
+        "aliveInPoolTable": true,
+        "coveredByAnyScope": true,
+        "tokenLibraries": [
+          "stocks"
+        ]
+      },
+      "0xc105b8300ff65d750a0e4e63c7a879e20504069b770713464a5315e797735326": {
+        "inMasterPoolTable": 1,
+        "inCore4Scope": 1,
+        "inCandidateExchangeScope": 1,
+        "inCandidateScope": 0,
+        "liquiditySnapshotRows": 1,
+        "aliveInPoolTable": true,
+        "coveredByAnyScope": true,
+        "tokenLibraries": [
+          "core",
+          "stocks"
+        ]
+      },
+      "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0": {
+        "inMasterPoolTable": 1,
+        "inCore4Scope": 1,
+        "inCandidateExchangeScope": 1,
+        "inCandidateScope": 2,
+        "liquiditySnapshotRows": 1,
+        "aliveInPoolTable": true,
+        "coveredByAnyScope": true,
+        "tokenLibraries": [
+          "stocks"
+        ]
+      },
+      "0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274": {
+        "inMasterPoolTable": 1,
+        "inCore4Scope": 1,
+        "inCandidateExchangeScope": 1,
+        "inCandidateScope": 0,
+        "liquiditySnapshotRows": 1,
+        "aliveInPoolTable": true,
+        "coveredByAnyScope": true,
+        "tokenLibraries": [
+          "core",
+          "stocks"
+        ]
+      },
+      "0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288": {
+        "inMasterPoolTable": 1,
+        "inCore4Scope": 0,
+        "inCandidateExchangeScope": 0,
+        "inCandidateScope": 0,
+        "liquiditySnapshotRows": 1,
+        "aliveInPoolTable": true,
+        "coveredByAnyScope": false,
+        "tokenLibraries": [
+          "core",
+          "stocks"
+        ]
+      }
+    },
+    "routes": [
+      {
+        "loopKey": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "closedLoopVersion": 53,
+        "reviewReason": "signed PnL is missing or incomplete",
+        "createdAt": "2026-11-26T19:11:12.627797900+00:00",
+        "hops": [
+          {
+            "hop": 1,
+            "poolHash": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+            "symbol": "ETH",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 2,
+            "poolHash": "0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1",
+            "symbol": "NVDA",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 3,
+            "poolHash": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+            "symbol": "USDG",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": false
+          }
+        ],
+        "hopsInPoolTable": 3,
+        "hopsCoveredByScope": 2
+      },
+      {
+        "loopKey": "0x0000000000000000000000000000000000000000:0xec262a75e413fafd0df80480274532c79d42da09:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "closedLoopVersion": 53,
+        "reviewReason": "signed PnL is missing or incomplete",
+        "createdAt": "2026-11-26T19:11:20.054992800+00:00",
+        "hops": [
+          {
+            "hop": 1,
+            "poolHash": "0x1dae69f15c48eef452c79360cc8df58f5d5c3c1e6324ff8777d58c1feb053cdc",
+            "symbol": "ETH",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 2,
+            "poolHash": "0xc105b8300ff65d750a0e4e63c7a879e20504069b770713464a5315e797735326",
+            "symbol": "MSTR",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 3,
+            "poolHash": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+            "symbol": "USDG",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": false
+          }
+        ],
+        "hopsInPoolTable": 3,
+        "hopsCoveredByScope": 2
+      },
+      {
+        "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "closedLoopVersion": 53,
+        "reviewReason": "signed PnL is missing or incomplete",
+        "createdAt": "2026-11-26T19:07:39.404692800+00:00",
+        "hops": [
+          {
+            "hop": 1,
+            "poolHash": "0x647836c4965c512f0d82a2128abe7826eacf5a79d2dbed252a89ba5c591d1e87",
+            "symbol": "WETH",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 2,
+            "poolHash": "0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1",
+            "symbol": "NVDA",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 3,
+            "poolHash": "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6",
+            "symbol": "USDG",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": false
+          }
+        ],
+        "hopsInPoolTable": 3,
+        "hopsCoveredByScope": 2
+      },
+      {
+        "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "closedLoopVersion": 53,
+        "reviewReason": "signed PnL is missing or incomplete",
+        "createdAt": "2026-11-26T19:10:27.780481600+00:00",
+        "hops": [
+          {
+            "hop": 1,
+            "poolHash": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+            "symbol": "SPY",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 2,
+            "poolHash": "0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1",
+            "symbol": "NVDA",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 3,
+            "poolHash": "0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288",
+            "symbol": "USDG",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": false
+          }
+        ],
+        "hopsInPoolTable": 3,
+        "hopsCoveredByScope": 2
+      },
+      {
+        "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "closedLoopVersion": 53,
+        "reviewReason": "signed PnL is missing or incomplete",
+        "createdAt": "2026-11-26T19:09:33.497940500+00:00",
+        "hops": [
+          {
+            "hop": 1,
+            "poolHash": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+            "symbol": "USDG",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": false
+          },
+          {
+            "hop": 2,
+            "poolHash": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+            "symbol": "ETH",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 3,
+            "poolHash": "0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1",
+            "symbol": "NVDA",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          }
+        ],
+        "hopsInPoolTable": 3,
+        "hopsCoveredByScope": 2
+      },
+      {
+        "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xec262a75e413fafd0df80480274532c79d42da09",
+        "closedLoopVersion": 53,
+        "reviewReason": "signed PnL is missing or incomplete",
+        "createdAt": "2026-11-26T19:10:19.405279900+00:00",
+        "hops": [
+          {
+            "hop": 1,
+            "poolHash": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+            "symbol": "USDG",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": false
+          },
+          {
+            "hop": 2,
+            "poolHash": "0x1dae69f15c48eef452c79360cc8df58f5d5c3c1e6324ff8777d58c1feb053cdc",
+            "symbol": "ETH",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 3,
+            "poolHash": "0x319bac87e616a89e241c10aeb8afd4892a852cdd8b373cd9765ecddc40b87cfe",
+            "symbol": "MSTR",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          }
+        ],
+        "hopsInPoolTable": 3,
+        "hopsCoveredByScope": 2
+      },
+      {
+        "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "closedLoopVersion": 53,
+        "reviewReason": "signed PnL is missing or incomplete",
+        "createdAt": "2026-11-26T19:10:56.379643200+00:00",
+        "hops": [
+          {
+            "hop": 1,
+            "poolHash": "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6",
+            "symbol": "USDG",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": false
+          },
+          {
+            "hop": 2,
+            "poolHash": "0x647836c4965c512f0d82a2128abe7826eacf5a79d2dbed252a89ba5c591d1e87",
+            "symbol": "WETH",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 3,
+            "poolHash": "0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1",
+            "symbol": "NVDA",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          }
+        ],
+        "hopsInPoolTable": 3,
+        "hopsCoveredByScope": 2
+      },
+      {
+        "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "closedLoopVersion": 53,
+        "reviewReason": "signed PnL is missing or incomplete",
+        "createdAt": "2026-11-26T19:10:56.080331800+00:00",
+        "hops": [
+          {
+            "hop": 1,
+            "poolHash": "0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288",
+            "symbol": "USDG",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": false
+          },
+          {
+            "hop": 2,
+            "poolHash": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+            "symbol": "SPY",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 3,
+            "poolHash": "0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1",
+            "symbol": "NVDA",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          }
+        ],
+        "hopsInPoolTable": 3,
+        "hopsCoveredByScope": 2
+      },
+      {
+        "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "closedLoopVersion": 53,
+        "reviewReason": "signed PnL is missing or incomplete",
+        "createdAt": "2026-11-26T19:07:38.723491300+00:00",
+        "hops": [
+          {
+            "hop": 1,
+            "poolHash": "0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274",
+            "symbol": "USDG",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 2,
+            "poolHash": "0x928965e3f578b9825df398cfb31595201b32fc9e58b28ade4b2b48b68ea88e5b",
+            "symbol": "AMD",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 3,
+            "poolHash": "0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1",
+            "symbol": "NVDA",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          }
+        ],
+        "hopsInPoolTable": 3,
+        "hopsCoveredByScope": 3
+      },
+      {
+        "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000",
+        "closedLoopVersion": 53,
+        "reviewReason": "signed PnL is missing or incomplete",
+        "createdAt": "2026-11-26T19:10:04.403425300+00:00",
+        "hops": [
+          {
+            "hop": 1,
+            "poolHash": "0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659",
+            "symbol": "USDG",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 2,
+            "poolHash": "0x5fb97aef826b674c4bc76707563816f171043a3b1bf91431b7f82acd6381876b",
+            "symbol": "MU",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 3,
+            "poolHash": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+            "symbol": "ETH",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": false
+          }
+        ],
+        "hopsInPoolTable": 3,
+        "hopsCoveredByScope": 2
+      },
+      {
+        "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "closedLoopVersion": 53,
+        "reviewReason": "signed PnL is missing or incomplete",
+        "createdAt": "2026-11-26T19:06:40.525834900+00:00",
+        "hops": [
+          {
+            "hop": 1,
+            "poolHash": "0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659",
+            "symbol": "USDG",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 2,
+            "poolHash": "0x7b1c4469fbc25827332bcf7a4c273fcbb5d60815c03e5844c74feb51c2313cc7",
+            "symbol": "MU",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 3,
+            "poolHash": "0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1",
+            "symbol": "NVDA",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          }
+        ],
+        "hopsInPoolTable": 3,
+        "hopsCoveredByScope": 3
+      },
+      {
+        "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "closedLoopVersion": 53,
+        "reviewReason": "signed PnL is missing or incomplete",
+        "createdAt": "2026-11-26T19:09:45.757393300+00:00",
+        "hops": [
+          {
+            "hop": 1,
+            "poolHash": "0x928965e3f578b9825df398cfb31595201b32fc9e58b28ade4b2b48b68ea88e5b",
+            "symbol": "AMD",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 2,
+            "poolHash": "0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1",
+            "symbol": "NVDA",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 3,
+            "poolHash": "0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274",
+            "symbol": "USDG",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          }
+        ],
+        "hopsInPoolTable": 3,
+        "hopsCoveredByScope": 3
+      },
+      {
+        "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+        "closedLoopVersion": 53,
+        "reviewReason": "signed PnL is missing or incomplete",
+        "createdAt": "2026-11-26T19:08:38.502243900+00:00",
+        "hops": [
+          {
+            "hop": 1,
+            "poolHash": "0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1",
+            "symbol": "NVDA",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 2,
+            "poolHash": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+            "symbol": "USDG",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": false
+          },
+          {
+            "hop": 3,
+            "poolHash": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+            "symbol": "ETH",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          }
+        ],
+        "hopsInPoolTable": 3,
+        "hopsCoveredByScope": 2
+      },
+      {
+        "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "closedLoopVersion": 53,
+        "reviewReason": "signed PnL is missing or incomplete",
+        "createdAt": "2026-11-26T19:08:56.063725400+00:00",
+        "hops": [
+          {
+            "hop": 1,
+            "poolHash": "0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1",
+            "symbol": "NVDA",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 2,
+            "poolHash": "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6",
+            "symbol": "USDG",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": false
+          },
+          {
+            "hop": 3,
+            "poolHash": "0x647836c4965c512f0d82a2128abe7826eacf5a79d2dbed252a89ba5c591d1e87",
+            "symbol": "WETH",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          }
+        ],
+        "hopsInPoolTable": 3,
+        "hopsCoveredByScope": 2
+      },
+      {
+        "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "closedLoopVersion": 53,
+        "reviewReason": "signed PnL is missing or incomplete",
+        "createdAt": "2026-11-26T19:10:20.973357700+00:00",
+        "hops": [
+          {
+            "hop": 1,
+            "poolHash": "0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1",
+            "symbol": "NVDA",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 2,
+            "poolHash": "0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288",
+            "symbol": "USDG",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": false
+          },
+          {
+            "hop": 3,
+            "poolHash": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+            "symbol": "SPY",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          }
+        ],
+        "hopsInPoolTable": 3,
+        "hopsCoveredByScope": 2
+      },
+      {
+        "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+        "closedLoopVersion": 53,
+        "reviewReason": "signed PnL is missing or incomplete",
+        "createdAt": "2026-11-26T19:08:06.615544300+00:00",
+        "hops": [
+          {
+            "hop": 1,
+            "poolHash": "0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1",
+            "symbol": "NVDA",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 2,
+            "poolHash": "0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274",
+            "symbol": "USDG",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 3,
+            "poolHash": "0x928965e3f578b9825df398cfb31595201b32fc9e58b28ade4b2b48b68ea88e5b",
+            "symbol": "AMD",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          }
+        ],
+        "hopsInPoolTable": 3,
+        "hopsCoveredByScope": 3
+      },
+      {
+        "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "closedLoopVersion": 53,
+        "reviewReason": "signed PnL is missing or incomplete",
+        "createdAt": "2026-11-26T19:07:15.933373800+00:00",
+        "hops": [
+          {
+            "hop": 1,
+            "poolHash": "0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1",
+            "symbol": "NVDA",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 2,
+            "poolHash": "0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659",
+            "symbol": "USDG",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 3,
+            "poolHash": "0x7b1c4469fbc25827332bcf7a4c273fcbb5d60815c03e5844c74feb51c2313cc7",
+            "symbol": "MU",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          }
+        ],
+        "hopsInPoolTable": 3,
+        "hopsCoveredByScope": 3
+      },
+      {
+        "loopKey": "0xec262a75e413fafd0df80480274532c79d42da09:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+        "closedLoopVersion": 53,
+        "reviewReason": "signed PnL is missing or incomplete",
+        "createdAt": "2026-11-26T19:06:44.788431100+00:00",
+        "hops": [
+          {
+            "hop": 1,
+            "poolHash": "0x319bac87e616a89e241c10aeb8afd4892a852cdd8b373cd9765ecddc40b87cfe",
+            "symbol": "MSTR",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 2,
+            "poolHash": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+            "symbol": "USDG",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": false
+          },
+          {
+            "hop": 3,
+            "poolHash": "0x1dae69f15c48eef452c79360cc8df58f5d5c3c1e6324ff8777d58c1feb053cdc",
+            "symbol": "ETH",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          }
+        ],
+        "hopsInPoolTable": 3,
+        "hopsCoveredByScope": 2
+      },
+      {
+        "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "closedLoopVersion": 53,
+        "reviewReason": "signed PnL is missing or incomplete",
+        "createdAt": "2026-11-26T19:09:18.051452800+00:00",
+        "hops": [
+          {
+            "hop": 1,
+            "poolHash": "0x7b1c4469fbc25827332bcf7a4c273fcbb5d60815c03e5844c74feb51c2313cc7",
+            "symbol": "MU",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 2,
+            "poolHash": "0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1",
+            "symbol": "NVDA",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          },
+          {
+            "hop": 3,
+            "poolHash": "0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659",
+            "symbol": "USDG",
+            "inMasterPoolTable": 1,
+            "coveredByAnyScope": true
+          }
+        ],
+        "hopsInPoolTable": 3,
+        "hopsCoveredByScope": 3
+      }
+    ],
+    "routesWithEveryHopInPoolTable": 19,
+    "routesWithEveryHopCoveredByScope": 6,
+    "routesWithEveryHopInPoolTableAndCoveredByScope": 6
+  },
+  "scopeRebuildLedger": [
+    {
+      "createdAt": "2026-11-18T17:36:41.954382400+00:00",
+      "requestId": "8b4c58b7-a409-4035-9446-626e78fae394",
+      "scopeKey": "candidate_exchange",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": null,
+      "libraryKeys": [
+        "core",
+        "stocks"
+      ],
+      "deletedRows": 1583,
+      "changedRows": 1694
+    },
+    {
+      "createdAt": "2026-11-18T19:17:18.540069100+00:00",
+      "requestId": "req-scope-candidate_exchange-d6fd8d0b",
+      "scopeKey": "candidate_exchange",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": null,
+      "libraryKeys": [
+        "core",
+        "stocks"
+      ],
+      "deletedRows": 0,
+      "changedRows": 402
+    },
+    {
+      "createdAt": "2026-11-18T19:17:18.987575600+00:00",
+      "requestId": "req-scope-core4-d9e4b25b",
+      "scopeKey": "core4",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": null,
+      "libraryKeys": [
+        "core",
+        "stocks"
+      ],
+      "deletedRows": 3,
+      "changedRows": 479
+    },
+    {
+      "createdAt": "2026-11-18T22:50:02.696040500+00:00",
+      "requestId": "loadmode-core4-apply-1",
+      "scopeKey": "core4",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": "core_stocks_test",
+      "libraryKeys": [
+        "core",
+        "stocks",
+        "test"
+      ],
+      "deletedRows": 59,
+      "changedRows": 89
+    },
+    {
+      "createdAt": "2026-11-18T22:50:44.095368200+00:00",
+      "requestId": "loadmode-cex-apply-1",
+      "scopeKey": "candidate_exchange",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": "core_stocks_test",
+      "libraryKeys": [
+        "core",
+        "stocks",
+        "test"
+      ],
+      "deletedRows": 59,
+      "changedRows": 89
+    },
+    {
+      "createdAt": "2026-11-19T00:10:29.388392400+00:00",
+      "requestId": "v2-core4-apply-1",
+      "scopeKey": "core4",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": "core_stocks_test",
+      "libraryKeys": [
+        "core",
+        "stocks",
+        "test"
+      ],
+      "deletedRows": 0,
+      "changedRows": 2
+    },
+    {
+      "createdAt": "2026-11-19T00:10:29.541796900+00:00",
+      "requestId": "v2-candidate_exchange-apply-1",
+      "scopeKey": "candidate_exchange",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": "core_stocks_test",
+      "libraryKeys": [
+        "core",
+        "stocks",
+        "test"
+      ],
+      "deletedRows": 0,
+      "changedRows": 3
+    },
+    {
+      "createdAt": "2026-11-26T19:07:50.312884400+00:00",
+      "requestId": "healer-scope-core4-5aa75a7408a0",
+      "scopeKey": "core4",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": "core_stocks",
+      "libraryKeys": [
+        "core",
+        "stocks"
+      ],
+      "deletedRows": 0,
+      "changedRows": 0
+    },
+    {
+      "createdAt": "2026-11-26T19:07:50.438507800+00:00",
+      "requestId": "healer-scope-candidate_exchange-67be1f56a00d",
+      "scopeKey": "candidate_exchange",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": "core_stocks",
+      "libraryKeys": [
+        "core",
+        "stocks"
+      ],
+      "deletedRows": 66,
+      "changedRows": 93
+    },
+    {
+      "createdAt": "2026-11-26T19:29:48.404506400+00:00",
+      "requestId": "healer-scope-core4-6a37661dadb5",
+      "scopeKey": "core4",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": "core",
+      "libraryKeys": [
+        "core"
+      ],
+      "deletedRows": 14,
+      "changedRows": 14
+    },
+    {
+      "createdAt": "2026-11-26T19:29:48.546782100+00:00",
+      "requestId": "healer-scope-candidate_exchange-ae4737c61d2a",
+      "scopeKey": "candidate_exchange",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": "core",
+      "libraryKeys": [
+        "core"
+      ],
+      "deletedRows": 0,
+      "changedRows": 0
+    },
+    {
+      "createdAt": "2026-11-27T15:03:48.357803400+00:00",
+      "requestId": "healer-512f3c556d4f453fa939d3738bb6110b",
+      "scopeKey": "core4",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": "core",
+      "libraryKeys": [
+        "core"
+      ],
+      "deletedRows": 1,
+      "changedRows": 13
+    },
+    {
+      "createdAt": "2026-11-27T15:03:48.875902+00:00",
+      "requestId": "healer-7db8c8fc2f25468db68a585c159c1650",
+      "scopeKey": "candidate_exchange",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": "core",
+      "libraryKeys": [
+        "core"
+      ],
+      "deletedRows": 1,
+      "changedRows": 27
+    },
+    {
+      "createdAt": "2026-11-27T15:06:21.224032600+00:00",
+      "requestId": "healer-dd7ff627420d406b84ef8cb9bd8a72f1",
+      "scopeKey": "core4",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": "core",
+      "libraryKeys": [
+        "core"
+      ],
+      "deletedRows": 0,
+      "changedRows": 0
+    },
+    {
+      "createdAt": "2026-11-27T15:06:21.361344+00:00",
+      "requestId": "healer-4b44608ca573413a826b5626a5c4a6ae",
+      "scopeKey": "candidate_exchange",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": "core",
+      "libraryKeys": [
+        "core"
+      ],
+      "deletedRows": 0,
+      "changedRows": 0
+    },
+    {
+      "createdAt": "2026-11-27T19:06:37.774026500+00:00",
+      "requestId": "healer-cdad78c746b14522a7729074f76e7f8f",
+      "scopeKey": "core4",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": "core",
+      "libraryKeys": [
+        "core"
+      ],
+      "deletedRows": 0,
+      "changedRows": 0
+    },
+    {
+      "createdAt": "2026-11-27T19:06:37.906884100+00:00",
+      "requestId": "healer-8cbeb0bf7d85474eb5443a3d80f8da8f",
+      "scopeKey": "candidate_exchange",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": "core",
+      "libraryKeys": [
+        "core"
+      ],
+      "deletedRows": 0,
+      "changedRows": 0
+    },
+    {
+      "createdAt": "2026-11-27T20:16:28.417909100+00:00",
+      "requestId": "healer-7443978056814000bb34b1aea38ca4ac",
+      "scopeKey": "core4",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": "core",
+      "libraryKeys": [
+        "core"
+      ],
+      "deletedRows": 0,
+      "changedRows": 0
+    },
+    {
+      "createdAt": "2026-11-27T20:16:28.565298700+00:00",
+      "requestId": "healer-5de9d18ab6f545e8bb9a5ef872df208d",
+      "scopeKey": "candidate_exchange",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": "core",
+      "libraryKeys": [
+        "core"
+      ],
+      "deletedRows": 0,
+      "changedRows": 0
+    },
+    {
+      "createdAt": "2026-11-27T21:08:54.220344300+00:00",
+      "requestId": "healer-251aa5c295c14ff98123b9298a7c7a77",
+      "scopeKey": "core4",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": "core",
+      "libraryKeys": [
+        "core"
+      ],
+      "deletedRows": 0,
+      "changedRows": 0
+    },
+    {
+      "createdAt": "2026-11-27T21:17:56.309472700+00:00",
+      "requestId": "healer-96b8acaacb034cc4a8b75c67c0246b55",
+      "scopeKey": "core4",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": "core",
+      "libraryKeys": [
+        "core"
+      ],
+      "deletedRows": 0,
+      "changedRows": 0
+    },
+    {
+      "createdAt": "2026-11-27T21:17:56.564361500+00:00",
+      "requestId": "healer-2443d9da1c214094b07cf4ba9358c5b4",
+      "scopeKey": "candidate_exchange",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": "core",
+      "libraryKeys": [
+        "core"
+      ],
+      "deletedRows": 0,
+      "changedRows": 0
+    },
+    {
+      "createdAt": "2026-11-27T21:33:11.080842100+00:00",
+      "requestId": "restore-4792654144a94818977794a683a56c8d",
+      "scopeKey": "candidate_exchange",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": "core_stocks",
+      "libraryKeys": [
+        "core",
+        "stocks"
+      ],
+      "deletedRows": 0,
+      "changedRows": 0
+    },
+    {
+      "createdAt": "2026-11-27T21:33:34.696933200+00:00",
+      "requestId": "restore-c79fbdc95c54462f8200153c1b959d1f",
+      "scopeKey": "core4",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": "core_stocks",
+      "libraryKeys": [
+        "core",
+        "stocks"
+      ],
+      "deletedRows": 0,
+      "changedRows": 14
+    },
+    {
+      "createdAt": "2026-11-27T22:15:13.979914400+00:00",
+      "requestId": "healer-scope-core4-f5b8ad6d167d",
+      "scopeKey": "core4",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": "core_stocks",
+      "libraryKeys": [
+        "core",
+        "stocks"
+      ],
+      "deletedRows": 0,
+      "changedRows": 6
+    },
+    {
+      "createdAt": "2026-11-27T22:16:02.061344300+00:00",
+      "requestId": "healer-scope-candidate_exchange-b0d83cb33606",
+      "scopeKey": "candidate_exchange",
+      "requestedTokenLoadMode": null,
+      "appliedTokenLoadMode": "core_stocks",
+      "libraryKeys": [
+        "core",
+        "stocks"
+      ],
+      "deletedRows": 0,
+      "changedRows": 6
+    }
+  ]
+}

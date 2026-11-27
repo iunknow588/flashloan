@@ -1,0 +1,7 @@
+the extension build failed; the runtime stays down
+所在位置 E:\2026OPC大赛\flashLoan\plan\runtime_evidence\tools\deploy_lockfix_20261128.ps1:59 字符: 5
++     throw 'the extension build failed; the runtime stays down'
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (the extension b...time stays down:String) [], RuntimeException
+    + FullyQualifiedErrorId : the extension build failed; the runtime stays down
+ 

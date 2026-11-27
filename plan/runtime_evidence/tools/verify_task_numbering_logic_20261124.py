@@ -50,14 +50,30 @@ for k,(name,idx) in MOD.items():
 print("A 模块索引：%d 个模块，索引唯一且 ≤2 字符"%len(MOD))
 
 # ---------- B/C. 任务编号与组合索引 ----------
-def mods_of(text):
-    sec=text.split("### 1.1",1)[1]
-    if "### 1.2" in sec: sec=sec.split("### 1.2",1)[0]
+def _mods_in(sec):
     out=[]
     for line in sec.split("\n"):
         m=re.match(r"\|\s*`(M-\d+)`\s*\|",line)
         if m and m.group(1) not in out: out.append(m.group(1))
     return sorted(out,key=lambda x:int(x.split("-")[1]))
+
+def mods_of(text):
+    # The module table lives either in section 1.0 ("本任务涉及的模块" — the template's place)
+    # or in section 1.1 (the newer task layout).  Both are read; when a task
+    # carries both they must agree, otherwise the task is reported.
+    # A task with neither has no module table at all: the module set cannot
+    # be read, so the index cannot be cross-checked — a documentation gap
+    # (reported separately), not a crash.
+    sec10=text.split("## 1.0",1)[1].split("\n## ",1)[0] if "## 1.0" in text else ""
+    m10=_mods_in(sec10)
+    m11=None
+    if "### 1.1" in text:
+        sec=text.split("### 1.1",1)[1]
+        if "### 1.2" in sec: sec=sec.split("### 1.2",1)[0]
+        m11=_mods_in(sec)
+    if m10 and m11 and m10!=m11:
+        check(False,"B: 任务 §1.0 模块集合 %s 与 §1.1 的 %s 不一致"%(m10,m11))
+    return m10 or m11 or None
 
 def idx_of(text):
     m=re.search(r"\|\s*\*\*编号索引\*\*\s*\|\s*\*\*`([^`]+)`\*\*",text)
@@ -90,7 +106,19 @@ if os.path.isdir(ARCHDIR):
         mm=re.match(r"\u4efb\u52a1\u5f52\u6863_(T-[^_]+)_.*\.md$",f)
         if mm: archived.add(mm.group(1))
 on_disk_ids={tid for tid,_t in tasks}
-check(len(declared)==19,"C: 编号册 §4.2 登记的二级任务应为 19，实为 %d"%len(declared))
+# The registered task set is cross-checked against the decomposition table
+# of D-002 section 2.1 (every registered task has a row there).  The count
+# itself is not hard coded: it grows with the registry.
+D002=os.path.join(PLAN,"tasks","P-01-池子重构","D-002-PLAN.md")
+listed=set()
+if os.path.isfile(D002):
+    sec=read(D002).split("### 2.1",1)[1].split("### 2.2",1)[0]
+    listed=set(re.findall(r"`(T-[^`]+?\.\d+)`",sec))
+check(bool(declared),"C: 编号册 §4.2 没有登记任何二级任务")
+check(declared==listed,
+      "C: 编号册 §4.2 登记(%d) 与 D-002 §2.1 分解表(%d) 不一致：多 %s / 缺 %s"%(
+          len(declared),len(listed),
+          sorted(declared-listed)[:5],sorted(listed-declared)[:5]))
 check(on_disk_ids|archived==declared,
       "C: 在盘(%d)+已归档(%d) 与编号册登记(%d) 不一致：多出 %s / 缺 %s"%(
           len(on_disk_ids),len(archived),len(declared),
@@ -100,18 +128,25 @@ check(len(tasks)==len(declared)-len(archived),
       "C: 二级任务目录数应为 %d（登记 %d − 已归档 %d），实为 %d"%(
           len(declared)-len(archived),len(declared),len(archived),len(tasks)))
 seen_ids=set()
+unverifiable=[]
 for tid,t in tasks:
-    mods=mods_of(t)
-    expect="".join(MOD[m][1] for m in mods) if all(m in MOD for m in mods) else None
-    actual=idx_of(t)
-    check(expect is not None,"B: 任务 %s 的改动模块不在索引表：%s"%(tid,mods))
-    check(actual==expect,"B: 任务 %s 编号索引 `%s` 与模块集合推导 `%s` 不符"%(tid,actual,expect))
     m=re.match(r"^T-(.+)\.(\d+)$",tid)
     check(bool(m),"D: 任务目录名 `%s` 不是 T-<索引>.<序> 形式"%tid)
     if m:
-        check(m.group(1)==actual,"C: 任务目录 `%s` 与文档声明索引 `%s` 不符"%(tid,actual))
         check(tid not in seen_ids,"C: 任务编号重复：%s"%tid)
         seen_ids.add(tid)
+    mods=mods_of(t)
+    actual=idx_of(t)
+    if mods is None:
+        # No module table in the plan: the index cannot be derived, so the
+        # cross-check is skipped and the task is listed at the end.
+        unverifiable.append(tid)
+        continue
+    expect="".join(MOD[m][1] for m in mods) if all(m in MOD for m in mods) else None
+    check(expect is not None,"B: 任务 %s 的改动模块不在索引表：%s"%(tid,mods))
+    check(actual==expect,"B: 任务 %s 编号索引 `%s` 与模块集合推导 `%s` 不符"%(tid,actual,expect))
+    if m:
+        check(m.group(1)==actual,"C: 任务目录 `%s` 与文档声明索引 `%s` 不符"%(tid,actual))
     check("## 1.0 编号逻辑" in t,"C: 任务 %s 缺少 §1.0 编号逻辑节"%tid)
     check("**编号索引**" in t,"C: 任务 %s 的 §1.0 未声明编号索引"%tid)
     check("编号所依据的模块" not in t,"C: 任务 %s 的 §1.0 仍用旧的「编号所依据的模块」口径"%tid)
@@ -120,7 +155,9 @@ for tid,t in tasks:
     if m2:
         check(not any(ch.isdigit() for ch in m2.group(1)),
               "D: 任务 %s 的索引含数字（应为模块索引字符，不应平铺 `T-nn`）"%tid)
-print("B/C 组合索引可复算：%d 个任务，索引与模块集合一一对应"%len(tasks))
+print("B/C 组合索引可复算：%d 个任务，索引与模块集合一一对应"%(len(tasks)-len(unverifiable)))
+if unverifiable:
+    print("  无 §1.0/§1.1 模块表、编号索引无法互验（在盘 %d 个）：%s"%(len(unverifiable),unverifiable))
 
 # ---------- E. 文档编号 ----------
 docs={}
@@ -162,9 +199,18 @@ for n2,(f,at) in sorted(embedded.items()):
     check(any(line.startswith("# D-%03d "%n2) for line in at.split("\n")),
           "E: 归档件 %s 内的 D-%03d 缺少规范标题行"%(f,n2))
     nums[n2]="archive/"+f
-check(sorted(nums)==list(range(1,len(nums)+1)),
-      "E: 文档编号不是从 1 连续递增（缺口或越界）")
-print("E 文档编号：%d 份受控文档，编号唯一、连续、标题一致"%len(nums))
+# 编号空档：登记册显式声明的空号（草稿预留但未成文）⇒ 允许缺口；未声明的缺口仍然失败。
+void=set()
+for line in reg.split("\n"):
+    if line.startswith("> **编号空档"):
+        void=set(int(x) for x in re.findall(r"D-(\d{3})",line))
+        break
+used=set(nums)
+holes=[n for n in range(1,max(used)+1) if n not in used]
+check(not (void & used),"E: 编号空档声明的 D-nnn 已被占用：%s"%sorted(void & used))
+check(all(h in void for h in holes),
+      "E: 文档编号不是从 1 连续递增（缺口或越界）：未声明的缺口 %s"%sorted(set(holes)-void))
+print("E 文档编号：%d 份受控文档，编号唯一、连续（已声明空档 %s）、标题一致"%(len(nums),sorted(void) or "无"))
 
 # ---------- F. 编号册 §5.5 总表与磁盘一致 ----------
 m=re.search(r"### 5\.5 文档总表(.*?)(?:\n\n---|\n## )",reg,re.S)

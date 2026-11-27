@@ -1,0 +1,1345 @@
+{
+  "chainId": 4663,
+  "rpcUrl": "https://robinhood-rpc.publicnode.com",
+  "blockNumber": 124435443,
+  "poolCount": 364,
+  "livePoolCount": 324,
+  "stored": {
+    "cycleCount": 54,
+    "profitableCycleCount": 9,
+    "profitableAnchoredCycleCount": 0,
+    "bestCycle": {
+      "path": [
+        "ETH",
+        "TSLA",
+        "SPY"
+      ],
+      "addresses": [
+        "0x0000000000000000000000000000000000000000",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "net_product": 1060221181604442303,
+      "edge_ratio_ppm": 60221,
+      "hops": [
+        {
+          "pool_id": "0xb2a6d67bf3fc511d11cac788a531655f5a7b60cd31c8ff386f0476121741e751",
+          "fee": 50000,
+          "zero_for_one": true,
+          "pool_status": "invalid",
+          "status_reason": "fee_not_fixed_candidate_range",
+          "depth_status": "medium",
+          "liquidity_read_at": "2026-11-17T20:10:01.077126900+00:00",
+          "liquidity_block_number": 89668143
+        },
+        {
+          "pool_id": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+          "fee": 350,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity_read_at": "2026-11-27T15:03:35.462637600+00:00",
+          "liquidity_block_number": 120653940
+        },
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00",
+          "liquidity_block_number": 120571238
+        }
+      ]
+    },
+    "profitableCycles": [
+      {
+        "path": [
+          "ETH",
+          "TSLA",
+          "SPY"
+        ],
+        "addresses": [
+          "0x0000000000000000000000000000000000000000",
+          "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+          "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+        ],
+        "net_product": 1060221181604442303,
+        "edge_ratio_ppm": 60221,
+        "hops": [
+          {
+            "pool_id": "0xb2a6d67bf3fc511d11cac788a531655f5a7b60cd31c8ff386f0476121741e751",
+            "fee": 50000,
+            "zero_for_one": true,
+            "pool_status": "invalid",
+            "status_reason": "fee_not_fixed_candidate_range",
+            "depth_status": "medium",
+            "liquidity_read_at": "2026-11-17T20:10:01.077126900+00:00",
+            "liquidity_block_number": 89668143
+          },
+          {
+            "pool_id": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+            "fee": 350,
+            "zero_for_one": false,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "deep",
+            "liquidity_read_at": "2026-11-27T15:03:35.462637600+00:00",
+            "liquidity_block_number": 120653940
+          },
+          {
+            "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+            "fee": 1000,
+            "zero_for_one": false,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "deep",
+            "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00",
+            "liquidity_block_number": 120571238
+          }
+        ]
+      },
+      {
+        "path": [
+          "SPY",
+          "ETH",
+          "TSLA"
+        ],
+        "addresses": [
+          "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "0x0000000000000000000000000000000000000000",
+          "0x322f0929c4625ed5bad873c95208d54e1c003b2d"
+        ],
+        "net_product": 1060221181604442303,
+        "edge_ratio_ppm": 60221,
+        "hops": [
+          {
+            "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+            "fee": 1000,
+            "zero_for_one": false,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "deep",
+            "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00",
+            "liquidity_block_number": 120571238
+          },
+          {
+            "pool_id": "0xb2a6d67bf3fc511d11cac788a531655f5a7b60cd31c8ff386f0476121741e751",
+            "fee": 50000,
+            "zero_for_one": true,
+            "pool_status": "invalid",
+            "status_reason": "fee_not_fixed_candidate_range",
+            "depth_status": "medium",
+            "liquidity_read_at": "2026-11-17T20:10:01.077126900+00:00",
+            "liquidity_block_number": 89668143
+          },
+          {
+            "pool_id": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+            "fee": 350,
+            "zero_for_one": false,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "deep",
+            "liquidity_read_at": "2026-11-27T15:03:35.462637600+00:00",
+            "liquidity_block_number": 120653940
+          }
+        ]
+      },
+      {
+        "path": [
+          "TSLA",
+          "SPY",
+          "ETH"
+        ],
+        "addresses": [
+          "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+          "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "0x0000000000000000000000000000000000000000"
+        ],
+        "net_product": 1060221181604442300,
+        "edge_ratio_ppm": 60221,
+        "hops": [
+          {
+            "pool_id": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+            "fee": 350,
+            "zero_for_one": false,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "deep",
+            "liquidity_read_at": "2026-11-27T15:03:35.462637600+00:00",
+            "liquidity_block_number": 120653940
+          },
+          {
+            "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+            "fee": 1000,
+            "zero_for_one": false,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "deep",
+            "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00",
+            "liquidity_block_number": 120571238
+          },
+          {
+            "pool_id": "0xb2a6d67bf3fc511d11cac788a531655f5a7b60cd31c8ff386f0476121741e751",
+            "fee": 50000,
+            "zero_for_one": true,
+            "pool_status": "invalid",
+            "status_reason": "fee_not_fixed_candidate_range",
+            "depth_status": "medium",
+            "liquidity_read_at": "2026-11-17T20:10:01.077126900+00:00",
+            "liquidity_block_number": 89668143
+          }
+        ]
+      },
+      {
+        "path": [
+          "ETH",
+          "TSLA",
+          "SPCX"
+        ],
+        "addresses": [
+          "0x0000000000000000000000000000000000000000",
+          "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+          "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea"
+        ],
+        "net_product": 1056269851397668046,
+        "edge_ratio_ppm": 56269,
+        "hops": [
+          {
+            "pool_id": "0xb2a6d67bf3fc511d11cac788a531655f5a7b60cd31c8ff386f0476121741e751",
+            "fee": 50000,
+            "zero_for_one": true,
+            "pool_status": "invalid",
+            "status_reason": "fee_not_fixed_candidate_range",
+            "depth_status": "medium",
+            "liquidity_read_at": "2026-11-17T20:10:01.077126900+00:00",
+            "liquidity_block_number": 89668143
+          },
+          {
+            "pool_id": "0x0927698e8716bbb958a2cde0fc4f31d7a2b9a5b0ee1e501dc15e29788277dfa2",
+            "fee": 2500,
+            "zero_for_one": true,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "medium",
+            "liquidity_read_at": "2026-11-27T15:03:35.296825400+00:00",
+            "liquidity_block_number": 120653940
+          },
+          {
+            "pool_id": "0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168",
+            "fee": 3000,
+            "zero_for_one": false,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "medium",
+            "liquidity_read_at": "2026-11-27T15:03:35.495292300+00:00",
+            "liquidity_block_number": 120571238
+          }
+        ]
+      },
+      {
+        "path": [
+          "TSLA",
+          "SPCX",
+          "ETH"
+        ],
+        "addresses": [
+          "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+          "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+          "0x0000000000000000000000000000000000000000"
+        ],
+        "net_product": 1056269851397668043,
+        "edge_ratio_ppm": 56269,
+        "hops": [
+          {
+            "pool_id": "0x0927698e8716bbb958a2cde0fc4f31d7a2b9a5b0ee1e501dc15e29788277dfa2",
+            "fee": 2500,
+            "zero_for_one": true,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "medium",
+            "liquidity_read_at": "2026-11-27T15:03:35.296825400+00:00",
+            "liquidity_block_number": 120653940
+          },
+          {
+            "pool_id": "0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168",
+            "fee": 3000,
+            "zero_for_one": false,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "medium",
+            "liquidity_read_at": "2026-11-27T15:03:35.495292300+00:00",
+            "liquidity_block_number": 120571238
+          },
+          {
+            "pool_id": "0xb2a6d67bf3fc511d11cac788a531655f5a7b60cd31c8ff386f0476121741e751",
+            "fee": 50000,
+            "zero_for_one": true,
+            "pool_status": "invalid",
+            "status_reason": "fee_not_fixed_candidate_range",
+            "depth_status": "medium",
+            "liquidity_read_at": "2026-11-17T20:10:01.077126900+00:00",
+            "liquidity_block_number": 89668143
+          }
+        ]
+      },
+      {
+        "path": [
+          "SPCX",
+          "ETH",
+          "TSLA"
+        ],
+        "addresses": [
+          "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+          "0x0000000000000000000000000000000000000000",
+          "0x322f0929c4625ed5bad873c95208d54e1c003b2d"
+        ],
+        "net_product": 1056269851397668043,
+        "edge_ratio_ppm": 56269,
+        "hops": [
+          {
+            "pool_id": "0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168",
+            "fee": 3000,
+            "zero_for_one": false,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "medium",
+            "liquidity_read_at": "2026-11-27T15:03:35.495292300+00:00",
+            "liquidity_block_number": 120571238
+          },
+          {
+            "pool_id": "0xb2a6d67bf3fc511d11cac788a531655f5a7b60cd31c8ff386f0476121741e751",
+            "fee": 50000,
+            "zero_for_one": true,
+            "pool_status": "invalid",
+            "status_reason": "fee_not_fixed_candidate_range",
+            "depth_status": "medium",
+            "liquidity_read_at": "2026-11-17T20:10:01.077126900+00:00",
+            "liquidity_block_number": 89668143
+          },
+          {
+            "pool_id": "0x0927698e8716bbb958a2cde0fc4f31d7a2b9a5b0ee1e501dc15e29788277dfa2",
+            "fee": 2500,
+            "zero_for_one": true,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "medium",
+            "liquidity_read_at": "2026-11-27T15:03:35.296825400+00:00",
+            "liquidity_block_number": 120653940
+          }
+        ]
+      },
+      {
+        "path": [
+          "ETH",
+          "PFE",
+          "CRCL"
+        ],
+        "addresses": [
+          "0x0000000000000000000000000000000000000000",
+          "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+          "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5"
+        ],
+        "net_product": 1047034481804613061,
+        "edge_ratio_ppm": 47034,
+        "hops": [
+          {
+            "pool_id": "0xea3df09de366160b67dd0a8c6f178bfc3c06f6a5f411f88e9b8aa73231d5c9dd",
+            "fee": 50000,
+            "zero_for_one": true,
+            "pool_status": "invalid",
+            "status_reason": "fee_not_fixed_candidate_range",
+            "depth_status": "medium",
+            "liquidity_read_at": "2026-11-17T20:13:27.757151400+00:00",
+            "liquidity_block_number": 89668143
+          },
+          {
+            "pool_id": "0x9d287d9cc4292d4edd599d983a221ad4c1b16340996326be9b3e0b5786caf33d",
+            "fee": 9000,
+            "zero_for_one": true,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "medium",
+            "liquidity_read_at": "2026-11-27T15:03:35.732642400+00:00",
+            "liquidity_block_number": 120571238
+          },
+          {
+            "pool_id": "0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748",
+            "fee": 1500,
+            "zero_for_one": false,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "medium",
+            "liquidity_read_at": "2026-11-27T15:03:35.571214200+00:00",
+            "liquidity_block_number": 120571238
+          }
+        ]
+      },
+      {
+        "path": [
+          "CRCL",
+          "ETH",
+          "PFE"
+        ],
+        "addresses": [
+          "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "0x0000000000000000000000000000000000000000",
+          "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e"
+        ],
+        "net_product": 1047034481804613061,
+        "edge_ratio_ppm": 47034,
+        "hops": [
+          {
+            "pool_id": "0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748",
+            "fee": 1500,
+            "zero_for_one": false,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "medium",
+            "liquidity_read_at": "2026-11-27T15:03:35.571214200+00:00",
+            "liquidity_block_number": 120571238
+          },
+          {
+            "pool_id": "0xea3df09de366160b67dd0a8c6f178bfc3c06f6a5f411f88e9b8aa73231d5c9dd",
+            "fee": 50000,
+            "zero_for_one": true,
+            "pool_status": "invalid",
+            "status_reason": "fee_not_fixed_candidate_range",
+            "depth_status": "medium",
+            "liquidity_read_at": "2026-11-17T20:13:27.757151400+00:00",
+            "liquidity_block_number": 89668143
+          },
+          {
+            "pool_id": "0x9d287d9cc4292d4edd599d983a221ad4c1b16340996326be9b3e0b5786caf33d",
+            "fee": 9000,
+            "zero_for_one": true,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "medium",
+            "liquidity_read_at": "2026-11-27T15:03:35.732642400+00:00",
+            "liquidity_block_number": 120571238
+          }
+        ]
+      },
+      {
+        "path": [
+          "PFE",
+          "CRCL",
+          "ETH"
+        ],
+        "addresses": [
+          "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+          "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "0x0000000000000000000000000000000000000000"
+        ],
+        "net_product": 1047034481804613048,
+        "edge_ratio_ppm": 47034,
+        "hops": [
+          {
+            "pool_id": "0x9d287d9cc4292d4edd599d983a221ad4c1b16340996326be9b3e0b5786caf33d",
+            "fee": 9000,
+            "zero_for_one": true,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "medium",
+            "liquidity_read_at": "2026-11-27T15:03:35.732642400+00:00",
+            "liquidity_block_number": 120571238
+          },
+          {
+            "pool_id": "0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748",
+            "fee": 1500,
+            "zero_for_one": false,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "medium",
+            "liquidity_read_at": "2026-11-27T15:03:35.571214200+00:00",
+            "liquidity_block_number": 120571238
+          },
+          {
+            "pool_id": "0xea3df09de366160b67dd0a8c6f178bfc3c06f6a5f411f88e9b8aa73231d5c9dd",
+            "fee": 50000,
+            "zero_for_one": true,
+            "pool_status": "invalid",
+            "status_reason": "fee_not_fixed_candidate_range",
+            "depth_status": "medium",
+            "liquidity_read_at": "2026-11-17T20:13:27.757151400+00:00",
+            "liquidity_block_number": 89668143
+          }
+        ]
+      }
+    ]
+  },
+  "live": {
+    "cycleCount": 42,
+    "profitableCycleCount": 3,
+    "profitableAnchoredCycleCount": 0,
+    "bestCycle": {
+      "path": [
+        "ETH",
+        "NVDA",
+        "SPY"
+      ],
+      "addresses": [
+        "0x0000000000000000000000000000000000000000",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "net_product": 1000582111083471272,
+      "edge_ratio_ppm": 582,
+      "hops": [
+        {
+          "pool_id": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+          "fee": 500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity_read_at": "2026-11-27T15:03:35.583359500+00:00",
+          "liquidity_block_number": 120571238
+        },
+        {
+          "pool_id": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+          "fee": 250,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity_read_at": "2026-11-27T15:03:35.942836+00:00",
+          "liquidity_block_number": 120571238
+        },
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00",
+          "liquidity_block_number": 120571238
+        }
+      ]
+    },
+    "profitableCycles": [
+      {
+        "path": [
+          "ETH",
+          "NVDA",
+          "SPY"
+        ],
+        "addresses": [
+          "0x0000000000000000000000000000000000000000",
+          "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+        ],
+        "net_product": 1000582111083471272,
+        "edge_ratio_ppm": 582,
+        "hops": [
+          {
+            "pool_id": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+            "fee": 500,
+            "zero_for_one": true,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "deep",
+            "liquidity_read_at": "2026-11-27T15:03:35.583359500+00:00",
+            "liquidity_block_number": 120571238
+          },
+          {
+            "pool_id": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+            "fee": 250,
+            "zero_for_one": false,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "deep",
+            "liquidity_read_at": "2026-11-27T15:03:35.942836+00:00",
+            "liquidity_block_number": 120571238
+          },
+          {
+            "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+            "fee": 1000,
+            "zero_for_one": false,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "deep",
+            "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00",
+            "liquidity_block_number": 120571238
+          }
+        ]
+      },
+      {
+        "path": [
+          "SPY",
+          "ETH",
+          "NVDA"
+        ],
+        "addresses": [
+          "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "0x0000000000000000000000000000000000000000",
+          "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec"
+        ],
+        "net_product": 1000582111083471272,
+        "edge_ratio_ppm": 582,
+        "hops": [
+          {
+            "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+            "fee": 1000,
+            "zero_for_one": false,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "deep",
+            "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00",
+            "liquidity_block_number": 120571238
+          },
+          {
+            "pool_id": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+            "fee": 500,
+            "zero_for_one": true,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "deep",
+            "liquidity_read_at": "2026-11-27T15:03:35.583359500+00:00",
+            "liquidity_block_number": 120571238
+          },
+          {
+            "pool_id": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+            "fee": 250,
+            "zero_for_one": false,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "deep",
+            "liquidity_read_at": "2026-11-27T15:03:35.942836+00:00",
+            "liquidity_block_number": 120571238
+          }
+        ]
+      },
+      {
+        "path": [
+          "NVDA",
+          "SPY",
+          "ETH"
+        ],
+        "addresses": [
+          "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "0x0000000000000000000000000000000000000000"
+        ],
+        "net_product": 1000582111083471268,
+        "edge_ratio_ppm": 582,
+        "hops": [
+          {
+            "pool_id": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+            "fee": 250,
+            "zero_for_one": false,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "deep",
+            "liquidity_read_at": "2026-11-27T15:03:35.942836+00:00",
+            "liquidity_block_number": 120571238
+          },
+          {
+            "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+            "fee": 1000,
+            "zero_for_one": false,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "deep",
+            "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00",
+            "liquidity_block_number": 120571238
+          },
+          {
+            "pool_id": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+            "fee": 500,
+            "zero_for_one": true,
+            "pool_status": "active",
+            "status_reason": null,
+            "depth_status": "deep",
+            "liquidity_read_at": "2026-11-27T15:03:35.583359500+00:00",
+            "liquidity_block_number": 120571238
+          }
+        ]
+      }
+    ]
+  },
+  "changedPricePoolCount": 59,
+  "changedPricePools": [
+    {
+      "pool_id": "0x0115a48c046e8776f95f9d52fddc85d8d88f7ddc73ea65015a465ae04977077d",
+      "token0": "ETH",
+      "token1": "USDG",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "3930922225072848314592092",
+      "live_sqrt_price_x96": "3372087228752034608434427",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0x02af9a24a5816f2f3d1d6aae1a0f924b3bf77371f8ab435392cecc6405c9f709",
+      "token0": "ETH",
+      "token1": "USDG",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "3941628814443898035677649",
+      "live_sqrt_price_x96": "3941585830924753542760683",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0x08683360c101b897136892e5e8e560bee6af7d74685ae86cc31c131b10f604c9",
+      "token0": "ETH",
+      "token1": "GLXY",
+      "fee": 2500,
+      "pool_status": "active",
+      "status_reason": null,
+      "stored_sqrt_price_x96": "942512782438808195434412106805",
+      "live_sqrt_price_x96": "947040164997524867150181759743",
+      "liquidity_read_at": "2026-11-27T15:03:35.276314900+00:00",
+      "liquidity_block_number": 120571238
+    },
+    {
+      "pool_id": "0x0927698e8716bbb958a2cde0fc4f31d7a2b9a5b0ee1e501dc15e29788277dfa2",
+      "token0": "TSLA",
+      "token1": "SPCX",
+      "fee": 2500,
+      "pool_status": "active",
+      "status_reason": null,
+      "stored_sqrt_price_x96": "137701846526933711532819022300",
+      "live_sqrt_price_x96": "137251660171231308968651366084",
+      "liquidity_read_at": "2026-11-27T15:03:35.296825400+00:00",
+      "liquidity_block_number": 120653940
+    },
+    {
+      "pool_id": "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237",
+      "token0": "ETH",
+      "token1": "MU",
+      "fee": 1800,
+      "pool_status": "active",
+      "status_reason": null,
+      "stored_sqrt_price_x96": "129832205429111782752171315561",
+      "live_sqrt_price_x96": "127992854004903306827776706817",
+      "liquidity_read_at": "2026-11-27T15:03:35.316832400+00:00",
+      "liquidity_block_number": 120571238
+    },
+    {
+      "pool_id": "0x10906975ba92bce9209431984d3e3e4b0eac706db274e8d1a29358331a555987",
+      "token0": "ETH",
+      "token1": "CRCL",
+      "fee": 2500,
+      "pool_status": "active",
+      "status_reason": null,
+      "stored_sqrt_price_x96": "462578532342078117095326271667",
+      "live_sqrt_price_x96": "460584819785650525576093724361",
+      "liquidity_read_at": "2026-11-27T15:03:35.328793800+00:00",
+      "liquidity_block_number": 120571238
+    },
+    {
+      "pool_id": "0x1219e804816d95f93060f318ba8d1230621c4a6684f4e79abe2fb2ee6b034847",
+      "token0": "ETH",
+      "token1": "USDG",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "3932453862474067473979972",
+      "live_sqrt_price_x96": "3678820533088703474993059",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0x1a149e9542c2b9d85d7f4136e680588fe2d87738c3f09788288063480ddaa244",
+      "token0": "ETH",
+      "token1": "USDG",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "3953528877608465537417843",
+      "live_sqrt_price_x96": "3894860138914307811719754",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0x1cead037c80e517f38ae7e0fb93f753b2915503b9c5142054adef7db4b665f49",
+      "token0": "USDG",
+      "token1": "PATH",
+      "fee": 48000,
+      "pool_status": "invalid",
+      "status_reason": "fee_not_fixed_candidate_range",
+      "stored_sqrt_price_x96": "21892453895185994883029873192319320",
+      "live_sqrt_price_x96": "21973920051357114661834321353716283",
+      "liquidity_read_at": "2026-11-17T20:01:38.173730700+00:00",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0x1dae69f15c48eef452c79360cc8df58f5d5c3c1e6324ff8777d58c1feb053cdc",
+      "token0": "ETH",
+      "token1": "MSTR",
+      "fee": 2500,
+      "pool_status": "active",
+      "status_reason": null,
+      "stored_sqrt_price_x96": "360554042197736029094418614443",
+      "live_sqrt_price_x96": "359615027688297530006011953196",
+      "liquidity_read_at": "2026-11-27T15:03:35.353226800+00:00",
+      "liquidity_block_number": 120571238
+    },
+    {
+      "pool_id": "0x281ca1195ff8b4bfbdff88b225d36a30a2b2857353c895e16ad054e7b4c87d95",
+      "token0": "USDG",
+      "token1": "RIVN",
+      "fee": 700000,
+      "pool_status": "invalid",
+      "status_reason": "fee_not_fixed_candidate_range,special_fee",
+      "stored_sqrt_price_x96": "12828525223864275715504670549935151",
+      "live_sqrt_price_x96": "13477175234972652135140402569222842",
+      "liquidity_read_at": "2026-11-17T20:01:59.461204+00:00",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e",
+      "token0": "SPY",
+      "token1": "GOOGL",
+      "fee": 500,
+      "pool_status": "active",
+      "status_reason": null,
+      "stored_sqrt_price_x96": "128921653168115207133542558858",
+      "live_sqrt_price_x96": "129236436773918832252776880667",
+      "liquidity_read_at": "2026-11-27T15:03:35.396188500+00:00",
+      "liquidity_block_number": 120653940
+    },
+    {
+      "pool_id": "0x30dac7167c36242d1bacfd30561d444cf014529ee55978991d03e4ee178e725a",
+      "token0": "ETH",
+      "token1": "USDG",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "3914756459491839981308737",
+      "live_sqrt_price_x96": "3226475480629197415630984",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0x39910df82a4009ea98d01e9df0b9f1b5b01583cc62ea5889c6c8a8e41fbef470",
+      "token0": "ETH",
+      "token1": "SPCX",
+      "fee": 10000,
+      "pool_status": "active",
+      "status_reason": null,
+      "stored_sqrt_price_x96": "284096594903575786198740963097",
+      "live_sqrt_price_x96": "281459828725843179259460221895",
+      "liquidity_read_at": "2026-11-27T15:03:35.448015600+00:00",
+      "liquidity_block_number": 120571238
+    },
+    {
+      "pool_id": "0x3c5c41e03dad8d568e2e5acec32bc6883307cd20eae72a8bf0e36e8f7e7c481d",
+      "token0": "ETH",
+      "token1": "USDG",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "3942072437229364434476046",
+      "live_sqrt_price_x96": "3241888876731017453108242",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+      "token0": "SPY",
+      "token1": "TSLA",
+      "fee": 350,
+      "pool_status": "active",
+      "status_reason": null,
+      "stored_sqrt_price_x96": "107502114217581386169439973570",
+      "live_sqrt_price_x96": "107174720559887025015932993065",
+      "liquidity_read_at": "2026-11-27T15:03:35.462637600+00:00",
+      "liquidity_block_number": 120653940
+    },
+    {
+      "pool_id": "0x495d34d14cff1f2f75feb454d90df0a6317a6f34eebaa2713bac31f9ab41645a",
+      "token0": "ETH",
+      "token1": "USDG",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "3911279270922349587105228",
+      "live_sqrt_price_x96": "3779473721677182093834365",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+      "token0": "ETH",
+      "token1": "SPY",
+      "fee": 1000,
+      "pool_status": "active",
+      "status_reason": null,
+      "stored_sqrt_price_x96": "119971381137894673569576938229",
+      "live_sqrt_price_x96": "119713399659495164307291318219",
+      "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00",
+      "liquidity_block_number": 120571238
+    },
+    {
+      "pool_id": "0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168",
+      "token0": "ETH",
+      "token1": "SPCX",
+      "fee": 3000,
+      "pool_status": "active",
+      "status_reason": null,
+      "stored_sqrt_price_x96": "282867699773165712251613124702",
+      "live_sqrt_price_x96": "280428514630421811953131518411",
+      "liquidity_read_at": "2026-11-27T15:03:35.495292300+00:00",
+      "liquidity_block_number": 120571238
+    },
+    {
+      "pool_id": "0x5b439473ca95857dcda5292c441f7001d58a34679376a088d85368fdd756134e",
+      "token0": "ETH",
+      "token1": "USDG",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "4037353388648554145130939",
+      "live_sqrt_price_x96": "4037321847239934696431050",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0x5fb97aef826b674c4bc76707563816f171043a3b1bf91431b7f82acd6381876b",
+      "token0": "ETH",
+      "token1": "MU",
+      "fee": 10000,
+      "pool_status": "active",
+      "status_reason": null,
+      "stored_sqrt_price_x96": "129857560719809388323673901475",
+      "live_sqrt_price_x96": "128305201197270373134143123203",
+      "liquidity_read_at": "2026-11-27T15:03:35.529536400+00:00",
+      "liquidity_block_number": 120653940
+    },
+    {
+      "pool_id": "0x64cf594c0cfb72275038a3f9986a54863d5f947aa5f94e94a94f458cc755ceba",
+      "token0": "USDG",
+      "token1": "RIVN",
+      "fee": 500000,
+      "pool_status": "invalid",
+      "status_reason": "fee_not_fixed_candidate_range,special_fee",
+      "stored_sqrt_price_x96": "16622907144821890145887068717217674",
+      "live_sqrt_price_x96": "17397879113429211738177652564718081",
+      "liquidity_read_at": "2026-11-17T20:05:15.092186900+00:00",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0x67e316c276a66904fb0d2d1c1346e2ea6f82cab3c60c7446435611648dcb1567",
+      "token0": "USDG",
+      "token1": "ZS",
+      "fee": 45000,
+      "pool_status": "invalid",
+      "status_reason": "fee_not_fixed_candidate_range",
+      "stored_sqrt_price_x96": "5554468150810151072917470852522785",
+      "live_sqrt_price_x96": "5125365773620915621843364365753182",
+      "liquidity_read_at": "2026-11-17T20:05:35.819703800+00:00",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0x6c330014af1c9e8fd0c6b5e3407439af7bce820c53c72cff168c1b92d9f96ca2",
+      "token0": "ETH",
+      "token1": "SPY",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "140660039964900021656010340387",
+      "live_sqrt_price_x96": "133327138983056462846406818633",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30",
+      "token0": "SPY",
+      "token1": "GOOGL",
+      "fee": 250,
+      "pool_status": "active",
+      "status_reason": null,
+      "stored_sqrt_price_x96": "128988699434709649745579699219",
+      "live_sqrt_price_x96": "129207427345761551861812658842",
+      "liquidity_read_at": "2026-11-27T15:03:35.562668100+00:00",
+      "liquidity_block_number": 120571238
+    },
+    {
+      "pool_id": "0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748",
+      "token0": "ETH",
+      "token1": "CRCL",
+      "fee": 1500,
+      "pool_status": "active",
+      "status_reason": null,
+      "stored_sqrt_price_x96": "462779132247807801638403114439",
+      "live_sqrt_price_x96": "460386176427048550365806615209",
+      "liquidity_read_at": "2026-11-27T15:03:35.571214200+00:00",
+      "liquidity_block_number": 120571238
+    },
+    {
+      "pool_id": "0x717fd7ee0f0725ea031dc19e60b040b5dd21fdcc94cb3e871bf0e27b020effa1",
+      "token0": "ETH",
+      "token1": "USDG",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "3922588509311475947174667",
+      "live_sqrt_price_x96": "3233324859295291390526479",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+      "token0": "ETH",
+      "token1": "NVDA",
+      "fee": 500,
+      "pool_status": "active",
+      "status_reason": null,
+      "stored_sqrt_price_x96": "266093448133816955590148096000",
+      "live_sqrt_price_x96": "264513523133657939695652039274",
+      "liquidity_read_at": "2026-11-27T15:03:35.583359500+00:00",
+      "liquidity_block_number": 120571238
+    },
+    {
+      "pool_id": "0x74096e0c4de80238aff5b814dcb6acf15d5fe45a106071b87fcccaf32d60980f",
+      "token0": "ETH",
+      "token1": "USDG",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "3911211030611662340800623",
+      "live_sqrt_price_x96": "3229847697638336338665582",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0x7b1c4469fbc25827332bcf7a4c273fcbb5d60815c03e5844c74feb51c2313cc7",
+      "token0": "NVDA",
+      "token1": "MU",
+      "fee": 12500,
+      "pool_status": "active",
+      "status_reason": null,
+      "stored_sqrt_price_x96": "38784917499428945699992337572",
+      "live_sqrt_price_x96": "38367525487371582579489771479",
+      "liquidity_read_at": "2026-11-27T15:03:35.621324400+00:00",
+      "liquidity_block_number": 120571238
+    },
+    {
+      "pool_id": "0x873301364d7e66af1570e157954987ce7b2dbea69436fa5be714587553fbfd65",
+      "token0": "ETH",
+      "token1": "USDG",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "3910458173090419722070366",
+      "live_sqrt_price_x96": "3843465482840178100148475",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0x881b4219078c86ac3a3930a6c229c2c846209fe9b4f0b8671772d42e2a799796",
+      "token0": "ETH",
+      "token1": "MU",
+      "fee": 8000,
+      "pool_status": "active",
+      "status_reason": null,
+      "stored_sqrt_price_x96": "129736918305758793355364031469",
+      "live_sqrt_price_x96": "128111793880361786626231654383",
+      "liquidity_read_at": "2026-11-27T15:03:35.677198100+00:00",
+      "liquidity_block_number": 120571238
+    },
+    {
+      "pool_id": "0x8a81c82787f56cf2505b605db31d1c83cb469cf4488dd1cb1cdb21109f0b85f1",
+      "token0": "USDG",
+      "token1": "RIVN",
+      "fee": 600000,
+      "pool_status": "invalid",
+      "status_reason": "fee_not_fixed_candidate_range,special_fee",
+      "stored_sqrt_price_x96": "14794776082305334423394621208945656",
+      "live_sqrt_price_x96": "15705032722902384398921761144006841",
+      "liquidity_read_at": "2026-11-17T20:07:49.591862300+00:00",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0xace7e9e3716679aa566f31c29bff430daf57108c6100807d921f7b60efe846d2",
+      "token0": "ETH",
+      "token1": "USDG",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "3911980143328999806228016",
+      "live_sqrt_price_x96": "3900415571123873923689138",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0xb1b4a58838514c0631a8bcc3435d4f45cdd6dce9b1b86d94c5512f87e1c46790",
+      "token0": "ETH",
+      "token1": "NVDA",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "262512421230806824567211207725",
+      "live_sqrt_price_x96": "264803996128845621017970071951",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0xb2a6d67bf3fc511d11cac788a531655f5a7b60cd31c8ff386f0476121741e751",
+      "token0": "ETH",
+      "token1": "TSLA",
+      "fee": 50000,
+      "pool_status": "invalid",
+      "status_reason": "fee_not_fixed_candidate_range",
+      "stored_sqrt_price_x96": "172085701548389296246048331426",
+      "live_sqrt_price_x96": "165818754215450596636754123159",
+      "liquidity_read_at": "2026-11-17T20:10:01.077126900+00:00",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0xbac3aa3b91584a53a579b3c999a56756e954e59247e497bad1d25a4334bde551",
+      "token0": "ETH",
+      "token1": "USDG",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "3911738510655417865980211",
+      "live_sqrt_price_x96": "3231179567394218338942976",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0xbb33e6c7689e471c316d119c6f7bb36a705d24fc453768746e85132e666bb7dd",
+      "token0": "ETH",
+      "token1": "USDG",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "3734389907075076666259403",
+      "live_sqrt_price_x96": "3538093131195060994189331",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0xbbf8b1d23b0442065b4f0a0d076c346d43b6b1239d6ed7a52e6d56fcbbc3061b",
+      "token0": "ETH",
+      "token1": "USDG",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "3941284073645977628507253",
+      "live_sqrt_price_x96": "3231744083239152557637292",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0xc396e8bccee362d5c8d1575e7951332584d759fb1b9daf2cde5e708fb77167f1",
+      "token0": "ETH",
+      "token1": "USDG",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "3973633019053891450571458",
+      "live_sqrt_price_x96": "3443890043115984517139198",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0xc42d69412ec253f5f7bf6a002e04472b46a147f9ea8c44dba37a21cb23272e22",
+      "token0": "ETH",
+      "token1": "USDG",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "3903293862541322720589824",
+      "live_sqrt_price_x96": "3236710628896771294934588",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0xc4852acea8d50e2e27aed3f68f0fae3e7ca4f394b80c59da68391e8ecbcd2b41",
+      "token0": "ETH",
+      "token1": "GOOGL",
+      "fee": 50000,
+      "pool_status": "invalid",
+      "status_reason": "fee_not_fixed_candidate_range",
+      "stored_sqrt_price_x96": "197597389917682634946260896299",
+      "live_sqrt_price_x96": "197286258721219839402598507222",
+      "liquidity_read_at": "2026-11-17T20:11:07.462683400+00:00",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0xc6407d366671171aeb2391583eab65ee03e235211aa1bc7639317cbcccbd9f66",
+      "token0": "ETH",
+      "token1": "NET",
+      "fee": 50000,
+      "pool_status": "invalid",
+      "status_reason": "fee_not_fixed_candidate_range",
+      "stored_sqrt_price_x96": "199813859807103037455929435000",
+      "live_sqrt_price_x96": "194874145238185791929846990975",
+      "liquidity_read_at": "2026-11-17T20:11:07.532668600+00:00",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0xc7b615a3721594f73664eb3f62d8290d0fcc8d9d1156aed1ddecbd7f32efd9f5",
+      "token0": "ETH",
+      "token1": "USDG",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "3911551800816879011646146",
+      "live_sqrt_price_x96": "3540062457796418835908830",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c",
+      "token0": "SPY",
+      "token1": "MU",
+      "fee": 500,
+      "pool_status": "active",
+      "status_reason": null,
+      "stored_sqrt_price_x96": "85808302189724444015678116387",
+      "live_sqrt_price_x96": "84632025352737623763229245585",
+      "liquidity_read_at": "2026-11-27T15:03:35.880515600+00:00",
+      "liquidity_block_number": 120571238
+    },
+    {
+      "pool_id": "0xd344e3d4f856c9cd589a24e229f597b27f499fca5b91743d44206b0cb69959bd",
+      "token0": "USDG",
+      "token1": "APP",
+      "fee": 34000,
+      "pool_status": "invalid",
+      "status_reason": "fee_not_fixed_candidate_range",
+      "stored_sqrt_price_x96": "3943586956142335817533012936791546",
+      "live_sqrt_price_x96": "4022713976985572426130470306019588",
+      "liquidity_read_at": "2026-11-17T20:11:55.837378+00:00",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0xd61cc67f4fdd1f3050ec5ab7002d16e895124e432cff1fb7896f859c4f50c6b3",
+      "token0": "ETH",
+      "token1": "USDG",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "3956075513183669051187755",
+      "live_sqrt_price_x96": "3973211383296724165459968",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+      "token0": "SPY",
+      "token1": "NVDA",
+      "fee": 250,
+      "pool_status": "active",
+      "status_reason": null,
+      "stored_sqrt_price_x96": "175750036279484040000000000000",
+      "live_sqrt_price_x96": "174855051033686161245315928472",
+      "liquidity_read_at": "2026-11-27T15:03:35.942836+00:00",
+      "liquidity_block_number": 120571238
+    },
+    {
+      "pool_id": "0xe4a9ec520748e8a96f1b231d975bdf78e00f8684b829ff04d0472382d769bd9d",
+      "token0": "ETH",
+      "token1": "USDG",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "3912964340470017200598615",
+      "live_sqrt_price_x96": "3903349508569481320432036",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d",
+      "token0": "ETH",
+      "token1": "GOOGL",
+      "fee": 2100,
+      "pool_status": "active",
+      "status_reason": null,
+      "stored_sqrt_price_x96": "195249856306547150558220952650",
+      "live_sqrt_price_x96": "195289070235398428779581907244",
+      "liquidity_read_at": "2026-11-27T15:03:35.978193200+00:00",
+      "liquidity_block_number": 120571238
+    },
+    {
+      "pool_id": "0xe6b713cf680868a40aafca45810b0c894eb5c696f5a2230d4816e6695e90e681",
+      "token0": "SPY",
+      "token1": "META",
+      "fee": 500,
+      "pool_status": "active",
+      "status_reason": null,
+      "stored_sqrt_price_x96": "85250087548490342337476767436",
+      "live_sqrt_price_x96": "85232348449703063692339877235",
+      "liquidity_read_at": "2026-11-27T15:03:35.990017900+00:00",
+      "liquidity_block_number": 120571238
+    },
+    {
+      "pool_id": "0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82",
+      "token0": "SPY",
+      "token1": "AMD",
+      "fee": 500,
+      "pool_status": "active",
+      "status_reason": null,
+      "stored_sqrt_price_x96": "106183186322097833314828389740",
+      "live_sqrt_price_x96": "104445855799292724445810565498",
+      "liquidity_read_at": "2026-11-27T15:03:35.993860200+00:00",
+      "liquidity_block_number": 120571238
+    },
+    {
+      "pool_id": "0xe78ac459ddd17482a53bdf0251758c2787aac6b213b0b9ecc80a558bfe5d4e12",
+      "token0": "ETH",
+      "token1": "USDG",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "3918561422998773872062067",
+      "live_sqrt_price_x96": "3225707265301701043928229",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0xea3df09de366160b67dd0a8c6f178bfc3c06f6a5f411f88e9b8aa73231d5c9dd",
+      "token0": "ETH",
+      "token1": "PFE",
+      "fee": 50000,
+      "pool_status": "invalid",
+      "status_reason": "fee_not_fixed_candidate_range",
+      "stored_sqrt_price_x96": "633594387909413561368491597192",
+      "live_sqrt_price_x96": "610077649464773088157080676942",
+      "liquidity_read_at": "2026-11-17T20:13:27.757151400+00:00",
+      "liquidity_block_number": 89668143
+    },
+    {
+      "pool_id": "0xeab0adac76db99a233ed077ca6be7a3f708baee6f98b17df69f7e1a07d1dc2e4",
+      "token0": "SPY",
+      "token1": "AAPL",
+      "fee": 350,
+      "pool_status": "active",
+      "status_reason": null,
+      "stored_sqrt_price_x96": "112772614190257645586059500369",
+      "live_sqrt_price_x96": "112775202822025547508172303844",
+      "liquidity_read_at": "2026-11-27T15:03:36.017635400+00:00",
+      "liquidity_block_number": 120571238
+    },
+    {
+      "pool_id": "0xed517705e7047bcb81feb3769bc6c7d1875b26867300fdfcb1a53a34c2894b5a",
+      "token0": "ETH",
+      "token1": "USDG",
+      "fee": 8388608,
+      "pool_status": "blocked",
+      "status_reason": "dynamic_fee,fee_not_fixed_candidate_range,non_zero_hook,special_fee",
+      "stored_sqrt_price_x96": "3910535175302127896819111",
+      "live_sqrt_price_x96": "3362187660963441864343646",
+      "liquidity_read_at": "2026-10-16T00:56:56.848618Z",
+      "liquidity_block_number": 89668143
+    }
+  ],
+  "notes": [
+    "the stored group multiplies the stored reads, the live group multiplies the chain's current values",
+    "the live group uses the chain's current lpFee, so a dynamic-fee pool can be priced at all",
+    "a cycle is a spot product: it still has to survive price impact and the gates"
+  ]
+}

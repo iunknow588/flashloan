@@ -95,11 +95,32 @@ def archived_tasks() -> set:
     return names
 
 
+def declared_modules() -> set:
+    """The module numbers the registry declares in section 1.1.
+
+    The module table of D-001 section 1.1 is the authority for which
+    modules exist; the bound is derived from it so that a new module
+    (M-13 was added in 2026-11) does not need a change here.
+    """
+    text = read(REGISTRY)
+    start = text.index("### 1.1")
+    end = text.index("### 1.2", start)
+    modules = set()
+    for line in text[start:end].split(chr(10)):
+        if not line.startswith("| " + TICK + "M-"):
+            continue
+        name = line.strip().strip("|").split("|")[0].strip().strip(TICK)
+        if MODULE_RE.fullmatch(name):
+            modules.add(name)
+    return modules
+
+
 def main() -> None:
     rows = decomposition_rows()
     registry = registry_rows()
     on_disk = {d.name for d in TASKS.glob("T-*") if d.is_dir()}
     archived = archived_tasks()
+    known_modules = declared_modules()
 
     print("== decomposition table ==")
     print("rows in D-002 section 2.1 : %d" % len(rows))
@@ -135,10 +156,13 @@ def main() -> None:
             module
             for row in rows.values()
             for module in row["modules"]
-            if not 1 <= int(module.split("-")[1]) <= 12
+            if module not in known_modules
         }
     )
-    print("item 2 -- module numbers outside M-1..M-12: %s" % (unknown_modules or "none"))
+    print(
+        "item 2 -- module numbers outside the registry table (M-1..M-%d): %s"
+        % (max(int(m.split("-")[1]) for m in known_modules), unknown_modules or "none")
+    )
 
 
 if __name__ == "__main__":

@@ -1174,7 +1174,7 @@ fn submit_on_connection(
         guard_policy,
         &attempt_amounts_raw,
         admission_now.as_deref(),
-        review_manager::automatic_review_interval_seconds_on_connection(connection),
+        &loop_review_schedules(connection, network, chain_id)?,
         prepared_write.as_ref().map(|(request, _)| *request),
         prepared_write
             .as_ref()
@@ -1780,6 +1780,33 @@ fn validate_rpc_url(value: &str) -> Result<(), BroadcastError> {
     Ok(())
 }
 
+/// The review time point of every closed loop of the scope.
+///
+/// The moment is the loop's **own**: the closed-loop Manager publishes it
+/// beside the loop, and it already carries whatever the review interval
+/// is.  The admission therefore compares the current time with the moment
+/// of the loop it is about to trade -- no age is counted here and no
+/// interval is rebuilt.
+fn loop_review_schedules(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+) -> Result<BTreeMap<String, String>, BroadcastError> {
+    let queue = review_manager::load_review_queue_on_connection(connection, network, chain_id)
+        .map_err(|error| BroadcastError::ClosedLoopRead(error.to_string()))?;
+    let mut schedules = BTreeMap::new();
+    for slot in queue.iter() {
+        let key = slot.loop_key.trim().to_lowercase();
+        if key.is_empty() {
+            continue;
+        }
+        if let Some(due_at) = slot.due_at.as_deref() {
+            schedules.insert(key, due_at.trim().to_owned());
+        }
+    }
+    Ok(schedules)
+}
+
 fn build_attempt_rows(
     review: &ReviewStatus,
     requests: &[BroadcastRequestRow],
@@ -1789,7 +1816,7 @@ fn build_attempt_rows(
     guard_policy: Option<&BroadcastGuardPolicy>,
     attempt_amounts_raw: &BTreeMap<String, u128>,
     admission_now: Option<&str>,
-    review_freshness_window_seconds: i64,
+    loop_review_schedules: &BTreeMap<String, String>,
     submit_request: Option<&BroadcastSubmitRequest>,
     idempotency_key: &str,
 ) -> Result<Vec<AttemptRow>, BroadcastError> {
@@ -1839,7 +1866,13 @@ fn build_attempt_rows(
             policy: guard_policy.cloned().unwrap_or_default(),
             amount_raw: attempt_amounts_raw.get(&attempt.loop_key).copied(),
             now: admission_now.map(str::to_owned),
-            review_freshness_window_seconds: Some(review_freshness_window_seconds),
+            // The moment the closed loop of the request is scheduled at.
+            // It is the loop's **own** review time point, so the admission
+            // compares the current time with that moment and never counts
+            // an age of its own.
+            loop_scheduled_at: loop_review_schedules
+                .get(&attempt.loop_key.trim().to_lowercase())
+                .cloned(),
         };
         let candidate = AdmissionCandidate {
             loop_key: request.loop_key.clone(),
@@ -3099,6 +3132,14 @@ mod tests {
     /// `FIXTURE_NOW`, so it is inside the freshness window of the automatic
     /// review interval.
     const REVIEWED_AT: &str = "2026-11-04T00:59:00Z";
+    /// The moment the fixture's closed loop is scheduled at.
+    ///
+    /// The moment is **after** `FIXTURE_NOW`: the loop has not reached its
+    /// own review time point, so the review the store holds is the current
+    /// measurement of the loop.
+    const LOOP_SCHEDULED_AT: &str = "2026-11-04T01:30:00Z";
+    /// The moment the round of the fixture's closed loop started.
+    const LOOP_ROUND_STARTED_AT: &str = "2026-11-04T00:50:00Z";
 
     pub(crate) fn database() -> (tempfile::TempDir, std::path::PathBuf) {
         let directory = tempfile::tempdir().unwrap();
@@ -3203,8 +3244,54 @@ mod tests {
                 params![NETWORK, CHAIN_ID, LOOP_KEY, REVIEWED_AT],
             )
             .unwrap();
+        // The closed loop of the request publishes **its own** review time
+        // point, and the admission compares the current time with that
+        // moment.  The fixture therefore seeds the runtime state of the
+        // loop: the loop waits for its next round, so the review the store
+        // holds is still the current measurement of the loop.
+        seed_loop_schedule(&connection);
         drop(connection);
         path.to_path_buf()
+    }
+
+    /// The runtime state of the fixture's closed loop.
+    ///
+    /// The moment the loop is scheduled at is **after** `FIXTURE_NOW`: the
+    /// loop has not reached its review time point, so the review it
+    /// published is still the current measurement of the loop.
+    fn seed_loop_schedule(connection: &Connection) {
+        connection
+            .execute(
+                "INSERT INTO manager_v4_closed_loop_runtime_state (
+                    network, chain_id, protocol, scope_key, loop_key,
+                    runtime_status, status_reason, review_generation,
+                    review_required, last_rebuilt_at, updated_at,
+                    last_reviewed_at, next_review_at, review_cycle_started_at
+                 ) VALUES (?1, ?2, 'uniswap_v4', 'core4', ?3, 'cooldown',
+                           'fixture', 9, 0, 'fixture', 'fixture', ?4, ?5, ?6)",
+                params![
+                    NETWORK,
+                    CHAIN_ID,
+                    LOOP_KEY,
+                    REVIEWED_AT,
+                    LOOP_SCHEDULED_AT,
+                    LOOP_ROUND_STARTED_AT
+                ],
+            )
+            .unwrap();
+    }
+
+    /// Move the review time point of the fixture's closed loop.
+    fn set_loop_schedule(path: &std::path::Path, next_review_at: &str) {
+        let connection = Connection::open(path).unwrap();
+        connection
+            .execute(
+                "UPDATE manager_v4_closed_loop_runtime_state
+                    SET next_review_at = ?4
+                  WHERE network = ?1 AND chain_id = ?2 AND loop_key = ?3",
+                params![NETWORK, CHAIN_ID, LOOP_KEY, next_review_at],
+            )
+            .unwrap();
     }
 
     fn attempt(attempt_id: Option<&str>, nonce: i64) -> AttemptCreateInput {
@@ -3901,38 +3988,45 @@ mod tests {
     }
 
     /// N-6: a review older than the freshness window refuses the
-    /// broadcast. The window is the automatic review interval of the
-    /// closed loop, not the 600 s observation threshold.
+    /// broadcast. The loop that has reached its own review time point no
+    /// longer carries the review the store holds: the measurement belongs
+    /// to the round that is over, and the next round is due.
     #[test]
     fn n6_stale_review_refuses_the_broadcast() {
         let (_directory, path) = database();
-        // 61 seconds before `FIXTURE_NOW` — one second past the window.
         set_review_facts(
             &path,
             "completed",
             "{\"ok\":true,\"executable\":true}",
-            "2026-11-04T00:58:59Z",
+            REVIEWED_AT,
         );
+        // The loop was scheduled **before** the decision: it has reached
+        // its review time point, so its review is not the current
+        // measurement of the loop any more.
+        set_loop_schedule(&path, "2026-11-04T00:59:59Z");
         let error = submit_attempts(&path, vec![attempt(None, 42)], true)
-            .expect_err("a stale review must be refused");
+            .expect_err("a review of a loop that reached its review time point must be refused");
         assert_refused_with(&error, "BC-1.review_fresh");
         assert_no_attempt(&path);
     }
 
-    /// A review inside the window is admitted, and the 600 s observation
-    /// threshold is **not** used as the freshness window.
+    /// A review is admitted while the loop has not reached its own review
+    /// time point -- and the **age** of the review is not consulted: a
+    /// measurement of a day ago is still the current measurement of a loop
+    /// that waits for its next round.
     #[test]
-    fn a_review_just_inside_the_window_is_admitted() {
+    fn a_review_of_a_loop_that_waits_for_its_next_round_is_admitted() {
         let (_directory, path) = database();
-        // 59 seconds before `FIXTURE_NOW`.
+        // A measurement of the day before, taken by the round that started
+        // at `LOOP_ROUND_STARTED_AT`.
         set_review_facts(
             &path,
             "completed",
             "{\"ok\":true,\"executable\":true}",
-            "2026-11-04T00:59:01Z",
+            "2026-11-03T01:00:00Z",
         );
         submit_attempts(&path, vec![attempt(None, 42)], true)
-            .expect("a fresh review must be admitted");
+            .expect("the current measurement of a waiting loop must be admitted");
     }
 
     /// A missing run verdict is **not** a pass.

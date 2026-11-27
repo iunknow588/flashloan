@@ -80,8 +80,16 @@ pub struct PoolBaseline {
     pub candidate_scope_out_of_policy_pool_count: i64,
     pub core_scope_configured_libraries: Vec<String>,
     pub core_scope_policy_matches: bool,
+    /// The libraries the scope **has to carry** to be complete.
+    ///
+    /// The list is the declared library set of the scope, so a caller
+    /// that wants to repair a scope knows the libraries it must not
+    /// lose.  A scope that carries **more** is complete as well: the
+    /// operator may widen a scope, and the audit says so.
+    pub core_scope_expected_libraries: Vec<String>,
     pub candidate_scope_configured_libraries: Vec<String>,
     pub candidate_scope_policy_matches: bool,
+    pub candidate_scope_expected_libraries: Vec<String>,
     pub recommendation_count: i64,
     pub top1_recommendation_count: i64,
     pub recommendation_invalid_pool_reference_count: i64,
@@ -470,15 +478,27 @@ fn read_pool_baseline(
     )?;
     let core_scope_configured_libraries =
         read_scope_libraries(connection, network, chain_id, CANDIDATE_SCOPE)?;
-    // The policy of a scope is the **default load mode** of the scope
+    // The policy of a scope is the **declared library set** of the scope
     // manager, so the audit and the manager can never disagree about
     // what a production scope is supposed to carry.
-    let core_scope_policy_matches =
-        core_scope_configured_libraries == expected_scope_libraries(CANDIDATE_SCOPE);
+    //
+    // A scope that carries **more** libraries than the declaration is not
+    // stale: the operator may widen a scope, and the wider scope is the
+    // one that holds all the pools.  Only a scope that is **missing** a
+    // declared library is stale, because that is a scope that lost
+    // pools.
+    let core_scope_expected_libraries = expected_scope_libraries(CANDIDATE_SCOPE);
+    let core_scope_policy_matches = scope_carries_declared_libraries(
+        &core_scope_configured_libraries,
+        &core_scope_expected_libraries,
+    );
     let candidate_scope_configured_libraries =
         read_scope_libraries(connection, network, chain_id, OBSERVATION_SCOPE)?;
-    let candidate_scope_policy_matches =
-        candidate_scope_configured_libraries == expected_scope_libraries(OBSERVATION_SCOPE);
+    let candidate_scope_expected_libraries = expected_scope_libraries(OBSERVATION_SCOPE);
+    let candidate_scope_policy_matches = scope_carries_declared_libraries(
+        &candidate_scope_configured_libraries,
+        &candidate_scope_expected_libraries,
+    );
     let mut statement = connection.prepare(
         "SELECT lower(token0), lower(token1) FROM v4_exchange_pools_candidate_exchange
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3",
@@ -612,8 +632,10 @@ fn read_pool_baseline(
         candidate_scope_out_of_policy_pool_count,
         core_scope_configured_libraries,
         core_scope_policy_matches,
+        core_scope_expected_libraries,
         candidate_scope_configured_libraries,
         candidate_scope_policy_matches,
+        candidate_scope_expected_libraries,
         recommendation_count,
         top1_recommendation_count,
         recommendation_invalid_pool_reference_count,
@@ -648,13 +670,29 @@ fn read_scope_libraries(
 }
 
 fn expected_scope_libraries(scope_key: &str) -> Vec<String> {
-    // The libraries a scope carries when it follows the default load
-    // mode of the scope manager.
+    // The libraries a scope **declares**: the load mode the scope manager
+    // starts from when the scope has never been configured.  The
+    // declaration is the floor of the scope, not its ceiling.
     TokenLoadMode::default_for_scope(scope_key)
         .library_keys()
         .iter()
         .map(|key| (*key).to_owned())
         .collect()
+}
+
+/// Whether a scope carries every library it declares.
+///
+/// The answer is "yes" for a scope that carries **more** than the
+/// declaration: the extra libraries are the operator's decision and they
+/// only add pools.  The answer is "no" for a scope that is missing one
+/// of them, because that scope has lost the pools of that library.
+fn scope_carries_declared_libraries(
+    configured: &[String],
+    declared: &[String],
+) -> bool {
+    declared
+        .iter()
+        .all(|library| configured.iter().any(|key| key == library))
 }
 
 fn read_closed_loop_baseline(
@@ -828,7 +866,7 @@ fn table_exists(connection: &Connection, table: &str) -> Result<bool, rusqlite::
 mod tests {
     use super::{
         anchored_extension_tokens, audit_mainnet_baseline, BaselineAuditError,
-        ExtensionTokenBaseline,
+        scope_carries_declared_libraries, ExtensionTokenBaseline,
     };
     use std::collections::BTreeMap;
 
@@ -978,5 +1016,44 @@ mod tests {
             baseline.missing_migrations.len(),
             manager_db::MIGRATION_IDS.len() - 1
         );
+    }
+
+    #[test]
+    fn a_scope_that_carries_more_than_it_declares_is_not_stale() {
+        // The audit judges a scope by the libraries it **declares**, not
+        // by an exact list.  A scope that was widened on purpose (the
+        // operator loaded the test library as well) holds every pool of
+        // the declared libraries plus more, so it is complete and must
+        // not be reported as stale.  Reporting it as stale is what made
+        // the healer narrow the scope and drop the stock pools from it.
+        let declared = vec!["core".to_owned(), "stocks".to_owned()];
+
+        assert!(scope_carries_declared_libraries(
+            &["core".to_owned(), "stocks".to_owned()],
+            &declared,
+        ));
+        assert!(scope_carries_declared_libraries(
+            &[
+                "core".to_owned(),
+                "stocks".to_owned(),
+                "test".to_owned(),
+            ],
+            &declared,
+        ));
+    }
+
+    #[test]
+    fn a_scope_that_is_missing_a_declared_library_is_stale() {
+        // The other half of the contract: a scope that no longer carries
+        // a declared library has lost the pools of that library, and the
+        // audit has to say so.  This is the case the healer repairs by
+        // **widening** the scope back to the declared libraries.
+        let declared = vec!["core".to_owned(), "stocks".to_owned()];
+
+        assert!(!scope_carries_declared_libraries(
+            &["core".to_owned()],
+            &declared,
+        ));
+        assert!(!scope_carries_declared_libraries(&[], &declared));
     }
 }

@@ -30,12 +30,14 @@ def _find_doc_dir() -> Path:
 
 DOC_DIR = _find_doc_dir()
 
-# (relative path, expect_bom, expect_crlf) -- captured before the edits and
-# re-checked afterwards so the round cannot silently change an encoding.
+# (relative path, expect_bom, expect_lf) -- the design says every text file
+# is written as **UTF-8 without BOM** and **LF** line endings, so the
+# baseline records that form.  It is re-checked after the edits so a round
+# cannot silently change an encoding.
 ENCODING_BASELINE: dict[str, tuple[bool, bool]] = {
     "D-005-现状与可行性分析.md": (False, True),
     "D-006-目标架构与表结构.md": (False, True),
-    "D-007-迁移实施与验收.md": (True, True),
+    "D-007-迁移实施与验收.md": (False, True),
     "D-008-内存对象与闭环引用链.md": (False, True),
     "D-009-记录存储剥离技术方案.md": (False, True),
     "D-010-记录存储剥离开发计划.md": (False, True),
@@ -80,7 +82,7 @@ def decode(path: Path) -> tuple[str, bool, bool, int]:
     text = raw.decode("utf-8-sig")
     crlf = text.count("\r\n")
     lf_only = text.count("\n") - crlf
-    return text, has_bom, crlf > 0 and lf_only == 0, text.count("\ufffd")
+    return text, has_bom, crlf == 0 and (lf_only > 0 or not text), text.count("\ufffd")
 
 
 def check_links(path: Path, text: str) -> list[str]:
@@ -145,16 +147,16 @@ def main() -> int:
     checked_links = 0
     for path in files:
         rel = path.relative_to(DOC_DIR).as_posix()
-        text, has_bom, all_crlf, bad_chars = decode(path)
+        text, has_bom, all_lf, bad_chars = decode(path)
         if bad_chars:
             failures.append(f"{rel}: {bad_chars} U+FFFD replacement characters")
         expected = ENCODING_BASELINE.get(rel)
         if expected is not None:
-            want_bom, want_crlf = expected
+            want_bom, want_lf = expected
             if has_bom != want_bom:
                 failures.append(f"{rel}: BOM={has_bom}, expected {want_bom}")
-            if all_crlf != want_crlf:
-                failures.append(f"{rel}: all_crlf={all_crlf}, expected {want_crlf}")
+            if all_lf != want_lf:
+                failures.append(f"{rel}: all_lf={all_lf}, expected {want_lf}")
         for problem in check_links(path, text):
             failures.append(f"{rel}: {problem}")
         for problem in check_duplicates(path, text):

@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::time::Duration;
 
 use rusqlite::{Connection, OpenFlags};
 use serde_json::{json, Value};
@@ -8,14 +9,23 @@ const BUSINESS_DDL_SQL: &str = include_str!("../schema/business_schema.sql");
 const BUSINESS_INDEXES_SQL: &str = include_str!("../schema/business_indexes.sql");
 
 pub(crate) fn open_rw(database_path: &str) -> Result<Connection, String> {
-    Connection::open_with_flags(
+    let connection = Connection::open_with_flags(
         database_path,
         OpenFlags::SQLITE_OPEN_READ_WRITE
             | OpenFlags::SQLITE_OPEN_CREATE
             | OpenFlags::SQLITE_OPEN_NO_MUTEX
             | OpenFlags::SQLITE_OPEN_URI,
     )
-    .map_err(|error| format!("could not open SQLite for schema {database_path}: {error}"))
+    .map_err(|error| format!("could not open SQLite for schema {database_path}: {error}"))?;
+    // A writer that does not wait for the lock loses the race against the
+    // other writers of the store, and the migration then reports the loss as
+    // a schema failure.  The store is a multi-gigabyte WAL database whose
+    // checkpoint can hold the write lock for a while, so the writer waits
+    // for its turn instead of failing on the first attempt.
+    connection
+        .busy_timeout(Duration::from_secs(60))
+        .map_err(|error| format!("could not arm the busy timeout for {database_path}: {error}"))?;
+    Ok(connection)
 }
 
 fn execute_batch(connection: &Connection, sql: &str) -> Result<(), String> {

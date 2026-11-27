@@ -1,4 +1,4 @@
-﻿use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -2680,7 +2680,7 @@ fn stale_review_sweep_block(
             "reason": "chain_id_unavailable",
         });
     };
-    match review_manager::mark_stale_reviews(&database_path, &network, chain_id, None, true) {
+    match review_manager::mark_stale_reviews(&database_path, &network, chain_id, true) {
         Ok(outcome) => {
             if outcome.marked_count > 0 {
                 eprintln!(
@@ -2697,7 +2697,7 @@ fn stale_review_sweep_block(
                 "markedCount": outcome.marked_count,
                 "scannedCount": outcome.scanned_count,
                 "withdrawnRequestCount": outcome.withdrawn_request_count,
-                "staleAfterSeconds": outcome.stale_after_seconds,
+                "momentBasis": outcome.moment_basis,
                 "observedAt": outcome.observed_at,
             })
         }
@@ -4948,21 +4948,45 @@ fn route_reaches_the_execution_queue(payload: &Value) -> bool {
         || review_authorized_broadcast(payload)
 }
 
-/// The maximum age a published broadcast request may have and still be
-/// broadcast.
-///
-/// The window is the one the Review Manager itself used when it decided
-/// that the request may be generated at all: a request that is older than
-/// that names an opportunity the market does not hold any more.  The
-/// runtime reads the same number, so the reviewer and the runtime agree
-/// on what "now" means.
-const MAX_BROADCAST_REQUEST_AGE_SECONDS: i64 = 120;
-
 /// The clock skew the runtime tolerates on a published request.
+///
+/// The stamp of a review and the clock of the runtime may disagree by a
+/// little.  A stamp that is far in the future means the two clocks do not
+/// agree at all, and such a stamp is refused rather than trusted.
 const MAX_BROADCAST_REQUEST_FUTURE_SKEW_SECONDS: i64 = 30;
 
 /// The maximum number of broadcast requests one chain may hold.
 const MAX_BROADCAST_REQUESTS: usize = 1_000;
+
+/// The review time point of a closed loop.
+///
+/// The moment is the loop's **own**: the helper that schedules a loop
+/// wrote it, and it already carries whatever the review interval is.  The
+/// runtime therefore compares the current time with the moment of the loop
+/// it is about to trade and rebuilds no interval of its own.
+///
+/// An age would be the wrong question here.  The age of a review counts
+/// the time the review itself took -- from the moment the route was
+/// measured until the moment the measurement was written back -- and that
+/// time is not time the market moved.  A round that takes two minutes
+/// would age a perfectly good measurement past every window, and the
+/// profit it found would never be traded.
+fn loop_review_moment(
+    database_path: &str,
+    network: &str,
+    chain_id: i64,
+    loop_key: &str,
+) -> Option<String> {
+    let queue = closed_loop_manager::read_review_queue(database_path, network, chain_id).ok()?;
+    let wanted = loop_key.trim().to_lowercase();
+    let moment = queue
+        .iter()
+        .find(|slot| slot.loop_key.trim().to_lowercase() == wanted)
+        .and_then(|slot| slot.due_at.clone())
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty());
+    moment
+}
 
 /// Wake the broadcast worker with the proof the review published.
 ///
@@ -4979,10 +5003,14 @@ const MAX_BROADCAST_REQUESTS: usize = 1_000;
 /// list on every route and refused every broadcast — no matter how
 /// profitable the review had measured it to be.
 ///
-/// The request must also be **fresh**.  The request table is a snapshot
-/// that carries the previous generation's requests forward, and a carried
-/// request names an opportunity the market does not hold any more: it may
-/// not be broadcast a second time.
+/// The request must also be the **current** measurement of its closed
+/// loop.  The request table is a snapshot that carries the previous
+/// generation's requests forward, and a carried request names an
+/// opportunity the market does not hold any more: it may not be
+/// broadcast a second time.  Whether a request is still current is not
+/// a question about the age of the review -- it is a question about the
+/// closed loop the request belongs to, and the loop answers it with its
+/// own review time point.
 fn wake_broadcast_with_review_proof(
     inner: &PoolInner,
     command: &SubmitCommand,
@@ -5084,16 +5112,8 @@ fn wake_broadcast_with_review_proof(
             "reason": "the published request carries no review time",
         });
     };
-    let age = (chrono::Utc::now() - reviewed_at).num_seconds();
-    if age > MAX_BROADCAST_REQUEST_AGE_SECONDS {
-        return json!({
-            "enqueued": false,
-            "reason": format!(
-                "the published request is {age}s old, past the \
-                 {MAX_BROADCAST_REQUEST_AGE_SECONDS}s window"
-            ),
-        });
-    }
+    let now = chrono::Utc::now();
+    let age = (now - reviewed_at).num_seconds();
     if age < -MAX_BROADCAST_REQUEST_FUTURE_SKEW_SECONDS {
         return json!({
             "enqueued": false,
@@ -5101,6 +5121,47 @@ fn wake_broadcast_with_review_proof(
                 "the published request is {}s in the future, past the \
                  {MAX_BROADCAST_REQUEST_FUTURE_SKEW_SECONDS}s skew allowance",
                 -age
+            ),
+        });
+    }
+    // The request has to be the current measurement of its closed loop.
+    // The loop answers that with its **own** review time point, so the
+    // question is a comparison of two moments: the current time and the
+    // moment the loop is scheduled at.
+    //
+    // A loop that is scheduled in the future is still waiting for its
+    // own review, so the request is the measurement of the round that is
+    // running or that has just ended.  A loop whose scheduled moment has
+    // passed has moved on: its round ended, the next one is due, and a
+    // request carried forward from the finished round names an
+    // opportunity the market does not hold any more.
+    //
+    // A loop that publishes no review time point at all cannot be shown
+    // to be current either, and a broadcast that cannot be proven is not
+    // sent.
+    let Some(scheduled_at) =
+        loop_review_moment(&database_path, &network, chain_id, &loop_key)
+    else {
+        return json!({
+            "enqueued": false,
+            "reason": "the closed loop publishes no review time point",
+        });
+    };
+    let Some(scheduled) = chrono::DateTime::parse_from_rfc3339(&scheduled_at)
+        .ok()
+        .map(|value| value.with_timezone(&chrono::Utc))
+    else {
+        return json!({
+            "enqueued": false,
+            "reason": "the closed loop publishes a review time point that cannot be read",
+        });
+    };
+    if now >= scheduled {
+        return json!({
+            "enqueued": false,
+            "reason": format!(
+                "the closed loop was scheduled at {scheduled_at}, so this request is no \
+                 longer the current measurement of the loop"
             ),
         });
     }
@@ -5216,7 +5277,7 @@ fn release_broadcast_pending_loop(
     let Some(chain_id) = command.chain_id.filter(|value| *value > 0) else {
         return json!({"released": false, "reason": "chain_id_unavailable"});
     };
-    let reason = if recorded {
+    if recorded {
         // The attempt was filed, so the broadcast layer releases the loop
         // when the attempt is terminal.  A **failed** attempt is terminal
         // already, so it releases the loop by itself.
@@ -5224,9 +5285,35 @@ fn release_broadcast_pending_loop(
             "released": false,
             "reason": "the attempt was filed; the broadcast layer releases the loop",
         });
-    } else {
-        "the broadcast never became an attempt"
-    };
+    }
+    // The release exists to unpark a loop that waits for the receipt of
+    // its trade.  A loop that is **not** parked has already been scheduled
+    // by the round that measured it, and the reason that round wrote is the
+    // truth about it -- "no profit" for a round that found none.  Writing
+    // the broadcast reason over it would claim that a broadcast was expected
+    // and lost, which is not what happened: a round that found no profit
+    // never asked for a broadcast at all.
+    match closed_loop_manager::read_runtime_status(
+        &database_path,
+        &network,
+        chain_id,
+        &loop_key,
+    ) {
+        Ok(Some(status)) if status == closed_loop_manager::RUNTIME_STATUS_BROADCAST_PENDING => {}
+        Ok(Some(status)) => {
+            return json!({
+                "released": false,
+                "reason": format!("the loop is not parked at the broadcast sentinel: {status}"),
+            });
+        }
+        Ok(None) => {
+            return json!({"released": false, "reason": "the store knows no such closed loop"});
+        }
+        Err(error) => {
+            return json!({"released": false, "error": error.to_string()});
+        }
+    }
+    let reason = "the broadcast never became an attempt";
     match closed_loop_manager::reset_review_start(
         &database_path,
         &network,
@@ -7705,10 +7792,51 @@ mod tests {
 
     /// A store that holds one published broadcast request together with the
     /// review it was published from.
+    ///
+    /// The closed loop of the request carries its own review time point,
+    /// because that moment is what says whether the request is still the
+    /// current measurement of the loop.
     fn store_with_published_request(directory: &std::path::Path, reviewed_at: &str) -> String {
+        store_with_published_request_at(
+            directory,
+            reviewed_at,
+            closed_loop_manager::BROADCAST_PENDING_SENTINEL_AT,
+        )
+    }
+
+    /// A store that holds one published broadcast request, a review it was
+    /// published from and the review time point of its closed loop.
+    fn store_with_published_request_at(
+        directory: &std::path::Path,
+        reviewed_at: &str,
+        scheduled_at: &str,
+    ) -> String {
         let path = directory.join("local_store.sqlite3");
         manager_db::migrate(&path).expect("the manager store migrates");
         let connection = rusqlite::Connection::open(&path).expect("the store opens");
+        // The loop of the request: a profitable loop waits for the receipt
+        // of its transaction, so it is parked at the broadcast sentinel and
+        // has no scheduled review of its own until the receipt arrives.
+        connection
+            .execute(
+                "INSERT INTO manager_v4_closed_loop_runtime_state (
+                    network, chain_id, protocol, scope_key, loop_key,
+                    runtime_status, status_reason, review_generation,
+                    review_required, last_rebuilt_at, updated_at,
+                    last_reviewed_at, next_review_at, review_cycle_started_at
+                 ) VALUES (?1, ?2, 'uniswap_v4', 'core4', ?3,
+                           'broadcast_pending',
+                           'the loop traded and waits for the receipt of its transaction',
+                           7, 0, 'fixture', 'fixture', ?4, ?5, NULL)",
+                rusqlite::params![
+                    BROADCAST_NETWORK,
+                    BROADCAST_CHAIN_ID,
+                    BROADCAST_LOOP_KEY,
+                    reviewed_at,
+                    scheduled_at,
+                ],
+            )
+            .expect("the closed loop runtime state is seeded");
         connection
             .execute(
                 "INSERT INTO manager_review_library_state (
@@ -8166,13 +8294,18 @@ mod tests {
         );
     }
 
+    /// A request whose closed loop has moved on names an opportunity the
+    /// market does not hold any more: the round it was measured in ended,
+    /// the loop is waiting for the next one, and the request may not be
+    /// broadcast a second time.
     #[test]
-    fn a_stale_published_request_is_not_broadcast_again() {
+    fn a_request_of_a_loop_that_moved_on_is_not_broadcast_again() {
         let directory = tempfile::tempdir().expect("the fixture directory is created");
-        // The request was published long ago: it names an opportunity the
-        // market does not hold any more.
-        let reviewed_at = (chrono::Utc::now() - chrono::Duration::seconds(600)).to_rfc3339();
-        let database_path = store_with_published_request(directory.path(), &reviewed_at);
+        let reviewed_at = chrono::Utc::now().to_rfc3339();
+        // The loop was scheduled a minute ago, so its own round is over.
+        let scheduled_at = (chrono::Utc::now() - chrono::Duration::seconds(60)).to_rfc3339();
+        let database_path =
+            store_with_published_request_at(directory.path(), &reviewed_at, &scheduled_at);
         let inner = broadcast_test_pool(&database_path);
         let command = broadcast_test_command(&database_path);
         let mut payload = broadcast_test_payload();
@@ -8182,7 +8315,64 @@ mod tests {
             wake["reason"]
                 .as_str()
                 .unwrap_or_default()
-                .contains("past the"),
+                .contains("no longer the current measurement"),
+            "{wake}"
+        );
+    }
+
+    /// A review that took a long time is still the current measurement of
+    /// its loop.
+    ///
+    /// The age of a review counts the time the review itself took, and
+    /// that time is not time the market moved.  A round that takes two
+    /// minutes must not age its own profit out of the broadcast, and the
+    /// loop's own review time point is what answers the question.
+    #[test]
+    fn a_long_review_of_a_loop_that_still_owns_it_is_broadcast() {
+        let directory = tempfile::tempdir().expect("the fixture directory is created");
+        // The route was measured ten minutes ago and the request was
+        // published just now: the round was slow.
+        let reviewed_at = (chrono::Utc::now() - chrono::Duration::seconds(600)).to_rfc3339();
+        let database_path = store_with_published_request(directory.path(), &reviewed_at);
+        let inner = broadcast_test_pool(&database_path);
+        let command = broadcast_test_command(&database_path);
+        let mut payload = broadcast_test_payload();
+        let wake = wake_broadcast_with_review_proof(&inner, &command, &mut payload);
+        // The proof of the review travelled with the payload, so the gate
+        // that judges the currency of the request let it through.
+        assert_eq!(payload["closedLoopKey"], json!(BROADCAST_LOOP_KEY), "{wake}");
+    }
+
+    /// A request whose loop publishes no review time point at all cannot
+    /// be shown to be the current measurement of that loop, and a
+    /// broadcast that cannot be proven is not sent.
+    #[test]
+    fn a_request_of_a_loop_without_a_review_time_point_is_not_broadcast() {
+        let directory = tempfile::tempdir().expect("the fixture directory is created");
+        let reviewed_at = chrono::Utc::now().to_rfc3339();
+        let database_path = store_with_published_request(directory.path(), &reviewed_at);
+        // The loop leaves the runtime state: it is no longer a loop the
+        // runtime trades, so it publishes no review time point.
+        let connection = rusqlite::Connection::open(&database_path).expect("the store opens");
+        connection
+            .execute(
+                "UPDATE manager_v4_closed_loop_runtime_state
+                    SET next_review_at = NULL
+                  WHERE loop_key = ?1",
+                rusqlite::params![BROADCAST_LOOP_KEY],
+            )
+            .expect("the loop loses its review time point");
+        drop(connection);
+        let inner = broadcast_test_pool(&database_path);
+        let command = broadcast_test_command(&database_path);
+        let mut payload = broadcast_test_payload();
+        let wake = wake_broadcast_with_review_proof(&inner, &command, &mut payload);
+        assert_eq!(wake["enqueued"], json!(false), "{wake}");
+        assert!(
+            wake["reason"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("no review time point"),
             "{wake}"
         );
     }
@@ -8239,6 +8429,59 @@ mod tests {
         );
     }
 
+    /// A round that found no profit never asked for a broadcast, so the
+    /// runtime must not write the broadcast reason over the reason that
+    /// round left behind.
+    ///
+    /// The release exists to unpark a loop that waits for the receipt of its
+    /// trade.  A loop that waits for its next round is not parked, and the
+    /// reason of that round -- "no profit" -- is the truth about it.
+    #[test]
+    fn a_loop_that_is_not_parked_at_the_broadcast_sentinel_keeps_its_reason() {
+        let directory = tempfile::tempdir().expect("the fixture directory is created");
+        let reviewed_at = chrono::Utc::now().to_rfc3339();
+        let database_path = store_with_published_request(directory.path(), &reviewed_at);
+        // The round found no profit: the loop waits for its next round and
+        // carries the reason of that measurement.
+        let connection = rusqlite::Connection::open(&database_path).expect("the store opens");
+        connection
+            .execute(
+                "UPDATE manager_v4_closed_loop_runtime_state
+                    SET runtime_status = 'cooldown', status_reason = 'the round found no profit'
+                  WHERE loop_key = ?1",
+                rusqlite::params![BROADCAST_LOOP_KEY],
+            )
+            .expect("the loop leaves the broadcast sentinel");
+        drop(connection);
+        let inner = broadcast_test_pool(&database_path);
+        let command = broadcast_test_command(&database_path);
+        let payload = broadcast_test_payload();
+        // Nothing went out and no attempt was filed: the release is the one
+        // path that could still write over the reason of the round.
+        let wake = json!({});
+        let release = release_broadcast_pending_loop(&inner, &command, &payload, &wake);
+        assert_eq!(release["released"], json!(false), "{release}");
+        assert!(
+            release["reason"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("not parked at the broadcast sentinel"),
+            "{release}"
+        );
+        // The reason of the round is still the reason of the loop.
+        let connection = rusqlite::Connection::open(&database_path).expect("the store opens");
+        let (status, reason): (String, String) = connection
+            .query_row(
+                "SELECT runtime_status, status_reason
+                   FROM manager_v4_closed_loop_runtime_state
+                  WHERE loop_key = ?1",
+                rusqlite::params![BROADCAST_LOOP_KEY],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("the loop is still in the store");
+        assert_eq!(status, "cooldown");
+        assert_eq!(reason, "the round found no profit");
+    }
     /// The payload of a route the **review** approved and priced.
     ///
     /// The review wrote the admission facts and the profit, and the

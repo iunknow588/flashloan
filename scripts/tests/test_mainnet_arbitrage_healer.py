@@ -290,7 +290,14 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
             "routeAddresses": ["0x0", "0x1", "0x2", "0x0"],
         }
         missing = {"ok": False, "status": 503, "body": "closed_loop_group_worker_not_running:eth|weth|spcx"}
-        with mock.patch.object(HEALER, "api_post", return_value=missing) as api_post:
+        # The unit test must not depend on a live server: the runtime at
+        # 127.0.0.1:5000 answers slowly while it measures a review round,
+        # and the test would hang on it.  The group key is resolved from
+        # the registered workers, and the empty list is the branch the
+        # test means: no worker is registered for the key.
+        with mock.patch.object(HEALER, "api_post", return_value=missing) as api_post, \
+                mock.patch.object(HEALER, "registered_closed_loop_group_keys",
+                                  return_value=[]):
             result = HEALER.request_live_review(
                 Path("unused.sqlite3"), "http://127.0.0.1:5000", candidate, False
             )
@@ -305,7 +312,9 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
         }
         missing = {"ok": False, "status": 503, "body": "closed_loop_group_worker_not_running:eth|weth|spcx"}
         refreshed = {"ok": True, "status": 200, "body": '{"accepted":true}'}
-        with mock.patch.object(HEALER, "api_post", side_effect=[missing, refreshed]) as api_post:
+        with mock.patch.object(HEALER, "api_post", side_effect=[missing, refreshed]) as api_post, \
+                mock.patch.object(HEALER, "registered_closed_loop_group_keys",
+                                  return_value=[]):
             result = HEALER.request_live_review(
                 Path("unused.sqlite3"), "http://127.0.0.1:5000", candidate, True
             )
@@ -380,28 +389,50 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
         request.assert_called_once()
 
     def test_production_status_distinguishes_market_idle_from_review_stall(self):
+        # The verdict no longer counts an **age**: it reads the judgement
+        # the review layer publishes, and that judgement is made with the
+        # moments of the closed loops -- the moment a loop is scheduled
+        # at and the moment its round started.  A loop whose round started
+        # after the measurement the store holds is not carrying its
+        # current measurement, and no interval is involved anywhere.
         layers = {
             "tokens": {"valid": True},
             "pools": {"valid": True},
             "closedLoops": {"valid": True},
-            "reviews": {"legacy": {"latestReviewAt": "2026-11-10T11:59:30Z", "stats": {"positive": 0}}},
+            "reviews": {"legacy": {"latestReviewAt": "2026-11-10T11:59:30Z",
+                                     "stats": {"positive": 0},
+                                     "currentLoopFreshness": {
+                                         "basis": "loop_review_time_point",
+                                         "checkedLoops": 2, "currentLoops": 2,
+                                         "notCurrentLoops": [], "current": True}}},
             "broadcast": {"legacy": {"total": 0, "latestAttemptAt": None}},
         }
         status = HEALER.transaction_production_status(layers, "2026-11-10T12:00:00Z")
         self.assertEqual(status["state"], "market_no_executable_profit")
         self.assertTrue(status["healthy"])
 
-        layers["reviews"]["legacy"]["latestReviewAt"] = "2026-11-10T11:00:00Z"
+        layers["reviews"]["legacy"]["currentLoopFreshness"] = {
+            "basis": "loop_review_time_point", "checkedLoops": 2,
+            "currentLoops": 1, "current": False,
+            "notCurrentLoops": [{"loopKey": "loop-1",
+                                  "reason": "round_not_measured"}]}
         status = HEALER.transaction_production_status(layers, "2026-11-10T12:00:00Z")
         self.assertEqual(status["state"], "review_stalled")
         self.assertFalse(status["healthy"])
+        self.assertEqual(status["reviewFreshnessBasis"], "loop_review_time_point")
+        self.assertEqual(status["reviewNotCurrentLoops"][0]["loopKey"], "loop-1")
 
     def test_production_status_flags_positive_review_without_transaction_record(self):
         layers = {
             "tokens": {"valid": True},
             "pools": {"valid": True},
             "closedLoops": {"valid": True},
-            "reviews": {"legacy": {"latestReviewAt": "2026-11-10T11:59:30Z", "stats": {"positive": 1}}},
+            "reviews": {"legacy": {"latestReviewAt": "2026-11-10T11:59:30Z",
+                                     "stats": {"positive": 1},
+                                     "currentLoopFreshness": {
+                                         "basis": "loop_review_time_point",
+                                         "checkedLoops": 1, "currentLoops": 1,
+                                         "notCurrentLoops": [], "current": True}}},
             "broadcast": {"legacy": {"total": 0, "latestAttemptAt": None}},
         }
         status = HEALER.transaction_production_status(layers, "2026-11-10T12:00:00Z")
@@ -563,6 +594,37 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
         return database
 
     # ------------------------------------------------------------------
+    # A store that does not carry the candidate pools is a gap of the
+    # store, not a failure of the reader. The healer used to raise, and
+    # the raise ended the whole healing cycle: one absent table cost a
+    # whole round of repairs.
+    # ------------------------------------------------------------------
+    def test_a_store_without_the_candidate_pools_is_reported_not_raised(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "pools.sqlite3"
+            connection = sqlite3.connect(database)
+            try:
+                connection.execute(
+                    "CREATE TABLE v4_exchange_pool_liquidity_snapshots (network TEXT, "
+                    "chain_id INTEGER, protocol TEXT, pool_id TEXT, has_liquidity INTEGER, "
+                    "liquidity_index INTEGER, depth_status TEXT, estimated_tvl_usd REAL, "
+                    "capacity_binding_raw TEXT)"
+                )
+                connection.commit()
+            finally:
+                connection.close()
+
+            depth = HEALER.pool_depth_audit(database)
+            self.assertFalse(depth["valid"], depth)
+            self.assertEqual(depth["code"], "candidate_pool_table_missing", depth)
+            self.assertEqual(depth["repairPath"], "materialize_candidate_pools", depth)
+
+            # The cascade reads the same table, and it reads it as an empty
+            # pool set: the chain has no pool to build a closed loop from.
+            matrix = HEALER.cascade_matrix(database, None)
+            self.assertEqual(matrix["candidatePools"]["total"], 0, matrix)
+
+    # ------------------------------------------------------------------
     # The deployed pool-manager binary must support every command the
     # healer drives. A binary that predates a command rejects it with
     # "unknown command"; the healer used to carry on as if the step had
@@ -648,6 +710,125 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
             self.assertEqual(report["status"], "no_depth_qualified_pool_exists")
             self.assertEqual(report["depthQualifiedPairCount"], 0)
             self.assertEqual(report["code"], "pool_depth_insufficient")
+
+    def test_a_complete_measurement_is_not_replaced_by_a_summary(self):
+        """The runtime's measurement is the complete one.
+
+        The runtime publishes every review with the amount ladder, the
+        ceiling the ladder searched inside and the route it priced.  The
+        orchestrator's manual review only carries a summary of the same
+        measurement, because the record table holds no ladder.  A
+        submission that prefers the summary replaces a complete measurement
+        with a summary of it, and the review library loses the ceiling that
+        says the amount was inside the bound the review enforces.
+        """
+        loop_key = '0x0000000000000000000000000000000000000000:0x11:0x22'
+        complete = {
+            'loopKey': loop_key,
+            'staticPreview': {
+                'source': 'native_rust_review',
+                'searchCeilingRaw': '0x1',
+                'searchCeilingBasis': 'single_tick_capacity',
+                'bestAmountCalculation': {'bestAmountMeasured': True, 'probeCount': 6},
+            },
+            'runArbitrage': {'ok': False, 'executable': True,
+                             'signedPnl': {'raw': '-1 USDG', 'amount': -1.0,
+                                           'currency': 'USDG', 'unit': 'token',
+                                           'source': 'runArbitrage'}},
+        }
+        summary = {
+            'loopKey': loop_key,
+            'staticPreview': {
+                'bestAmountCalculation': {'bestAmountMeasured': True, 'probeCount': 6},
+            },
+            'runArbitrage': {'ok': False, 'executable': True,
+                             'signedPnl': {'raw': '-2 USDG', 'amount': -2.0,
+                                           'currency': 'USDG', 'unit': 'token',
+                                           'source': 'runArbitrage'}},
+        }
+        with mock.patch.object(HEALER, 'stored_review_evidence', return_value=[complete]):
+            with mock.patch.object(HEALER, 'manager_loop_rows', return_value=[]):
+                merged, retired, kept = HEALER.merge_with_stored_evidence(
+                    Path('unused.sqlite3'), None, [summary])
+        self.assertEqual(len(merged), 1, merged)
+        self.assertEqual(retired, 0)
+        self.assertEqual(kept, [loop_key])
+        # The stored measurement is the one that is carried: the summary
+        # of it is not submitted.
+        self.assertEqual(merged[0]['staticPreview']['searchCeilingRaw'], '0x1')
+
+    def test_a_fresh_measurement_replaces_a_stored_summary(self):
+        """A gap is still filled.
+
+        The stored row cannot show the ceiling, so the fresh measurement
+        that can is the one that is carried.
+        """
+        loop_key = '0x0000000000000000000000000000000000000000:0x11:0x22'
+        stored = {
+            'loopKey': loop_key,
+            'staticPreview': {
+                'bestAmountCalculation': {'bestAmountMeasured': True, 'probeCount': 6},
+            },
+            'runArbitrage': {'ok': False, 'executable': True,
+                             'signedPnl': {'raw': '-1 USDG', 'amount': -1.0,
+                                           'currency': 'USDG', 'unit': 'token',
+                                           'source': 'runArbitrage'}},
+        }
+        fresh = {
+            'loopKey': loop_key,
+            'staticPreview': {
+                'source': 'native_rust_review',
+                'searchCeilingRaw': '0x1',
+                'searchCeilingBasis': 'single_tick_capacity',
+                'bestAmountCalculation': {'bestAmountMeasured': True, 'probeCount': 6},
+            },
+            'runArbitrage': {'ok': False, 'executable': True,
+                             'signedPnl': {'raw': '-2 USDG', 'amount': -2.0,
+                                           'currency': 'USDG', 'unit': 'token',
+                                           'source': 'runArbitrage'}},
+        }
+        with mock.patch.object(HEALER, 'stored_review_evidence', return_value=[stored]):
+            with mock.patch.object(HEALER, 'manager_loop_rows', return_value=[]):
+                merged, retired, kept = HEALER.merge_with_stored_evidence(
+                    Path('unused.sqlite3'), None, [fresh])
+        self.assertEqual(len(merged), 1, merged)
+        self.assertEqual(retired, 0)
+        self.assertEqual(kept, [])
+        self.assertEqual(merged[0]['staticPreview']['searchCeilingRaw'], '0x1')
+
+    def test_replacement_report_survives_a_store_without_the_candidate_scope(self):
+        """The candidate scope is rebuilt while the healer runs.
+
+        The replacement report read ``dex_candidate_pools`` without a guard,
+        so the table's absence for a moment ended the whole healing cycle.
+        A store that carries no candidate pools is a gap of the store: the
+        report says so, and the rest of the cycle still runs.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "pools.sqlite3"
+            connection = sqlite3.connect(database)
+            try:
+                connection.execute(
+                    "CREATE TABLE v4_exchange_pools (network TEXT, chain_id INTEGER, "
+                    "protocol TEXT, pool_id TEXT, token0 TEXT, token1 TEXT, fee INTEGER, "
+                    "dynamic_fee INTEGER, special_fee INTEGER, hooks TEXT)"
+                )
+                connection.execute(
+                    "CREATE TABLE v4_exchange_pool_liquidity_snapshots (network TEXT, "
+                    "chain_id INTEGER, protocol TEXT, pool_id TEXT, has_liquidity INTEGER, "
+                    "liquidity_index INTEGER, depth_status TEXT, estimated_tvl_usd REAL, "
+                    "capacity_binding_raw TEXT)"
+                )
+                connection.commit()
+            finally:
+                connection.close()
+
+            report = HEALER.pool_depth_replacement_report(database)
+            self.assertEqual(report["status"], "candidate_pool_table_missing", report)
+            self.assertEqual(report["code"], "candidate_pool_table_missing", report)
+            self.assertEqual(report["repairPath"], "materialize_candidate_pools", report)
+            self.assertEqual(report["replacementKeyCount"], 0, report)
+            self.assertEqual(report["keys"], [], report)
 
     def test_replacement_report_accepts_a_depth_qualified_pool_below_the_usd_band(self):
         """A capacity-qualified pool is a replacement even when its USD
@@ -1019,6 +1200,170 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
             self.assertEqual(matrix["candidatePools"]["distinctPoolCount"], 0)
             self.assertEqual(matrix["closedLoops"]["total"], 0)
             self.assertEqual(matrix["closedLoops"]["exactThreeHops"], 0)
+
+    def cascade_pool_database(self, directory: str, pools: list[str]) -> Path:
+        """A store whose candidate scope publishes the given pool keys."""
+        database = Path(directory) / "matrix.sqlite3"
+        connection = sqlite3.connect(database)
+        connection.execute(
+            "CREATE TABLE dex_candidate_pools (network TEXT, chain_id INTEGER, "
+            "pool_id TEXT, depth_status TEXT)")
+        for pool_id in pools:
+            connection.execute("INSERT INTO dex_candidate_pools VALUES (?,?,?,?)",
+                               ("robinhood", 4663, pool_id, "deep"))
+        connection.commit()
+        connection.close()
+        return database
+
+    def composite_pool_id(self, scope: str, pool_key: str, rank: int) -> str:
+        """The composite pool id the closed-loop Manager publishes."""
+        return f"dpool:v1:robinhood:4663:{scope}:{pool_key}:{rank}"
+
+    def test_the_cascade_matrix_measures_the_hops_of_the_closed_loops(self):
+        """The closed-loop link is measured from the hop rows of the Manager.
+
+        The Manager publishes the pool of a hop as a composite id and the
+        candidate scope publishes the bare pool key.  The matrix has to
+        reduce the two to the same thing -- otherwise every hop counts
+        as "outside the candidate scope", the link reads "zero hops in
+        scope", and a healthy closed loop is reported as broken.
+        """
+        pool_a = "0x" + "a" * 64
+        pool_b = "0x" + "b" * 64
+        with tempfile.TemporaryDirectory() as directory:
+            database = self.cascade_pool_database(directory, [pool_a, pool_b])
+            loops = [{"loopKey": "loop-a", "directionalPoolIds": [
+                self.composite_pool_id("core4", pool_a, 1),
+                self.composite_pool_id("candidate_exchange", pool_b, 0),
+                self.composite_pool_id("core4", pool_a, 0)]}]
+            hops = [{"loopKey": "loop-a", "hopIndex": index + 1,
+                     "directionalPoolId": pool_id,
+                     "directionalScopeKey": scope}
+                    for index, (scope, pool_id) in enumerate([
+                        ("core4", self.composite_pool_id("core4", pool_a, 1)),
+                        ("candidate_exchange",
+                         self.composite_pool_id("candidate_exchange", pool_b, 0)),
+                        ("core4", self.composite_pool_id("core4", pool_a, 0))])]
+            directional = self.directional_pools(
+                core4=[self.composite_pool_id("core4", pool_a, 1),
+                       self.composite_pool_id("core4", pool_a, 0)],
+                candidate_exchange=[self.composite_pool_id("candidate_exchange", pool_b, 0)])
+            with mock.patch.object(HEALER, "manager_read_closed_loops",
+                                   return_value={"status": {}, "loops": loops,
+                                                 "hops": hops, "optimizations": [],
+                                                 "runtimeStates": []}), \
+                    mock.patch.object(HEALER, "manager_read_directional_pools",
+                                      return_value=directional):
+                matrix = HEALER.cascade_matrix(database, "http://manager")
+            closed = matrix["closedLoops"]
+            self.assertEqual(closed["total"], 1, closed)
+            self.assertEqual(closed["hopsTotal"], 3, closed)
+            self.assertEqual(closed["hopsInCandidateScope"], 3, closed)
+            self.assertEqual(closed["hopsMissingFromCandidateScope"], 0, closed)
+            self.assertEqual(closed["exactThreeHops"], 1, closed)
+            self.assertTrue(closed["allHopsInScope"], closed)
+            self.assertTrue(closed["allExactThreeHops"], closed)
+            self.assertEqual(closed["loopsWithMissingHop"], 0, closed)
+            self.assertEqual(closed["hopScopeCounts"],
+                             {"core4": 2, "candidate_exchange": 1}, closed)
+            self.assertEqual(closed["hopsInOwnScope"], 3, closed)
+            self.assertEqual(closed["hopsMissingFromOwnScope"], 0, closed)
+            self.assertEqual(closed["directionalPoolScopeCounts"],
+                             {"core4": 2, "candidate_exchange": 1}, closed)
+
+    def directional_pools(self, **scopes: list[str]) -> dict[str, dict[str, object]]:
+        """The published directional pools of every scope."""
+        return {scope: {"rows": [{"directionalPoolId": pool_id}
+                                  for pool_id in pool_ids]}
+                for scope, pool_ids in scopes.items()}
+
+    def test_a_closed_loop_without_hop_rows_is_not_reported_as_in_scope(self):
+        """An unmeasured link may never read as a healthy one.
+
+        A Manager that published no hop row leaves the link unmeasured.
+        An empty hop set compares equal to itself, so the old reading
+        reported "all hops in scope" for a link nobody measured.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            database = self.cascade_pool_database(directory, ["0x" + "a" * 64])
+            loops = [{"loopKey": "loop-a"}]
+            with mock.patch.object(HEALER, "manager_read_closed_loops",
+                                   return_value={"status": {}, "loops": loops,
+                                                 "hops": [], "optimizations": [],
+                                                 "runtimeStates": []}), \
+                    mock.patch.object(HEALER, "manager_read_directional_pools",
+                                      return_value={}):
+                matrix = HEALER.cascade_matrix(database, "http://manager")
+            closed = matrix["closedLoops"]
+            self.assertEqual(closed["hopsTotal"], 0, closed)
+            self.assertFalse(closed["allHopsInScope"], closed)
+            self.assertFalse(closed["allExactThreeHops"], closed)
+            self.assertEqual(closed["loopsWithoutHopRows"], 1, closed)
+            self.assertEqual(closed["loopsWithMissingHop"], 1, closed)
+
+    def test_a_hop_of_a_pool_outside_the_candidate_scope_is_counted(self):
+        """A hop that names a pool the scope does not publish is a defect."""
+        pool_a = "0x" + "a" * 64
+        outside = "0x" + "c" * 64
+        with tempfile.TemporaryDirectory() as directory:
+            database = self.cascade_pool_database(directory, [pool_a])
+            loops = [{"loopKey": "loop-a"}]
+            hops = [{"loopKey": "loop-a", "hopIndex": 1,
+                     "directionalPoolId": self.composite_pool_id("core4", pool_a, 1),
+                     "directionalScopeKey": "core4"},
+                    {"loopKey": "loop-a", "hopIndex": 2,
+                     "directionalPoolId": self.composite_pool_id("core4", outside, 0),
+                     "directionalScopeKey": "core4"}]
+            directional = self.directional_pools(
+                core4=[self.composite_pool_id("core4", pool_a, 1),
+                       self.composite_pool_id("core4", outside, 0)])
+            with mock.patch.object(HEALER, "manager_read_closed_loops",
+                                   return_value={"status": {}, "loops": loops,
+                                                 "hops": hops, "optimizations": [],
+                                                 "runtimeStates": []}), \
+                    mock.patch.object(HEALER, "manager_read_directional_pools",
+                                      return_value=directional):
+                matrix = HEALER.cascade_matrix(database, "http://manager")
+            closed = matrix["closedLoops"]
+            self.assertEqual(closed["hopsTotal"], 2, closed)
+            self.assertEqual(closed["hopsInCandidateScope"], 1, closed)
+            self.assertEqual(closed["hopsMissingFromCandidateScope"], 1, closed)
+            self.assertEqual(closed["hopsInOwnScope"], 2, closed)
+            self.assertEqual(closed["loopsWithMissingHop"], 1, closed)
+            self.assertFalse(closed["allHopsInScope"], closed)
+
+    def test_a_hop_of_a_pool_another_scope_publishes_is_not_in_its_own_scope(self):
+        """A pool only another scope publishes is not a pool this hop may use.
+
+        The candidate scope publishes the pool, so the union check
+        passes -- but the hop declares ``core4`` and ``core4`` does not
+        publish that pool.  The hop is outside its own scope, and the
+        link may not read as healthy.
+        """
+        pool_a = "0x" + "a" * 64
+        other = "0x" + "b" * 64
+        with tempfile.TemporaryDirectory() as directory:
+            database = self.cascade_pool_database(directory, [pool_a, other])
+            loops = [{"loopKey": "loop-a"}]
+            hops = [{"loopKey": "loop-a", "hopIndex": 1,
+                     "directionalPoolId": self.composite_pool_id("core4", other, 0),
+                     "directionalScopeKey": "core4"}]
+            directional = self.directional_pools(
+                core4=[self.composite_pool_id("core4", pool_a, 1)],
+                candidate_exchange=[self.composite_pool_id("candidate_exchange", other, 0)])
+            with mock.patch.object(HEALER, "manager_read_closed_loops",
+                                   return_value={"status": {}, "loops": loops,
+                                                 "hops": hops, "optimizations": [],
+                                                 "runtimeStates": []}), \
+                    mock.patch.object(HEALER, "manager_read_directional_pools",
+                                      return_value=directional):
+                matrix = HEALER.cascade_matrix(database, "http://manager")
+            closed = matrix["closedLoops"]
+            self.assertEqual(closed["hopsInCandidateScope"], 1, closed)
+            self.assertEqual(closed["hopsInOwnScope"], 0, closed)
+            self.assertEqual(closed["hopsMissingFromOwnScope"], 1, closed)
+            self.assertEqual(closed["loopsWithMissingHop"], 1, closed)
+            self.assertFalse(closed["allHopsInScope"], closed)
 
     # ------------------------------------------------------------------
     # TASK-130: the stable-achievement criterion.
@@ -2252,31 +2597,72 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
                 True, True, "http://manager")
         self.assertEqual(claimed, ["loop-a"])
 
-    def test_the_review_interval_is_read_from_the_configuration_parameters(self):
-        import sqlite3
-        import tempfile
+    def test_the_orchestrator_never_reads_the_review_interval(self):
+        """The review interval belongs to the helper that schedules a loop.
 
-        with tempfile.TemporaryDirectory() as directory:
-            store = Path(directory) / "store.sqlite3"
-            con = sqlite3.connect(store)
-            con.execute(
-                "CREATE TABLE kv_entries (collection TEXT NOT NULL, key TEXT NOT NULL,"
-                " value_json TEXT NOT NULL, updated_at TEXT NOT NULL,"
-                " PRIMARY KEY (collection, key))")
-            con.execute(
-                "INSERT INTO kv_entries (collection, key, value_json, updated_at)"
-                " VALUES ('parameters', 'strategy_config|CLOSED_LOOP_REVIEW_INTERVAL_SECONDS',"
-                " '{\"namespace\":\"strategy_config\","
-                "\"parameter_key\":\"CLOSED_LOOP_REVIEW_INTERVAL_SECONDS\","
-                "\"value_json\":\"30\"}', 'fixture')")
-            con.commit()
-            con.close()
-            self.assertEqual(HEALER.review_interval_seconds(store), 30)
+        The interval says how long a loop waits before it is measured
+        again, and that number belongs to exactly one place: the helper
+        that writes the moment a loop is scheduled at.  Every other place
+        that used it was a logical error -- it counted the **time the
+        review itself took**, which is not time the market moved, so a
+        healthy loop was declared quiet and a positive review was refused
+        as stale.
 
-        # A store that carries no parameter falls back to the environment.
-        self.assertEqual(
-            HEALER.review_interval_seconds(Path("unused.sqlite3")),
-            HEALER.REVIEW_FRESHNESS_SECONDS)
+        The orchestrator therefore has no interval of its own: the
+        freshness of a review is judged by the moments of its loop.
+        """
+        self.assertFalse(hasattr(HEALER, "REVIEW_FRESHNESS_SECONDS"),
+                         "the orchestrator must not keep a window of seconds")
+        self.assertFalse(hasattr(HEALER, "review_interval_seconds"),
+                         "the orchestrator must not read the review interval")
+        self.assertFalse(hasattr(HEALER, "review_is_stale"),
+                         "the orchestrator must not judge a review by its age")
+        source = Path(HEALER.__file__).read_text(encoding="utf-8")
+        self.assertNotIn("CLOSED_LOOP_REVIEW_INTERVAL_SECONDS", source,
+                         "the orchestrator must not read the interval parameter")
+
+    def test_the_review_freshness_is_judged_by_the_moments_of_the_loop(self):
+        """A loop is current when it carries the measurement of its round.
+
+        The moments are the loop's own: the moment it is scheduled at and
+        the moment its round started.  A loop that is busy -- it is being
+        measured right now, or it waits for the receipt of its trade --
+        is measured or has traded, so it is current.  A loop whose round
+        started after the measurement the store holds waits for the
+        measurement of that round, and a loop that publishes no review
+        time point cannot be proven to carry its current measurement.
+        """
+        rows = [{"loop_key": "loop-1", "reviewed_at": "2026-11-10T12:00:00Z"},
+                {"loop_key": "loop-2", "reviewed_at": "2026-11-10T12:00:00Z"},
+                {"loop_key": "loop-3", "reviewed_at": "2026-11-10T12:00:00Z"}]
+        schedules = {
+            # Measured inside the round that is running: current.
+            "loop-1": {"nextReviewAt": "2026-11-10T12:00:00Z",
+                       "reviewCycleStartedAt": "2026-11-10T11:00:00Z"},
+            # The round started after the measurement: the round is not
+            # measured yet.
+            "loop-2": {"nextReviewAt": "2026-11-10T12:00:00Z",
+                       "reviewCycleStartedAt": "2026-11-10T13:00:00Z"},
+            # Busy: it is being measured right now, so it is working.
+            "loop-3": {"nextReviewAt": HEALER.REVIEW_PENDING_SENTINEL_AT},
+            # No review time point at all: nothing to compare with.
+            "loop-4": {},
+            # A schedule, but no measurement was ever published.
+            "loop-5": {"nextReviewAt": "2026-11-10T12:00:00Z"},
+        }
+        known = {"loop-1", "loop-2", "loop-3", "loop-4", "loop-5"}
+        freshness = HEALER.review_freshness_by_loop(rows, known, schedules)
+        self.assertEqual(freshness["basis"], "loop_review_time_point")
+        self.assertFalse(freshness["current"])
+        reasons = {item["loopKey"]: item["reason"]
+                   for item in freshness["notCurrentLoops"]}
+        self.assertEqual(reasons.get("loop-2"), "round_not_measured")
+        self.assertEqual(reasons.get("loop-4"), "no_review_time_point")
+        self.assertEqual(reasons.get("loop-5"), "never_measured")
+        self.assertNotIn("loop-1", reasons, "a measured round is current")
+        self.assertNotIn("loop-3", reasons, "a busy loop is working")
+        self.assertEqual(freshness["checkedLoops"], 5)
+        self.assertEqual(freshness["currentLoops"], 2)
 
     def test_the_missing_review_candidates_follow_the_published_schedule(self):
         loop = {"loop_key": "loop-a", "path_text": "ETH -> SPY -> ETH",
@@ -2302,6 +2688,177 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
             candidates = HEALER.missing_review_candidates(
                 Path("unused.sqlite3"), 10, None, "http://127.0.0.1:8091")
             self.assertEqual([row["loopKey"] for row in candidates], ["loop-a"])
+
+        # A loop that publishes **no** schedule at all cannot prove that
+        # the review the store holds is still the current one of the loop:
+        # there is no moment to compare it with.  Such a loop is measured
+        # again, and the gate that reads its review fails closed until
+        # then.
+        with mock.patch.object(HEALER, "review_rows", return_value=[]), \
+                mock.patch.object(HEALER, "manager_loop_rows", return_value=[loop]), \
+                mock.patch.object(HEALER, "manager_review_schedules", return_value={}):
+            candidates = HEALER.missing_review_candidates(
+                Path("unused.sqlite3"), 10, None, "http://127.0.0.1:8091")
+            self.assertEqual([row["loopKey"] for row in candidates], ["loop-a"])
+
+
+class MainnetArbitrageHealerCascadeTests(unittest.TestCase):
+    """The five-stage cascade of the self-healing orchestrator.
+
+    A crash of a cycle must say **where** it died, a manager that is busy
+    must not be read as a manager that answered, and a queue that could not
+    be read must not be read as a queue that is empty.
+    """
+
+    def test_a_cycle_that_died_carries_the_stack_that_says_where(self):
+        try:
+            raise sqlite3.OperationalError("no such table: dex_candidate_pools")
+        except sqlite3.OperationalError as error:
+            event = HEALER.cycle_error_event(7, error)
+        self.assertEqual(event["event"], "healing_cycle_error")
+        self.assertEqual(event["sample"], 7)
+        self.assertEqual(event["errorType"], "OperationalError")
+        self.assertEqual(event["error"], "no such table: dex_candidate_pools")
+        # The stack is what turns a bare sentence into a located failure.
+        self.assertIn("Traceback", event["traceback"])
+        self.assertIn("test_a_cycle_that_died_carries_the_stack_that_says_where",
+                      event["traceback"])
+
+    def test_a_busy_manager_is_retried_instead_of_ending_the_round(self):
+        answers = [
+            {"ok": False, "status": 503, "body": "busy"},
+            {"ok": False, "status": 503, "body": "busy"},
+            {"ok": True, "status": 200, "body": '{"data": {"dueCount": 3}}'},
+        ]
+        with mock.patch.object(HEALER, "api_post", side_effect=answers) as api_post, \
+                mock.patch.object(HEALER.time, "sleep") as sleep:
+            response = HEALER.api_post_transient(
+                "http://manager", "/v1/closed-loops/review-clock", {"chainId": 4663})
+        self.assertTrue(response["ok"])
+        self.assertEqual(response["attempts"], 3)
+        self.assertEqual(api_post.call_count, 3)
+        # The backoff grows, so a busy manager is not hammered.
+        self.assertEqual([call.args[0] for call in sleep.call_args_list],
+                         [HEALER.TRANSIENT_API_BACKOFF_SECONDS,
+                          HEALER.TRANSIENT_API_BACKOFF_SECONDS * 2])
+
+    def test_a_refusal_by_the_manager_is_not_retried(self):
+        with mock.patch.object(HEALER, "api_post",
+                               return_value={"ok": False, "status": 400,
+                                              "body": "bad request"}) as api_post, \
+                mock.patch.object(HEALER.time, "sleep"):
+            response = HEALER.api_post_transient(
+                "http://manager", "/v1/closed-loops/review-clock", {"chainId": 4663})
+        self.assertFalse(response["ok"])
+        self.assertEqual(response["attempts"], 1)
+        self.assertEqual(api_post.call_count, 1)
+
+    def test_a_queue_that_could_not_be_read_is_not_read_as_an_empty_queue(self):
+        with mock.patch.object(HEALER, "api_get",
+                               return_value={"ok": False, "status": None,
+                                              "kind": "connect", "error": "down"}), \
+                mock.patch.object(HEALER.time, "sleep"):
+            queue = HEALER.due_review_queue("http://manager")
+            loops = HEALER.due_review_loops("http://manager")
+        # The empty list is the same, but the queue says it could not be read.
+        self.assertEqual(loops, [])
+        self.assertFalse(queue["ok"])
+        self.assertEqual(queue["dueCount"], 0)
+
+    def test_the_review_clock_reports_how_many_times_it_was_retried(self):
+        with mock.patch.object(HEALER, "api_post",
+                               side_effect=[{"ok": False, "status": 503, "body": "busy"},
+                                            {"ok": True, "status": 200,
+                                             "body": '{"data": {"dueCount": 5}}'}]), \
+                mock.patch.object(HEALER.time, "sleep"):
+            outcome = HEALER.advance_review_clocks("http://manager")
+        self.assertTrue(outcome["ok"])
+        self.assertEqual(outcome["dueCount"], 5)
+        self.assertEqual(outcome["attempts"], 2)
+
+    def test_the_healer_names_no_load_mode_of_its_own(self):
+        # The healer used to carry a hard-coded load mode of its own and
+        # wrote it into the persisted scope on every repair.  That mode
+        # was narrower than the libraries the scope declares, so the
+        # rebuild deleted the pools of the libraries it did not name:
+        # the stock pools left the scope, the closed-loop catalog lost
+        # every route through them, and their reviews became
+        # unpriceable without a single pool ever leaving the pool table.
+        # The healer therefore has no mode of its own at all.
+        self.assertIsNone(HEALER.AUDITED_SCOPE_TOKEN_LOAD_MODE)
+
+    def test_the_expected_scope_mode_is_read_from_the_audit(self):
+        baseline = {"pools": {
+            "coreScopeExpectedLibraries": ["core", "stocks"],
+            "candidateScopeExpectedLibraries": ["core", "stocks", "test"],
+            "coreScopeConfiguredLibraries": ["core"],
+            "candidateScopeConfiguredLibraries": ["core", "stocks"],
+        }}
+        self.assertEqual(HEALER.scope_expected_modes(baseline),
+                         {"core4": "core_stocks",
+                          "candidate_exchange": "core_stocks_test"})
+        self.assertEqual(HEALER.scope_configured_libraries(baseline),
+                         {"core4": ["core"],
+                          "candidate_exchange": ["core", "stocks"]})
+
+    def test_a_scope_that_lost_a_declared_library_is_widened(self):
+        # The scope carries only the core library while it declares the
+        # core and the stock libraries: it has lost the stock pools, and
+        # the repair asks the manager for the **declared** mode, which is
+        # wider than the current one.
+        baseline = {"pools": {
+            "coreScopeExpectedLibraries": ["core", "stocks"],
+            "candidateScopeExpectedLibraries": ["core", "stocks"],
+            "coreScopeConfiguredLibraries": ["core"],
+            "candidateScopeConfiguredLibraries": ["core"],
+        }}
+        with mock.patch.object(HEALER, "api_post",
+                               return_value={"ok": True, "status": 200,
+                                             "body": "{}"}) as api_post:
+            outcome = HEALER.repair_scope_policy(
+                "http://manager", True,
+                token_load_modes=HEALER.scope_expected_modes(baseline),
+                configured_libraries=HEALER.scope_configured_libraries(baseline))
+        self.assertEqual(api_post.call_count, 2)
+        for call in api_post.call_args_list:
+            body = call.args[2]
+            self.assertEqual(body["tokenLoadMode"], "core_stocks")
+            self.assertFalse(body["dryRun"])
+        self.assertEqual(len(outcome["results"]), 2)
+
+    def test_the_healer_never_asks_for_a_narrower_mode(self):
+        # The scope carries the core, the stock and the test library while
+        # it declares the core and the stock libraries.  The declared
+        # mode would drop the test library, so it is **narrower** than the
+        # scope: asking for it would delete the test pools from the
+        # scope.  The healer skips the repair instead of narrowing the
+        # scope, and says why.
+        baseline = {"pools": {
+            "coreScopeExpectedLibraries": ["core", "stocks"],
+            "candidateScopeExpectedLibraries": ["core", "stocks"],
+            "coreScopeConfiguredLibraries": ["core", "stocks", "test"],
+            "candidateScopeConfiguredLibraries": ["core", "stocks", "test"],
+        }}
+        with mock.patch.object(HEALER, "api_post",
+                               return_value={"ok": True, "status": 200,
+                                             "body": "{}"}) as api_post:
+            outcome = HEALER.repair_scope_policy(
+                "http://manager", True,
+                token_load_modes=HEALER.scope_expected_modes(baseline),
+                configured_libraries=HEALER.scope_configured_libraries(baseline))
+        self.assertEqual(api_post.call_count, 0)
+        self.assertEqual(len(outcome["results"]), 2)
+        for result in outcome["results"]:
+            self.assertIsNone(result["tokenLoadMode"])
+            self.assertIn("skipped", result)
+
+    def test_a_narrowing_mode_is_recognised_before_it_is_asked_for(self):
+        self.assertTrue(HEALER.scope_mode_narrows(["core", "stocks", "test"],
+                                                  ["core", "stocks"]))
+        self.assertFalse(HEALER.scope_mode_narrows(["core"], ["core"]))
+        # Widening is not narrowing: adding a library only adds pools.
+        self.assertFalse(HEALER.scope_mode_narrows(["core"],
+                                                   ["core", "stocks"]))
 
 
 if __name__ == "__main__":

@@ -84,16 +84,43 @@ impl TokenLoadMode {
 
     /// The default mode for a scope key.
     ///
-    /// The default is the **core library only**: the bare funding
-    /// environment.  The system starts with that environment so the
-    /// closed-loop catalog stays small enough to diagnose -- every extra
-    /// fund-token library multiplies the anchor groups and the loops
-    /// that are built from them.  The wider modes stay available as an
-    /// explicit, persisted decision (`core_stocks` and
-    /// `core_stocks_test`), and a scope that is widened has to be rebuilt
-    /// rather than left stale.
+    /// The default is the **declared library set of the scope itself**.
+    /// A scope that has never been configured therefore materializes
+    /// exactly the libraries it declares, and **never fewer**.
+    ///
+    /// A default that is *narrower* than the declaration is a defect
+    /// waiting to happen: a scope that is rebuilt under it drops the
+    /// pools of the libraries it does not name, the closed-loop catalog
+    /// loses the routes that run through them, and the pools never come
+    /// back on their own.  The load mode may decide what a run loads
+    /// into memory; it may not decide that pools disappear.
+    ///
+    /// The wider modes stay available as an explicit, persisted decision
+    /// (`core_stocks` and `core_stocks_test`), and a scope that is
+    /// widened has to be rebuilt rather than left stale.
     pub fn default_for_scope(scope_key: &str) -> Self {
-        let _ = scope_key;
+        match scope_definition(scope_key) {
+            Some(scope) => TokenLoadMode::for_library_keys(scope.library_keys),
+            None => TokenLoadMode::Core,
+        }
+    }
+
+    /// The mode that loads exactly the given libraries.
+    ///
+    /// A library list that names none of the documented modes has no mode
+    /// of its own.  The bare funding environment is then the only answer
+    /// that names the fewest pools, because an unknown list may name
+    /// anything and the scope may only load what it can account for.
+    pub fn for_library_keys(library_keys: &[&str]) -> Self {
+        for mode in [
+            TokenLoadMode::Core,
+            TokenLoadMode::CoreStocks,
+            TokenLoadMode::CoreStocksTest,
+        ] {
+            if mode.library_keys() == library_keys {
+                return mode;
+            }
+        }
         TokenLoadMode::Core
     }
 }
@@ -1518,7 +1545,7 @@ fn count_statuses(rows: &[CanonicalScopeRow]) -> BTreeMap<String, usize> {
 mod tests {
     use super::{
         depth_verdict_admits_pool, materialize_scope, materialize_scope_write, read_scope_status,
-        ScopeError, ScopeMaterializationResult, ScopeWriteRequest, TokenLoadMode,
+        scope_definition, ScopeError, ScopeMaterializationResult, ScopeWriteRequest, TokenLoadMode,
     };
     use manager_contracts::V4PoolKey;
     use rusqlite::{params, Connection};
@@ -1916,8 +1943,11 @@ mod tests {
 
         let dry = materialize_scope(&database, NETWORK, CHAIN_ID, "core4", false).unwrap();
         // A scope that carries no persisted load mode starts from the
-        // documented default, which is the core library alone.
-        assert_eq!(dry.library_keys, vec!["core"]);
+        // documented default, which is the **declared** library set of
+        // the scope itself.  The default is never narrower than the
+        // declaration: a narrower default would drop the pools of the
+        // libraries it does not name.
+        assert_eq!(dry.library_keys, vec!["core", "stocks"]);
         // The pool inventory is dynamic: the count of a live scope is not
         // a constant. What must hold is the shape of the result.
         assert_scope_result_is_consistent(&dry);
@@ -1970,7 +2000,7 @@ mod tests {
             config,
             (
                 "v4_exchange_pools_core4".to_owned(),
-                "[\"core\"]".to_owned(),
+                "[\"core\",\"stocks\"]".to_owned(),
                 "edge_any".to_owned()
             )
         );
@@ -2012,9 +2042,10 @@ mod tests {
 
         let dry =
             materialize_scope(&database, NETWORK, CHAIN_ID, "candidate_exchange", false).unwrap();
-        // The default load mode is the core library alone; the wider
-        // modes stay reachable as an explicit, persisted decision.
-        assert_eq!(dry.library_keys, vec!["core"]);
+        // The default load mode is the library set the scope declares;
+        // the wider modes stay reachable as an explicit, persisted
+        // decision.
+        assert_eq!(dry.library_keys, vec!["core", "stocks"]);
         assert_eq!(dry.filter_mode, "both_end");
         assert_eq!(dry.pool_table, "v4_exchange_pools_candidate_exchange");
         assert_scope_result_is_consistent(&dry);
@@ -2062,18 +2093,54 @@ mod tests {
     }
 
     #[test]
-    fn the_default_token_load_mode_loads_the_core_library_only() {
-        // The system starts with the **bare funding environment**: only the
-        // core library anchors the scope.  The wider modes stay available
-        // as an explicit, persisted decision.
+    fn the_default_token_load_mode_loads_the_declared_libraries() {
+        // The default load mode of a scope is the **declared** library set
+        // of that scope, and never fewer libraries than the declaration
+        // names.  A default that is narrower than the declaration is a
+        // defect waiting to happen: the scope would drop the pools of the
+        // libraries it does not name, and those pools never come back on
+        // their own.
         let (_directory, database) = database();
         let connection = Connection::open(&database).unwrap();
         seed_pools(&connection);
         drop(connection);
 
         let dry = materialize_scope(&database, NETWORK, CHAIN_ID, "core4", false).unwrap();
-        assert_eq!(dry.library_keys, vec!["core"]);
-        assert_eq!(TokenLoadMode::default_for_scope("core4"), TokenLoadMode::Core);
+        assert_eq!(dry.library_keys, vec!["core", "stocks"]);
+        assert_eq!(
+            TokenLoadMode::default_for_scope("core4"),
+            TokenLoadMode::CoreStocks
+        );
+        assert_eq!(
+            TokenLoadMode::default_for_scope("candidate_exchange"),
+            TokenLoadMode::CoreStocks
+        );
+    }
+
+    #[test]
+    fn the_default_token_load_mode_is_never_narrower_than_the_declaration() {
+        // The defect this pins down: the default load mode of a scope
+        // used to be the bare core library while the scope **declares**
+        // the core and the stock libraries.  A rebuild under that
+        // default dropped the stock pools from the scope, the closed
+        // loop catalog lost every route through them, and the reviews of
+        // those routes became unpriceable -- without a single pool ever
+        // leaving the pool table.
+        //
+        // The invariant is therefore one sided: the default may be
+        // **wider** than the declaration (the operator may widen a
+        // scope), but it may never be narrower.
+        for scope_key in ["core4", "candidate_exchange"] {
+            let declared = scope_definition(scope_key).unwrap().library_keys;
+            let default_mode = TokenLoadMode::default_for_scope(scope_key);
+            for library in declared {
+                assert!(
+                    default_mode.library_keys().contains(library),
+                    "the default load mode of {scope_key} drops the declared \
+                     library {library}: a narrower default removes pools"
+                );
+            }
+        }
     }
 
     #[test]
@@ -2179,7 +2246,24 @@ mod tests {
         );
         drop(connection);
 
-        materialize_scope(&database, NETWORK, CHAIN_ID, "core4", true).unwrap();
+        // The scope starts **wide**, so the TZ-anchored pool is in it, and
+        // is narrowed afterwards.  The wide start is explicit: the
+        // default mode of a scope is the library set the scope declares,
+        // and the declaration does not name the test library.
+        materialize_scope_write(
+            &database,
+            ScopeWriteRequest {
+                network: NETWORK.to_owned(),
+                chain_id: CHAIN_ID,
+                scope_key: "core4".to_owned(),
+                operation: "pools.scope.rebuild".to_owned(),
+                request_id: "scope-write-wide".to_owned(),
+                idempotency_key: "scope-idem-wide".to_owned(),
+                apply: true,
+                token_load_mode: Some("core_stocks_test".to_owned()),
+            },
+        )
+        .unwrap();
 
         let connection = Connection::open(&database).unwrap();
         connection
@@ -2283,8 +2367,24 @@ mod tests {
         drop(connection);
 
         // Start wide so the scope holds rows, then narrow so the
-        // TZ-anchored pool leaves, then widen it back.
-        materialize_scope(&database, NETWORK, CHAIN_ID, "core4", true).unwrap();
+        // TZ-anchored pool leaves, then widen it back.  The wide start is
+        // explicit: the default mode of a scope is the library set the
+        // scope declares, and the declaration does not name the test
+        // library.
+        materialize_scope_write(
+            &database,
+            ScopeWriteRequest {
+                network: NETWORK.to_owned(),
+                chain_id: CHAIN_ID,
+                scope_key: "core4".to_owned(),
+                operation: "pools.scope.rebuild".to_owned(),
+                request_id: "scope-write-wide".to_owned(),
+                idempotency_key: "scope-idem-wide".to_owned(),
+                apply: true,
+                token_load_mode: Some("core_stocks_test".to_owned()),
+            },
+        )
+        .unwrap();
         let narrowed = materialize_scope_write(
             &database,
             ScopeWriteRequest {
@@ -2400,7 +2500,7 @@ mod tests {
         };
         let first = materialize_scope_write(&database, request.clone()).unwrap();
         assert!(!first.idempotent_replay);
-        assert_eq!(first.result.changed_rows, 7);
+        assert_eq!(first.result.changed_rows, 8);
 
         let replay = materialize_scope_write(
             &database,

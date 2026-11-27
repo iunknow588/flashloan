@@ -6398,6 +6398,29 @@ mod tests {
                 [chrono::Utc::now().to_rfc3339()],
             )
             .unwrap();
+        // The broadcast layer judges the request against the **review
+        // time point** of the loop it belongs to: the loop publishes the
+        // moment it is scheduled at, and the review the store holds is
+        // the current measurement of the loop exactly while that moment
+        // is still ahead.  The fixture therefore publishes the moment --
+        // a loop that publishes no moment at all cannot be proven to
+        // carry its current measurement, and the admission refuses it.
+        let measured_at = chrono::Utc::now().to_rfc3339();
+        let scheduled_at = (chrono::Utc::now() + chrono::Duration::seconds(60))
+            .to_rfc3339();
+        connection
+            .execute(
+                "INSERT OR REPLACE INTO manager_v4_closed_loop_runtime_state (
+                    network, chain_id, protocol, scope_key, loop_key,
+                    runtime_status, status_reason, review_generation,
+                    review_required, last_rebuilt_at, updated_at,
+                    last_reviewed_at, next_review_at, review_cycle_started_at
+                 ) VALUES ('robinhood', 4663, 'uniswap_v4', 'core4', 'loop-1',
+                           'cooldown', 'fixture', 1, 0, 'fixture', 'fixture',
+                           ?1, ?2, ?1)",
+                rusqlite::params![measured_at, scheduled_at],
+            )
+            .unwrap();
         drop(connection);
     }
 

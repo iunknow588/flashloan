@@ -430,7 +430,6 @@ pub fn decide(
             if ahead > MAX_BROADCAST_FUTURE_SKEW_SECONDS {
                 decision.failed(
                     AdmissionRule::ReviewFresh,
-                    AdmissionRule::ReviewFresh,
                     format!(
                         "the review stamp is {ahead}s in the future, past the \
                          {MAX_BROADCAST_FUTURE_SKEW_SECONDS}s skew allowance"

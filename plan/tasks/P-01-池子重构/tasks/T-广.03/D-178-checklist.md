@@ -1,4 +1,4 @@
-# `T-广.03`｜广播链路 Rust 归位 · 逐条验收框
+# D-178 `T-广.03`｜广播链路 Rust 归位 · 逐条验收框
 
 > **本文件是 `T-广.03` 的验收框。** 未勾选 ⇒ **本任务不算闭合**。
 > 计划见 [`D-176-PLAN.md`](./D-176-PLAN.md)，范围契约见 [`D-177-SCOPE_GUARD.md`](./D-177-SCOPE_GUARD.md)，
@@ -262,13 +262,19 @@
 
 ### 5.2.6 实盘闸门（**未勾 · 如实登记**）
 
-- [ ] 实盘读数：复核行 `pool_ids_json` ＝ **方向池 id**（`dpool:v1:…:<base>:<dir>`）
-- [ ] 实盘读数：`state_transition_gate_failed:expected_pool_state_unavailable` **归零**
-- [ ] 实盘读数：灰尘那一行**不再**进 `manager_v4_review_broadcast_requests`
+- [x] 实盘读数：复核行 `pool_ids_json` ＝ **方向池 id**（`dpool:v1:…:<base>:<dir>`）
+- [x] 实盘读数：`state_transition_gate_failed:expected_pool_state_unavailable` **归零**
+- [x] 实盘读数：灰尘那一行**不再**进 `manager_v4_review_broadcast_requests`
 - [ ] 实盘读数：**首笔真实广播**落 `manager_cow_execution_attempts` ＋ 月度库
 
-      > **状态**：**未做**。前三框是**部署项**（新二进制上线后即可读）；
-      > 第四框是**市场条件**（`F-2` 已于第四轮闭合，见 §5.3）。
+      > **状态**：**前三框已读**（2026-11-28，生产库只读 `mode=ro` ＋ `query_only=ON`，
+      > 探针 `plan/runtime_evidence/tools/probe_checklist_readings_20261128.py`）：
+      > 当前目录 **8** 条复核行的 `pool_ids_json` **全部**是 `dpool:v1:` 方向池 id、
+      > **全部 3 跳**（`hopCountHistogram = {3: 8}`、`directionalRows = 8`、`notDirectionalRows = []`）；
+      > `manager_v4_review_diagnostics` 全表 `expected_pool_state_unavailable` **0** 行；
+      > `manager_v4_review_broadcast_requests` **0** 行，而**灰尘级正利润复核行有 7 条**
+      > （`loop_options_unavailable`，量级 **1.2e-05 … 7.67e-09**）⇒ 灰尘行确实没进广播请求表。
+      > 第四框**仍是市场条件**：`runArbitrage` 正收益复核 **0** 条 ⇒ 链上没有可广播的盈利。
 
 ## 5.3 第四轮（2026-11-26 · 单 tick 容量上限 ＋ 每跳金额链）
 
@@ -343,12 +349,12 @@
       > ⇒ 「下一个可用端口」的退路也走不通。**与本轮改动无关**；
       > `_port_in_use` 把**保留端口**与**出站临时端口**一并算成占用，留档待专案处理。
 
-- [ ] 实盘读数：阶梯载荷出现 `searchCeilingRaw` ／ `searchCeilingBasis`
+- [x] 实盘读数：阶梯载荷出现 `searchCeilingRaw` ／ `searchCeilingBasis`
 
-      > **状态**：**投影已落地**（`review_publish.rs::static_preview` 把内核阶梯载荷的
-      > `searchCeilingRaw` ／ `searchCeilingBasis` 带进复核行；新单测
-      > `the_published_review_carries_the_ceiling_the_ladder_searched_inside` **通过**）
-      > ⇒ **待第二次部署**后即可读。
+      > **状态**：**已读**（2026-11-28）：`manager_v4_reviews` **176** 行里 **174** 行的
+      > `static_preview_json` 同时带 `searchCeilingRaw` ＋ `searchCeilingBasis`（**11** 键）；
+      > **当前目录 8 行全部带**。缺的 **2** 行是**遗留闭环** `0x0000…0000` 的历史行
+      > （2026-11-27T14:41/14:42Z，编排器**摘要**证据，**9** 键），不在当前目录内。
 
 - [x] 实盘读数：状态迁移诊断**带上每跳的到达金额**（`F-3` 落地后的直接读数）
 
@@ -358,16 +364,24 @@
       > 该诊断的剩余理由是 `tick_range_changed`（**非** `expected_amount_crosses_tick`）
       > ⇒ 剩下 **2** 行属 tick 区间漂移，**`F-3` 不修**。
 
-- [ ] 实盘读数：`expected_amount_crosses_tick` **归零**（`F-3` 落地后的直接读数）
+- [x] 实盘读数：`expected_amount_crosses_tick` **归零**（`F-3` 落地后的直接读数）
 
-      > **状态**：**当前代次本就没有这一行**（新二进制写的 **10** 行理由是
-      > `runArbitrage returned ok=false` **9** ＋ PnL 缺失 **1**）⇒ **触发条件未出现**，
-      > **不能**据此说「归零」。
+      > **状态**：**已读**（2026-11-28）：`manager_v4_review_diagnostics` 全表
+      > `expected_amount_crosses_tick` **0** 行。**这次不是空档**——`F-3` 之后**真的走到过**
+      > 状态迁移闸门的那条诊断（闭环 `0xdf0992e4…`，跳 1 带 `amountInRaw`）把理由判成
+      > `hop_2_failed:tick_range_changed`，**不是** `expected_amount_crosses_tick`
+      > ⇒ 闸门**被行使过**且没判成它。当前目录 8 条复核停在
+      > `runArbitrage returned ok=false`，本轮闸门未触发。
 
-- [ ] 实盘读数：`final_input_exceeds_single_tick_capacity` **归零**（`F-2` 落地后的直接读数）
+- [x] 实盘读数：`final_input_exceeds_single_tick_capacity` **归零**（`F-2` 落地后的直接读数）
 
-      > **状态**：同上，**触发条件未出现**（没有一行走到容量门禁）。
-      > 「选出的金额 > 容量」的读数是 **0** 行，但那是**旧二进制**也有的读数。
+      > **状态**：**已读**（2026-11-28）：全表 `final_input_exceeds_single_tick_capacity`
+      > **0** 行。同样**不是空档**——`F-3` 之后走到单跳闸门的那条路由，跳 1 的
+      > `candidateCapacityRaw = 511287708386`、`capacityBasis = ExpectedState` 都算出来了，
+      > 却**没有**判成「金额超容量」。`review_manager` 的分支顺序是
+      > `single_tick_capacity_unavailable` → **`final_input_exceeds_single_tick_capacity`**
+      > → `route_state_unavailable`，容量比较排在 `route_state_unavailable` **之前**
+      > ⇒ 「没判成容量超限」来自**比较本身**，不是提前返回。
 
 - [ ] 实盘读数：**首笔真实广播**落 `manager_cow_execution_attempts` ＋ 月度库
 

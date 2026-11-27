@@ -9,9 +9,11 @@ The line separator is written as chr(10) on purpose: the file that carries
 this helper is generated from a shell tool that would otherwise turn the
 two-character sequence into a real newline inside a string literal.
 
-The files keep CRLF line endings; the normalizer
-(normalize_crlf_20260724.py / normalize_crlf_20261125.py) is the single
-place that decides the final encoding.
+The design says every text file is UTF-8 without BOM and LF line endings.
+``read`` therefore drops a leading BOM and universal newlines turn CRLF into
+LF, so ``write`` hands back LF; the normalizer
+(normalize_text_lf_20261128.py) is the single place that decides the final
+encoding.
 """
 
 from __future__ import annotations
@@ -27,7 +29,7 @@ def restore(text: str) -> str:
 
 
 def read(path: Path) -> str:
-    return path.read_text(encoding="utf-8")
+    return path.read_text(encoding="utf-8-sig")
 
 
 def write(path: Path, text: str) -> None:

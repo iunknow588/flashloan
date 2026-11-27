@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Robinhood 4663 主网套利闭环审计、自愈编排和观察工具。
 
 固定顺序：代币 -> 池子 -> 闭环 -> 复核 -> 广播。默认只读；repair 只有
@@ -16,6 +16,7 @@ import sqlite3
 import subprocess
 import sys
 import time
+import traceback
 import urllib.error
 import urllib.parse
 import re
@@ -448,6 +449,29 @@ def manager_read_closed_loops(manager_api: str | None) -> dict[str, Any]:
         return {"status": {}, "loops": [], "hops": [], "optimizations": [], "runtimeStates": []}
 
 
+def manager_read_directional_pools(manager_api: str | None,
+                                   scopes: list[str] | None = None) -> dict[str, dict[str, Any]]:
+    """Return the directional pools the pool Manager published, by scope.
+
+    The pool Manager owns the directional pools and publishes them per
+    scope.  Each row carries the **composite** pool id -- the very id a
+    closed-loop hop names -- so a hop can be checked against the pools
+    of the scope it declares, instead of against the union of every
+    scope.
+    """
+    if not manager_api:
+        return {}
+    wanted = [str(scope).strip() for scope in (scopes or []) if str(scope).strip()]
+    published: dict[str, dict[str, Any]] = {}
+    for scope in wanted:
+        try:
+            published[scope] = manager_record_reader.read_directional_pools(
+                manager_api, CHAIN_ID, scope)
+        except manager_record_reader.ManagerReadError:
+            continue
+    return published
+
+
 def manager_read_broadcasts(manager_api: str | None) -> dict[str, Any]:
     """Return the broadcast records the Broadcast Manager published."""
     if not manager_api:
@@ -520,13 +544,14 @@ def advance_review_clocks(manager_api: str | None,
     if not manager_api:
         return {"ok": False, "reason": "manager_api_unavailable", "dueCount": 0}
     target_chain = int(chain_id if chain_id is not None else CHAIN_ID)
-    response = api_post(manager_api, "/v1/closed-loops/review-clock",
-                        {"chainId": target_chain, "dryRun": False})
+    response = api_post_transient(manager_api, "/v1/closed-loops/review-clock",
+                                   {"chainId": target_chain, "dryRun": False})
     payload = response_payload(response)
     data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
     return {"ok": bool(response.get("ok")),
             "status": response.get("status"),
             "dueCount": int(data.get("dueCount") or 0),
+            "attempts": int(response.get("attempts") or 1),
             "error": payload.get("error")}
 
 
@@ -540,15 +565,7 @@ def due_review_loops(manager_api: str | None,
     loop that waited the longest comes first and the loops do not all
     start in the same second.
     """
-    if not manager_api:
-        return []
-    target_chain = int(chain_id if chain_id is not None else CHAIN_ID)
-    response = api_get(
-        manager_api, f"/v1/closed-loops/review-due?chainId={target_chain}")
-    payload = response.get("payload") if isinstance(response.get("payload"), dict) else {}
-    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
-    loops = data.get("loops") if isinstance(data.get("loops"), list) else []
-    return [row for row in loops if isinstance(row, dict)]
+    return list(due_review_queue(manager_api, chain_id).get("loops") or [])
 
 
 def due_review_queue(manager_api: str | None,
@@ -564,7 +581,7 @@ def due_review_queue(manager_api: str | None,
     if not manager_api:
         return {"ok": False, "reason": "manager_api_unavailable", "loops": []}
     target_chain = int(chain_id if chain_id is not None else CHAIN_ID)
-    response = api_get(
+    response = api_get_transient(
         manager_api, f"/v1/closed-loops/review-due?chainId={target_chain}")
     payload = response.get("payload") if isinstance(response.get("payload"), dict) else {}
     data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
@@ -637,6 +654,22 @@ def table_columns(db: Path, table: str) -> set[str]:
     finally:
         con.close()
     return {str(row["name"]) for row in rows}
+
+
+def table_missing(error: sqlite3.Error) -> bool:
+    """Whether the error says that the store does not carry the table.
+
+    A store is built by more than one schema: the managers create their own
+    tables and the runtime creates its own, and a store that was rebuilt
+    carries only the tables that were created in it.  A table that is absent
+    is a **fact about the store**, not a failure of the reader, so the audit
+    reports the gap and the rest of the cycle still runs.
+
+    Every other error is raised.  A query that fails for another reason says
+    something the reader has to know, and swallowing it would turn a real
+    defect into a silently empty answer.
+    """
+    return "no such table" in str(error or "").lower()
 
 
 #: The depth-evidence columns that ``pool-manager ensure-depth-schema`` adds
@@ -935,95 +968,105 @@ def newest_review_stamp(rows: list[dict[str, Any]]) -> str | None:
     return best_value
 
 
-#: The automatic review interval of a closed loop, in seconds.
+#: The moment a closed loop that is **being reviewed** is parked at.
 #:
-#: One parameter answers how often every closed loop is measured again: the
-#: same number tells the cascade when a review is overdue **and** tells the
-#: production gate how old a review may be when it is broadcast.  It is read
-#: from the environment the stores read it from, so the whole system works
-#: on one cadence instead of three windows that could disagree.
-REVIEW_FRESHNESS_SECONDS = int(
-    os.environ.get("CLOSED_LOOP_REVIEW_INTERVAL_SECONDS", "60") or 60
-)
+#: The sentinel is a moment far in the future, so the one comparison the
+#: system makes -- "is the current time before the moment the loop is
+#: scheduled at" -- answers "the loop is busy" on its own.  No interval
+#: and no window of seconds is involved.
+REVIEW_PENDING_SENTINEL_AT = "2036-06-06T06:06:00+00:00"
+
+#: The moment a closed loop that **waits for its receipt** is parked at.
+BROADCAST_PENDING_SENTINEL_AT = "2035-05-05T05:05:00+00:00"
 
 
-def review_interval_seconds(db: Path | None = None) -> int:
-    """Return the automatic review interval of a closed loop.
+def _parse_moment(value: Any) -> dt.datetime | None:
+    """Parse one moment the store publishes.
 
-    The interval is a **configuration parameter**: it is the length of the
-    review clock every closed loop runs, and it is the length of one review
-    cycle of a loop.  It is read from the parameter store of the chain, so a
-    changed interval is in force on the next round without a restart.  The
-    environment is the fallback for a store that carries no parameter yet.
+    A moment that cannot be read is no moment at all: the caller has to
+    know that it cannot compare the thing with anything.
     """
-    if db is not None:
-        stored = _parameter_seconds(db, "strategy_config",
-                                   "CLOSED_LOOP_REVIEW_INTERVAL_SECONDS")
-        if stored is not None:
-            return stored
-    return REVIEW_FRESHNESS_SECONDS
-
-
-def _parameter_seconds(db: Path, namespace: str, key: str) -> int | None:
-    """Return one numeric parameter of the parameter store.
-
-    The store keeps every value as a JSON document, and the value itself
-    travels inside that document as a JSON text, so a parameter is read in
-    two steps.  A store that does not carry the parameter answers with
-    nothing at all, and the caller falls back to its own default.
-    """
-    try:
-        con = connect(db)
-    except sqlite3.Error:
+    if not value:
         return None
     try:
-        row = con.execute(
-            "SELECT value_json FROM kv_entries"
-            " WHERE collection = 'parameters' AND key = ?",
-            (f"{namespace}|{key}",),
-        ).fetchone()
-    except sqlite3.Error:
-        return None
-    finally:
-        con.close()
-    if not row:
-        return None
-    try:
-        document = json.loads(str(row["value_json"] or "{}"))
-        raw = document.get("value_json")
-        value = json.loads(raw) if isinstance(raw, str) else raw
-        seconds = int(value)
-    except (TypeError, ValueError, json.JSONDecodeError):
-        return None
-    return seconds if seconds > 0 else None
-
-
-def review_is_stale(
-    stamp: str | None,
-    freshness_seconds: int | None = None,
-    reference: dt.datetime | None = None,
-) -> bool:
-    """Whether a review measurement is too old to act on.
-
-    A row that publishes no moment at all cannot be proven fresh, so it
-    counts as stale: the gate that reads it fails closed, and the repair
-    that reads it has to refresh it.
-    """
-    if not stamp:
-        return True
-    if freshness_seconds is None:
-        freshness_seconds = REVIEW_FRESHNESS_SECONDS
-    try:
-        moment = dt.datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+        moment = dt.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except (TypeError, ValueError):
-        return True
+        return None
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=dt.timezone.utc)
+    return moment
+
+
+def is_review_sentinel(moment: Any) -> bool:
+    """Whether a moment is one of the two sentinels of a busy loop."""
+    text = str(moment or "").strip()
+    return text in (REVIEW_PENDING_SENTINEL_AT, BROADCAST_PENDING_SENTINEL_AT)
+
+
+def review_freshness_by_loop(
+    rows: list[dict[str, Any]],
+    known_loops: set[str],
+    schedules: dict[str, dict[str, Any]],
+    reference: dt.datetime | None = None,
+) -> dict[str, Any]:
+    """Whether every live closed loop carries its current measurement.
+
+    The judgement is made with **moments**, never with an age.  A closed
+    loop publishes the moment it is scheduled at and the moment its round
+    started, and those two moments say whether the measurement the store
+    holds is the current one of the loop:
+
+    * a loop that publishes **no** review time point cannot be proven to
+      carry its current measurement -- there is nothing to compare with;
+    * a loop that was **never measured** has no measurement at all;
+    * a loop that is **busy** -- it is being measured right now, or it
+      waits for the receipt of its trade -- is measured or has traded, so
+      its measurement is the current one;
+    * a loop whose round started **after** the measurement the store
+      holds waits for the measurement of that round.
+
+    A loop that waits its turn in the queue keeps the measurement it has:
+    the cycle of a loop is the round plus the wait, and the wait is not a
+    fault of the loop.
+    """
     if reference is None:
         reference = dt.datetime.now(dt.timezone.utc)
-    elif reference.tzinfo is None:
-        reference = reference.replace(tzinfo=dt.timezone.utc)
-    return (reference - moment).total_seconds() > freshness_seconds
+    newest: dict[str, dt.datetime] = {}
+    for row in rows:
+        key = review_loop_key(row)
+        if not key:
+            continue
+        stamp = _parse_moment(review_measurement_stamp(row))
+        if stamp is None:
+            continue
+        if key not in newest or stamp > newest[key]:
+            newest[key] = stamp
+    not_current: list[dict[str, Any]] = []
+    for key in sorted(known_loops):
+        schedule = schedules.get(key) or {}
+        due_at = schedule.get("nextReviewAt")
+        measured = newest.get(key)
+        if not due_at:
+            not_current.append({"loopKey": key, "reason": "no_review_time_point"})
+            continue
+        if measured is None:
+            not_current.append({"loopKey": key, "reason": "never_measured"})
+            continue
+        if is_review_sentinel(due_at):
+            # The loop is being measured right now, or it waits for the
+            # receipt of its trade: it is working, not quiet.
+            continue
+        cycle = _parse_moment(schedule.get("reviewCycleStartedAt"))
+        if cycle is not None and measured < cycle:
+            not_current.append({"loopKey": key, "reason": "round_not_measured"})
+            continue
+    return {
+        "basis": "loop_review_time_point",
+        "checkedLoops": len(known_loops),
+        "currentLoops": len(known_loops) - len(not_current),
+        "notCurrentLoops": not_current,
+        "current": not not_current,
+    }
 
 
 def review_is_due(
@@ -2219,6 +2262,33 @@ def closed_loop_scope_drift(scope_drift: dict[str, Any] | None) -> dict[str, Any
     }
 
 
+def directional_pool_key(pool_id: Any) -> str:
+    """The bare pool key of a pool id the closed-loop Manager published.
+
+    The closed-loop Manager publishes the pool of a hop as a
+    **composite** id::
+
+        dpool:v1:<network>:<chain>:<scope>:<pool key>:<rank>
+
+    while the candidate scope publishes the **bare** pool key.  A
+    comparison of the two without this reduction never matches: every
+    hop would count as "outside the candidate scope", the link would
+    read "zero hops in scope", and the matrix would report a healthy
+    closed loop as broken.  The other direction is worse: an empty hop
+    set compares equal to itself and reads as "all hops in scope".
+
+    The reduction keeps the **bare** id untouched, so a pool that was
+    published bare stays comparable.
+    """
+    value = str(pool_id or "").strip().lower()
+    if not value:
+        return ""
+    match = re.search(r"(0x[0-9a-f]{64})", value)
+    if match:
+        return match.group(1)
+    return value
+
+
 def cascade_matrix(db: Path, manager_api: str | None = None) -> dict[str, Any]:
     """Audit the whole cascade from the funding token to the closed loop.
 
@@ -2295,51 +2365,109 @@ def cascade_matrix(db: Path, manager_api: str | None = None) -> dict[str, Any]:
         for item in candidate_tokens
         if str(item.get("address") or "") in KNOWN_COUNTERFEIT_FUNDING_TOKEN_ADDRESSES})
     # ---- candidate pools -------------------------------------------------
-    candidate_pools = all_rows(db,
-        "SELECT DISTINCT d.pool_id pool_id,d.depth_status depth_status "
-        "FROM dex_candidate_pools d WHERE d.network=? AND d.chain_id=?",
-        (NETWORK, CHAIN_ID))
+    try:
+        candidate_pools = all_rows(db,
+            "SELECT DISTINCT d.pool_id pool_id,d.depth_status depth_status "
+            "FROM dex_candidate_pools d WHERE d.network=? AND d.chain_id=?",
+            (NETWORK, CHAIN_ID))
+    except sqlite3.OperationalError as error:
+        if not table_missing(error):
+            raise
+        # A store that carries no candidate pools says so here, and the
+        # cascade reads it as an empty pool set: the chain has no pool to
+        # build a closed loop from, which is a fact the repair acts on.
+        candidate_pools = []
     pool_ids = {str(row.get("pool_id") or "") for row in candidate_pools if row.get("pool_id")}
-    pool_role_counts = one(db,
-        "SELECT COUNT(DISTINCT pool_id) total FROM dex_candidate_pools "
-        "WHERE network=? AND chain_id=?", (NETWORK, CHAIN_ID)) or {}
+    try:
+        pool_role_counts = one(db,
+            "SELECT COUNT(DISTINCT pool_id) total FROM dex_candidate_pools "
+            "WHERE network=? AND chain_id=?", (NETWORK, CHAIN_ID)) or {}
+    except sqlite3.OperationalError as error:
+        if not table_missing(error):
+            raise
+        pool_role_counts = {}
     # ---- closed loops ----------------------------------------------------
     # The **closed-loop Manager** owns the closed-loop catalog, so it is
     # read through the manager API.  The healer never selects from the
     # manager's table: a direct read would bind the healer to the layout it
     # does not own and could show a generation the manager never published.
+    published = manager_read_closed_loops(manager_api)
     loops = []
-    for row in (manager_read_closed_loops(manager_api).get("loops") or []):
-        pool_ids_value = row.get("poolIds")
-        if pool_ids_value is None:
-            pool_ids_value = row.get("pool_ids")
+    for row in (published.get("loops") or []):
+        directional_ids = row.get("directionalPoolIds")
+        if directional_ids is None:
+            directional_ids = row.get("directional_pool_ids")
+        if directional_ids is None:
+            directional_ids = row.get("poolIds") or row.get("pool_ids") or []
         loops.append({
             "loop_key": str(row.get("loopKey") or row.get("loop_key") or ""),
-            "pool_ids_json": json.dumps(pool_ids_value) if isinstance(pool_ids_value, list) else "[]",
+            # The pool of a hop is published as a **composite** id; the
+            # candidate scope publishes the bare pool key.  Both are
+            # reduced to the bare key here, so the comparison of the two
+            # is a comparison of the same thing.
+            "directional_pool_ids": [directional_pool_key(value)
+                                     for value in directional_ids
+                                     if isinstance(directional_ids, list)],
             "path_symbols_json": json.dumps(
                 row.get("pathSymbols") or row.get("path_symbols") or []
             ),
             "anchor_symbol": str(row.get("anchorSymbol") or row.get("anchor_symbol") or ""),
             "status": str(row.get("status") or ""),
         })
+    # The hop rows of the Manager are the **authoritative** list of the
+    # hops of every closed loop: each of them names the pool of its hop
+    # and the scope that pool belongs to.  The loop rows carry the same
+    # pools as a fallback for a Manager that published no hop rows.
+    hops_by_loop: dict[str, list[tuple[str, str]]] = {}
+    hop_scope_counts: dict[str, int] = {}
+    for row in (published.get("hops") or []):
+        loop_key = str(row.get("loopKey") or row.get("loop_key") or "")
+        composite = str(row.get("directionalPoolId")
+                        or row.get("directional_pool_id") or "").strip().lower()
+        scope = str(row.get("directionalScopeKey") or row.get("directional_scope_key") or "")
+        if composite:
+            hops_by_loop.setdefault(loop_key, []).append((composite, scope))
+        hop_scope_counts[scope] = hop_scope_counts.get(scope, 0) + 1
+    # The directional pools of every scope the hops name.  A hop is
+    # checked against the pools of **its own** scope, because that is the
+    # scope it was built from: a pool that only another scope publishes
+    # is not a pool this hop may use.
+    scope_pool_ids = {
+        scope: {str(row.get("directionalPoolId") or "").strip().lower()
+                for row in (document.get("rows") or [])
+                if row.get("directionalPoolId")}
+        for scope, document in manager_read_directional_pools(
+            manager_api, sorted(hop_scope_counts)).items()
+    }
     exact_three = 0
     hops_total = 0
     hops_in_scope = 0
+    hops_in_own_scope = 0
     loops_with_missing_hop = 0
+    loops_without_hop_rows = 0
+    candidate_pool_keys = {str(value).lower() for value in pool_ids if value}
     for loop in loops:
-        try:
-            hop_pool_ids = json.loads(loop.get("pool_ids_json") or "[]")
-        except (TypeError, ValueError, json.JSONDecodeError):
-            hop_pool_ids = []
-        if not isinstance(hop_pool_ids, list):
-            hop_pool_ids = []
+        hop_rows = hops_by_loop.get(loop["loop_key"])
+        if hop_rows:
+            hop_pool_ids = [directional_pool_key(composite)
+                            for composite, _scope in hop_rows]
+        else:
+            hop_pool_ids = list(loop.get("directional_pool_ids") or [])
+            hop_rows = []
+            if not hop_pool_ids:
+                loops_without_hop_rows += 1
         hops_total += len(hop_pool_ids)
         in_scope = sum(1 for pool_id in hop_pool_ids
-                       if str(pool_id).lower() in {value.lower() for value in pool_ids})
+                       if str(pool_id).lower() in candidate_pool_keys)
         hops_in_scope += in_scope
+        in_own_scope = sum(1 for composite, scope in hop_rows
+                           if scope in scope_pool_ids
+                           and composite in scope_pool_ids[scope])
+        hops_in_own_scope += in_own_scope
         if len(hop_pool_ids) == 3:
             exact_three += 1
-        if in_scope != len(hop_pool_ids):
+        if (not hop_pool_ids or in_scope != len(hop_pool_ids)
+                or in_own_scope != len(hop_pool_ids)):
             loops_with_missing_hop += 1
     # The allowlist carries every token of the chain, but only the funding
     # symbols have to be admitted for the arbitrage loop to close. The
@@ -2388,9 +2516,24 @@ def cascade_matrix(db: Path, manager_api: str | None = None) -> dict[str, Any]:
             "hopsTotal": hops_total,
             "hopsInCandidateScope": hops_in_scope,
             "hopsMissingFromCandidateScope": hops_total - hops_in_scope,
+            "hopsInOwnScope": hops_in_own_scope,
+            "hopsMissingFromOwnScope": hops_total - hops_in_own_scope,
             "loopsWithMissingHop": loops_with_missing_hop,
-            "allHopsInScope": hops_total == hops_in_scope,
+            # An empty hop set is **not** a proof.  A Manager that
+            # published no hop row leaves the link unmeasured, and an
+            # unmeasured link may never read as "all hops in scope".
+            # The same holds for the scope check: a hop that is not
+            # published by the scope it names is not in scope, even when
+            # another scope publishes the same pool.
+            "allHopsInScope": (hops_total > 0
+                               and hops_total == hops_in_scope
+                               and hops_total == hops_in_own_scope),
             "allExactThreeHops": exact_three == len(loops) and bool(loops),
+            "loopsWithoutHopRows": loops_without_hop_rows,
+            "hopScopeCounts": hop_scope_counts,
+            "directionalPoolScopeCounts": {scope: len(ids)
+                                           for scope, ids in scope_pool_ids.items()},
+            "candidatePoolUniverse": len(candidate_pool_keys),
         },
     }
 
@@ -2589,23 +2732,50 @@ def pool_depth_audit(db: Path) -> dict[str, Any]:
     # layer. Every TVL comparison is cast to REAL first: SQLite compares a
     # TEXT column against a bound lexicographically when the column affinity
     # is TEXT, which silently makes ">= 100000" false for every stored value.
-    rows = all_rows(db, "SELECT d.depth_status depth_status,"
-        "COUNT(*) row_count,"
-        "COUNT(DISTINCT d.pool_id) pool_count,"
-        "COUNT(DISTINCT CASE WHEN COALESCE(s.depth_status, d.depth_status, '') IN ("
-        + adequate_statuses + ") THEN d.pool_id END) "
-        "adequate_pool_count,"
-        "COUNT(DISTINCT CASE WHEN CAST(COALESCE(s.estimated_tvl_usd,0) AS REAL)>? "
-        "THEN d.pool_id END) bad_reading_count,"
-        "MIN(CAST(s.estimated_tvl_usd AS REAL)) min_tvl_usd,"
-        "MAX(CAST(s.estimated_tvl_usd AS REAL)) max_tvl_usd,"
-        "AVG(CAST(s.estimated_tvl_usd AS REAL)) avg_tvl_usd "
-        "FROM dex_candidate_pools d "
-        "LEFT JOIN v4_exchange_pool_liquidity_snapshots s "
-        "  ON s.network=d.network AND s.chain_id=d.chain_id AND s.protocol=d.protocol "
-        " AND s.pool_id=d.pool_id "
-        "WHERE d.network=? AND d.chain_id=? GROUP BY d.depth_status",
-        (MAX_POOL_TVL_USD, NETWORK, CHAIN_ID))
+    try:
+        rows = all_rows(db, "SELECT d.depth_status depth_status,"
+            "COUNT(*) row_count,"
+            "COUNT(DISTINCT d.pool_id) pool_count,"
+            "COUNT(DISTINCT CASE WHEN COALESCE(s.depth_status, d.depth_status, '') IN ("
+            + adequate_statuses + ") THEN d.pool_id END) "
+            "adequate_pool_count,"
+            "COUNT(DISTINCT CASE WHEN CAST(COALESCE(s.estimated_tvl_usd,0) AS REAL)>? "
+            "THEN d.pool_id END) bad_reading_count,"
+            "MIN(CAST(s.estimated_tvl_usd AS REAL)) min_tlv_usd,"
+            "MAX(CAST(s.estimated_tvl_usd AS REAL)) max_tvl_usd,"
+            "AVG(CAST(s.estimated_tvl_usd AS REAL)) avg_tvl_usd "
+            "FROM dex_candidate_pools d "
+            "LEFT JOIN v4_exchange_pool_liquidity_snapshots s "
+            "  ON s.network=d.network AND s.chain_id=d.chain_id AND s.protocol=d.protocol "
+            " AND s.pool_id=d.pool_id "
+            "WHERE d.network=? AND d.chain_id=? GROUP BY d.depth_status",
+            (MAX_POOL_TVL_USD, NETWORK, CHAIN_ID))
+    except sqlite3.OperationalError as error:
+        if not table_missing(error):
+            raise
+        # The store carries no candidate pools at all.  That is a gap of the
+        # store, and it is reported as one: the layer is not valid, and the
+        # repair is the pool scope, which materializes the candidate pools.
+        return {
+            "valid": False,
+            "code": "candidate_pool_table_missing",
+            "classification": "candidate_pool_table_missing",
+            "repairPath": "materialize_candidate_pools",
+            "reason": "the store carries no candidate pools",
+            "badReadingCount": 0,
+            "badReadingPoolCount": 0,
+            "staleTvlReadingCount": 0,
+            "staleTvlReadingPoolCount": 0,
+            "unmeasuredPoolCount": 0,
+            "thinPoolIdCount": 0,
+            "adequatePoolIdCount": 0,
+            "capacityUnknownPoolCount": 0,
+            "capacityColumnMissing": False,
+            "candidatePoolIdCount": 0,
+            "minTvlUsd": MIN_POOL_TVL_USD,
+            "maxTvlUsd": MAX_POOL_TVL_USD,
+            "candidatePoolCount": 0,
+        }
     by_status = {str(row.get("depth_status") or "unknown"): row for row in rows}
     total = sum(int(row.get("pool_count") or 0) for row in rows)
     healthy = sum(int(row.get("adequate_pool_count") or 0) for row in rows)
@@ -2641,17 +2811,22 @@ def pool_depth_audit(db: Path) -> dict[str, Any]:
     # defect**, not a market condition, and it is repaired by adding the
     # columns and re-measuring, never by replacing a pool.
     capacity_column_missing = "capacity_binding_raw" not in snapshot_columns
-    reading_rows = all_rows(db,
-        "SELECT d.pool_id pool_id,d.depth_status candidate_depth_status,"
-        "s.depth_status measured_depth_status,"
-        "s.estimated_tvl_usd estimated_tvl_usd,s.has_liquidity has_liquidity,"
-        f"{depth_basis_expression} depth_basis,{binding_expression} capacity_binding_raw "
-        "FROM dex_candidate_pools d "
-        "LEFT JOIN v4_exchange_pool_liquidity_snapshots s "
-        "  ON s.network=d.network AND s.chain_id=d.chain_id AND s.protocol=d.protocol "
-        " AND s.pool_id=d.pool_id "
-        "WHERE d.network=? AND d.chain_id=?",
-        (NETWORK, CHAIN_ID))
+    try:
+        reading_rows = all_rows(db,
+            "SELECT d.pool_id pool_id,d.depth_status candidate_depth_status,"
+            "s.depth_status measured_depth_status,"
+            "s.estimated_tvl_usd estimated_tvl_usd,s.has_liquidity has_liquidity,"
+            f"{depth_basis_expression} depth_basis,{binding_expression} capacity_binding_raw "
+            "FROM dex_candidate_pools d "
+            "LEFT JOIN v4_exchange_pool_liquidity_snapshots s "
+            "  ON s.network=d.network AND s.chain_id=d.chain_id AND s.protocol=d.protocol "
+            " AND s.pool_id=d.pool_id "
+            "WHERE d.network=? AND d.chain_id=?",
+            (NETWORK, CHAIN_ID))
+    except sqlite3.OperationalError as error:
+        if not table_missing(error):
+            raise
+        reading_rows = []
     bad_reading_pools: set[str] = set()
     stale_reading_pools: set[str] = set()
     unmeasured_pools: set[str] = set()
@@ -2994,6 +3169,13 @@ def audit_reviews(
     current_best_amount_missing = best_amount_missing_current
     current_best_amount_confirmed = len(current_rows) - current_best_amount_missing
     manager_rows = manager_review_rows(db, None, manager_api)
+    # Whether every live closed loop carries its **current** measurement.
+    # The judgement is made with the moments the closed loops publish:
+    # the moment a loop is scheduled at and the moment its round started.
+    # No age is counted and no interval is read -- the review cycle of a
+    # loop is the round plus the wait, and the wait is not a fault.
+    freshness = review_freshness_by_loop(
+        current_rows, known_loops, manager_review_schedules(manager_api))
     return {"valid": bool(manager_rows) and current_missing_pnl == 0
             and current_best_amount_missing == 0,
         "manager": {"reviews": len(manager_rows)},
@@ -3005,6 +3187,7 @@ def audit_reviews(
                    # left the catalog must not make a stale live review
                    # look fresh.
                    "currentLoopLatestReviewAt": newest_review_stamp(matched),
+                   "currentLoopFreshness": freshness,
                    "currentLoopMatched": len(matched), "staleOrUnmatched": len(unmatched),
                    "currentDistinctLoops": len({review_loop_key(row) for row in matched}),
                    "matchedMissingPnl": sum(pnl(row) is None for row in matched),
@@ -3217,7 +3400,6 @@ def audit_broadcast(
 def transaction_production_status(
     layers: dict[str, Any],
     generated_at: str,
-    freshness_seconds: int = REVIEW_FRESHNESS_SECONDS,
 ) -> dict[str, Any]:
     reviews = ((layers.get("reviews") or {}).get("legacy") or {})
     best_amount = ((layers.get("reviews") or {}).get("bestAmount") or {})
@@ -3237,7 +3419,14 @@ def transaction_production_status(
             review_age_seconds = max(0.0, (generated_time - review_time).total_seconds())
         except (TypeError, ValueError):
             review_age_seconds = None
-    review_fresh = review_age_seconds is not None and review_age_seconds <= freshness_seconds
+    # The freshness of the reviews is a property of the **closed loops**:
+    # every live loop publishes the moment it is scheduled at and the
+    # moment its round started, and those moments say whether the review
+    # the store holds is the current one of its loop.  The review layer
+    # publishes that judgement; no age is counted here and no interval is
+    # read.
+    freshness = (reviews.get("currentLoopFreshness") or {})
+    review_fresh = bool(freshness.get("current"))
     upstream_valid = all((layers.get(name) or {}).get("valid") for name in ("tokens", "pools", "closedLoops"))
     executable_positive = int(stats.get("positive") or 0)
     attempts = int(broadcast.get("total") or 0)
@@ -3247,7 +3436,9 @@ def transaction_production_status(
     elif best_amount_missing > 0:
         state, healthy, reason = "review_best_amount_missing", False, "review_without_concrete_best_trade_amount"
     elif not review_fresh:
-        state, healthy, reason = "review_stalled", False, "no_fresh_review_within_threshold"
+        state, healthy, reason = (
+            "review_stalled", False,
+            "a_closed_loop_does_not_carry_its_current_measurement")
     elif executable_positive <= 0:
         state, healthy, reason = "market_no_executable_profit", True, "fresh_reviews_have_no_executable_positive_pnl"
     elif attempts <= 0:
@@ -3260,7 +3451,8 @@ def transaction_production_status(
         "reason": reason,
         "latestReviewAt": latest_review_at,
         "reviewAgeSeconds": review_age_seconds,
-        "reviewFreshnessThresholdSeconds": freshness_seconds,
+        "reviewFreshnessBasis": freshness.get("basis"),
+        "reviewNotCurrentLoops": freshness.get("notCurrentLoops") or [],
         "executablePositiveReviews": executable_positive,
         "transactionRecords": attempts,
         "latestAttemptAt": broadcast.get("latestAttemptAt"),
@@ -3465,13 +3657,8 @@ def build_report(
                 if name not in ("cascadeMatrix", "databaseBaseline")
                 and not layer.get("valid")]
     generated_at = now()
-    # The production gate and the review queue read the **same** number:
-    # the review interval the chain is configured with.  The queue says
-    # when a loop is due, and the gate says how old a review may be while
-    # it is acted on -- one cadence, so the two can never disagree about
-    # what "fresh" means.
     production = transaction_production_status(
-        layers, generated_at, review_interval_seconds(database))
+        layers, generated_at)
     return {"mode": "check", "generatedAt": generated_at, "network": NETWORK, "chainId": CHAIN_ID,
             "database": str(database), "observationStartedAt": observation_started_at(),
             "orchestrationGoal": "continuously_produce_stable_arbitrage_transaction_records_and_analyze_pnl",
@@ -3800,6 +3987,80 @@ def api_get(base: str, path: str, timeout: int = 5) -> dict[str, Any]:
         return {"ok": False, "status": 0, "error": str(error), "kind": "io"}
 
 
+#: A manager call that failed for a **transient** reason is retried.  The
+#: manager serves one chain and answers under load: a round that loses its
+#: review clock because the manager was busy at that moment is a round that
+#: never starts, and the cascade would report the consequence (nothing is due
+#: for a review) instead of the cause (the clock never moved).
+TRANSIENT_API_ATTEMPTS = 3
+TRANSIENT_API_BACKOFF_SECONDS = 2.0
+
+
+def transient_api_failure(response: dict[str, Any]) -> bool:
+    """Whether an answer says the call failed for a transient reason.
+
+    A transport failure (no status at all), a server error and a rate limit
+    are transient: the same call a moment later can succeed.  A request the
+    manager **answered** and refused (a bad request, a missing route) is not
+    transient, and repeating it would only repeat the refusal.
+    """
+    if response.get("ok"):
+        return False
+    kind = str(response.get("kind") or "")
+    if kind in ("timeout", "connect", "io"):
+        return True
+    status = response.get("status")
+    if status is None:
+        return True
+    try:
+        code = int(status)
+    except (TypeError, ValueError):
+        return False
+    return code >= 500 or code == 429
+
+
+def api_get_transient(base: str, path: str, timeout: int = 5,
+                       attempts: int = TRANSIENT_API_ATTEMPTS) -> dict[str, Any]:
+    """GET a manager route, retrying a transient failure.
+
+    The number of attempts is reported with the answer, so a caller that
+    looks at the journal can see that a route was retried instead of
+    guessing from the absence of data.
+    """
+    response: dict[str, Any] = {"ok": False, "status": None, "kind": "connect"}
+    total = max(1, int(attempts))
+    for attempt in range(1, total + 1):
+        response = api_get(base, path, timeout)
+        if not transient_api_failure(response):
+            response["attempts"] = attempt
+            return response
+        if attempt < total:
+            time.sleep(TRANSIENT_API_BACKOFF_SECONDS * attempt)
+    response["attempts"] = total
+    return response
+
+
+def api_post_transient(base: str, path: str, body: dict[str, Any],
+                        attempts: int = TRANSIENT_API_ATTEMPTS) -> dict[str, Any]:
+    """POST to the manager, retrying a transient failure.
+
+    The retried calls are idempotent by construction: the review clock is
+    **set** to a moment, and setting it twice to the same moment changes
+    nothing.  A call the manager refused is not retried.
+    """
+    response: dict[str, Any] = {"ok": False, "status": None, "body": "no attempt"}
+    total = max(1, int(attempts))
+    for attempt in range(1, total + 1):
+        response = api_post(base, path, body)
+        if not transient_api_failure(response):
+            response["attempts"] = attempt
+            return response
+        if attempt < total:
+            time.sleep(TRANSIENT_API_BACKOFF_SECONDS * attempt)
+    response["attempts"] = total
+    return response
+
+
 def runtime_business_health(runtime_api: str) -> dict[str, Any]:
     liveness = api_get(runtime_api, "/healthz", timeout=LIVENESS_TIMEOUT_SECONDS)
     if not liveness.get("ok"):
@@ -3988,15 +4249,86 @@ BASELINE_CLOSED_LOOP_ISSUES = (
     "closed_loop_hop_pool_reference_invalid",
 )
 
-#: The anchor libraries a **production** scope may use.  The baseline
-#: audit states the policy as the default load mode of the scope manager,
-#: and the scope manager starts with the **core library only**: the bare
-#: funding environment.  Every extra fund-token library multiplies the
-#: anchor groups and the closed loops that are built from them, so the
-#: catalog stays small enough to diagnose while the wider modes
-#: (``core_stocks`` and ``core_stocks_test``) stay available as an
-#: explicit, persisted decision.
-AUDITED_SCOPE_TOKEN_LOAD_MODE = "core"
+#: The load mode the healer asks a scope to carry.
+#:
+#: The healer carries **no** mode of its own.  The load mode is the
+#: decision of the **scope manager**, and the healer reads the decision
+#: from the baseline audit, which states the libraries every production
+#: scope declares (``pools.coreScopeExpectedLibraries`` and
+#: ``pools.candidateScopeExpectedLibraries``).
+#:
+#: A healer that names a mode of its own is a healer that can **narrow**
+#: a scope: a rebuild under a narrower mode deletes the pools of the
+#: libraries the scope no longer names, and the closed-loop catalog
+#: loses every route that runs through them.  The pools are still in the
+#: pool table, but they are no longer in the scope, so nothing can be
+#: priced through them and the reviews of those routes lose their value.
+#: Changing the mode may change what a run loads into memory; it may not
+#: make pools disappear.
+AUDITED_SCOPE_TOKEN_LOAD_MODE = None
+
+#: The libraries of every documented load mode.
+#:
+#: The name of a mode is the name of the library set it loads, so a mode
+#: can be named from the library list the audit reports.
+TOKEN_LOAD_MODE_LIBRARIES = {
+    "core": ("core",),
+    "core_stocks": ("core", "stocks"),
+    "core_stocks_test": ("core", "stocks", "test"),
+}
+
+
+def scope_load_mode_name(libraries: list[str] | tuple[str, ...]) -> str | None:
+    """The documented load mode that loads exactly these libraries."""
+    wanted = tuple(str(library) for library in libraries)
+    for mode, mode_libraries in TOKEN_LOAD_MODE_LIBRARIES.items():
+        if mode_libraries == wanted:
+            return mode
+    return None
+
+
+def scope_mode_narrows(configured: list[str] | tuple[str, ...],
+                       requested: list[str] | tuple[str, ...]) -> bool:
+    """Whether the requested mode drops a library the scope carries.
+
+    A narrower mode **removes pools** from the scope when the scope is
+    rebuilt, so the healer refuses to ask for one.  The pools are facts
+    about the chain and they stay in the pool table, but a pool that is
+    no longer in the scope cannot be priced, and the reviews of the
+    routes that ran through it lose their value.
+    """
+    return not set(str(library) for library in requested).issuperset(
+        set(str(library) for library in configured))
+
+
+def scope_expected_libraries(baseline: dict[str, Any]) -> dict[str, list[str]]:
+    """The libraries every production scope declares, per scope key."""
+    pools = baseline.get("pools") or {}
+    return {
+        "core4": [str(item) for item in (pools.get("coreScopeExpectedLibraries") or [])],
+        "candidate_exchange": [str(item) for item in
+                               (pools.get("candidateScopeExpectedLibraries") or [])],
+    }
+
+
+def scope_configured_libraries(baseline: dict[str, Any]) -> dict[str, list[str]]:
+    """The libraries every production scope carries right now."""
+    pools = baseline.get("pools") or {}
+    return {
+        "core4": [str(item) for item in (pools.get("coreScopeConfiguredLibraries") or [])],
+        "candidate_exchange": [str(item) for item in
+                               (pools.get("candidateScopeConfiguredLibraries") or [])],
+    }
+
+
+def scope_expected_modes(baseline: dict[str, Any]) -> dict[str, str]:
+    """The load mode every production scope declares, per scope key."""
+    modes: dict[str, str] = {}
+    for scope, libraries in scope_expected_libraries(baseline).items():
+        mode = scope_load_mode_name(libraries)
+        if mode:
+            modes[scope] = mode
+    return modes
 
 #: Every layer below the pool scope is materialized from it, so a scope
 #: repair invalidates them all.  The rebuild order is a **hard
@@ -4058,7 +4390,8 @@ def baseline_repair_actions(baseline: dict[str, Any]) -> list[str]:
 
 def repair_scope_policy(manager_api: str, apply: bool,
                         scopes: tuple[str, ...] = PRODUCTION_SCOPES,
-                        token_load_mode: str | None = AUDITED_SCOPE_TOKEN_LOAD_MODE,
+                        token_load_modes: dict[str, str] | None = None,
+                        configured_libraries: dict[str, list[str]] | None = None,
                         reason: str = "") -> dict[str, Any]:
     """Bring the production scopes back to the audited anchor policy.
 
@@ -4066,18 +4399,37 @@ def repair_scope_policy(manager_api: str, apply: bool,
     decision of the **scope manager** and not of the healer.  The healer
     therefore asks the manager to rebuild the scope and lets the manager
     decide what the rebuild changes; it never edits the scope row itself.
+
+    The mode the healer asks for is the mode the **scope declares**, and
+    a mode that would drop a library the scope already carries is never
+    asked for: narrowing a scope removes pools from it, and a pool that
+    is no longer in the scope cannot be priced.
     """
+    token_load_modes = dict(token_load_modes or {})
     results = []
     for scope in scopes:
+        token_load_mode = token_load_modes.get(scope)
+        configured = list((configured_libraries or {}).get(scope) or [])
+        if token_load_mode and configured:
+            requested = list(TOKEN_LOAD_MODE_LIBRARIES.get(token_load_mode) or ())
+            if requested and scope_mode_narrows(configured, requested):
+                results.append({"scopeKey": scope, "tokenLoadMode": None,
+                                "configuredLibraries": configured,
+                                "skipped": ("the mode the scope declares drops "
+                                            "libraries the scope already carries; "
+                                            "narrowing a scope removes pools")})
+                continue
         body: dict[str, Any] = {"chainId": CHAIN_ID, "scopeKey": scope,
                                 "dryRun": not apply}
         if token_load_mode:
             body["tokenLoadMode"] = token_load_mode
         response = api_post(manager_api, "/v1/pools/scopes/rebuild", body)
         results.append({"scopeKey": scope, "tokenLoadMode": token_load_mode,
+                        "configuredLibraries": configured,
                         "response": response})
     return {"tool": "pool-manager-api", "action": "pools.scope.rebuild",
-            "apply": apply, "dryRun": not apply, "tokenLoadMode": token_load_mode,
+            "apply": apply, "dryRun": not apply,
+            "tokenLoadModes": token_load_modes,
             "reason": reason or ("the baseline audit states the anchor policy of a "
                                  "production scope, and the scope manager owns it"),
             "results": results}
@@ -4441,11 +4793,41 @@ def response_succeeded(response: dict[str, Any]) -> bool:
     return bool(response.get("ok")) and payload.get("ok") is not False
 
 
+def review_static_preview(item: dict[str, Any]) -> dict[str, Any]:
+    """The static preview of a stored review or of an evidence block."""
+    for key in ("staticPreview", "static_preview", "static_preview_json"):
+        preview = item.get(key)
+        if isinstance(preview, dict):
+            return preview
+        if isinstance(preview, str) and preview.strip():
+            try:
+                parsed = json.loads(preview)
+            except (TypeError, ValueError):
+                continue
+            if isinstance(parsed, dict):
+                return parsed
+    return {}
+
+
+def review_shows_the_search_ceiling(item: dict[str, Any]) -> bool:
+    """Whether the review can show the ceiling its amount was searched inside.
+
+    The kernel publishes the ceiling **with** the review: the selected amount
+    is executable only when it stayed inside the published single-tick
+    capacity, so a review that cannot show the ceiling cannot show that its
+    own amount was inside the bound the review enforces.  The ceiling fields
+    are therefore part of the measurement, and a review that carries only a
+    summary of one is not a measurement the broadcast layer may act on.
+    """
+    preview = review_static_preview(item)
+    return "searchCeilingRaw" in preview and "searchCeilingBasis" in preview
+
+
 def merge_with_stored_evidence(
     db: Path,
     manager_api: str | None,
     evidence: list[dict[str, Any]],
-) -> tuple[list[dict[str, Any]], int]:
+) -> tuple[list[dict[str, Any]], int, list[str]]:
     """Return the evidence of **every** measured cycle of the chain.
 
     The Review Manager replaces the whole review set of the scope with the
@@ -4465,18 +4847,34 @@ def merge_with_stored_evidence(
     every fresh measurement of the loops that are still live.  The second
     number of the result counts the reviews that were left out for that
     reason, so the omission is visible instead of silent.
+
+    The Manager library holds the runtime's own measurement of every closed
+    loop, and that measurement is **complete**: it carries the amount
+    ladder, the ceiling the ladder searched inside and the route it priced.
+    The orchestrator's own manual review only carries a summary of the same
+    measurement, because the record table holds no ladder.  A submission
+    that prefers the summary replaces a complete measurement with a summary
+    of it, and the review library loses the ceiling that says the amount was
+    inside the bound the review enforces.
+
+    The measurement that is already there therefore wins: a gap is filled
+    with a measurement that can show its own ceiling, and a measurement
+    that can is never replaced by one that cannot.  The third number of the
+    result names the loops whose stored measurement was kept.
     """
-    merged: list[dict[str, Any]] = []
-    seen: set[str] = set()
+    new_by_loop: dict[str, dict[str, Any]] = {}
     for item in evidence:
         loop_key = str(item.get("loopKey") or "").strip()
-        if not loop_key:
+        if not loop_key or loop_key in new_by_loop:
             continue
-        if loop_key in seen:
-            continue
-        seen.add(loop_key)
-        merged.append(item)
+        new_by_loop[loop_key] = item
     stored = stored_review_evidence(db, manager_api)
+    stored_by_loop: dict[str, dict[str, Any]] = {}
+    for item in stored:
+        loop_key = str(item.get("loopKey") or "").strip()
+        if not loop_key or loop_key in stored_by_loop:
+            continue
+        stored_by_loop[loop_key] = item
     # The published catalog is the authority on which loops still exist.
     # When it cannot be read the list is empty and nothing is dropped: the
     # submission then fails loudly on its own instead of losing reviews to
@@ -4487,18 +4885,29 @@ def merge_with_stored_evidence(
         if str(row.get("loop_key") or "").strip()
     }
     retired = 0
-    for item in stored:
-        loop_key = str(item.get("loopKey") or "").strip()
-        if not loop_key:
+    kept_stored: list[str] = []
+    merged: list[dict[str, Any]] = []
+    for loop_key, fresh in new_by_loop.items():
+        stored_item = stored_by_loop.get(loop_key)
+        if (stored_item is not None
+                and review_shows_the_search_ceiling(stored_item)
+                and not review_shows_the_search_ceiling(fresh)):
+            # The stored measurement is complete and the fresh one is only
+            # a summary of it, so the stored measurement stays.
+            merged.append(stored_item)
+            kept_stored.append(loop_key)
+            continue
+        merged.append(fresh)
+    for loop_key, item in stored_by_loop.items():
+        if loop_key in new_by_loop:
+            # The loop was measured again, and the measurement that is
+            # carried is the one decided above.
             continue
         if published and loop_key.lower() not in published:
             retired += 1
             continue
-        if loop_key in seen:
-            continue
-        seen.add(loop_key)
         merged.append(item)
-    return merged, retired
+    return merged, retired, kept_stored
 
 
 def stored_review_evidence(
@@ -4742,7 +5151,8 @@ def materialize_reviews(
     # carries every measured cycle: the fresh evidence for the cycles that
     # were just re-reviewed, plus the evidence that is already stored for the
     # cycles that are still valid.
-    merged, retired_reviews = merge_with_stored_evidence(db, manager_api, evidence)
+    merged, retired_reviews, kept_stored = merge_with_stored_evidence(
+        db, manager_api, evidence)
     body = {"chainId": CHAIN_ID, "dryRun": not apply, "evidence": merged}
     if expected:
         body["expectedUpstream"] = expected
@@ -4751,6 +5161,8 @@ def materialize_reviews(
     return {"mode": "materialize-reviews", "generatedAt": now(), "apply": apply,
             "dryRun": not apply, "evidenceCount": len(merged),
             "submittedEvidenceCount": len(evidence),
+            "keptStoredMeasurementCount": len(kept_stored),
+            "keptStoredMeasurements": kept_stored,
             "droppedWithoutLoopIdentity": dropped_without_identity,
             "duplicateLoops": duplicate_loops,
             "retiredReviewCount": retired_reviews,
@@ -5101,24 +5513,14 @@ def missing_review_candidates(
     excluded_loop_keys: set[str] | None = None,
     manager_api: str | None = None,
 ) -> list[dict[str, Any]]:
-    # A review is **fresh** or it is nothing.  The freshness of a profit
-    # measurement is a property of the market: a review that was taken
-    # ten minutes ago describes a market that has traded since.  The
-    # production gate already refuses to broadcast on a review that is
-    # older than the freshness threshold, so a stale review must not stop
-    # the loop from being reviewed again -- otherwise the review of a loop
-    # freezes at the moment it was first written and the gate stays red
-    # forever.
+    # A closed loop is measured again as soon as its **own** clock says so.
+    # The clock of the loop is published by the closed-loop Manager: it
+    # names the moment the loop is scheduled at, and every measurement
+    # restarts it.  Nothing else is consulted here -- in particular no age
+    # of a review row and no interval -- because a review that was taken a
+    # while ago is not a reason to stop measuring the loop: the review of
+    # a loop would freeze at the moment it was first written.
     rows = review_rows(db, 24 * 365, None, manager_api)
-    newest_by_loop: dict[str, str | None] = {}
-    for row in rows:
-        key = review_loop_key(row)
-        if not key:
-            continue
-        stamp = review_measurement_stamp(row)
-        known = newest_by_loop.get(key)
-        if known is None or (stamp and stamp > known):
-            newest_by_loop[key] = stamp
     # A review covers a loop when it was filed under the **same published
     # identity**. The key of the loop and the key of its review are the
     # same string the Manager published, so exact equality decides it. A
@@ -5144,12 +5546,10 @@ def missing_review_candidates(
             # measurement, so a loop that was measured a moment ago waits.
             if not review_is_due(schedule):
                 continue
-        else:
-            stamp = newest_by_loop.get(key)
-            if stamp is not None and not review_is_stale(
-                    stamp, review_interval_seconds(db)):
-                # The review is still fresh: it covers this loop.
-                continue
+        # A loop that publishes **no** schedule at all cannot prove that
+        # the review the store holds is still the current one of the loop:
+        # there is no moment to compare it with.  Such a loop is measured
+        # again, and the gate that reads its review fails closed until then.
         schedule = schedules.get(key) or {}
         due_at = schedule.get("nextReviewAt")
         order[key] = str(due_at or "")
@@ -6130,11 +6530,18 @@ def repair(db: Path, tools: Path, manager_api: str, apply: bool, hours: int) -> 
         # decision of the **scope manager**.  The healer asks the manager
         # to rebuild the scope with the audited policy and lets the
         # manager decide what the rebuild changes.
+        #
+        # The policy the healer asks for is the one the scope **declares**,
+        # read from the baseline audit.  The healer never names a mode of
+        # its own: a narrower mode would delete the pools of the libraries
+        # the scope no longer names, and the catalog would lose every
+        # route that runs through them.
         results.append({"layer": "pools", "tool": "pool-manager-api",
                         "result": repair_scope_policy(
                             manager_api, apply,
-                            token_load_mode=(AUDITED_SCOPE_TOKEN_LOAD_MODE
-                                             if scope_policy_stale else None),
+                            token_load_modes=(scope_expected_modes(baseline)
+                                              if scope_policy_stale else {}),
+                            configured_libraries=scope_configured_libraries(baseline),
                             reason=("the baseline audit reports that the scope does not "
                                     "carry the audited anchor policy"
                                     if scope_policy_stale else
@@ -6448,13 +6855,20 @@ def repair_pool_depth(db: Path, tools: Path, apply: bool) -> dict[str, Any]:
                   "results": refresh_results})
     steps.append({"step": "replacement-assessment", **replacement})
     if replacement["status"] != "replacement_available":
+        # The blocked reason is the report's own: a store whose candidate
+        # scope is being rebuilt is not a market whose depth ran out, and the
+        # two must not carry the same code.
+        scope_missing = replacement["status"] == "candidate_pool_table_missing"
         steps.append({"step": "pool-swap-blocked", "blocked": True,
-                      "code": POOL_DEPTH_INSUFFICIENT_CODE,
+                      "code": replacement.get("code") or POOL_DEPTH_INSUFFICIENT_CODE,
                       "classification": depth.get("classification"),
                       "repairPath": depth.get("repairPath"),
                       "reason": replacement["reason"],
-                      "action": ("pool swap cannot restore a meaningful best trade amount; "
-                                 "the token pair must be dropped or a deeper venue added")})
+                      "action": ("the candidate pool scope is being rebuilt; the pool swap "
+                                 "is deferred until the store carries the candidate pools again")
+                      if scope_missing else
+                      ("pool swap cannot restore a meaningful best trade amount; "
+                       "the token pair must be dropped or a deeper venue added")})
     return {"layer": "pools", "tool": "pool-manager", "action": "repair-pool-depth",
             "apply": apply, "dryRun": not apply, "steps": steps,
             "replacement": replacement,
@@ -6487,50 +6901,75 @@ def pool_depth_replacement_report(db: Path) -> dict[str, Any]:
     with the depth audit.
     """
     adequate = ",".join(f"'{status}'" for status in sorted(ADEQUATE_DEPTH_STATUSES))
-    eligible = all_rows(db,
-        "SELECT COUNT(DISTINCT e.token0 || ':' || e.token1) pair_count "
-        "FROM v4_exchange_pools e "
-        "JOIN v4_exchange_pool_liquidity_snapshots s "
-        "  ON s.network=e.network AND s.chain_id=e.chain_id AND s.protocol=e.protocol "
-        " AND s.pool_id=e.pool_id "
-        "WHERE e.network=? AND e.chain_id=? AND e.protocol='uniswap_v4' "
-        "AND e.fee>0 AND e.fee<=? AND e.dynamic_fee=0 AND e.special_fee=0 "
-        "AND lower(COALESCE(e.hooks,'')) IN ('', '0x0000000000000000000000000000000000000000') "
-        "AND s.has_liquidity=1 "
-        f"AND COALESCE(s.depth_status,'') IN ({adequate}) ",
-        (NETWORK, CHAIN_ID, MAX_CANDIDATE_FIXED_FEE))
-    # A pool can be rejected by two independent policies: the shared fixed-fee
-    # ceiling, or the depth band. The two produce different operational
-    # consequences, so they must not be reported as one status: a fee
-    # rejection means the market has pools but none of them is admissible at
-    # all, while a depth rejection means the admissible pools are too thin.
-    capacity_rows = all_rows(db,
-        "SELECT COUNT(DISTINCT e.token0 || ':' || e.token1) pair_count "
-        "FROM v4_exchange_pools e "
-        "WHERE e.network=? AND e.chain_id=? AND e.protocol='uniswap_v4' "
-        "AND e.fee>0 AND e.fee<=? AND e.dynamic_fee=0 AND e.special_fee=0 "
-        "AND lower(COALESCE(e.hooks,'')) IN ('', '0x0000000000000000000000000000000000000000') "
-        "AND EXISTS (SELECT 1 FROM v4_exchange_pool_liquidity_snapshots s "
-        "  WHERE s.network=e.network AND s.chain_id=e.chain_id AND s.protocol=e.protocol "
-        "    AND s.pool_id=e.pool_id AND s.has_liquidity=1)",
-        (NETWORK, CHAIN_ID, MAX_CANDIDATE_FIXED_FEE))
-    capacity_pair_count = int((capacity_rows[0] if capacity_rows else {}).get("pair_count") or 0)
-    eligible_pair_count = int((eligible[0] if eligible else {}).get("pair_count") or 0)
+    eligible_pair_count = 0
+    capacity_pair_count = 0
     keys: list[str] = []
-    rows = all_rows(db, "SELECT DISTINCT e.token0 token0, e.token1 token1 "
-        "FROM v4_exchange_pools e "
-        "JOIN v4_exchange_pool_liquidity_snapshots s "
-        "  ON s.network=e.network AND s.chain_id=e.chain_id AND s.protocol=e.protocol "
-        " AND s.pool_id=e.pool_id "
-        "WHERE e.network=? AND e.chain_id=? AND e.protocol='uniswap_v4' "
-        "AND e.fee>0 AND e.fee<=? AND e.dynamic_fee=0 AND e.special_fee=0 "
-        "AND lower(COALESCE(e.hooks,'')) IN ('', '0x0000000000000000000000000000000000000000') "
-        "AND s.has_liquidity=1 "
-        f"AND COALESCE(s.depth_status,'') IN ({adequate}) "
-        "AND (SELECT COUNT(*) FROM dex_candidate_pools d "
-        "     WHERE d.network=e.network AND d.chain_id=e.chain_id AND d.pool_id=e.pool_id)=0 "
-        "LIMIT 20",
-        (NETWORK, CHAIN_ID, MAX_CANDIDATE_FIXED_FEE))
+    try:
+        eligible = all_rows(db,
+            "SELECT COUNT(DISTINCT e.token0 || ':' || e.token1) pair_count "
+            "FROM v4_exchange_pools e "
+            "JOIN v4_exchange_pool_liquidity_snapshots s "
+            "  ON s.network=e.network AND s.chain_id=e.chain_id AND s.protocol=e.protocol "
+            " AND s.pool_id=e.pool_id "
+            "WHERE e.network=? AND e.chain_id=? AND e.protocol='uniswap_v4' "
+            "AND e.fee>0 AND e.fee<=? AND e.dynamic_fee=0 AND e.special_fee=0 "
+            "AND lower(COALESCE(e.hooks,'')) IN ('', '0x0000000000000000000000000000000000000000') "
+            "AND s.has_liquidity=1 "
+            f"AND COALESCE(s.depth_status,'') IN ({adequate}) ",
+            (NETWORK, CHAIN_ID, MAX_CANDIDATE_FIXED_FEE))
+        # A pool can be rejected by two independent policies: the shared fixed-fee
+        # ceiling, or the depth band. The two produce different operational
+        # consequences, so they must not be reported as one status: a fee
+        # rejection means the market has pools but none of them is admissible at
+        # all, while a depth rejection means the admissible pools are too thin.
+        capacity_rows = all_rows(db,
+            "SELECT COUNT(DISTINCT e.token0 || ':' || e.token1) pair_count "
+            "FROM v4_exchange_pools e "
+            "WHERE e.network=? AND e.chain_id=? AND e.protocol='uniswap_v4' "
+            "AND e.fee>0 AND e.fee<=? AND e.dynamic_fee=0 AND e.special_fee=0 "
+            "AND lower(COALESCE(e.hooks,'')) IN ('', '0x0000000000000000000000000000000000000000') "
+            "AND EXISTS (SELECT 1 FROM v4_exchange_pool_liquidity_snapshots s "
+            "  WHERE s.network=e.network AND s.chain_id=e.chain_id AND s.protocol=e.protocol "
+            "    AND s.pool_id=e.pool_id AND s.has_liquidity=1)",
+            (NETWORK, CHAIN_ID, MAX_CANDIDATE_FIXED_FEE))
+        capacity_pair_count = int((capacity_rows[0] if capacity_rows else {}).get("pair_count") or 0)
+        eligible_pair_count = int((eligible[0] if eligible else {}).get("pair_count") or 0)
+        rows = all_rows(db, "SELECT DISTINCT e.token0 token0, e.token1 token1 "
+            "FROM v4_exchange_pools e "
+            "JOIN v4_exchange_pool_liquidity_snapshots s "
+            "  ON s.network=e.network AND s.chain_id=e.chain_id AND s.protocol=e.protocol "
+            " AND s.pool_id=e.pool_id "
+            "WHERE e.network=? AND e.chain_id=? AND e.protocol='uniswap_v4' "
+            "AND e.fee>0 AND e.fee<=? AND e.dynamic_fee=0 AND e.special_fee=0 "
+            "AND lower(COALESCE(e.hooks,'')) IN ('', '0x0000000000000000000000000000000000000000') "
+            "AND s.has_liquidity=1 "
+            f"AND COALESCE(s.depth_status,'') IN ({adequate}) "
+            "AND (SELECT COUNT(*) FROM dex_candidate_pools d "
+            "     WHERE d.network=e.network AND d.chain_id=e.chain_id AND d.pool_id=e.pool_id)=0 "
+            "LIMIT 20",
+            (NETWORK, CHAIN_ID, MAX_CANDIDATE_FIXED_FEE))
+    except sqlite3.OperationalError as error:
+        if not table_missing(error):
+            raise
+        # The candidate scope is rebuilt while the healer runs.  For a moment
+        # the store carries no candidate pools, so the question this report
+        # answers -- which depth-qualified pool sits outside the candidate
+        # set -- has no answer yet.  That is a gap of the store, not a
+        # failure of the reader: the cycle reports the gap and the rest of
+        # the cycle still runs.  Every other error is raised, because a query
+        # that fails for another reason says something the reader has to know.
+        return {
+            "status": "candidate_pool_table_missing",
+            "code": "candidate_pool_table_missing",
+            "classification": "candidate_pool_table_missing",
+            "repairPath": "materialize_candidate_pools",
+            "reason": "the store carries no candidate pools",
+            "depthCriterion": "pool_manager_capacity_verdict",
+            "adequateDepthStatuses": sorted(ADEQUATE_DEPTH_STATUSES),
+            "depthQualifiedPairCount": eligible_pair_count,
+            "replacementKeyCount": 0,
+            "keys": [],
+        }
     for row in rows:
         left, right = str(row.get("token0") or ""), str(row.get("token1") or "")
         if len(left) == 42 and len(right) == 42 and left != right:
@@ -6572,6 +7011,24 @@ def save(prefix: str, report: dict[str, Any]) -> Path:
     path = REPORT_DIR / f"{prefix}_chain{CHAIN_ID}_{stamp()}.json"
     path.write_text(json.dumps(report, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     return path
+
+
+def cycle_error_event(sample: int, error: BaseException) -> dict[str, Any]:
+    """The journal entry of a cycle that died.
+
+    The stack is the only thing that says **where** the cycle died.  Without
+    it a crash is a bare sentence and the reader has to guess the call site,
+    which is how a missing-table crash cost a whole round of guessing before
+    it was located.  The entry therefore carries the stack, and the stack is
+    taken **inside** the handler so it describes the failure itself.
+    """
+    return {
+        "event": "healing_cycle_error",
+        "sample": sample,
+        "errorType": type(error).__name__,
+        "error": str(error),
+        "traceback": traceback.format_exc(),
+    }
 
 
 def supervise(
@@ -6703,13 +7160,17 @@ def supervise(
                 # The queue of the due loops is the work list of the main
                 # thread of the review: every loop whose review time point
                 # has come, ordered by that time point.
-                due_loops = due_review_loops(manager_api)
+                due_queue = due_review_queue(manager_api)
+                due_loops = list(due_queue.get("loops") or [])
                 before = build_report(db, hours, tools, manager_api)
                 actions = healing_actions(before)
                 outcomes: list[dict[str, Any]] = [
                     {"action": "advance_review_clocks", "result": clock_outcome},
                     {"action": "due_review_loops",
-                     "result": {"count": len(due_loops),
+                     "result": {"ok": bool(due_queue.get("ok")),
+                                "count": len(due_loops),
+                                "dueCount": int(due_queue.get("dueCount") or 0),
+                                "waitingCount": int(due_queue.get("waitingCount") or 0),
                                 "loops": [row.get("loopKey") for row in due_loops]}}
                 ]
                 # GAP-E: the upstream gate covers the layers that must be
@@ -6857,12 +7318,7 @@ def supervise(
                                   "sample": sample,
                                   "snapshot": snapshot})
             except Exception as error:
-                append_event({
-                    "event": "healing_cycle_error",
-                    "sample": sample,
-                    "errorType": type(error).__name__,
-                    "error": str(error),
-                })
+                append_event(cycle_error_event(sample, error))
                 print(
                     f"[{now()}] sample={sample} cycle_error={type(error).__name__}: {error}",
                     flush=True,

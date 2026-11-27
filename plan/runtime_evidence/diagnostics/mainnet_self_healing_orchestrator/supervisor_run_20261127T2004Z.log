@@ -5,3 +5,10 @@
 [2026-11-27T12:36:19Z] sample=4 actions=fill_current_loop_reviews,rereview_historical_positive_candidates,observe_automatic_broadcast blockers=broadcast positive=7 broadcasts=0 stableWindows=0/3 stable=False
 [2026-11-27T13:13:12Z] sample=5 actions=fill_current_loop_reviews,rereview_historical_positive_candidates,observe_automatic_broadcast blockers=broadcast positive=7 broadcasts=0 stableWindows=0/3 stable=False
 [2026-11-27T13:17:32Z] sample=6 actions=fill_current_loop_reviews,rereview_historical_positive_candidates,observe_automatic_broadcast blockers=broadcast positive=7 broadcasts=0 stableWindows=0/3 stable=False
+[2026-11-27T13:22:36Z] sample=7 actions=fill_current_loop_reviews,rereview_historical_positive_candidates,observe_automatic_broadcast blockers=broadcast positive=7 broadcasts=0 stableWindows=0/3 stable=False
+[2026-11-27T13:27:05Z] sample=8 actions=fill_current_loop_reviews,rereview_historical_positive_candidates,observe_automatic_broadcast blockers=broadcast positive=7 broadcasts=0 stableWindows=0/3 stable=False
+[2026-11-27T13:30:36Z] sample=9 actions=fill_current_loop_reviews,rereview_historical_positive_candidates,observe_automatic_broadcast blockers=broadcast positive=7 broadcasts=0 stableWindows=0/3 stable=False
+[2026-11-27T13:33:14Z] sample=10 actions=fill_current_loop_reviews,rereview_historical_positive_candidates,observe_automatic_broadcast blockers=broadcast positive=7 broadcasts=0 stableWindows=0/3 stable=False
+[2026-11-27T13:51:47Z] sample=11 cycle_error=OperationalError: no such table: dex_candidate_pools
+[2026-11-27T14:14:18Z] sample=12 actions=fill_current_loop_reviews,rereview_historical_positive_candidates,observe_automatic_broadcast blockers=broadcast positive=7 broadcasts=0 stableWindows=0/3 stable=False
+supervisor=E:\2026OPC大赛\flashLoan\plan\runtime_evidence\diagnostics\mainnet_self_healing_orchestrator\supervisor_20261127T120525Z.jsonl

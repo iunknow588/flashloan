@@ -53,12 +53,19 @@ def main() -> int:
     out = {"apply": apply, "tokenLoadMode": token_load_mode, "scopes": {}}
     for scope in SCOPES:
         request_id = f"healer-scope-{scope}-{uuid.uuid4().hex[:12]}"
+        # The idempotency key has to be unique per invocation.  A stable
+        # key makes the scope tool replay the *stored* result of an earlier
+        # rebuild, which looks like a successful rebuild but never
+        # re-materializes the pools -- the pool set stays exactly as it was
+        # when that earlier request ran.  A depth repair that only changes
+        # the verdicts therefore has no effect at all on the scope.
+        idempotency_key = f"healer-scope-idem-{scope}-{token_load_mode}-{uuid.uuid4().hex[:12]}"
         response = post(
             "/v1/pools/scopes/rebuild",
             {"chainId": CHAIN_ID, "scopeKey": scope, "dryRun": not apply,
              "tokenLoadMode": token_load_mode},
             request_id,
-            f"healer-scope-idem-{scope}-{token_load_mode}",
+            idempotency_key,
         )
         out["scopes"][scope] = response
     print(json.dumps(out, ensure_ascii=False, indent=2))

@@ -1,0 +1,50 @@
+accepted = True
+action = trigger_immediate_review
+chainId = 4663
+chain_selection  <dict>
+chain_selection.canonical_market_id = dex-arbitrage-4663-uniswap-v4
+chain_selection.capabilities  <dict>
+chain_selection.capabilities.dex_arbitrage = True
+chain_selection.capabilities.execution = True
+chain_selection.capabilities.liquidation = False
+chain_selection.capabilities.observation = True
+chain_selection.capabilities.robinhood_shadow = False
+chain_selection.capabilities.shadow = False
+chain_selection.chain_default = True
+chain_selection.chain_id = 4663
+chain_selection.chain_key = chain:4663
+chain_selection.display_name = Robinhood Uniswap V4
+chain_selection.enabled = True
+chain_selection.feature = dex_arbitrage
+chain_selection.global_chain_id = chain:4663
+chain_selection.is_default = True
+chain_selection.legacy_market_id = robinhood-dex-shadow
+chain_selection.market_id = dex-arbitrage-4663-uniswap-v4
+chain_selection.market_type = native_chain
+chain_selection.native_symbol = ETH
+chain_selection.network = robinhood
+chain_selection.observation_only = False
+chain_selection.protocol = uniswap_v4
+chain_selection.protocol_id = uniswap_v4
+chain_selection.protocol_supported = True
+command = manual_review
+dataSource = rust_runtime_core
+dryRun = False
+groupKey = eth|spy|nvda
+group_key = eth|spy|nvda
+idempotencyKey = probe-review-b26c5e13fda844d6
+mode = native_closed_loop_group_manual_review
+ok = True
+processingAsync = True
+requestId = probe-7babc111ce2941d4
+reviewClock  <dict>
+reviewClock.error = MANAGER_API_UNAVAILABLE
+reviewClock.message = timed out
+reviewClock.ok = False
+reviewClock.status = None
+routeAddresses  <list>
+routeSymbols  <list>
+stateReadRequired = True
+transitionQueued = True
+version = rust_runtime_core_v1
+waitingDeadlineCleared = True

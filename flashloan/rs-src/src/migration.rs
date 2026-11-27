@@ -395,7 +395,7 @@ fn backfill_observation_rows(connection: &Connection, table: &str) -> Result<usi
 pub fn migrate_direction_schema(connection: &Connection) -> Result<Value, String> {
     execute(
         connection,
-        "PRAGMA foreign_keys=OFF; PRAGMA busy_timeout=5000;",
+        "PRAGMA foreign_keys=OFF; PRAGMA busy_timeout=60000;",
     )?;
 
     for (table, column, definition) in [

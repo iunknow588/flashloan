@@ -11,8 +11,8 @@ use closed_loop_manager::{
 pub use closed_loop_manager::{
     advance_review_clocks_on_connection, advance_review_clock_on_connection,
     begin_review_cycle_on_connection,
+    load_review_queue_on_connection,
     mark_review_required_on_connection, record_review_schedule_on_connection,
-    review_interval_seconds, review_interval_seconds_on_connection,
     start_review_clock_on_connection, ClosedLoopError as ClosedLoopClockError,
 };
 use pool_manager::{
@@ -97,28 +97,6 @@ const LIVE_POOL_STATE_TIMEOUT_SECONDS: u64 = 20;
 
 const MAX_AUTOMATIC_BROADCAST_FUTURE_SKEW_SECONDS: i64 = 30;
 
-/// The automatic review interval of a closed loop, in seconds.
-///
-/// The interval is **one** parameter and it lives with the closed loop,
-/// because it answers one question: how often is every closed loop
-/// measured again.  The freshness rule below reads the same number, so a
-/// review is accepted for a broadcast exactly while it is still the
-/// current measurement of its loop — no second window that could disagree
-/// with the first.
-pub fn automatic_review_interval_seconds() -> i64 {
-    closed_loop_manager::review_interval_seconds()
-}
-
-/// The automatic review interval of a closed loop, read from the
-/// configuration parameters.
-///
-/// The parameter is read from the store the closed loops live in, so a
-/// changed interval is in force on the next round of the review without a
-/// restart of the process.
-pub fn automatic_review_interval_seconds_on_connection(connection: &Connection) -> i64 {
-    closed_loop_manager::review_interval_seconds_on_connection(connection)
-}
-
 /// Whether a measurement is the **current** one of its closed loop.
 ///
 /// The question is answered by **moments**, never by an age.  The
@@ -148,8 +126,11 @@ fn review_is_current_for_automatic_broadcast(
     let reviewed_at = reviewed_at.with_timezone(&chrono::Utc);
     // A measurement that claims to happen in the future is a clock skew,
     // not a measurement: the round it belongs to cannot have happened yet.
-    let skew_seconds = chrono::Utc::now().signed_duration_since(reviewed_at).num_seconds();
-    if skew_seconds > MAX_AUTOMATIC_BROADCAST_FUTURE_SKEW_SECONDS {
+    // A measurement that lies in the **past** is not skew -- it is simply
+    // an old measurement, and whether it is still the current one of its
+    // loop is answered by the round it belongs to.
+    let ahead_seconds = reviewed_at.signed_duration_since(chrono::Utc::now()).num_seconds();
+    if ahead_seconds > MAX_AUTOMATIC_BROADCAST_FUTURE_SKEW_SECONDS {
         return false;
     }
     if let Some(round_started_at) = round_started_at
@@ -1670,31 +1651,26 @@ fn publish_review_audit(
     }
 }
 
-/// The environment variable that sets how long a closed loop may go
-/// without a fresh review before the sweep calls it stale.
-pub const STALE_REVIEW_SECONDS_ENV: &str = "REVIEW_STALE_AFTER_SECONDS";
-
-/// The default freshness window of a review, in seconds.
-///
-/// The window has to be **longer** than the review cycle, otherwise the
-/// sweep calls a healthy closed loop stale.  The cycle is bounded by the
-/// chain: every closed loop is priced against the chain, and a full round
-/// over the mainnet catalog takes **tens of minutes** (measured on
-/// 2026-11-26: a round refreshed **48** of the **174** closed loops in
-/// **11** minutes, and the oldest loop of a round waited **52** minutes
-/// for its turn).  The default therefore spans **two** rounds, so a loop
-/// that is merely waiting its turn is never marked, and a loop that
-/// really left the round is marked within an hour and a half.
-///
-/// The window is a **parameter** (`REVIEW_STALE_AFTER_SECONDS`): it says
-/// how long "too long" is, and it never relaxes a gate.
-pub const DEFAULT_STALE_REVIEW_SECONDS: i64 = 5_400;
-
 /// The reason a closed loop that was never reviewed carries.
 const STALE_REASON_NEVER_REVIEWED: &str = "not_reviewed_at_all";
 
 /// The prefix of the reason a closed loop that went quiet carries.
 const STALE_REASON_PREFIX: &str = "not_reviewed_since:";
+
+/// The reason a closed loop that publishes no review time point carries.
+///
+/// A loop without a review time point has no moment to compare its
+/// measurement with, so the measurement cannot be proven to be the
+/// current one of the loop.
+const STALE_REASON_NO_REVIEW_TIME_POINT: &str = "no_review_time_point";
+
+/// The basis every stale judgement is made on.
+///
+/// The sweep compares **moments**: the moment the closed loop is
+/// scheduled at and the moment its round started.  No window of seconds
+/// is involved -- an age counted from the measurement would count the
+/// time the review itself took, which is not time the market moved.
+pub const STALE_MOMENT_BASIS: &str = "loop_review_time_point";
 
 /// The outcome of one stale sweep.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -1704,8 +1680,8 @@ pub struct StaleReviewSweepOutcome {
     pub chain_id: i64,
     pub protocol: String,
     pub scope_key: String,
-    /// The freshness window the sweep judged by.
-    pub stale_after_seconds: i64,
+    /// The basis the sweep judged by.
+    pub moment_basis: String,
     /// How many closed loops the sweep looked at.
     pub scanned_count: usize,
     /// How many closed loops the sweep marked as stale.
@@ -1718,13 +1694,37 @@ pub struct StaleReviewSweepOutcome {
     pub observed_at: String,
 }
 
-/// Mark every closed loop that has not been reviewed for too long.
+/// Mark every closed loop whose measurement is not the current one.
 ///
 /// A closed loop that goes quiet must not go **silent**.  The sweep writes
 /// the missing statement into the store: the review row of the loop says
-/// that no fresh review arrived, a diagnostic names the reason, and the
+/// that no current review arrived, a diagnostic names the reason, and the
 /// broadcast request of the loop is withdrawn, so a stale opportunity can
 /// never be broadcast.
+///
+/// The sweep judges by **moments**, never by an age.  A closed loop
+/// publishes the moment it is scheduled at and the moment its round
+/// started, and those two moments say whether the measurement the store
+/// holds is the current one of the loop:
+///
+/// * a loop that publishes **no** measurement at all is marked, because
+///   nothing proves that it was ever measured;
+/// * a loop that publishes **no** review time point is marked, because
+///   no moment can be compared with anything;
+/// * a loop whose round started **after** the measurement the store holds
+///   is marked, because that round never published a measurement of its
+///   own;
+/// * a loop that is **busy** -- it is being measured right now, or it
+///   waits for the receipt of its trade -- is not marked: it is working,
+///   not quiet;
+/// * a loop that still **waits** for its next round is not marked: its
+///   measurement is the current one of the loop until that round starts.
+///
+/// The wait of a loop is **not** a fault: a loop that waits its turn in
+/// the queue keeps the measurement it has, and the sweep leaves it alone.
+/// The interval of the review cycle is not read here either -- it belongs
+/// to the helper that schedules a loop, and the moment it folded into is
+/// the moment the loop is scheduled at.
 ///
 /// The sweep touches **only** the loops it marks.  One loop that goes
 /// quiet never changes the review of another loop, and a loop that is
@@ -1736,17 +1736,9 @@ pub fn mark_stale_reviews(
     database_path: impl AsRef<Path>,
     network: &str,
     chain_id: i64,
-    stale_after_seconds: Option<i64>,
     apply: bool,
 ) -> Result<StaleReviewSweepOutcome, ReviewError> {
     validate_operation(network, chain_id)?;
-    let stale_after_seconds = stale_after_seconds
-        .unwrap_or_else(stale_after_seconds_from_environment);
-    if stale_after_seconds <= 0 {
-        return Err(ReviewError::InvalidRequest(
-            "stale_after_seconds must be greater than zero".to_owned(),
-        ));
-    }
     let database_path = database_path.as_ref();
     let snapshot = closed_loop_manager::read_closed_loop_snapshot(
         database_path,
@@ -1761,17 +1753,16 @@ pub fn mark_stale_reviews(
     }
     let observed_at = chrono::Utc::now();
     let observed_at_text = observed_at.to_rfc3339();
-    let cutoff = observed_at - chrono::Duration::seconds(stale_after_seconds);
     let mut connection = open_connection(database_path, apply)?;
     connection.busy_timeout(std::time::Duration::from_secs(60))?;
     let stored = read_stored_review_projections(&connection, network, chain_id)?;
-    let stale = stale_loops(&snapshot.loops, &stored, cutoff);
+    let stale = stale_loops(&snapshot.loops, &snapshot.runtime_states, &stored);
     let mut outcome = StaleReviewSweepOutcome {
         network: network.to_owned(),
         chain_id,
         protocol: NETWORK_PROTOCOL.to_owned(),
         scope_key: REVIEW_SCOPE_KEY.to_owned(),
-        stale_after_seconds,
+        moment_basis: STALE_MOMENT_BASIS.to_owned(),
         scanned_count: snapshot.loops.len(),
         marked_count: 0,
         withdrawn_request_count: 0,
@@ -1800,18 +1791,21 @@ pub fn mark_stale_reviews(
             &snapshot.loops,
             &snapshot.status,
             &observed_at_text,
-            stale_after_seconds,
         )?;
-        // The measurement of the loop is old, so the loop waits for a new
-        // one.  Its schedule says so: the loop is marked as waiting and
-        // the moment it was due is cleared.
-        closed_loop_manager::mark_review_required_on_connection(
-            &transaction,
-            network,
-            chain_id,
-            &entry.loop_key,
-        )
-        .map_err(|error| ReviewError::ClosedLoopRead(error.to_string()))?;
+        // The loop has no measurement, so it has to be measured again.  A
+        // loop that publishes **no** review time point gets one here; a
+        // loop that already publishes one keeps it, because that moment
+        // is what orders the queue, and a sweep must never reorder the
+        // work of the runtime.
+        if entry.schedule_missing {
+            closed_loop_manager::mark_review_required_on_connection(
+                &transaction,
+                network,
+                chain_id,
+                &entry.loop_key,
+            )
+            .map_err(|error| ReviewError::ClosedLoopRead(error.to_string()))?;
+        }
     }
     // The state of the library names the reviews the store holds, so it is
     // recomputed over the whole store: the marker of one loop changes the
@@ -1898,16 +1892,7 @@ pub fn mark_stale_reviews(
     Ok(outcome)
 }
 
-/// The freshness window the sweep judges by, read from the environment.
-fn stale_after_seconds_from_environment() -> i64 {
-    std::env::var(STALE_REVIEW_SECONDS_ENV)
-        .ok()
-        .and_then(|value| value.trim().parse::<i64>().ok())
-        .filter(|value| *value > 0)
-        .unwrap_or(DEFAULT_STALE_REVIEW_SECONDS)
-}
-
-/// One closed loop that has not been reviewed for too long.
+/// One closed loop whose measurement is not the current one.
 struct StaleLoop {
     /// The loop the marker belongs to.
     loop_key: String,
@@ -1917,22 +1902,40 @@ struct StaleLoop {
     exists: bool,
     /// When the loop was reviewed last, if it ever was.
     last_reviewed_at: Option<String>,
+    /// Whether the loop publishes no review time point at all.
+    ///
+    /// Only such a loop is given one by the sweep: a loop that already
+    /// publishes a moment keeps it, so the sweep never reorders the work
+    /// of the runtime.
+    schedule_missing: bool,
 }
 
-/// The closed loops that have not been reviewed for too long.
+/// The closed loops whose measurement is not the current one.
 ///
 /// A loop that carries a marker already is **not** listed again: the
 /// marker is the statement, and repeating it would rewrite the row on
 /// every sweep without saying anything new.
 fn stale_loops(
     loops: &[ClosedLoopRow],
+    runtime_states: &[closed_loop_manager::ClosedLoopRuntimeStateRow],
     stored: &BTreeMap<String, ReviewContentProjection>,
-    cutoff: chrono::DateTime<chrono::Utc>,
 ) -> Vec<StaleLoop> {
+    let schedules = runtime_states
+        .iter()
+        .map(|state| (state.loop_key.trim().to_lowercase(), state))
+        .collect::<BTreeMap<_, _>>();
     let mut stale = Vec::new();
     for closed_loop in loops {
         let key = closed_loop.loop_key.trim().to_lowercase();
         if key.is_empty() {
+            continue;
+        }
+        let schedule = schedules.get(&key).copied();
+        // A retired loop is out of the game: it is neither claimed nor
+        // measured, so it carries no measurement and none is due.
+        if schedule.is_some_and(|state| {
+            state.runtime_status.trim() == closed_loop_manager::RUNTIME_STATUS_RETIRED
+        }) {
             continue;
         }
         let Some(projection) = stored.get(&key) else {
@@ -1941,6 +1944,8 @@ fn stale_loops(
                 reason: STALE_REASON_NEVER_REVIEWED.to_owned(),
                 exists: false,
                 last_reviewed_at: None,
+                schedule_missing: schedule.is_none()
+                    || schedule.and_then(|state| state.next_review_at.as_deref()).is_none(),
             });
             continue;
         };
@@ -1948,8 +1953,9 @@ fn stale_loops(
             .map(|value| value.with_timezone(&chrono::Utc))
             .ok();
         let Some(reviewed_at) = reviewed_at else {
-            // A review that never reported a time has no age, so it can
-            // never prove that it is fresh.
+            // A review that never reported a time names no moment, so it
+            // can never prove that it is the current measurement of its
+            // loop.
             if projection.review_status == "data_incomplete"
                 && projection.review_reason.as_deref() == Some(STALE_REASON_NEVER_REVIEWED)
             {
@@ -1960,10 +1966,52 @@ fn stale_loops(
                 reason: STALE_REASON_NEVER_REVIEWED.to_owned(),
                 exists: true,
                 last_reviewed_at: Some(projection.reviewed_at.clone()),
+                schedule_missing: schedule.is_none()
+                    || schedule.and_then(|state| state.next_review_at.as_deref()).is_none(),
             });
             continue;
         };
-        if reviewed_at > cutoff {
+        // The loop publishes the moment it is scheduled at.  Without one
+        // there is no moment to compare the measurement with, so the
+        // measurement cannot be proven to be the current one.
+        let Some(next_review_at) = schedule.and_then(|state| state.next_review_at.as_deref()) else {
+            stale.push(StaleLoop {
+                loop_key: closed_loop.loop_key.clone(),
+                reason: STALE_REASON_NO_REVIEW_TIME_POINT.to_owned(),
+                exists: true,
+                last_reviewed_at: Some(projection.reviewed_at.clone()),
+                schedule_missing: true,
+            });
+            continue;
+        };
+        // A loop that is busy -- it is being measured right now, or it
+        // waits for the receipt of its trade -- is not quiet: the round
+        // that is running will publish a measurement of its own, and a
+        // trade that waits for its receipt has already been made.
+        if closed_loop_manager::is_review_sentinel(next_review_at) {
+            continue;
+        }
+        // The round of the loop started after the measurement the store
+        // holds, and that round never published a measurement of its own:
+        // the store holds a measurement that is not the current one.  The
+        // round is the loop's own, so the two moments are compared with
+        // each other and not with a window of seconds.
+        let round_started_at = schedule.and_then(|state| state.review_cycle_started_at.as_deref());
+        let round_started_at = round_started_at
+            .and_then(|value| chrono::DateTime::parse_from_rfc3339(value.trim()).ok())
+            .map(|value| value.with_timezone(&chrono::Utc));
+        if let Some(started) = round_started_at {
+            if reviewed_at >= started {
+                // The measurement the store holds is the measurement of
+                // the round that is running: it is the current one.
+                continue;
+            }
+        } else {
+            // The loop has no round of its own.  It is either waiting for
+            // its next round or waiting its turn in the queue, and the
+            // measurement the store holds is the measurement of the last
+            // round -- a true statement about the loop.  The loop is
+            // working, not quiet, so the sweep leaves it alone.
             continue;
         }
         let reason = format!("{STALE_REASON_PREFIX}{}", projection.reviewed_at.trim());
@@ -1977,6 +2025,7 @@ fn stale_loops(
             reason,
             exists: true,
             last_reviewed_at: Some(projection.reviewed_at.clone()),
+            schedule_missing: false,
         });
     }
     stale
@@ -1991,7 +2040,6 @@ fn mark_stale_loop(
     loops: &[ClosedLoopRow],
     status: &ClosedLoopStatus,
     observed_at: &str,
-    stale_after_seconds: i64,
 ) -> Result<(), ReviewError> {
     if entry.exists {
         // The measurement of the loop stays: the marker says that the
@@ -2097,7 +2145,7 @@ fn mark_stale_loop(
             format!("review_stale:{}", entry.loop_key),
             entry.reason,
             serde_json::to_string(&serde_json::json!({
-                "staleAfterSeconds": stale_after_seconds,
+                "momentBasis": STALE_MOMENT_BASIS,
                 "lastReviewedAt": entry.last_reviewed_at,
             }))?,
             observed_at
@@ -3109,7 +3157,7 @@ fn ladder_unmeasured_reason(static_preview: &serde_json::Value) -> String {
 fn build_review_rows(
     input: &ReviewInput,
     evidence: &[ReviewEvidenceInput],
-    freshness_window_seconds: i64,
+    loop_moments: &BTreeMap<String, LoopReviewMoments>,
 ) -> Result<DesiredReviewData, ReviewError> {
     // The evidence is indexed by the **exact published loop key**. One
     // measurement belongs to the closed loop it names; a rotation names a
@@ -3518,8 +3566,16 @@ fn build_review_rows(
             // Manager has no way to measure it again.
             closed_loop_identity: item.closed_loop_identity.clone(),
         };
-        let fresh_for_automatic_broadcast =
-            review_is_fresh_for_automatic_broadcast(&row.reviewed_at, freshness_window_seconds);
+        // The measurement is the current one of its loop exactly when it
+        // belongs to the round that is running now.  The moments that say
+        // so are the loop's own: the start of the round and the moment the
+        // store published the last review.  No interval is read here.
+        let moments = loop_moments.get(&closed_loop.loop_key.trim().to_lowercase());
+        let fresh_for_automatic_broadcast = review_is_current_for_automatic_broadcast(
+            &row.reviewed_at,
+            moments.and_then(|moments| moments.round_started_at.as_deref()),
+            moments.and_then(|moments| moments.published_reviewed_at.as_deref()),
+        );
         if review_status == "completed" {
             if let Some(pnl) = &row.signed_pnl {
                 if pnl.amount > 0.0
@@ -4981,7 +5037,11 @@ fn record_review_schedules(
     desired: &DesiredReviewData,
 ) -> Result<(), ReviewError> {
     for row in &desired.reviews {
-        if closed_loop_manager::next_review_moment(&row.reviewed_at).is_none() {
+        // The clock of a loop is restarted by the **moment** the review
+        // names.  Whether the row carries such a moment is asked of the
+        // moment itself: the scheduling helper is not called here, so no
+        // interval is rebuilt to answer a question about a timestamp.
+        if chrono::DateTime::parse_from_rfc3339(row.reviewed_at.trim()).is_err() {
             // A review that names no moment cannot restart a clock: the
             // row keeps the measurement it has, and the loop waits for a
             // review that names one.
@@ -5466,7 +5526,7 @@ mod tests {
         run_reviews, run_reviews_write, ExpectedUpstream, ReviewClearRequest,
         ReviewDiagnosticInput, ReviewDiagnosticType, ReviewError, ReviewEvidenceInput,
         ReviewOutcomeFilter, ClosedLoopIdentityEvidence, ReviewReadQuery, ReviewRecordStore,
-        ReviewWriteRequest, RunArbitrageEvidence, SignedPnl, DEFAULT_STALE_REVIEW_SECONDS,
+        ReviewWriteRequest, RunArbitrageEvidence, SignedPnl, STALE_MOMENT_BASIS,
     };
     use super::{hop_expected_amount, HopAmountFailure, HopState, ReviewTimePoolState};
     use chrono::Timelike;
@@ -5688,8 +5748,37 @@ mod tests {
             .unwrap();
         seed_pool_states(&connection);
         seed_directional_pools(&connection);
+        seed_runtime_state(&connection);
         drop(connection);
         path.to_path_buf()
+    }
+
+    /// The runtime state of the fixture's closed loop.
+    ///
+    /// The running system **always** publishes the runtime state of a
+    /// closed loop: it names the moment the loop is scheduled at and the
+    /// moment its round started.  Those two moments are what every
+    /// freshness judgement is made of, so the fixture has to carry them
+    /// -- without them the fixture would describe a closed loop that no
+    /// runtime ever measured.
+    fn seed_runtime_state(connection: &Connection) {
+        // The round of the loop started a while ago and the loop waits for
+        // its next round: a measurement taken after that moment belongs
+        // to the round, and a measurement taken before it does not.
+        let round_started_at = "2026-01-01T00:00:00Z";
+        let next_review_at = "2099-01-01T00:00:00Z";
+        connection
+            .execute(
+                "INSERT INTO manager_v4_closed_loop_runtime_state (
+                    network, chain_id, protocol, scope_key, loop_key,
+                    runtime_status, status_reason, review_generation,
+                    review_required, last_rebuilt_at, updated_at,
+                    last_reviewed_at, next_review_at, review_cycle_started_at
+                 ) VALUES (?1, ?2, 'uniswap_v4', 'core4', ?3, 'cooldown',
+                           'fixture', 1, 0, 'fixture', 'fixture', ?4, ?5, ?6)",
+                params![NETWORK, CHAIN_ID, LOOP_KEY, round_started_at, next_review_at, round_started_at],
+            )
+            .unwrap();
     }
 
     /// The identity of one directional pool of the fixture's scope.
@@ -6180,7 +6269,7 @@ mod tests {
             let connection = Connection::open(&path).unwrap();
             connection
                 .execute(
-                    "INSERT INTO manager_v4_closed_loop_runtime_state (
+                    "INSERT OR REPLACE INTO manager_v4_closed_loop_runtime_state (
                          network, chain_id, protocol, scope_key, loop_key,
                          runtime_status, status_reason, review_generation,
                          review_required, last_rebuilt_at, last_reviewed_at,
@@ -6236,7 +6325,7 @@ mod tests {
             let connection = Connection::open(&path).unwrap();
             connection
                 .execute(
-                    "INSERT INTO manager_v4_closed_loop_runtime_state (
+                    "INSERT OR REPLACE INTO manager_v4_closed_loop_runtime_state (
                          network, chain_id, protocol, scope_key, loop_key,
                          runtime_status, status_reason, review_generation,
                          review_required, last_rebuilt_at, last_reviewed_at,
@@ -7215,13 +7304,21 @@ mod tests {
     }
 
     #[test]
-    fn stale_positive_review_never_generates_automatic_broadcast_request() {
+    fn a_positive_review_outside_the_current_round_never_generates_automatic_broadcast_request() {
+        // The measurement of the fixture belongs to a round that ended
+        // long ago: the round that is running now started in 2026, so a
+        // measurement of 2020 is not the measurement of this round -- it
+        // is the measurement of a round that is over.  A profit that was
+        // found in a round that is over may not be traded: the market has
+        // moved on since it was measured.
         let (_directory, path) = database();
+        let mut old = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
+        old.reviewed_at = Some("2020-01-01T00:00:00Z".to_owned());
         let result = run_reviews(
             &path,
             NETWORK,
             CHAIN_ID,
-            vec![evidence(Some(signed_pnl(12.5)), true, true, Vec::new())],
+            vec![old],
             true,
         )
         .unwrap();
@@ -7239,10 +7336,16 @@ mod tests {
     #[test]
     fn a_closed_loop_that_went_quiet_is_marked_with_an_explicit_error() {
         let (_directory, path) = database();
-        let mut old = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
+        // A round that found no profit ends the round of the loop, so the
+        // loop waits for its next round at a **real** moment -- and the
+        // moment the round started stays the moment it started.  The
+        // measurement of 2020 belongs to a round that ended long before
+        // the round that is running now began, so the store holds a
+        // measurement that is not the current one of its loop.
+        let mut old = evidence(Some(signed_pnl(-12.5)), true, true, Vec::new());
         old.reviewed_at = Some("2020-01-01T00:00:00Z".to_owned());
         run_reviews(&path, NETWORK, CHAIN_ID, vec![old], true).unwrap();
-        let outcome = mark_stale_reviews(&path, NETWORK, CHAIN_ID, Some(60), true).unwrap();
+        let outcome = mark_stale_reviews(&path, NETWORK, CHAIN_ID, true).unwrap();
         assert_eq!(outcome.scanned_count, 1);
         assert_eq!(outcome.marked_count, 1);
         assert_eq!(outcome.stale_loop_keys, vec![LOOP_KEY.to_owned()]);
@@ -7262,23 +7365,23 @@ mod tests {
     }
 
     #[test]
-    fn the_default_stale_window_outlasts_a_review_round() {
-        // A review round is bounded by the chain: the mainnet catalog is
-        // priced loop by loop, and a round over it takes tens of minutes
-        // (measured on 2026-11-26: the oldest loop of a round waited 52
-        // minutes for its turn).  A window shorter than that would call a
-        // healthy closed loop stale on every round, and the marker would
-        // drown the statement it is meant to make.
-        assert!(
-            DEFAULT_STALE_REVIEW_SECONDS >= 1_800,
-            "the default stale window must outlast a review round"
+    fn the_sweep_judges_by_moments_and_not_by_a_window() {
+        // The sweep used to ask "is the measurement older than the
+        // window", and the window was a number of seconds.  That counted
+        // the time the review itself took -- the time the loop was busy is
+        // not time the market moved -- and it marked healthy loops stale
+        // on every round.  The sweep now compares the moments of the loop
+        // with each other, so there is no window to name any more.
+        assert_eq!(
+            STALE_MOMENT_BASIS, "loop_review_time_point",
+            "the sweep must judge by the moments of the closed loop"
         );
     }
 
     #[test]
     fn a_closed_loop_that_was_never_reviewed_is_marked_as_such() {
         let (_directory, path) = database();
-        let outcome = mark_stale_reviews(&path, NETWORK, CHAIN_ID, Some(900), true).unwrap();
+        let outcome = mark_stale_reviews(&path, NETWORK, CHAIN_ID, true).unwrap();
         assert_eq!(outcome.scanned_count, 1);
         assert_eq!(outcome.marked_count, 1);
         let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
@@ -7296,7 +7399,7 @@ mod tests {
         let mut fresh = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
         fresh.reviewed_at = Some(chrono::Utc::now().to_rfc3339());
         run_reviews(&path, NETWORK, CHAIN_ID, vec![fresh], true).unwrap();
-        let outcome = mark_stale_reviews(&path, NETWORK, CHAIN_ID, Some(900), true).unwrap();
+        let outcome = mark_stale_reviews(&path, NETWORK, CHAIN_ID, true).unwrap();
         assert_eq!(outcome.scanned_count, 1);
         assert_eq!(outcome.marked_count, 0);
         let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
@@ -7306,12 +7409,12 @@ mod tests {
     #[test]
     fn a_stale_marker_is_written_once_and_never_rewritten() {
         let (_directory, path) = database();
-        let mut old = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
+        let mut old = evidence(Some(signed_pnl(-12.5)), true, true, Vec::new());
         old.reviewed_at = Some("2020-01-01T00:00:00Z".to_owned());
         run_reviews(&path, NETWORK, CHAIN_ID, vec![old], true).unwrap();
-        let first = mark_stale_reviews(&path, NETWORK, CHAIN_ID, Some(60), true).unwrap();
+        let first = mark_stale_reviews(&path, NETWORK, CHAIN_ID, true).unwrap();
         assert_eq!(first.marked_count, 1);
-        let second = mark_stale_reviews(&path, NETWORK, CHAIN_ID, Some(60), true).unwrap();
+        let second = mark_stale_reviews(&path, NETWORK, CHAIN_ID, true).unwrap();
         // The marker is the statement, and repeating it says nothing new.
         assert_eq!(second.marked_count, 0);
     }
@@ -7322,7 +7425,7 @@ mod tests {
         let mut old = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
         old.reviewed_at = Some("2020-01-01T00:00:00Z".to_owned());
         run_reviews(&path, NETWORK, CHAIN_ID, vec![old], true).unwrap();
-        mark_stale_reviews(&path, NETWORK, CHAIN_ID, Some(60), true).unwrap();
+        mark_stale_reviews(&path, NETWORK, CHAIN_ID, true).unwrap();
         let mut fresh = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
         fresh.reviewed_at = Some(chrono::Utc::now().to_rfc3339());
         run_reviews(&path, NETWORK, CHAIN_ID, vec![fresh], true).unwrap();

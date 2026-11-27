@@ -493,10 +493,13 @@ pub struct ClosedLoopRuntimeStateRow {
     /// clock of a loop starts with its **first** review, not with the
     /// rebuild that published it.
     pub last_reviewed_at: Option<String>,
-    /// The moment the last review of the loop goes stale.
+    /// The moment the next round of the review of the loop may start.
     ///
-    /// The moment is the measurement plus the review interval, so every
-    /// measurement restarts the clock of the loop.
+    /// The moment is written by the **end** of the round that just
+    /// finished -- a confirmed broadcast, or a measurement that found no
+    /// profit -- plus the review interval, so every round restarts the
+    /// clock of the loop.  It is not the measurement plus the interval:
+    /// the time the round itself took is not time the loop waits.
     pub next_review_at: Option<String>,
     /// The seconds the review clock of the loop still has to run.
     ///
@@ -513,12 +516,12 @@ pub struct ClosedLoopRuntimeStateRow {
     pub review_waited_seconds: Option<i64>,
     /// The moment the review cycle of the loop started.
     ///
-    /// The cycle of a loop is the time from the start of a review round
-    /// to the end of that round -- a confirmed broadcast, or a
-    /// measurement that found no profit -- and the cycle is as long as
-    /// the automatic review interval.  The moment the round started is
-    /// what decides when the next round is due, so it is kept beside the
-    /// loop.
+    /// The cycle of a loop is the round plus the wait: the round runs
+    /// from this moment until it is dealt with -- a confirmed broadcast,
+    /// or a measurement that found no profit -- and the wait that
+    /// follows is already folded into `next_review_at`.  The moment the
+    /// round started is kept beside the loop because it is what says a
+    /// measurement belongs to the round that is running now.
     pub review_cycle_started_at: Option<String>,
 }
 
@@ -3817,7 +3820,17 @@ fn open_connection(path: &Path, writable: bool) -> Result<Connection, ClosedLoop
     } else {
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI
     };
-    Ok(Connection::open_with_flags(path, flags)?)
+    let connection = Connection::open_with_flags(path, flags)?;
+    if writable {
+        // A writer **waits** for the lock instead of failing at once.
+        // The runtime measures a loop in one connection while the Manager
+        // writes the result in another, and the two meet on the same file.
+        // Without the wait the second one reports "database is locked" the
+        // moment the first one holds the lock, and the request is lost --
+        // a manual review that never starts, for no reason but a lock.
+        connection.busy_timeout(std::time::Duration::from_secs(60))?;
+    }
+    Ok(connection)
 }
 
 fn read_status_on_connection(
@@ -4404,6 +4417,17 @@ pub const BROADCAST_PENDING_SENTINEL_AT: &str = "2035-05-05T05:05:00+00:00";
 /// so a reader that counts in `i32` does not overflow on it.
 pub const BROADCAST_PENDING_SENTINEL_EPOCH: i64 = 2_061_954_300;
 
+/// The shape of a moment the store writes.
+///
+/// A scheduled moment is written in **RFC 3339**, so it starts with the
+/// date and carries the `T` that separates it from the time.  SQLite
+/// reads a few shapes more than that -- `2026-11-27 17:10:35` is a date
+/// for it -- while the store reads **RFC 3339 only**, so a moment that is
+/// not written in that shape would make the two sides disagree about
+/// when a loop is due.  The shape is therefore checked **explicitly**: a
+/// moment that is not written in it is **due now**, on both sides.
+pub const RFC3339_MOMENT_GLOB: &str = "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*";
+
 /// Whether a moment is one of the two sentinels.
 ///
 /// A sentinel is a marker, so it is **excluded** from the due set on
@@ -4445,7 +4469,16 @@ pub const RUNTIME_STATUS_RETIRED: &str = "retired";
 ///
 /// The interval is a parameter and never a gate: a shorter interval makes
 /// the store measure a loop more often, it does not refuse anything.
-pub fn review_interval_seconds() -> i64 {
+///
+/// The interval belongs to the **one** place that schedules a closed
+/// loop: [`reset_review_start_on_connection`].  Nothing else may read
+/// it.  A judgement that counted an age -- "the review is older than
+/// the interval" -- would count the time the review itself took, and a
+/// review that took a minute to measure would look older than a review
+/// that took a second, although both are the current measurement of
+/// their loop.  Every other question is answered by **moments**: the
+/// moment the loop is scheduled at and the moment its round started.
+fn review_interval_seconds() -> i64 {
     std::env::var(REVIEW_INTERVAL_SECONDS_ENV)
         .ok()
         .and_then(|value| value.trim().parse::<i64>().ok())
@@ -4460,7 +4493,7 @@ pub fn review_interval_seconds() -> i64 {
 /// interval is read from there and every loop picks a new value up on its
 /// next cycle.  The environment variable is the fallback for a store that
 /// carries no parameter yet, and the default is the fallback for both.
-pub fn review_interval_seconds_on_connection(connection: &Connection) -> i64 {
+fn review_interval_seconds_on_connection(connection: &Connection) -> i64 {
     read_parameter_seconds(
         connection,
         REVIEW_INTERVAL_PARAMETER_NAMESPACE,
@@ -4516,25 +4549,6 @@ fn read_parameter_seconds(
     } else {
         None
     }
-}
-
-/// The moment the review of a loop that was measured at `reviewed_at` is
-/// due again.
-///
-/// The moment is the measurement plus the review interval, so the clock of
-/// a loop **restarts** with every measurement instead of running into a
-/// fixed moment that was set once.
-pub fn next_review_moment(reviewed_at: &str) -> Option<String> {
-    next_review_moment_with_interval(reviewed_at, review_interval_seconds())
-}
-
-/// The moment the review of a loop that was measured at `reviewed_at` is
-/// due again, for a given interval.
-fn next_review_moment_with_interval(reviewed_at: &str, interval_seconds: i64) -> Option<String> {
-    let measured = chrono::DateTime::parse_from_rfc3339(reviewed_at.trim()).ok()?;
-    let due = measured.with_timezone(&chrono::Utc)
-        + chrono::Duration::seconds(interval_seconds);
-    Some(due.to_rfc3339())
 }
 
 /// Claim the review round of a closed loop.
@@ -4624,7 +4638,9 @@ pub fn begin_review_cycle_on_connection(
 ///
 /// The write ends the review round of the loop: the measurement is kept
 /// and the review start time of the loop is reset, so the next round of
-/// the review starts one review interval after this moment.
+/// the review starts one review interval after the **round ended** -- not
+/// after the measurement.  The time the round itself took is not time
+/// the loop waits.
 pub fn record_review_schedule_on_connection(
     connection: &Connection,
     network: &str,
@@ -4792,6 +4808,54 @@ pub fn reset_review_start(
     )
 }
 
+/// The runtime status of one closed loop, as the store holds it.
+///
+/// The status is read before a loop is released, so the caller knows
+/// whether the loop waits for the receipt of its trade -- it is parked at
+/// the broadcast sentinel -- or whether the round that measured it has
+/// already scheduled the next one.  A loop the store does not know reads
+/// as `None`.
+pub fn read_runtime_status_on_connection(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+    loop_key: &str,
+) -> Result<Option<String>, ClosedLoopError> {
+    let status = connection
+        .query_row(
+            "SELECT runtime_status
+               FROM manager_v4_closed_loop_runtime_state
+              WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
+                AND scope_key = ?4 AND loop_key = ?5",
+            params![
+                network,
+                chain_id,
+                NETWORK_PROTOCOL,
+                CLOSED_LOOP_SCOPE_KEY,
+                loop_key
+            ],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?;
+    Ok(status)
+}
+
+/// The runtime status of one closed loop, read from a store.
+///
+/// The wrapper opens the store and does the read, so a caller that only
+/// knows the path does not have to open a connection of its own.  The store
+/// is opened the way [`reset_review_start`] opens it, so the reader and the
+/// writer always see the same file.
+pub fn read_runtime_status(
+    database_path: impl AsRef<Path>,
+    network: &str,
+    chain_id: i64,
+    loop_key: &str,
+) -> Result<Option<String>, ClosedLoopError> {
+    let connection = open_connection(database_path.as_ref(), true)?;
+    read_runtime_status_on_connection(&connection, network, chain_id, loop_key)
+}
+
 /// Start the review clock of a closed loop.
 ///
 /// The clock is the wait between two review rounds of a loop.  It is
@@ -4931,8 +4995,10 @@ pub fn advance_review_clocks_on_connection(
             AND runtime_status IN (?8, ?9)
             AND next_review_at IS NOT NULL
             AND next_review_at NOT IN (?10, ?11)
-            AND (julianday(next_review_at) IS NULL
-                 OR julianday(next_review_at) <= julianday(?7))",
+            AND (next_review_at NOT GLOB ?12
+                 OR strftime('%s', next_review_at) IS NULL
+                 OR CAST(strftime('%s', next_review_at) AS INTEGER)
+                    <= CAST(strftime('%s', ?7) AS INTEGER))",
         params![
             network,
             chain_id,
@@ -4945,6 +5011,7 @@ pub fn advance_review_clocks_on_connection(
             RUNTIME_STATUS_REVIEW_PENDING,
             REVIEW_PENDING_SENTINEL_AT,
             BROADCAST_PENDING_SENTINEL_AT,
+            RFC3339_MOMENT_GLOB,
         ],
     )?;
     Ok(updated)
@@ -5107,10 +5174,13 @@ pub fn read_due_review_loops(
            AND runtime_status IN ('ready_for_review', 'cooldown')
            AND (next_review_at IS NULL
                 OR (next_review_at NOT IN (?6, ?7)
-                    AND (strftime('%s', next_review_at) IS NULL
+                    AND (next_review_at NOT GLOB ?8
+                         OR strftime('%s', next_review_at) IS NULL
                          OR CAST(strftime('%s', next_review_at) AS INTEGER)
                             <= CAST(strftime('%s', ?5) AS INTEGER))))
-         ORDER BY CAST(strftime('%s', next_review_at) AS INTEGER) ASC, loop_key ASC",
+         ORDER BY CASE WHEN next_review_at GLOB ?8
+                       THEN CAST(strftime('%s', next_review_at) AS INTEGER)
+                       ELSE -9223372036854775808 END ASC, loop_key ASC",
     )?;
     let rows = statement.query_map(
         params![
@@ -5120,7 +5190,8 @@ pub fn read_due_review_loops(
             CLOSED_LOOP_SCOPE_KEY,
             now,
             REVIEW_PENDING_SENTINEL_AT,
-            BROADCAST_PENDING_SENTINEL_AT
+            BROADCAST_PENDING_SENTINEL_AT,
+            RFC3339_MOMENT_GLOB
         ],
         |row| {
             let next_review_at: Option<String> = row.get(2)?;
@@ -6830,7 +6901,7 @@ mod tests {
         read_review_queue, load_review_queue_on_connection, read_review_queue_view,
         count_waiting_review_loops, read_due_review_loops, RUNTIME_STATUS_RETIRED,
         read_resident_review_queue, read_review_queue_fingerprint,
-        review_queue_scan_cost,
+        review_queue_scan_cost, open_connection,
     };
     use manager_contracts::directional_pool::{DirectionalPool, PoolDirection, V4Pool};
     use manager_contracts::TokenKeyId;
@@ -8687,6 +8758,42 @@ mod tests {
         assert!(BROADCAST_PENDING_SENTINEL_EPOCH <= i32::MAX as i64);
     }
 
+    /// A writer **waits** for the lock instead of failing at once.
+    ///
+    /// The runtime measures a loop in one connection while the Manager writes
+    /// the result in another, and the two meet on the same file.  A writer
+    /// that does not wait reports "database is locked" the moment the other
+    /// one holds the lock, and the request is lost -- a manual review that
+    /// never starts, for no reason but a lock.
+    #[test]
+    fn a_writer_waits_for_the_lock_instead_of_failing_at_once() {
+        let (_directory, path) = database();
+        let holder = open_connection(&path, true).expect("the store opens");
+        holder
+            .execute_batch("BEGIN EXCLUSIVE")
+            .expect("the holder takes the write lock");
+        let waiter_path = path.clone();
+        let waiter = std::thread::spawn(move || {
+            let connection = open_connection(&waiter_path, true).expect("the store opens");
+            connection
+                .execute_batch("BEGIN IMMEDIATE")
+                .map(|_| true)
+                .unwrap_or(false)
+        });
+        // The waiter waits for the lock: it has not given up yet.
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        assert!(
+            !waiter.is_finished(),
+            "the writer waits for the lock instead of failing at once"
+        );
+        holder
+            .execute_batch("ROLLBACK")
+            .expect("the holder releases the lock");
+        assert!(
+            waiter.join().expect("the waiter finishes"),
+            "the writer gets the lock once it is free"
+        );
+    }
     /// The queue is ordered by the moment a loop is scheduled at.
     #[test]
     fn the_review_queue_is_ordered_by_the_review_moment() {
@@ -8902,6 +9009,15 @@ mod tests {
             RUNTIME_STATUS_RETIRED,
             Some("2026-01-01T00:00:00+00:00"),
         );
+        // A moment that is not written in RFC 3339 is **due now** on both
+        // sides: SQLite reads a few shapes more than the store does, so
+        // the shape is checked on purpose.
+        insert_runtime_state(
+            &connection,
+            "loop-loose-shape",
+            "cooldown",
+            Some("2099-01-01 00:00:00"),
+        );
         let due_from_store: Vec<String> = read_due_review_loops(&path, NETWORK, CHAIN_ID)
             .unwrap()
             .into_iter()
@@ -8913,7 +9029,10 @@ mod tests {
             .into_iter()
             .map(|slot| slot.loop_key.clone())
             .collect();
-        assert_eq!(due_from_queue, vec!["loop-due-null", "loop-due-past"]);
+        assert_eq!(
+            due_from_queue,
+            vec!["loop-due-null", "loop-loose-shape", "loop-due-past"]
+        );
         assert_eq!(
             due_from_store, due_from_queue,
             "the queue and the store have to name the same due loops"
@@ -8923,7 +9042,7 @@ mod tests {
         assert!(queue.get("loop-retired").is_none());
         assert!(queue.get("loop-measured").unwrap().is_sentinel);
         assert!(queue.get("loop-broadcast").unwrap().is_sentinel);
-        assert_eq!(queue.len(), 6);
+        assert_eq!(queue.len(), 7);
         assert_eq!(
             count_waiting_review_loops(&path, NETWORK, CHAIN_ID).unwrap(),
             4

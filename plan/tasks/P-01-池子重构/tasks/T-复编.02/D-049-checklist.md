@@ -88,6 +88,17 @@
       > 缺的字段**只有两种**：`signed PnL raw` ＋ `currency` ＋ `precision` ＋ `source`（**20** 条）
       > 与 `best amount raw`（**11** 条），二者重叠 **7** 条 ⇒ 24 = 20 ＋ 11 − 7。
       >
+      > **重测（2026-11-28 01:37 +08 · 当前代次）**：**仍未满足** —— 共 **176** 条、
+      > `valued` = **157**、`missingValue` = **19**。
+      > 缺的仍是**同一种链上事实**：**19** 条**全部**是 `data_incomplete`，
+      > `review_reason = signed PnL is missing or incomplete`；其 `runArbitrage` 原始错误
+      > **18 / 19** 条为 `execution reverted` ＋ `revertSelector = 0xb20c2204`（链上 `SwapNotResolved()`），
+      > 另 **1** 条为 `single_tick_capacity_below_min_probe`。
+      > ⇒ 缺口由 **24 / 174** 收窄到 **19 / 176**，**仍然没有一条是「字段被发布层弄丢了」**
+      > ⇒ **发布层无责**，本项**保持开放**。
+      > 证据：`plan/runtime_evidence/reports/mainnet_arbitrage_healer_check_chain4663_20261127T173736Z.json`
+      > （`scripts/mainnet_arbitrage_healer.py --mode check --chain-id 4663`，**可重跑**）。
+      >
       > **细化口径（新增 · 与上面那条**并列**，不改写上面那条的判定）**：
       > - [x] **缺字段的复核条数**在**第五层**修复后由 **150**（分母 164）降到 **24**（分母 174）。
       > - [x] **剩余的 24** 条**全部**是**链上事实**：`signed Pnl` 缺失 = 链上 `SwapNotResolved()`（revert `0xb20c2204`）；
@@ -97,6 +108,13 @@
 - [ ] **金额状态 = `measured`**（`missing=0`、`unconfirmed=0`）。
 
       > **判定（2026-11-24 · `review_version=39`）**：**NOT MET** —— `measured` = **163** / `missing` = **11** / `unconfirmed` = **0**。
+      >
+      > **重测（2026-11-28 01:37 +08 · 当前代次）**：**仍未满足** —— `total` = **176**、
+      > `confirmed` = **162**、`missing` = **14**、`ladderIncomplete` = **14**、`failClosed` = **True**。
+      > `unconfirmed` = **0** 这一半**仍成立**；缺口由 **11** 变为 **14**
+      > （**链上事实会随代次波动**：单 tick 容量不足 ⇒ 阶梯未跑）。
+      > ⇒ **发布层仍无责**（每一条缺失都带得说原因），本项**保持开放**。
+      > 证据：`plan/runtime_evidence/reports/mainnet_arbitrage_healer_check_chain4663_20261127T173736Z.json`。
       >
       > **细化口径（新增 · 与上面那条**并列**，不改写上面那条的判定）**：
       > - [x] **说得出原因的缺失 = 11 / 11**（`missingWithAReason` = **11**）；
@@ -111,6 +129,13 @@
       > **判定（2026-11-24 · `review_version=39`）**：**NOT MET** —— `missing` = **20**；
       > `pnlStates`：`positive` = **4**、`measured_zero` = **0**、`negative` = **150**、`missing` = **20**。
       >
+      > **重测（2026-11-28 01:37 +08 · 当前代次）**：**仍未满足** —— `missingValue` = **19**（共 **176**）。
+      > 缺失**全部**是 `data_incomplete` / `signed PnL is missing or incomplete`，
+      > 且 `revertSelector = 0xb20c2204` 与 2026-11-24 同一条链上事实（链上 `SwapNotResolved()`）
+      > ⇒ **不是**「拿到了却没发布」。
+      > ⇒ 缺口由 **20 / 174** 收窄到 **19 / 176**，本项**保持开放**。
+      > 证据：`plan/runtime_evidence/reports/mainnet_arbitrage_healer_check_chain4663_20261127T173736Z.json`。
+      >
       > **细化口径（新增 · 与上面那条**并列**，不改写上面那条的判定）**：
       > - [x] **20** 条 PnL 缺失的 `review_reason` **全部**是 `signed PnL is missing or incomplete`
       >   ⇒ 即**链上证据本身没拿到**，**不是**「拿到了却没发布」。
@@ -120,6 +145,12 @@
 
       > **判定（2026-11-24 · `review_version=39`）**：**NOT MET** —— `bestAmountMissingFlags` = **11**；
       > 只读 healer 交叉：`healerBestAmountMissing` = **11**、`healerBestAmountMissingCurrentLoop` = **11**。
+      >
+      > **重测（2026-11-28 01:37 +08 · 当前代次）**：**仍未满足** —— 发布层 `bestAmountMissing` = **14**；
+      > 只读 healer 交叉：`missing` = **14**、`missingCurrentLoop` = **0**、`confirmed` = **162**、`total` = **176**。
+      > ⇒ **14 = 14** ⇒ **三方同数**（无分裂）；**当前目录**（8 个闭环）**一条不缺**（`missingCurrentLoop` = **0**）。
+      > ⇒ 缺口由 **11** 变为 **14**（**链上事实随代次波动**），本项**保持开放**。
+      > 证据：`plan/runtime_evidence/reports/mainnet_arbitrage_healer_check_chain4663_20261127T173736Z.json`。
       >
       > **细化口径（新增 · 与上面那条**并列**，不改写上面那条的判定）**：
       > - [x] **发布层与只读 healer 完全交叉一致**（**11 = 11**）⇒ **没有「发布层说缺、healer 说有」的分裂**。
@@ -147,6 +178,12 @@
       > **判定（2026-11-24 · `review_version=39`）**：**NOT MET** —— `missing` = **11**、
       > `ladderIncomplete` = **11**、`confirmed` = **163**、`total` = **174**、`failClosed` = **True**。
       > （`failClosed=True` 这一半**已达成**：healer 在金额缺失时**拒绝**放行。）
+      >
+      > **重测（2026-11-28 01:37 +08 · 当前代次）**：**仍未满足** —— `missing` = **14**、
+      > `ladderIncomplete` = **14**、`confirmed` = **162**、`total` = **176**、`failClosed` = **True**。
+      > （`failClosed=True` 这一半**仍达成**：healer 在金额缺失时**拒绝**放行。）
+      > ⇒ 前半（`missing` / `ladderIncomplete` 归零）**仍未满足**，本项**保持开放**。
+      > 证据：`plan/runtime_evidence/reports/mainnet_arbitrage_healer_check_chain4663_20261127T173736Z.json`。
       >
       > **细化口径（新增 · 与上面那条**并列**，不改写上面那条的判定）**：
       > - [x] **说得出原因的缺失 = 11 / 11**；**说不出原因的缺失 = 0**。
@@ -342,12 +379,24 @@
       > ⇒ **实盘广播库 0 行** ⇒ 归 **`M-7`**，已如实登记到
       > [`D-014`](../../docs/D-014-未完成任务清单_20261123.md) §1.2.11。
 
-- [ ] `blockers` 中 `closedLoops` 与 `reviews` **同时消失**。
+- [x] `blockers` 中 `closedLoops` 与 `reviews` **同时消失**。
 
-      > **判定（2026-11-24 · `review_version=39` · `C4` NOT MET）**：
+      > **重测（2026-11-28 01:37 +08 · 当前代次 · `C4` MET）**：**已满足** ——
+      > `blockers` = **仅 `broadcast`**；`layerValidity`：`tokens` ✔ / `pools` ✔ / `closedLoops` ✔ /
+      > `reviews` ✔ / `cascadeMatrix` ✔ ⇒ **`closedLoops` 与 `reviews` 同时消失**。
+      > 逐层读数：`L1 tokens valid=True admitted=201` ／ `L2 pools valid=True` ／
+      > `L3 loops valid=True loops=8 rebuild=0` ／ `L4 reviews valid=True total=176 valued=157 missing=19` ／
+      > `L5 broadcast valid=False manager=0` ⇒ **唯一剩余阻塞是广播层**。
+      > 级联矩阵：`loops total=8 threeHops=8 hopsInScope=24/24`（**跳数与作用域校验同时成立**）。
+      > ⇒ 本项**闭合**。证据：
+      > `plan/runtime_evidence/reports/mainnet_arbitrage_healer_check_chain4663_20261127T173736Z.json`
+      > （`scripts/mainnet_arbitrage_healer.py --mode check --chain-id 4663`，**可重跑**）。
+      >
+      > **旧判定（2026-11-24 · `review_version=39` · `C4` NOT MET）**：
       > `blockers` = **`reviews` ＋ `broadcast`**；`layerValidity`：`tokens` ✔ / `pools` ✔ /
       > `closedLoops` ✔ / `cascadeMatrix` ✔ ＝ **True**，`reviews` ✘、`broadcast` ✘ ＝ **False**。
       > ⇒ **`closedLoops` 已消失**；**`reviews` 与 `broadcast` 仍在** ⇒ **本项不满足**。
+      > （**旧读数已过时** —— `reviews` 阻塞**已消失**）。
       >
       > **细化口径（新增 · 与上面那条**并列**）**：
       > - [x] **`closedLoops` 阻塞**已消失（**True**）。
@@ -426,6 +475,16 @@
       > **判定（2026-11-24 · `review_version=39` · `D3` NOT MET）**：
       > `positive` = **4**、`measured_zero` = **0**、`negative` = **150**、PnL 缺失 = **20**。
       > ⇒ 采集器的 `D3` 判定条件是「**没有一条 PnL 缺失**」⇒ 本轮**未满足** ⇒ **保留原判定**。
+      >
+      > **重测（2026-11-28 01:37 +08 · 当前代次 · `D3` 仍 NOT MET）**：
+      > `positive` = **7**（`positiveAmount` = **7**，最大 **2.8e-05** USDG ＝ **灰尘级**）、
+      > `nonPositive` = **150**、PnL 缺失 = **19**。
+      > ⇒ 采集器的 `D3` 判据是「**没有一条 PnL 缺失**」⇒ **19** 条缺失 ⇒ **仍不满足** ⇒ **保留原判定**。
+      > **但「如实报告为业务结论」这一半已可验证**：`productionState = market_no_executable_profit`、
+      > `healthy = True`、`safeToAutoBroadcast = False`、`blockers = broadcast`
+      > ⇒ 正利润**被如实上报为业务结论**（**不是**缺陷、**不是**门禁失败），闸门**未放宽**。
+      > ⇒ 本项**保持开放**（缺口只剩「一条 PnL 都不缺」这一条）。
+      > 证据：`plan/runtime_evidence/reports/mainnet_arbitrage_healer_check_chain4663_20261127T173736Z.json`。
       >
       > **细化口径（新增 · 与上面那条**并列**）**：
       > - [x] **零 / 负盈亏确实按「测量结果」保留**：`negative` = **150**、`measured_zero` = **0**、

@@ -1,4 +1,4 @@
-﻿# VS Installer 自动后台下载 —— 取证与关闭方案
+# VS Installer 自动后台下载 —— 取证与关闭方案
 
 > 采集时间：2026-11-22 09:00（Asia/Shanghai）
 > 采集身份：`QIAN\CodexSandboxOffline`（**非管理员**，IsAdmin=False）
@@ -151,7 +151,8 @@ BackgroundDownloader cancelled: 已取消该操作。
 
 ### 看门狗（免提权的持续兜底）
 
-`planuntime_evidence	oolss_background_download_watchdog.py`
+`plan
+untime_evidence	oolss_background_download_watchdog.py`
 在无需管理员权限的前提下持续把被拉起的下载进程按下去。
 
 已端到端验证：

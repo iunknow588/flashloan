@@ -1,0 +1,157 @@
+{
+  "capturedAt": "2026-11-27T17:28:28.558035+00:00",
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "scope": {
+    "network": "robinhood",
+    "chainId": 4663,
+    "protocol": "uniswap_v4",
+    "scopeKey": "core4"
+  },
+  "ledger": {
+    "table": "schema_migrations",
+    "count": 22,
+    "last": [
+      "20261127_019_review_schedule_schema",
+      "20261127_020_closed_loop_review_clock",
+      "20261127_021_review_queue_schema"
+    ]
+  },
+  "runtimeStateColumns": [
+    "chain_id",
+    "last_rebuilt_at",
+    "last_reviewed_at",
+    "loop_key",
+    "network",
+    "next_review_at",
+    "protocol",
+    "review_cycle_started_at",
+    "review_generation",
+    "review_required",
+    "runtime_status",
+    "scope_key",
+    "status_reason",
+    "updated_at"
+  ],
+  "dueCount": 6,
+  "waitingCount": 2,
+  "parkedCount": 0,
+  "sentinels": [
+    "2036-06-06T06:06:00+00:00",
+    "2035-05-05T05:05:00+00:00"
+  ],
+  "due": [
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "runtime_status": "cooldown",
+      "next_review_at": "2026-11-27T17:21:06.153167200+00:00",
+      "review_cycle_started_at": "2026-11-27T17:14:06.706042600+00:00"
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "runtime_status": "cooldown",
+      "next_review_at": "2026-11-27T17:23:13.713124400+00:00",
+      "review_cycle_started_at": "2026-11-27T17:20:10.903081600+00:00"
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "runtime_status": "cooldown",
+      "next_review_at": "2026-11-27T17:24:12.809495500+00:00",
+      "review_cycle_started_at": "2026-11-27T17:20:10.932101900+00:00"
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "runtime_status": "cooldown",
+      "next_review_at": "2026-11-27T17:25:03.788245800+00:00",
+      "review_cycle_started_at": "2026-11-27T17:20:10.932258500+00:00"
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "runtime_status": "cooldown",
+      "next_review_at": "2026-11-27T17:26:22.704790300+00:00",
+      "review_cycle_started_at": null
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "runtime_status": "cooldown",
+      "next_review_at": "2026-11-27T17:27:19.400478200+00:00",
+      "review_cycle_started_at": null
+    }
+  ],
+  "dueKeys": [
+    "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+    "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+    "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+    "0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+    "0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+    "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd"
+  ],
+  "dueKeysSha256": "b4126251e27902c0b51a7b89ed64eaa77f8a4c1ea90f23d3afa17663e839e8fe",
+  "allCount": 8,
+  "all": [
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "runtime_status": "cooldown",
+      "review_required": 0,
+      "last_reviewed_at": "2026-11-27T17:27:37.497820800+00:00",
+      "next_review_at": "2026-11-27T17:29:16.018724700+00:00",
+      "review_cycle_started_at": null
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "runtime_status": "cooldown",
+      "review_required": 0,
+      "last_reviewed_at": "2026-11-27T17:18:49.640025700+00:00",
+      "next_review_at": "2026-11-27T17:21:06.153167200+00:00",
+      "review_cycle_started_at": "2026-11-27T17:14:06.706042600+00:00"
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "runtime_status": "cooldown",
+      "review_required": 0,
+      "last_reviewed_at": "2026-11-27T17:25:22.710122100+00:00",
+      "next_review_at": "2026-11-27T17:27:19.400478200+00:00",
+      "review_cycle_started_at": null
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "runtime_status": "cooldown",
+      "review_required": 0,
+      "last_reviewed_at": "2026-11-27T17:24:09.412365+00:00",
+      "next_review_at": "2026-11-27T17:26:22.704790300+00:00",
+      "review_cycle_started_at": null
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "runtime_status": "cooldown",
+      "review_required": 0,
+      "last_reviewed_at": "2026-11-27T17:22:13.721653600+00:00",
+      "next_review_at": "2026-11-27T17:24:12.809495500+00:00",
+      "review_cycle_started_at": "2026-11-27T17:20:10.932101900+00:00"
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "runtime_status": "cooldown",
+      "review_required": 0,
+      "last_reviewed_at": "2026-11-27T17:20:56.654088400+00:00",
+      "next_review_at": "2026-11-27T17:23:13.713124400+00:00",
+      "review_cycle_started_at": "2026-11-27T17:20:10.903081600+00:00"
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "runtime_status": "cooldown",
+      "review_required": 0,
+      "last_reviewed_at": "2026-11-27T17:26:19.407030600+00:00",
+      "next_review_at": "2026-11-27T17:28:37.491522400+00:00",
+      "review_cycle_started_at": null
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "runtime_status": "cooldown",
+      "review_required": 0,
+      "last_reviewed_at": "2026-11-27T17:23:12.816021200+00:00",
+      "next_review_at": "2026-11-27T17:25:03.788245800+00:00",
+      "review_cycle_started_at": "2026-11-27T17:20:10.932258500+00:00"
+    }
+  ],
+  "label": "after_refactor"
+}

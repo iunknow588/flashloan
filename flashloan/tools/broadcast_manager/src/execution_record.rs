@@ -653,7 +653,7 @@ mod tests {
             let connection = Connection::open(&path).unwrap();
             connection
                 .execute(
-                    "INSERT INTO manager_v4_closed_loop_runtime_state (
+                    "INSERT OR REPLACE INTO manager_v4_closed_loop_runtime_state (
                          network, chain_id, protocol, scope_key, loop_key,
                          runtime_status, status_reason, review_generation,
                          review_required, last_rebuilt_at, updated_at,

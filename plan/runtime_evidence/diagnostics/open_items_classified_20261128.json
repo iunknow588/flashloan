@@ -1,0 +1,601 @@
+{
+ "total": 116,
+ "counts": {
+  "A": 30,
+  "B": 50,
+  "C": 15,
+  "D": 21
+ },
+ "unclassified": 0,
+ "groups": {
+  "A": [
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-复广.01\\D-057-checklist.md",
+    "line": 33,
+    "text": "`manager_broadcast_library_state` 行**被创建**（当前 **0 行**）。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-复广.01\\D-057-checklist.md",
+    "line": 145,
+    "text": "txHash → receipt → **实际** token 增量 → gas → 借款费 → 滑点 → 模型偏差。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-复广.01\\D-057-checklist.md",
+    "line": 160,
+    "text": "**链路贯通**：L1 → L2 → L3 → L4 四级全部有读数。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-复广.01\\D-057-checklist.md",
+    "line": 162,
+    "text": "**真实尝试**：存在实际广播尝试记录。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-复广.01\\D-057-checklist.md",
+    "line": 164,
+    "text": "**回执可关联**：txHash → receipt → token 增量可连。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-复广.01\\D-057-checklist.md",
+    "line": 166,
+    "text": "**已实现盈亏可核算**：含 gas / 借款费 / 滑点。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-复广.01\\D-057-checklist.md",
+    "line": 180,
+    "text": "**连续可重复**。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-广.02\\D-174-checklist.md",
+    "line": 197,
+    "text": "实盘读数：`manager_cow_execution_attempts` 出现**真实**尝试行，且月度库目录被创建"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-广.03\\D-178-checklist.md",
+    "line": 102,
+    "text": "实盘读数：`manager_cow_execution_attempts` 出现**真实**尝试行，且月度库目录被创建"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-广.03\\D-178-checklist.md",
+    "line": 166,
+    "text": "实盘读数：复核发布请求后，**广播尝试**落库（`manager_cow_execution_attempts` > 0 行）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-广.03\\D-178-checklist.md",
+    "line": 176,
+    "text": "实盘读数：月度库目录 `flashloan/db/broadcast_transaction_db/robinhood/4663/<月>/trades.sqlite3` 出现**第一行**"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-广.03\\D-178-checklist.md",
+    "line": 268,
+    "text": "实盘读数：**首笔真实广播**落 `manager_cow_execution_attempts` ＋ 月度库"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-广.03\\D-178-checklist.md",
+    "line": 386,
+    "text": "实盘读数：**首笔真实广播**落 `manager_cow_execution_attempts` ＋ 月度库"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-广核.01\\D-201-checklist.md",
+    "line": 128,
+    "text": "实盘读数：`manager_v4_review_broadcast_requests` **> 0 行**"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-核.06\\D-190-checklist.md",
+    "line": 154,
+    "text": "实盘：广播记录**出现**"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-编.02\\D-219-checklist.md",
+    "line": 65,
+    "text": "**E1** **持续产生链上广播交易记录**：`manager_v4_review_broadcast_requests` = **0**、`manager_cow_execution_attempts` = **0** ⇒ **未达成**（**市场条件** · **灰尘级正利润** ⇒ 未放宽任何门禁）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-编.03\\D-231-checklist.md",
+    "line": 65,
+    "text": "**E1** **持续产生链上广播交易记录**：当前目录 **8 / 8** 复核全部 `not_executable`（`positive = 0`）⇒ **上游没有一条正收益可执行复核** ⇒ 广播请求 **0** 行、执行记录 **0** 行 ⇒ **未达成**（**市场条件** · **未放宽任何门禁**）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-编.03\\D-231-checklist.md",
+    "line": 67,
+    "text": "**E3** **广播后**的套利盈亏统计：PnL 快照链**已就位**（每轮落盘），但**广播后**的已实现盈亏**取不到数** ⇒ 随 **E1** 一并待市场条件"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 373,
+    "text": "`runArbitrage` 出现 `ok=true && executable=true` 但**签名盈亏缺失或不完整**。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 375,
+    "text": "复核 `bestAmount` 出现**未测量**（`missing`）而**未附** `bestAmountZeroReason` 与 ladder 行。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 377,
+    "text": "复核新鲜度**不满足 120s 自动广播门禁**（不得用 600s 观测阈值替代）。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 379,
+    "text": "**出现广播请求但无对应可执行复核**（说明接线绕过了判定）。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 381,
+    "text": "**幂等键复用**（`IdempotencyKeyReused`）。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 383,
+    "text": "**广播尝试与回执无法关联**。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 385,
+    "text": "任何人试图**放宽门禁**以凑 `positive>0` / `L3>0` / `L4>0`。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 393,
+    "text": "**出现实际广播，但对应复核不满足 `BC-1` 五条中的任何一条**"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 397,
+    "text": "**广播记录缺少 `BC-5` 要求的任一审计字段**（只剩结果，说不出「凭什么发这一条」）。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 399,
+    "text": "`T-广.01` 的**四类拒绝路径尚未逐条留证**，却已发生**首次**真实广播。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 401,
+    "text": "`T-复广.02`（`AC-复广.02`）**尚未闭合**，却已发生**首次**真实广播。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 403,
+    "text": "链 / 账户 / 限额任一**运行时配置缺失或越界**，却仍发出了广播。"
+   }
+  ],
+  "B": [
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-复编.02\\D-049-checklist.md",
+    "line": 85,
+    "text": "**缺字段 = 0**（每条复核的必备字段齐全）。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-复编.02\\D-049-checklist.md",
+    "line": 108,
+    "text": "**金额状态 = `measured`**（`missing=0`、`unconfirmed=0`）。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-复编.02\\D-049-checklist.md",
+    "line": 127,
+    "text": "**PnL missing = 0**。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-复编.02\\D-049-checklist.md",
+    "line": 144,
+    "text": "**`bestAmountMissing` = 0**。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-复编.02\\D-049-checklist.md",
+    "line": 176,
+    "text": "只读 healer 交叉一致：`missing=0`、`ladderIncomplete=0`、`failClosed=True`。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-复编.02\\D-049-checklist.md",
+    "line": 473,
+    "text": "`positive=0` **如实报告为业务结论**（链上不盈利），**未**被写成缺陷、**未**被当作门禁失败。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-复编排储.01\\D-236-checklist.md",
+    "line": 18,
+    "text": "**B1** **迁移 `20261128_022_review_retirement_schema`**：`manager_v4_reviews.review_status` 的 `CHECK` 约束**放宽**以容纳 `retired`（现役约束只允许 `completed` / `not_executable` / `data_incomplete` / `failed`）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-复编排储.01\\D-236-checklist.md",
+    "line": 19,
+    "text": "**B2** **复核层退役判定**：`stored` 里**不在当前目录**的复核行 ⇒ 写 `review_status = 'retired'` ＋ `review_reason = 'closed_loop_left_catalog:<版本>'`，并**撤下**该闭环的广播请求（**不删行**）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-复编排储.01\\D-236-checklist.md",
+    "line": 20,
+    "text": "**B3** **库状态统计分离**：`data_incomplete_count` 与新增的 `retired_count` **分开**（今天 `data_incomplete_count = 19` **全**是已退役行 ⇒ 统计在说谎）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-复编排储.01\\D-236-checklist.md",
+    "line": 21,
+    "text": "**B4** **编排层窗口口径分离**：PnL 窗口把 `missingValue` 与新增的 `retiredReviews` **分开计数**；**在产目录**的 L4 判据**一字不改**"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-复编排储.01\\D-236-checklist.md",
+    "line": 25,
+    "text": "**C1** **回归全绿**：`review-manager` ＋ `flashloan-rs` ＋ 两套 healer pytest **0 failed**（**只跑改动模块**的）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-复编排储.01\\D-236-checklist.md",
+    "line": 26,
+    "text": "**C2** **部署闸门无中间态**：迁移 **022** 与新二进制**同批**上线（生产库停在 **021** ⇒ 新旧不可混用）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-复编排储.01\\D-236-checklist.md",
+    "line": 27,
+    "text": "**C3** **实盘读数**：退役行 **19** 条、窗口 `missingValue` **19 → 0**、**在产目录 8 / 8** 仍**全有**明确盈亏且 `positive` 读数**不变**"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-广.02\\D-174-checklist.md",
+    "line": 218,
+    "text": "广播请求行的**生命周期**改造（`generated` 行不被下一代抹掉）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-广.03\\D-178-checklist.md",
+    "line": 90,
+    "text": "实盘读数：任务提交应答里的 `broadcastAdmission.broadcastEnabled` 为 `true`（运行时准入**默认放开**）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-广.03\\D-178-checklist.md",
+    "line": 401,
+    "text": "`runArbitrage ok=false` 的链上根因（实盘 **149** 条主因）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-广.03\\D-178-checklist.md",
+    "line": 405,
+    "text": "复核**完成**率（实盘 `completed` = **0**）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-广核.01\\D-201-checklist.md",
+    "line": 152,
+    "text": "**数据库连接开销**占运行时 **≈ 47%** CPU（`M-10`）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-广核.02\\D-205-checklist.md",
+    "line": 127,
+    "text": "S1 单地址限速（`T-广核.01` `R1`）／S2 数据库连接开销（`R3`）／S3 正利润灰尘级（`R4`）／S4 天花板不对称（`R6`）／S5 启动 8 min 拆分未测（`R7`）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-核.07\\D-209-checklist.md",
+    "line": 159,
+    "text": "S1 单地址限速（`T-广核.01` `R1`）／S2 数据库连接开销（`R3`）／S4 天花板不对称（`R6`）／S5 启动拆分未测（`R7`）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-核.07\\D-209-checklist.md",
+    "line": 179,
+    "text": "S3 **正利润是灰尘级**（本轮实测全表最大 **8.5e-05 USDG**）⇒ 即使门禁全通，真实广播在手续费上也是**亏**的（**市场条件**）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-核.07\\D-209-checklist.md",
+    "line": 189,
+    "text": "**S7** 本轮只闭合「**检测周期**」：**「持续产生链上广播交易记录」仍未达成**，且本轮**不能**承诺达成"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-编.01\\D-096-checklist.md",
+    "line": 10,
+    "text": "**主网窗口**：三个**连续** ≥30 分钟窗口，每个窗口 `blockers=[]`、`missingValue=0`、"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-编.03\\D-231-checklist.md",
+    "line": 66,
+    "text": "**E2** **每一个**复核都有明确的盈亏数值：当前目录 **8 / 8** **已达成**；**目录外**（已离开目录的历史闭环）**19** 条缺明确盈亏、**14** 条缺最佳额度 —— 复核管理工具**不再受理**已离开目录的闭环 ⇒ **归 `M-6`**（复核层能力），**不代为关闭**"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 332,
+    "text": "定位热点后**逐项**优化，每项优化**单独**附回归证据，**不得**与功能改动混在同一批次"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 334,
+    "text": "优化后**重跑全部回归**（§1.2.6 / §1.3.4 基线），**不得**以“功能没变”为由跳过"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 349,
+    "text": "性能优化**未**改变任何金额 / 容量 / 利润口径，**未**放宽任何门禁"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 411,
+    "text": "方向池的 `input_capacity_raw` / `directional_output` 出现**未测量被当作零**使用"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 413,
+    "text": "方向行的 `base` 字段与基础池行**不一致**（**I-9** 违反）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 415,
+    "text": "`hop_direction` 与方向行 `direction` **不一致**（**I-12** 违反）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 417,
+    "text": "`directional_pool_id` **无法解析**到唯一方向行（**I-7** 违反）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 419,
+    "text": "复核层出现 `direction_mismatch` 计数 **> 0** 且未给出解释"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 421,
+    "text": "折叠结果与改造前**逐个闭环**不等（等价性失败）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 423,
+    "text": "`pool_ids_json` 长度 ≠ 跳数，或元素不再是 base pool id（**I-16** 违反）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 425,
+    "text": "任何人试图用 `liquidity_index` **恢复**中间跳排序，或放宽任何门禁以让闭环数不减少"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 427,
+    "text": "**回滚脚本未就位或未演练**，却已执行了 `T-方闭储.01` 的写库切换"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 429,
+    "text": "`DIRECTIONAL_POOL_MANAGER_AUTHORITY` **未配置**却出现了**成功的**方向池写入"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 431,
+    "text": "Python 侧出现了**直查方向池表**的代码（`M-6` 守卫被绕过）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 439,
+    "text": "**月库写失败但主库行已被瘦身**（违反 `RS-5` / `RS-6` ⇒ **记录永久消失**）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 441,
+    "text": "**幂等锚点被删除**（终结行**从主库消失** ⇒ 重复广播风险 **≠ 0**）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 443,
+    "text": "主库 `sqlite_master` / `schema_policy.json` **出现 diff**（违反 `RS-1` / `G-3`）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 445,
+    "text": "四个读路径签名**出现 diff**，或 `composite_manager` / `manager_api` / `rs-src` **出现 diff**"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 447,
+    "text": "Python 侧**出现 diff**，或直接读 JSONL / 月库（违反 `RS-1` / `M-6`）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 449,
+    "text": "源码出现 `SUM(signed_pnl_raw)`，或**跨币种**合并（违反 `RS-8` / `G-7`）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 451,
+    "text": "`signed_pnl_raw` 被**转成十进制**或**以数字形式**进 JSON（违反 `RS-7` / `G-6`）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 453,
+    "text": "JSONL 被**任何准入判定**引用（违反 `RS-4` / `G-2`）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 455,
+    "text": "持有主库事务 / 锁时**做了磁盘 IO**（违反 `RS-10` / `I-1`..`I-3`）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 457,
+    "text": "主网库 sha256 / size **与开工前不一致**，且**无法归因**到外部写者"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 459,
+    "text": "任一「红」级故障注入（`F-1`…`F-10` 中除 `F-7` 外）**未被处置**"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 461,
+    "text": "「黄」级读数（`dropped > 0` / `archive_failed > 0` / `write_errors > 0` /"
+   }
+  ],
+  "C": [
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-候.01\\D-018-checklist.md",
+    "line": 9,
+    "text": "**第 4 项**（测试网 `loops>0`）：**根因已定位，判据仍不成立** —— 读数见"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-候编储.01\\D-030-checklist.md",
+    "line": 3,
+    "text": "⏸ **暂停，不排期**；既有读数与根因链原样保留（**不删除、不改判为完成**）。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-候编储.01\\D-030-checklist.md",
+    "line": 55,
+    "text": "**五步有序重建序列**（顺序不可颠倒）：① 刷 `core4` 池域深度 → ② 刷候选交换观测 →"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-候编储.01\\D-030-checklist.md",
+    "line": 61,
+    "text": "`rpc.wss = []` 记为**不可用 / 未测量**，**不记为零**。"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-候编储.01\\D-030-checklist.md",
+    "line": 63,
+    "text": "**本版新增一条**：五步有序重建序列的**第 ③ 步**（重建 `candidate_edge` 池集合）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-复.03\\D-216-checklist.md",
+    "line": 39,
+    "text": "**C2** 「整日目录被删」的**实盘**读数：保留期 **30 天**，最新目录是今天 ⇒ 实盘未触发（由**单测** `purge_expired_review_files` 证明）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-复编排储.01\\D-236-checklist.md",
+    "line": 31,
+    "text": "**D1** **「每一个复核都有明确的盈亏数值」**在**目录外**不可达成：那 19 条的跳池已从市场目录消失（**0 / 19** 可复价）⇒ **填数即伪造** ⇒ 收口口径只能是「**给出明确退役结论**」；本框**不代为关闭**"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-广.02\\D-174-checklist.md",
+    "line": 209,
+    "text": "跨月 / 跨年聚合查询（`ATTACH` 多月库）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-广.02\\D-174-checklist.md",
+    "line": 213,
+    "text": "月度落盘失败的降级兜底"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-广.03\\D-178-checklist.md",
+    "line": 393,
+    "text": "跨月 / 跨年聚合查询（`ATTACH` 多月库）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-广.03\\D-178-checklist.md",
+    "line": 397,
+    "text": "月度落盘失败的降级兜底"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-池编.01\\D-213-checklist.md",
+    "line": 41,
+    "text": "**C1** `extension_library_contains_unanchored_tokens`（**6** 个）：**覆盖事实**，无工具可清 ⇒ 只带计数，**不驱动修复**"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-池编.01\\D-213-checklist.md",
+    "line": 43,
+    "text": "**C2** `candidate_pairs_missing_top1_recommendation`（**18** 对）：同上"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-池编.01\\D-213-checklist.md",
+    "line": 45,
+    "text": "**C3** 核心库模式的生产化：用户明示为**测试期配置**（`D-211` §1.1）⇒ 按用户口径保持"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\tasks\\T-编.01\\D-096-checklist.md",
+    "line": 14,
+    "text": "⏸ **测试网同构验收**随测试网任务暂停。"
+   }
+  ],
+  "D": [
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\D-004-checklist.md",
+    "line": 43,
+    "text": "方向层与闭环层的**方向键口径一致**（无第二套解释）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\D-004-checklist.md",
+    "line": 44,
+    "text": "广播层消费的字段**全部**由复核层产出（无隐式补算）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\D-004-checklist.md",
+    "line": 45,
+    "text": "存储层**只有一个**写入方（写入路径收口成立）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\D-004-checklist.md",
+    "line": 46,
+    "text": "授权维度**无复用**（每个写端点有**自己**的授权维度）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\D-004-checklist.md",
+    "line": 99,
+    "text": "**全部**二级任务**已闭合并归档**（`tasks/` 目录**为空**）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\D-004-checklist.md",
+    "line": 100,
+    "text": "本文件**全部** `- [ ]` 已变为 `- [x]`"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\D-004-checklist.md",
+    "line": 101,
+    "text": "`SCOPE_GUARD.md` §2 总回归**全绿**"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\D-004-checklist.md",
+    "line": 102,
+    "text": "已登记到 `plan/archive/README.md` §1"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 477,
+    "text": "checklist 中该任务的**全部开放项**均已闭合（逐条对照）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 479,
+    "text": "证据已落到 `plan/runtime_evidence/reports/`（**可重跑**的脚本优先）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 481,
+    "text": "回归基线已重跑并**全绿**（§1.2.6 / §1.3.4）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 483,
+    "text": "归档报告已写入 `plan/archive/已完成任务归档_<日期>_第<N>轮_<TASK 编号><主题>.md`"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 485,
+    "text": "`plan/archive/已完成任务归档索引_20261120_v10.22.md` 已更新"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 487,
+    "text": "活动清单（`plan/tasks/P-01-池子重构/docs/未完成任务清单_20261123.md`）中该任务**已移除**，且**编号不复用**"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 489,
+    "text": "本计划与本文的编号、状态、口径**已同步**"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 505,
+    "text": "该任务对应的 `AC-22x` 的**全部判定行**（§1.6.x 表内）**逐行通过**，"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 509,
+    "text": "该任务**分摊到的故障注入**（§1.6.10）**已跑完**，结论为**绿 / 黄**（**红 ⇒ 不得归档**）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 511,
+    "text": "§1.6.11 的**判读结论已写入证据报告**（级别 · 依据读数 · 动作）"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 513,
+    "text": "**主库 sha256 / size 与开工前一致**，或差异**已归因**到外部写者"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 515,
+    "text": "`git diff` 确认**改动只落在** `review_manager` / `broadcast_manager` 两个 crate"
+   },
+   {
+    "file": "plan\\tasks\\P-01-池子重构\\docs\\D-011-check_list_20261123.md",
+    "line": 519,
+    "text": "§4 的**记录存储剥离停止条件**逐条**未命中**"
+   }
+  ]
+ },
+ "unclassifiedItems": []
+}

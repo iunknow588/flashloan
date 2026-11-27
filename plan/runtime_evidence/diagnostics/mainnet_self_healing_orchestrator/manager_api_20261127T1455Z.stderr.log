@@ -1,0 +1,8 @@
+the store E:\2026OPC澶ц禌\flashLoan\flashloan\db\local_store_4663.sqlite3 does not exist; the API would serve nothing
+所在位置 E:\2026OPC大赛\flashLoan\flashloan\tools\manager_api\start_mainnet.ps1:38 字符: 5
++     throw "the store $Database does not exist; the API would serve no ...
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (the store E:\20...d serve nothing:String) [], RuntimeException
+    + FullyQualifiedErrorId : the store E:\2026OPC澶ц禌\flashLoan\flashloan\db\local_store_4663.sqlite3 does not exist
+;     the API would serve nothing
+ 

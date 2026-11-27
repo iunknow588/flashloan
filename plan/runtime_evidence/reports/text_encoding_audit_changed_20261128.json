@@ -1,0 +1,23 @@
+{
+  "tool": "audit_text_encoding_20261128",
+  "design": "UTF-8 no BOM, LF line endings",
+  "scannedTextFiles": 214,
+  "worktreeLineEndings": {
+    "lf": 195,
+    "crlf": 3,
+    "empty": 16
+  },
+  "indexLineEndings": {
+    "i/lf": 198,
+    "i/none": 16
+  },
+  "filesWithBom": [],
+  "indexExceptions": [],
+  "worktreeCrlfCount": 3,
+  "worktreeCrlfSample": [
+    "plan/runtime_evidence/diagnostics/mainnet_self_healing_orchestrator/manager_api_20261127T1455Z.stderr.log",
+    "plan/runtime_evidence/diagnostics/mainnet_self_healing_orchestrator/manager_api_20261127T1458Z.stdout.log",
+    "plan/runtime_evidence/logs/t401_runtime_sup/deploy_lockfix_20261128.log.err"
+  ],
+  "scope": "changed-only"
+}

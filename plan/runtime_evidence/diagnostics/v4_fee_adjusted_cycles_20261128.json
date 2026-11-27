@@ -1,0 +1,2318 @@
+{
+  "chainId": 4663,
+  "poolCount": 364,
+  "orderedPairCount": 64,
+  "cycleCount": 54,
+  "profitableCycleCount": 9,
+  "profitableAnchoredCycleCount": 0,
+  "bestCycle": {
+    "path": [
+      "ETH",
+      "TSLA",
+      "SPY"
+    ],
+    "addresses": [
+      "0x0000000000000000000000000000000000000000",
+      "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+      "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+    ],
+    "net_product": 1060221181604442303,
+    "edge_ratio_ppm": 60221,
+    "hops": [
+      {
+        "pool_id": "0xb2a6d67bf3fc511d11cac788a531655f5a7b60cd31c8ff386f0476121741e751",
+        "fee": 50000,
+        "zero_for_one": true,
+        "pool_status": "invalid",
+        "status_reason": "fee_not_fixed_candidate_range",
+        "depth_status": "medium",
+        "liquidity": "97945118822414735539",
+        "liquidity_read_at": "2026-11-17T20:10:01.077126900+00:00"
+      },
+      {
+        "pool_id": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+        "fee": 350,
+        "zero_for_one": false,
+        "pool_status": "active",
+        "status_reason": null,
+        "depth_status": "deep",
+        "liquidity": "2178260108720555941707",
+        "liquidity_read_at": "2026-11-27T15:03:35.462637600+00:00"
+      },
+      {
+        "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+        "fee": 1000,
+        "zero_for_one": false,
+        "pool_status": "active",
+        "status_reason": null,
+        "depth_status": "deep",
+        "liquidity": "1205127575232957583490",
+        "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+      }
+    ]
+  },
+  "profitableCycles": [
+    {
+      "path": [
+        "ETH",
+        "TSLA",
+        "SPY"
+      ],
+      "addresses": [
+        "0x0000000000000000000000000000000000000000",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "net_product": 1060221181604442303,
+      "edge_ratio_ppm": 60221,
+      "hops": [
+        {
+          "pool_id": "0xb2a6d67bf3fc511d11cac788a531655f5a7b60cd31c8ff386f0476121741e751",
+          "fee": 50000,
+          "zero_for_one": true,
+          "pool_status": "invalid",
+          "status_reason": "fee_not_fixed_candidate_range",
+          "depth_status": "medium",
+          "liquidity": "97945118822414735539",
+          "liquidity_read_at": "2026-11-17T20:10:01.077126900+00:00"
+        },
+        {
+          "pool_id": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+          "fee": 350,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "2178260108720555941707",
+          "liquidity_read_at": "2026-11-27T15:03:35.462637600+00:00"
+        },
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "SPY",
+        "ETH",
+        "TSLA"
+      ],
+      "addresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x0000000000000000000000000000000000000000",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d"
+      ],
+      "net_product": 1060221181604442303,
+      "edge_ratio_ppm": 60221,
+      "hops": [
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        },
+        {
+          "pool_id": "0xb2a6d67bf3fc511d11cac788a531655f5a7b60cd31c8ff386f0476121741e751",
+          "fee": 50000,
+          "zero_for_one": true,
+          "pool_status": "invalid",
+          "status_reason": "fee_not_fixed_candidate_range",
+          "depth_status": "medium",
+          "liquidity": "97945118822414735539",
+          "liquidity_read_at": "2026-11-17T20:10:01.077126900+00:00"
+        },
+        {
+          "pool_id": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+          "fee": 350,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "2178260108720555941707",
+          "liquidity_read_at": "2026-11-27T15:03:35.462637600+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "TSLA",
+        "SPY",
+        "ETH"
+      ],
+      "addresses": [
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "net_product": 1060221181604442300,
+      "edge_ratio_ppm": 60221,
+      "hops": [
+        {
+          "pool_id": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+          "fee": 350,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "2178260108720555941707",
+          "liquidity_read_at": "2026-11-27T15:03:35.462637600+00:00"
+        },
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        },
+        {
+          "pool_id": "0xb2a6d67bf3fc511d11cac788a531655f5a7b60cd31c8ff386f0476121741e751",
+          "fee": 50000,
+          "zero_for_one": true,
+          "pool_status": "invalid",
+          "status_reason": "fee_not_fixed_candidate_range",
+          "depth_status": "medium",
+          "liquidity": "97945118822414735539",
+          "liquidity_read_at": "2026-11-17T20:10:01.077126900+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "ETH",
+        "TSLA",
+        "SPCX"
+      ],
+      "addresses": [
+        "0x0000000000000000000000000000000000000000",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea"
+      ],
+      "net_product": 1056269851397668046,
+      "edge_ratio_ppm": 56269,
+      "hops": [
+        {
+          "pool_id": "0xb2a6d67bf3fc511d11cac788a531655f5a7b60cd31c8ff386f0476121741e751",
+          "fee": 50000,
+          "zero_for_one": true,
+          "pool_status": "invalid",
+          "status_reason": "fee_not_fixed_candidate_range",
+          "depth_status": "medium",
+          "liquidity": "97945118822414735539",
+          "liquidity_read_at": "2026-11-17T20:10:01.077126900+00:00"
+        },
+        {
+          "pool_id": "0x0927698e8716bbb958a2cde0fc4f31d7a2b9a5b0ee1e501dc15e29788277dfa2",
+          "fee": 2500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "165716651334450433193",
+          "liquidity_read_at": "2026-11-27T15:03:35.296825400+00:00"
+        },
+        {
+          "pool_id": "0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168",
+          "fee": 3000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "174828132659509631709",
+          "liquidity_read_at": "2026-11-27T15:03:35.495292300+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "TSLA",
+        "SPCX",
+        "ETH"
+      ],
+      "addresses": [
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "net_product": 1056269851397668043,
+      "edge_ratio_ppm": 56269,
+      "hops": [
+        {
+          "pool_id": "0x0927698e8716bbb958a2cde0fc4f31d7a2b9a5b0ee1e501dc15e29788277dfa2",
+          "fee": 2500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "165716651334450433193",
+          "liquidity_read_at": "2026-11-27T15:03:35.296825400+00:00"
+        },
+        {
+          "pool_id": "0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168",
+          "fee": 3000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "174828132659509631709",
+          "liquidity_read_at": "2026-11-27T15:03:35.495292300+00:00"
+        },
+        {
+          "pool_id": "0xb2a6d67bf3fc511d11cac788a531655f5a7b60cd31c8ff386f0476121741e751",
+          "fee": 50000,
+          "zero_for_one": true,
+          "pool_status": "invalid",
+          "status_reason": "fee_not_fixed_candidate_range",
+          "depth_status": "medium",
+          "liquidity": "97945118822414735539",
+          "liquidity_read_at": "2026-11-17T20:10:01.077126900+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "SPCX",
+        "ETH",
+        "TSLA"
+      ],
+      "addresses": [
+        "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+        "0x0000000000000000000000000000000000000000",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d"
+      ],
+      "net_product": 1056269851397668043,
+      "edge_ratio_ppm": 56269,
+      "hops": [
+        {
+          "pool_id": "0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168",
+          "fee": 3000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "174828132659509631709",
+          "liquidity_read_at": "2026-11-27T15:03:35.495292300+00:00"
+        },
+        {
+          "pool_id": "0xb2a6d67bf3fc511d11cac788a531655f5a7b60cd31c8ff386f0476121741e751",
+          "fee": 50000,
+          "zero_for_one": true,
+          "pool_status": "invalid",
+          "status_reason": "fee_not_fixed_candidate_range",
+          "depth_status": "medium",
+          "liquidity": "97945118822414735539",
+          "liquidity_read_at": "2026-11-17T20:10:01.077126900+00:00"
+        },
+        {
+          "pool_id": "0x0927698e8716bbb958a2cde0fc4f31d7a2b9a5b0ee1e501dc15e29788277dfa2",
+          "fee": 2500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "165716651334450433193",
+          "liquidity_read_at": "2026-11-27T15:03:35.296825400+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "ETH",
+        "PFE",
+        "CRCL"
+      ],
+      "addresses": [
+        "0x0000000000000000000000000000000000000000",
+        "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+        "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5"
+      ],
+      "net_product": 1047034481804613061,
+      "edge_ratio_ppm": 47034,
+      "hops": [
+        {
+          "pool_id": "0xea3df09de366160b67dd0a8c6f178bfc3c06f6a5f411f88e9b8aa73231d5c9dd",
+          "fee": 50000,
+          "zero_for_one": true,
+          "pool_status": "invalid",
+          "status_reason": "fee_not_fixed_candidate_range",
+          "depth_status": "medium",
+          "liquidity": "76707292154882846780",
+          "liquidity_read_at": "2026-11-17T20:13:27.757151400+00:00"
+        },
+        {
+          "pool_id": "0x9d287d9cc4292d4edd599d983a221ad4c1b16340996326be9b3e0b5786caf33d",
+          "fee": 9000,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "100144380712475000601",
+          "liquidity_read_at": "2026-11-27T15:03:35.732642400+00:00"
+        },
+        {
+          "pool_id": "0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748",
+          "fee": 1500,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "361389156366770992326",
+          "liquidity_read_at": "2026-11-27T15:03:35.571214200+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "CRCL",
+        "ETH",
+        "PFE"
+      ],
+      "addresses": [
+        "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+        "0x0000000000000000000000000000000000000000",
+        "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e"
+      ],
+      "net_product": 1047034481804613061,
+      "edge_ratio_ppm": 47034,
+      "hops": [
+        {
+          "pool_id": "0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748",
+          "fee": 1500,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "361389156366770992326",
+          "liquidity_read_at": "2026-11-27T15:03:35.571214200+00:00"
+        },
+        {
+          "pool_id": "0xea3df09de366160b67dd0a8c6f178bfc3c06f6a5f411f88e9b8aa73231d5c9dd",
+          "fee": 50000,
+          "zero_for_one": true,
+          "pool_status": "invalid",
+          "status_reason": "fee_not_fixed_candidate_range",
+          "depth_status": "medium",
+          "liquidity": "76707292154882846780",
+          "liquidity_read_at": "2026-11-17T20:13:27.757151400+00:00"
+        },
+        {
+          "pool_id": "0x9d287d9cc4292d4edd599d983a221ad4c1b16340996326be9b3e0b5786caf33d",
+          "fee": 9000,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "100144380712475000601",
+          "liquidity_read_at": "2026-11-27T15:03:35.732642400+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "PFE",
+        "CRCL",
+        "ETH"
+      ],
+      "addresses": [
+        "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+        "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "net_product": 1047034481804613048,
+      "edge_ratio_ppm": 47034,
+      "hops": [
+        {
+          "pool_id": "0x9d287d9cc4292d4edd599d983a221ad4c1b16340996326be9b3e0b5786caf33d",
+          "fee": 9000,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "100144380712475000601",
+          "liquidity_read_at": "2026-11-27T15:03:35.732642400+00:00"
+        },
+        {
+          "pool_id": "0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748",
+          "fee": 1500,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "361389156366770992326",
+          "liquidity_read_at": "2026-11-27T15:03:35.571214200+00:00"
+        },
+        {
+          "pool_id": "0xea3df09de366160b67dd0a8c6f178bfc3c06f6a5f411f88e9b8aa73231d5c9dd",
+          "fee": 50000,
+          "zero_for_one": true,
+          "pool_status": "invalid",
+          "status_reason": "fee_not_fixed_candidate_range",
+          "depth_status": "medium",
+          "liquidity": "76707292154882846780",
+          "liquidity_read_at": "2026-11-17T20:13:27.757151400+00:00"
+        }
+      ]
+    }
+  ],
+  "topCycles": [
+    {
+      "path": [
+        "ETH",
+        "TSLA",
+        "SPY"
+      ],
+      "addresses": [
+        "0x0000000000000000000000000000000000000000",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "net_product": 1060221181604442303,
+      "edge_ratio_ppm": 60221,
+      "hops": [
+        {
+          "pool_id": "0xb2a6d67bf3fc511d11cac788a531655f5a7b60cd31c8ff386f0476121741e751",
+          "fee": 50000,
+          "zero_for_one": true,
+          "pool_status": "invalid",
+          "status_reason": "fee_not_fixed_candidate_range",
+          "depth_status": "medium",
+          "liquidity": "97945118822414735539",
+          "liquidity_read_at": "2026-11-17T20:10:01.077126900+00:00"
+        },
+        {
+          "pool_id": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+          "fee": 350,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "2178260108720555941707",
+          "liquidity_read_at": "2026-11-27T15:03:35.462637600+00:00"
+        },
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "SPY",
+        "ETH",
+        "TSLA"
+      ],
+      "addresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x0000000000000000000000000000000000000000",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d"
+      ],
+      "net_product": 1060221181604442303,
+      "edge_ratio_ppm": 60221,
+      "hops": [
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        },
+        {
+          "pool_id": "0xb2a6d67bf3fc511d11cac788a531655f5a7b60cd31c8ff386f0476121741e751",
+          "fee": 50000,
+          "zero_for_one": true,
+          "pool_status": "invalid",
+          "status_reason": "fee_not_fixed_candidate_range",
+          "depth_status": "medium",
+          "liquidity": "97945118822414735539",
+          "liquidity_read_at": "2026-11-17T20:10:01.077126900+00:00"
+        },
+        {
+          "pool_id": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+          "fee": 350,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "2178260108720555941707",
+          "liquidity_read_at": "2026-11-27T15:03:35.462637600+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "TSLA",
+        "SPY",
+        "ETH"
+      ],
+      "addresses": [
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "net_product": 1060221181604442300,
+      "edge_ratio_ppm": 60221,
+      "hops": [
+        {
+          "pool_id": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+          "fee": 350,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "2178260108720555941707",
+          "liquidity_read_at": "2026-11-27T15:03:35.462637600+00:00"
+        },
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        },
+        {
+          "pool_id": "0xb2a6d67bf3fc511d11cac788a531655f5a7b60cd31c8ff386f0476121741e751",
+          "fee": 50000,
+          "zero_for_one": true,
+          "pool_status": "invalid",
+          "status_reason": "fee_not_fixed_candidate_range",
+          "depth_status": "medium",
+          "liquidity": "97945118822414735539",
+          "liquidity_read_at": "2026-11-17T20:10:01.077126900+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "ETH",
+        "TSLA",
+        "SPCX"
+      ],
+      "addresses": [
+        "0x0000000000000000000000000000000000000000",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea"
+      ],
+      "net_product": 1056269851397668046,
+      "edge_ratio_ppm": 56269,
+      "hops": [
+        {
+          "pool_id": "0xb2a6d67bf3fc511d11cac788a531655f5a7b60cd31c8ff386f0476121741e751",
+          "fee": 50000,
+          "zero_for_one": true,
+          "pool_status": "invalid",
+          "status_reason": "fee_not_fixed_candidate_range",
+          "depth_status": "medium",
+          "liquidity": "97945118822414735539",
+          "liquidity_read_at": "2026-11-17T20:10:01.077126900+00:00"
+        },
+        {
+          "pool_id": "0x0927698e8716bbb958a2cde0fc4f31d7a2b9a5b0ee1e501dc15e29788277dfa2",
+          "fee": 2500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "165716651334450433193",
+          "liquidity_read_at": "2026-11-27T15:03:35.296825400+00:00"
+        },
+        {
+          "pool_id": "0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168",
+          "fee": 3000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "174828132659509631709",
+          "liquidity_read_at": "2026-11-27T15:03:35.495292300+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "TSLA",
+        "SPCX",
+        "ETH"
+      ],
+      "addresses": [
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "net_product": 1056269851397668043,
+      "edge_ratio_ppm": 56269,
+      "hops": [
+        {
+          "pool_id": "0x0927698e8716bbb958a2cde0fc4f31d7a2b9a5b0ee1e501dc15e29788277dfa2",
+          "fee": 2500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "165716651334450433193",
+          "liquidity_read_at": "2026-11-27T15:03:35.296825400+00:00"
+        },
+        {
+          "pool_id": "0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168",
+          "fee": 3000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "174828132659509631709",
+          "liquidity_read_at": "2026-11-27T15:03:35.495292300+00:00"
+        },
+        {
+          "pool_id": "0xb2a6d67bf3fc511d11cac788a531655f5a7b60cd31c8ff386f0476121741e751",
+          "fee": 50000,
+          "zero_for_one": true,
+          "pool_status": "invalid",
+          "status_reason": "fee_not_fixed_candidate_range",
+          "depth_status": "medium",
+          "liquidity": "97945118822414735539",
+          "liquidity_read_at": "2026-11-17T20:10:01.077126900+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "SPCX",
+        "ETH",
+        "TSLA"
+      ],
+      "addresses": [
+        "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+        "0x0000000000000000000000000000000000000000",
+        "0x322f0929c4625ed5bad873c95208d54e1c003b2d"
+      ],
+      "net_product": 1056269851397668043,
+      "edge_ratio_ppm": 56269,
+      "hops": [
+        {
+          "pool_id": "0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168",
+          "fee": 3000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "174828132659509631709",
+          "liquidity_read_at": "2026-11-27T15:03:35.495292300+00:00"
+        },
+        {
+          "pool_id": "0xb2a6d67bf3fc511d11cac788a531655f5a7b60cd31c8ff386f0476121741e751",
+          "fee": 50000,
+          "zero_for_one": true,
+          "pool_status": "invalid",
+          "status_reason": "fee_not_fixed_candidate_range",
+          "depth_status": "medium",
+          "liquidity": "97945118822414735539",
+          "liquidity_read_at": "2026-11-17T20:10:01.077126900+00:00"
+        },
+        {
+          "pool_id": "0x0927698e8716bbb958a2cde0fc4f31d7a2b9a5b0ee1e501dc15e29788277dfa2",
+          "fee": 2500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "165716651334450433193",
+          "liquidity_read_at": "2026-11-27T15:03:35.296825400+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "ETH",
+        "PFE",
+        "CRCL"
+      ],
+      "addresses": [
+        "0x0000000000000000000000000000000000000000",
+        "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+        "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5"
+      ],
+      "net_product": 1047034481804613061,
+      "edge_ratio_ppm": 47034,
+      "hops": [
+        {
+          "pool_id": "0xea3df09de366160b67dd0a8c6f178bfc3c06f6a5f411f88e9b8aa73231d5c9dd",
+          "fee": 50000,
+          "zero_for_one": true,
+          "pool_status": "invalid",
+          "status_reason": "fee_not_fixed_candidate_range",
+          "depth_status": "medium",
+          "liquidity": "76707292154882846780",
+          "liquidity_read_at": "2026-11-17T20:13:27.757151400+00:00"
+        },
+        {
+          "pool_id": "0x9d287d9cc4292d4edd599d983a221ad4c1b16340996326be9b3e0b5786caf33d",
+          "fee": 9000,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "100144380712475000601",
+          "liquidity_read_at": "2026-11-27T15:03:35.732642400+00:00"
+        },
+        {
+          "pool_id": "0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748",
+          "fee": 1500,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "361389156366770992326",
+          "liquidity_read_at": "2026-11-27T15:03:35.571214200+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "CRCL",
+        "ETH",
+        "PFE"
+      ],
+      "addresses": [
+        "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+        "0x0000000000000000000000000000000000000000",
+        "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e"
+      ],
+      "net_product": 1047034481804613061,
+      "edge_ratio_ppm": 47034,
+      "hops": [
+        {
+          "pool_id": "0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748",
+          "fee": 1500,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "361389156366770992326",
+          "liquidity_read_at": "2026-11-27T15:03:35.571214200+00:00"
+        },
+        {
+          "pool_id": "0xea3df09de366160b67dd0a8c6f178bfc3c06f6a5f411f88e9b8aa73231d5c9dd",
+          "fee": 50000,
+          "zero_for_one": true,
+          "pool_status": "invalid",
+          "status_reason": "fee_not_fixed_candidate_range",
+          "depth_status": "medium",
+          "liquidity": "76707292154882846780",
+          "liquidity_read_at": "2026-11-17T20:13:27.757151400+00:00"
+        },
+        {
+          "pool_id": "0x9d287d9cc4292d4edd599d983a221ad4c1b16340996326be9b3e0b5786caf33d",
+          "fee": 9000,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "100144380712475000601",
+          "liquidity_read_at": "2026-11-27T15:03:35.732642400+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "PFE",
+        "CRCL",
+        "ETH"
+      ],
+      "addresses": [
+        "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+        "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "net_product": 1047034481804613048,
+      "edge_ratio_ppm": 47034,
+      "hops": [
+        {
+          "pool_id": "0x9d287d9cc4292d4edd599d983a221ad4c1b16340996326be9b3e0b5786caf33d",
+          "fee": 9000,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "100144380712475000601",
+          "liquidity_read_at": "2026-11-27T15:03:35.732642400+00:00"
+        },
+        {
+          "pool_id": "0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748",
+          "fee": 1500,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "361389156366770992326",
+          "liquidity_read_at": "2026-11-27T15:03:35.571214200+00:00"
+        },
+        {
+          "pool_id": "0xea3df09de366160b67dd0a8c6f178bfc3c06f6a5f411f88e9b8aa73231d5c9dd",
+          "fee": 50000,
+          "zero_for_one": true,
+          "pool_status": "invalid",
+          "status_reason": "fee_not_fixed_candidate_range",
+          "depth_status": "medium",
+          "liquidity": "76707292154882846780",
+          "liquidity_read_at": "2026-11-17T20:13:27.757151400+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "SPY",
+        "AMD",
+        "NVDA"
+      ],
+      "addresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec"
+      ],
+      "net_product": 999194767835272012,
+      "edge_ratio_ppm": -806,
+      "hops": [
+        {
+          "pool_id": "0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82",
+          "fee": 500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "610116374082204948071",
+          "liquidity_read_at": "2026-11-27T15:03:35.993860200+00:00"
+        },
+        {
+          "pool_id": "0x928965e3f578b9825df398cfb31595201b32fc9e58b28ade4b2b48b68ea88e5b",
+          "fee": 5000,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "134533236656425363219",
+          "liquidity_read_at": "2026-11-27T15:03:35.693176+00:00"
+        },
+        {
+          "pool_id": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+          "fee": 250,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "6882120790160997116991",
+          "liquidity_read_at": "2026-11-27T15:03:35.942836+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "NVDA",
+        "SPY",
+        "AMD"
+      ],
+      "addresses": [
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc"
+      ],
+      "net_product": 999194767835272012,
+      "edge_ratio_ppm": -806,
+      "hops": [
+        {
+          "pool_id": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+          "fee": 250,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "6882120790160997116991",
+          "liquidity_read_at": "2026-11-27T15:03:35.942836+00:00"
+        },
+        {
+          "pool_id": "0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82",
+          "fee": 500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "610116374082204948071",
+          "liquidity_read_at": "2026-11-27T15:03:35.993860200+00:00"
+        },
+        {
+          "pool_id": "0x928965e3f578b9825df398cfb31595201b32fc9e58b28ade4b2b48b68ea88e5b",
+          "fee": 5000,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "134533236656425363219",
+          "liquidity_read_at": "2026-11-27T15:03:35.693176+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "AMD",
+        "NVDA",
+        "SPY"
+      ],
+      "addresses": [
+        "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "net_product": 999194767835272011,
+      "edge_ratio_ppm": -806,
+      "hops": [
+        {
+          "pool_id": "0x928965e3f578b9825df398cfb31595201b32fc9e58b28ade4b2b48b68ea88e5b",
+          "fee": 5000,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "134533236656425363219",
+          "liquidity_read_at": "2026-11-27T15:03:35.693176+00:00"
+        },
+        {
+          "pool_id": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+          "fee": 250,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "6882120790160997116991",
+          "liquidity_read_at": "2026-11-27T15:03:35.942836+00:00"
+        },
+        {
+          "pool_id": "0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82",
+          "fee": 500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "610116374082204948071",
+          "liquidity_read_at": "2026-11-27T15:03:35.993860200+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "ETH",
+        "SPY",
+        "NVDA"
+      ],
+      "addresses": [
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec"
+      ],
+      "net_product": 998523598647995452,
+      "edge_ratio_ppm": -1477,
+      "hops": [
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        },
+        {
+          "pool_id": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+          "fee": 250,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "6882120790160997116991",
+          "liquidity_read_at": "2026-11-27T15:03:35.942836+00:00"
+        },
+        {
+          "pool_id": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+          "fee": 500,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1152875084002987826147",
+          "liquidity_read_at": "2026-11-27T15:03:35.583359500+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "SPY",
+        "NVDA",
+        "ETH"
+      ],
+      "addresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "net_product": 998523598647995451,
+      "edge_ratio_ppm": -1477,
+      "hops": [
+        {
+          "pool_id": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+          "fee": 250,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "6882120790160997116991",
+          "liquidity_read_at": "2026-11-27T15:03:35.942836+00:00"
+        },
+        {
+          "pool_id": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+          "fee": 500,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1152875084002987826147",
+          "liquidity_read_at": "2026-11-27T15:03:35.583359500+00:00"
+        },
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "NVDA",
+        "ETH",
+        "SPY"
+      ],
+      "addresses": [
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "net_product": 998523598647995451,
+      "edge_ratio_ppm": -1477,
+      "hops": [
+        {
+          "pool_id": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+          "fee": 500,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1152875084002987826147",
+          "liquidity_read_at": "2026-11-27T15:03:35.583359500+00:00"
+        },
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        },
+        {
+          "pool_id": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+          "fee": 250,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "6882120790160997116991",
+          "liquidity_read_at": "2026-11-27T15:03:35.942836+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "ETH",
+        "SPY",
+        "MU"
+      ],
+      "addresses": [
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd"
+      ],
+      "net_product": 998287771327675125,
+      "edge_ratio_ppm": -1713,
+      "hops": [
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        },
+        {
+          "pool_id": "0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c",
+          "fee": 500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1018833596252612304286",
+          "liquidity_read_at": "2026-11-27T15:03:35.880515600+00:00"
+        },
+        {
+          "pool_id": "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237",
+          "fee": 1800,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "62171986845307389525",
+          "liquidity_read_at": "2026-11-27T15:03:35.316832400+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "SPY",
+        "MU",
+        "ETH"
+      ],
+      "addresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "net_product": 998287771327675124,
+      "edge_ratio_ppm": -1713,
+      "hops": [
+        {
+          "pool_id": "0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c",
+          "fee": 500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1018833596252612304286",
+          "liquidity_read_at": "2026-11-27T15:03:35.880515600+00:00"
+        },
+        {
+          "pool_id": "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237",
+          "fee": 1800,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "62171986845307389525",
+          "liquidity_read_at": "2026-11-27T15:03:35.316832400+00:00"
+        },
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "MU",
+        "ETH",
+        "SPY"
+      ],
+      "addresses": [
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "net_product": 998287771327675124,
+      "edge_ratio_ppm": -1713,
+      "hops": [
+        {
+          "pool_id": "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237",
+          "fee": 1800,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "62171986845307389525",
+          "liquidity_read_at": "2026-11-27T15:03:35.316832400+00:00"
+        },
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        },
+        {
+          "pool_id": "0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c",
+          "fee": 500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1018833596252612304286",
+          "liquidity_read_at": "2026-11-27T15:03:35.880515600+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "ETH",
+        "NVDA",
+        "SPY"
+      ],
+      "addresses": [
+        "0x0000000000000000000000000000000000000000",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "net_product": 997978225590235406,
+      "edge_ratio_ppm": -2022,
+      "hops": [
+        {
+          "pool_id": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+          "fee": 500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1152875084002987826147",
+          "liquidity_read_at": "2026-11-27T15:03:35.583359500+00:00"
+        },
+        {
+          "pool_id": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+          "fee": 250,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "6882120790160997116991",
+          "liquidity_read_at": "2026-11-27T15:03:35.942836+00:00"
+        },
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "SPY",
+        "ETH",
+        "NVDA"
+      ],
+      "addresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x0000000000000000000000000000000000000000",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec"
+      ],
+      "net_product": 997978225590235406,
+      "edge_ratio_ppm": -2022,
+      "hops": [
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        },
+        {
+          "pool_id": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+          "fee": 500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1152875084002987826147",
+          "liquidity_read_at": "2026-11-27T15:03:35.583359500+00:00"
+        },
+        {
+          "pool_id": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+          "fee": 250,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "6882120790160997116991",
+          "liquidity_read_at": "2026-11-27T15:03:35.942836+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "NVDA",
+        "SPY",
+        "ETH"
+      ],
+      "addresses": [
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "net_product": 997978225590235398,
+      "edge_ratio_ppm": -2022,
+      "hops": [
+        {
+          "pool_id": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+          "fee": 250,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "6882120790160997116991",
+          "liquidity_read_at": "2026-11-27T15:03:35.942836+00:00"
+        },
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        },
+        {
+          "pool_id": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+          "fee": 500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1152875084002987826147",
+          "liquidity_read_at": "2026-11-27T15:03:35.583359500+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "ETH",
+        "SPY",
+        "GOOGL"
+      ],
+      "addresses": [
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3"
+      ],
+      "net_product": 997382985438517834,
+      "edge_ratio_ppm": -2618,
+      "hops": [
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        },
+        {
+          "pool_id": "0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30",
+          "fee": 250,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "5070647711597068582311",
+          "liquidity_read_at": "2026-11-27T15:03:35.562668100+00:00"
+        },
+        {
+          "pool_id": "0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d",
+          "fee": 2100,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "129093373148910439501",
+          "liquidity_read_at": "2026-11-27T15:03:35.978193200+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "SPY",
+        "GOOGL",
+        "ETH"
+      ],
+      "addresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "net_product": 997382985438517834,
+      "edge_ratio_ppm": -2618,
+      "hops": [
+        {
+          "pool_id": "0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30",
+          "fee": 250,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "5070647711597068582311",
+          "liquidity_read_at": "2026-11-27T15:03:35.562668100+00:00"
+        },
+        {
+          "pool_id": "0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d",
+          "fee": 2100,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "129093373148910439501",
+          "liquidity_read_at": "2026-11-27T15:03:35.978193200+00:00"
+        },
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "GOOGL",
+        "ETH",
+        "SPY"
+      ],
+      "addresses": [
+        "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+        "0x0000000000000000000000000000000000000000",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "net_product": 997382985438517833,
+      "edge_ratio_ppm": -2618,
+      "hops": [
+        {
+          "pool_id": "0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d",
+          "fee": 2100,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "129093373148910439501",
+          "liquidity_read_at": "2026-11-27T15:03:35.978193200+00:00"
+        },
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        },
+        {
+          "pool_id": "0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30",
+          "fee": 250,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "5070647711597068582311",
+          "liquidity_read_at": "2026-11-27T15:03:35.562668100+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "ETH",
+        "GOOGL",
+        "SPY"
+      ],
+      "addresses": [
+        "0x0000000000000000000000000000000000000000",
+        "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "net_product": 996710133629255824,
+      "edge_ratio_ppm": -3290,
+      "hops": [
+        {
+          "pool_id": "0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d",
+          "fee": 2100,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "129093373148910439501",
+          "liquidity_read_at": "2026-11-27T15:03:35.978193200+00:00"
+        },
+        {
+          "pool_id": "0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e",
+          "fee": 500,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "28938060810435905581",
+          "liquidity_read_at": "2026-11-27T15:03:35.396188500+00:00"
+        },
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "SPY",
+        "ETH",
+        "GOOGL"
+      ],
+      "addresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x0000000000000000000000000000000000000000",
+        "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3"
+      ],
+      "net_product": 996710133629255824,
+      "edge_ratio_ppm": -3290,
+      "hops": [
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        },
+        {
+          "pool_id": "0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d",
+          "fee": 2100,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "129093373148910439501",
+          "liquidity_read_at": "2026-11-27T15:03:35.978193200+00:00"
+        },
+        {
+          "pool_id": "0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e",
+          "fee": 500,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "28938060810435905581",
+          "liquidity_read_at": "2026-11-27T15:03:35.396188500+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "GOOGL",
+        "SPY",
+        "ETH"
+      ],
+      "addresses": [
+        "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "net_product": 996710133629255821,
+      "edge_ratio_ppm": -3290,
+      "hops": [
+        {
+          "pool_id": "0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e",
+          "fee": 500,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "28938060810435905581",
+          "liquidity_read_at": "2026-11-27T15:03:35.396188500+00:00"
+        },
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        },
+        {
+          "pool_id": "0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d",
+          "fee": 2100,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "129093373148910439501",
+          "liquidity_read_at": "2026-11-27T15:03:35.978193200+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "ETH",
+        "MU",
+        "SPY"
+      ],
+      "addresses": [
+        "0x0000000000000000000000000000000000000000",
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "net_product": 995121142048025536,
+      "edge_ratio_ppm": -4879,
+      "hops": [
+        {
+          "pool_id": "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237",
+          "fee": 1800,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "62171986845307389525",
+          "liquidity_read_at": "2026-11-27T15:03:35.316832400+00:00"
+        },
+        {
+          "pool_id": "0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c",
+          "fee": 500,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1018833596252612304286",
+          "liquidity_read_at": "2026-11-27T15:03:35.880515600+00:00"
+        },
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "SPY",
+        "ETH",
+        "MU"
+      ],
+      "addresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x0000000000000000000000000000000000000000",
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd"
+      ],
+      "net_product": 995121142048025536,
+      "edge_ratio_ppm": -4879,
+      "hops": [
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        },
+        {
+          "pool_id": "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237",
+          "fee": 1800,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "62171986845307389525",
+          "liquidity_read_at": "2026-11-27T15:03:35.316832400+00:00"
+        },
+        {
+          "pool_id": "0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c",
+          "fee": 500,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1018833596252612304286",
+          "liquidity_read_at": "2026-11-27T15:03:35.880515600+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "MU",
+        "SPY",
+        "ETH"
+      ],
+      "addresses": [
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "net_product": 995121142048025533,
+      "edge_ratio_ppm": -4879,
+      "hops": [
+        {
+          "pool_id": "0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c",
+          "fee": 500,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1018833596252612304286",
+          "liquidity_read_at": "2026-11-27T15:03:35.880515600+00:00"
+        },
+        {
+          "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+          "fee": 1000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1205127575232957583490",
+          "liquidity_read_at": "2026-11-27T15:03:35.487251+00:00"
+        },
+        {
+          "pool_id": "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237",
+          "fee": 1800,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "62171986845307389525",
+          "liquidity_read_at": "2026-11-27T15:03:35.316832400+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "SPY",
+        "NVDA",
+        "MU"
+      ],
+      "addresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd"
+      ],
+      "net_product": 991996455952870794,
+      "edge_ratio_ppm": -8004,
+      "hops": [
+        {
+          "pool_id": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+          "fee": 250,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "6882120790160997116991",
+          "liquidity_read_at": "2026-11-27T15:03:35.942836+00:00"
+        },
+        {
+          "pool_id": "0x7b1c4469fbc25827332bcf7a4c273fcbb5d60815c03e5844c74feb51c2313cc7",
+          "fee": 12500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "25472686470334530725",
+          "liquidity_read_at": "2026-11-27T15:03:35.621324400+00:00"
+        },
+        {
+          "pool_id": "0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c",
+          "fee": 500,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1018833596252612304286",
+          "liquidity_read_at": "2026-11-27T15:03:35.880515600+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "MU",
+        "SPY",
+        "NVDA"
+      ],
+      "addresses": [
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec"
+      ],
+      "net_product": 991996455952870794,
+      "edge_ratio_ppm": -8004,
+      "hops": [
+        {
+          "pool_id": "0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c",
+          "fee": 500,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1018833596252612304286",
+          "liquidity_read_at": "2026-11-27T15:03:35.880515600+00:00"
+        },
+        {
+          "pool_id": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+          "fee": 250,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "6882120790160997116991",
+          "liquidity_read_at": "2026-11-27T15:03:35.942836+00:00"
+        },
+        {
+          "pool_id": "0x7b1c4469fbc25827332bcf7a4c273fcbb5d60815c03e5844c74feb51c2313cc7",
+          "fee": 12500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "25472686470334530725",
+          "liquidity_read_at": "2026-11-27T15:03:35.621324400+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "NVDA",
+        "MU",
+        "SPY"
+      ],
+      "addresses": [
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "net_product": 991996455952870792,
+      "edge_ratio_ppm": -8004,
+      "hops": [
+        {
+          "pool_id": "0x7b1c4469fbc25827332bcf7a4c273fcbb5d60815c03e5844c74feb51c2313cc7",
+          "fee": 12500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "25472686470334530725",
+          "liquidity_read_at": "2026-11-27T15:03:35.621324400+00:00"
+        },
+        {
+          "pool_id": "0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c",
+          "fee": 500,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1018833596252612304286",
+          "liquidity_read_at": "2026-11-27T15:03:35.880515600+00:00"
+        },
+        {
+          "pool_id": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+          "fee": 250,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "6882120790160997116991",
+          "liquidity_read_at": "2026-11-27T15:03:35.942836+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "ETH",
+        "NVDA",
+        "MU"
+      ],
+      "addresses": [
+        "0x0000000000000000000000000000000000000000",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd"
+      ],
+      "net_product": 991762170187074780,
+      "edge_ratio_ppm": -8238,
+      "hops": [
+        {
+          "pool_id": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+          "fee": 500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1152875084002987826147",
+          "liquidity_read_at": "2026-11-27T15:03:35.583359500+00:00"
+        },
+        {
+          "pool_id": "0x7b1c4469fbc25827332bcf7a4c273fcbb5d60815c03e5844c74feb51c2313cc7",
+          "fee": 12500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "25472686470334530725",
+          "liquidity_read_at": "2026-11-27T15:03:35.621324400+00:00"
+        },
+        {
+          "pool_id": "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237",
+          "fee": 1800,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "62171986845307389525",
+          "liquidity_read_at": "2026-11-27T15:03:35.316832400+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "MU",
+        "ETH",
+        "NVDA"
+      ],
+      "addresses": [
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "0x0000000000000000000000000000000000000000",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec"
+      ],
+      "net_product": 991762170187074780,
+      "edge_ratio_ppm": -8238,
+      "hops": [
+        {
+          "pool_id": "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237",
+          "fee": 1800,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "62171986845307389525",
+          "liquidity_read_at": "2026-11-27T15:03:35.316832400+00:00"
+        },
+        {
+          "pool_id": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+          "fee": 500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1152875084002987826147",
+          "liquidity_read_at": "2026-11-27T15:03:35.583359500+00:00"
+        },
+        {
+          "pool_id": "0x7b1c4469fbc25827332bcf7a4c273fcbb5d60815c03e5844c74feb51c2313cc7",
+          "fee": 12500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "25472686470334530725",
+          "liquidity_read_at": "2026-11-27T15:03:35.621324400+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "NVDA",
+        "MU",
+        "ETH"
+      ],
+      "addresses": [
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "net_product": 991762170187074777,
+      "edge_ratio_ppm": -8238,
+      "hops": [
+        {
+          "pool_id": "0x7b1c4469fbc25827332bcf7a4c273fcbb5d60815c03e5844c74feb51c2313cc7",
+          "fee": 12500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "25472686470334530725",
+          "liquidity_read_at": "2026-11-27T15:03:35.621324400+00:00"
+        },
+        {
+          "pool_id": "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237",
+          "fee": 1800,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "62171986845307389525",
+          "liquidity_read_at": "2026-11-27T15:03:35.316832400+00:00"
+        },
+        {
+          "pool_id": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+          "fee": 500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1152875084002987826147",
+          "liquidity_read_at": "2026-11-27T15:03:35.583359500+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "SPY",
+        "NVDA",
+        "AMD"
+      ],
+      "addresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc"
+      ],
+      "net_product": 989337413016427876,
+      "edge_ratio_ppm": -10663,
+      "hops": [
+        {
+          "pool_id": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+          "fee": 250,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "6882120790160997116991",
+          "liquidity_read_at": "2026-11-27T15:03:35.942836+00:00"
+        },
+        {
+          "pool_id": "0x928965e3f578b9825df398cfb31595201b32fc9e58b28ade4b2b48b68ea88e5b",
+          "fee": 5000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "134533236656425363219",
+          "liquidity_read_at": "2026-11-27T15:03:35.693176+00:00"
+        },
+        {
+          "pool_id": "0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82",
+          "fee": 500,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "610116374082204948071",
+          "liquidity_read_at": "2026-11-27T15:03:35.993860200+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "AMD",
+        "SPY",
+        "NVDA"
+      ],
+      "addresses": [
+        "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec"
+      ],
+      "net_product": 989337413016427876,
+      "edge_ratio_ppm": -10663,
+      "hops": [
+        {
+          "pool_id": "0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82",
+          "fee": 500,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "610116374082204948071",
+          "liquidity_read_at": "2026-11-27T15:03:35.993860200+00:00"
+        },
+        {
+          "pool_id": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+          "fee": 250,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "6882120790160997116991",
+          "liquidity_read_at": "2026-11-27T15:03:35.942836+00:00"
+        },
+        {
+          "pool_id": "0x928965e3f578b9825df398cfb31595201b32fc9e58b28ade4b2b48b68ea88e5b",
+          "fee": 5000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "134533236656425363219",
+          "liquidity_read_at": "2026-11-27T15:03:35.693176+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "NVDA",
+        "AMD",
+        "SPY"
+      ],
+      "addresses": [
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c"
+      ],
+      "net_product": 989337413016427874,
+      "edge_ratio_ppm": -10663,
+      "hops": [
+        {
+          "pool_id": "0x928965e3f578b9825df398cfb31595201b32fc9e58b28ade4b2b48b68ea88e5b",
+          "fee": 5000,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "134533236656425363219",
+          "liquidity_read_at": "2026-11-27T15:03:35.693176+00:00"
+        },
+        {
+          "pool_id": "0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82",
+          "fee": 500,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "610116374082204948071",
+          "liquidity_read_at": "2026-11-27T15:03:35.993860200+00:00"
+        },
+        {
+          "pool_id": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+          "fee": 250,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "6882120790160997116991",
+          "liquidity_read_at": "2026-11-27T15:03:35.942836+00:00"
+        }
+      ]
+    },
+    {
+      "path": [
+        "SPY",
+        "MU",
+        "NVDA"
+      ],
+      "addresses": [
+        "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec"
+      ],
+      "net_product": 981550187920113127,
+      "edge_ratio_ppm": -18450,
+      "hops": [
+        {
+          "pool_id": "0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c",
+          "fee": 500,
+          "zero_for_one": true,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "1018833596252612304286",
+          "liquidity_read_at": "2026-11-27T15:03:35.880515600+00:00"
+        },
+        {
+          "pool_id": "0x7b1c4469fbc25827332bcf7a4c273fcbb5d60815c03e5844c74feb51c2313cc7",
+          "fee": 12500,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "medium",
+          "liquidity": "25472686470334530725",
+          "liquidity_read_at": "2026-11-27T15:03:35.621324400+00:00"
+        },
+        {
+          "pool_id": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+          "fee": 250,
+          "zero_for_one": false,
+          "pool_status": "active",
+          "status_reason": null,
+          "depth_status": "deep",
+          "liquidity": "6882120790160997116991",
+          "liquidity_read_at": "2026-11-27T15:03:35.942836+00:00"
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "net_product is the contract's fee-adjusted spot product; >1e18 passes the gate",
+    "edge_ratio_ppm is the gross edge in parts per million, before price impact",
+    "a cycle here can still fail at execution because of price impact",
+    "sqrt prices are the stored reads, the contract re-reads them live"
+  ]
+}
