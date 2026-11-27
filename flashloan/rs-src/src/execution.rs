@@ -1240,6 +1240,15 @@ fn resolve_private_key_hex_inner(private_key: &str) -> Result<String, String> {
     Ok(address_from_verifying_key(signing_key.verifying_key()))
 }
 
+/// The address that signs with the given private key.
+///
+/// The helper above answers the same question, but its name says that it
+/// resolves a key.  The caller that wants the **account** says so here,
+/// so the two names cannot be confused at the call site.
+pub(crate) fn signer_address_from_private_key(private_key: &str) -> Result<String, String> {
+    resolve_private_key_hex_inner(private_key)
+}
+
 fn redact_rpc_text(value: &str) -> String {
     let mut output = String::new();
     let mut rest = value;
@@ -2798,6 +2807,30 @@ fn bounded_half(amount: &BigUint, min_amount: &BigUint) -> BigUint {
     }
 }
 
+/// The **search ceiling** of the amount ladder.
+///
+/// The ceiling is the domain the route may actually be executed at, so it is
+/// the published capacity whenever a capacity was published: the folded
+/// single-tick capacity is the bound the review enforces with
+/// `final_input_exceeds_single_tick_capacity`, and a size above it can never
+/// be broadcast.  The generic probe maximum only narrows that domain, never
+/// widens it.
+fn derive_search_ceiling(
+    capacity_limit_raw: &BigUint,
+    max_probe_raw: Option<&BigUint>,
+) -> BigUint {
+    match max_probe_raw {
+        Some(max_probe) => {
+            if max_probe < capacity_limit_raw {
+                max_probe.clone()
+            } else {
+                capacity_limit_raw.clone()
+            }
+        }
+        None => capacity_limit_raw.clone(),
+    }
+}
+
 fn big_uint_to_usize(value: &BigUint) -> Result<usize, String> {
     value
         .to_str_radix(10)
@@ -3058,10 +3091,10 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
         .map(parse_big_uint)
         .transpose()?
         .unwrap_or_else(BigUint::zero);
-    // The generic probe maximum still bounds the **expansion** of the ladder:
-    // the start comes from the published single-tick capacity, but the
-    // doubling/halving search may run wider than that capacity when the
-    // route is allowed to cross a tick boundary.
+    // The generic probe maximum bounds the **expansion** of the ladder, but it
+    // is never the only bound: the ladder searches inside the domain the
+    // route may actually be executed at, and that domain is the capacity the
+    // Manager published (see `search_ceiling_raw` below).
     let max_probe_raw = config
         .get("maxProbeAmountRaw")
         .filter(|value| !value.is_null())
@@ -3127,6 +3160,22 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
             "error": "single_tick_capacity_unavailable",
         }));
     };
+    // The **search ceiling** of the ladder is the domain the route may
+    // actually be executed at.
+    //
+    // The folded single-tick capacity is that domain: the review rejects a
+    // final input above it with `final_input_exceeds_single_tick_capacity`,
+    // so a size above the capacity can never be broadcast.  A ladder that
+    // walks past that ceiling spends its probes on sizes that are known to
+    // be rejected, and it picks the **largest** of them whenever the profit
+    // grows with the size — which is exactly how a profitable route ended up
+    // unexecutable on the live book.
+    //
+    // The ladder therefore searches *inside* the ceiling, so the size it
+    // selects is a size the system can execute.  The cross-tick search
+    // publishes its own capacity as the search override, so there the
+    // ceiling *is* the cross-tick capacity and the domain is unchanged.
+    let search_ceiling_raw = derive_search_ceiling(capacity_limit_raw, max_probe_raw.as_ref());
     if min_probe_raw > *capacity_limit_raw {
         // The published capacity is smaller than the smallest size the
         // ladder is allowed to probe. The route is blocked before it probes
@@ -3263,6 +3312,8 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
             "singleTickCapacityBasis": capacity_basis,
             search_capacity_key: format!("0x{:x}", capacity_limit_raw),
             "searchCapacityBasis": capacity_basis,
+            "searchCeilingRaw": format!("0x{:x}", search_ceiling_raw),
+            "searchCeilingBasis": capacity_basis,
             "ladderStartBasis": initial_amount_basis,
             "derivedInitialAmountRaw": format!("0x{:x}", derived_initial_amount_raw),
             "minProfitRaw": format!("0x{:x}", min_profit_raw),
@@ -3318,6 +3369,8 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
             "singleTickCapacityBasis": capacity_basis,
                 search_capacity_key: format!("0x{:x}", capacity_limit_raw),
                 "searchCapacityBasis": capacity_basis,
+                "searchCeilingRaw": format!("0x{:x}", search_ceiling_raw),
+                "searchCeilingBasis": capacity_basis,
                 "ladderStartBasis": initial_amount_basis,
                 "derivedInitialAmountRaw": format!("0x{:x}", derived_initial_amount_raw),
                 "minProfitRaw": format!("0x{:x}", min_profit_raw),
@@ -3358,7 +3411,7 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
             .unwrap_or_else(BigUint::zero);
         base_amount = initial_amount_raw.clone();
         lower_amount = bounded_half(&initial_amount_raw, &min_probe_raw);
-        let mut candidate = bounded_double(&base_amount, max_probe_raw.as_ref());
+        let mut candidate = bounded_double(&base_amount, Some(&search_ceiling_raw));
         while attempts.len() < max_steps && candidate > base_amount {
             let payload = official_v4_probe_one(
                 config,
@@ -3396,14 +3449,14 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
                 has_upper_amount = true;
                 break;
             }
-            let next = bounded_double(&candidate, max_probe_raw.as_ref());
+            let next = bounded_double(&candidate, Some(&search_ceiling_raw));
             if next <= candidate {
                 break;
             }
             candidate = next;
         }
         if !has_upper_amount && selected_amount > BigUint::zero() {
-            upper_amount = bounded_double(&selected_amount, max_probe_raw.as_ref());
+            upper_amount = bounded_double(&selected_amount, Some(&search_ceiling_raw));
             base_amount = selected_amount.clone();
             lower_amount = bounded_half(&selected_amount, &min_probe_raw);
             has_upper_amount = upper_amount > BigUint::zero() && upper_amount > selected_amount;
@@ -3466,7 +3519,7 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
         // capacity-informed start towards max_probe_raw, so a position larger
         // than the start becomes reachable even when the first probe reverted.
         if selected_amount == BigUint::zero() {
-            let mut upward = bounded_double(&initial_amount_raw, max_probe_raw.as_ref());
+            let mut upward = bounded_double(&initial_amount_raw, Some(&search_ceiling_raw));
             while attempts.len() < max_steps
                 && upward > initial_amount_raw
                 && upward > BigUint::zero()
@@ -3499,7 +3552,7 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
                     // The amount above the profitable point is unknown; the
                     // refinement loop uses the configured ceiling.
                     has_upper_amount = true;
-                    upper_amount = bounded_double(&upward, max_probe_raw.as_ref());
+                    upper_amount = bounded_double(&upward, Some(&search_ceiling_raw));
                     break;
                 }
                 // The upward probe reverted, so this size is too large. Keep
@@ -3527,6 +3580,8 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
             "singleTickCapacityBasis": capacity_basis,
             search_capacity_key: format!("0x{:x}", capacity_limit_raw),
             "searchCapacityBasis": capacity_basis,
+            "searchCeilingRaw": format!("0x{:x}", search_ceiling_raw),
+            "searchCeilingBasis": capacity_basis,
             "ladderStartBasis": initial_amount_basis,
             "derivedInitialAmountRaw": format!("0x{:x}", derived_initial_amount_raw),
             "minProfitRaw": format!("0x{:x}", min_profit_raw),
@@ -3697,6 +3752,8 @@ pub(crate) fn official_v4_adaptive_best_amount_single_route_inner(
             "singleTickCapacityBasis": capacity_basis,
         search_capacity_key: format!("0x{:x}", capacity_limit_raw),
         "searchCapacityBasis": capacity_basis,
+        "searchCeilingRaw": format!("0x{:x}", search_ceiling_raw),
+        "searchCeilingBasis": capacity_basis,
         "minProfitRaw": format!("0x{:x}", min_profit_raw),
         "status": "profitable_amount_found",
         "selectedAmountRaw": format!("0x{:x}", selected_amount),
@@ -4293,6 +4350,22 @@ fn normalize_transaction(tx_hash: &str, transaction: &Value) -> Value {
     })
 }
 
+/// The receipt of a transaction that was just sent, read **without waiting**.
+///
+/// The send is the fact; the receipt is the answer, and the answer arrives
+/// when the chain mines the transaction. Waiting for it here would hold the
+/// thread that sent the transaction for as long as the chain takes, and a
+/// thread that is held cannot send the next opportunity.
+///
+/// The lookup therefore reads the receipt once and reports what the node
+/// knows at that moment. A transaction that is still pending is the normal
+/// case, and the broadcast confirmation thread reads the rest of the answer
+/// when it arrives.
+pub(crate) fn receipt_without_waiting(rpc_url: &str, tx_hash: &str, timeout_seconds: u64) -> Value {
+    load_v4_receipt_inner(&vec![rpc_url.to_string()], tx_hash, false, timeout_seconds)
+        .unwrap_or_else(|error| json!({"status": "pending", "error": error}))
+}
+
 fn load_v4_receipt_inner(
     rpc_urls: &[String],
     tx_hash: &str,
@@ -4547,9 +4620,7 @@ fn broadcast_calldata_inner(
             "submitted": false,
         }));
     }
-    let receipt =
-        load_v4_receipt_inner(&vec![rpc_url.to_string()], &tx_hash, true, timeout_seconds)
-            .unwrap_or_else(|error| json!({"status": "receipt_pending", "error": error}));
+    let receipt = receipt_without_waiting(rpc_url, &tx_hash, timeout_seconds);
     Ok(json!({
         "ok": true,
         "txHash": tx_hash,
@@ -4671,9 +4742,7 @@ pub(crate) fn broadcast_v4_best_pools_inner(
             "submitted": false,
         }));
     }
-    let receipt =
-        load_v4_receipt_inner(&vec![rpc_url.to_string()], &tx_hash, true, timeout_seconds)
-            .unwrap_or_else(|error| json!({"status": "receipt_pending", "error": error}));
+    let receipt = receipt_without_waiting(rpc_url, &tx_hash, timeout_seconds);
     Ok(json!({
         "ok": true,
         "txHash": tx_hash,
@@ -5941,6 +6010,117 @@ mod tests {
             result.get("initialAmountRaw").and_then(Value::as_str),
             Some("0x32")
         );
+    }
+
+    /// The ladder searches **inside** the domain the route can be executed at.
+    ///
+    /// The folded single-tick capacity is that domain: the review rejects a
+    /// final input above it, so a size above the capacity can never be
+    /// broadcast. The search ceiling is therefore the published capacity, and
+    /// the generic probe maximum only narrows it.
+    #[test]
+    fn p0_9_the_search_ceiling_is_the_published_capacity() {
+        let config = json!({
+            "initialAmountRaw": "0x64",
+            "minProfitRaw": "0x1",
+            "minProbeAmountRaw": "0x1",
+            "maxProbeAmountRaw": "0x1000",
+            "singleTickCapacityRaw": "0x32",
+            "maxProbeAttempts": 4
+        });
+        let result = official_v4_adaptive_best_amount_single_route_inner(
+            &config,
+            "http://127.0.0.1:1",
+            "0x0000000000000000000000000000000000000001",
+            None,
+            1,
+        )
+        .expect("the failed preflight still reports the bounded amount");
+        assert_eq!(
+            result.get("searchCeilingRaw").and_then(Value::as_str),
+            Some("0x32")
+        );
+        assert_eq!(
+            result.get("searchCeilingBasis").and_then(Value::as_str),
+            Some("folded_single_tick_capacity")
+        );
+    }
+
+    /// A route that publishes no generic probe maximum still searches inside
+    /// the published capacity: the ceiling is never the absence of a bound.
+    #[test]
+    fn p0_9_the_search_ceiling_is_the_capacity_without_a_generic_probe_maximum() {
+        let config = json!({
+            "initialAmountRaw": "0x64",
+            "minProfitRaw": "0x1",
+            "minProbeAmountRaw": "0x1",
+            "singleTickCapacityRaw": "0x32",
+            "maxProbeAttempts": 4
+        });
+        let result = official_v4_adaptive_best_amount_single_route_inner(
+            &config,
+            "http://127.0.0.1:1",
+            "0x0000000000000000000000000000000000000001",
+            None,
+            1,
+        )
+        .expect("the failed preflight still reports the bounded amount");
+        assert_eq!(
+            result.get("searchCeilingRaw").and_then(Value::as_str),
+            Some("0x32")
+        );
+    }
+
+    /// The generic probe maximum narrows the ceiling but never widens it.
+    #[test]
+    fn p0_9_the_generic_probe_maximum_narrows_the_search_ceiling() {
+        let config = json!({
+            "initialAmountRaw": "0x64",
+            "minProfitRaw": "0x1",
+            "minProbeAmountRaw": "0x1",
+            "maxProbeAmountRaw": "0x32",
+            "singleTickCapacityRaw": "0x1000",
+            "maxProbeAttempts": 4
+        });
+        let result = official_v4_adaptive_best_amount_single_route_inner(
+            &config,
+            "http://127.0.0.1:1",
+            "0x0000000000000000000000000000000000000001",
+            None,
+            1,
+        )
+        .expect("the failed preflight still reports the bounded amount");
+        assert_eq!(
+            result.get("searchCeilingRaw").and_then(Value::as_str),
+            Some("0x32")
+        );
+    }
+
+    /// The regression of the live book: the expansion of the ladder must not
+    /// leave the published capacity.
+    ///
+    /// The route that was blocked by `final_input_exceeds_single_tick_capacity`
+    /// started at 1_015_283_473_444_041 — exactly half of the folded capacity
+    /// 2_030_566_946_888_083 — and the ladder doubled its way to
+    /// 4_061_133_893_776_164, which is twice the capacity. The size it picked
+    /// was outside the bound the review enforces, so the route could never be
+    /// broadcast.
+    #[test]
+    fn p0_9_the_expansion_never_leaves_the_published_capacity() {
+        let capacity = BigUint::from(2_030_566_946_888_083u64);
+        let ceiling = derive_search_ceiling(&capacity, None);
+        let mut candidate = BigUint::from(1_015_283_473_444_041u64);
+        for _ in 0..8 {
+            candidate = bounded_double(&candidate, Some(&ceiling));
+            assert!(
+                candidate <= capacity,
+                "the ladder walked past the published capacity: {candidate}"
+            );
+        }
+        // The size the live ladder selected is outside the ceiling, so the
+        // ceiling is what stops it.
+        let live_selection = BigUint::from(4_061_133_893_776_164u64);
+        assert!(live_selection > capacity);
     }
 
     /// A caller that has not published the fold yet keeps working through

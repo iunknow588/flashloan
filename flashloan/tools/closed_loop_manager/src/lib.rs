@@ -1,17 +1,24 @@
-﻿use candidate_edge_pool_manager::CandidateEdgeStatus;
+use candidate_edge_pool_manager::CandidateEdgeStatus;
 use candidate_exchange_pool_manager::CandidateExchangeStatus;
 use directional_pool_manager::{tier_of_rank, DirectionalPoolTier};
 use manager_contracts::{DirectionalPool, PoolDirection, RouteKeyId, TokenKeyId, V4Pool};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 use std::path::{Path, PathBuf};
 
 pub mod usdg_valuation;
 
 const NETWORK_PROTOCOL: &str = "uniswap_v4";
+/// The live market snapshot of every pool.
+///
+/// The liquidity worker refreshes this table, so its price columns are the
+/// freshest reading of the market the store holds.  The base pool tables
+/// carry a copy of the same columns, but that copy is only as fresh as the
+/// last materialization that wrote it.
+const VALUATION_SNAPSHOT_TABLE: &str = "v4_exchange_pool_liquidity_snapshots";
 
 /// Minimum on-chain price-impact capacity, in raw token units of the binding
 /// side, for a pool to participate in a closed loop.
@@ -312,6 +319,14 @@ pub struct ClosedLoopStatus {
     pub hop_count: usize,
     pub optimization_count: usize,
     pub skipped_token_count: usize,
+    /// Whether the consumers still have to rebuild against the generation
+    /// the library publishes now.
+    ///
+    /// The flag is set when the library moved and it is cleared by the
+    /// **consumer**, through `acknowledge_consumers_rebuilt`, once the
+    /// consumer has rebuilt against the generation that is published now.
+    /// It is never cleared by the fact that a later materialization found
+    /// the library unchanged: that fact says nothing about the consumers.
     pub consumers_need_rebuild: bool,
 }
 
@@ -329,7 +344,6 @@ pub struct ClosedLoopRow {
     pub path_addresses: Vec<String>,
     pub path_symbols: Vec<String>,
     pub pool_path_key: String,
-    pub pool_ids: Vec<String>,
     /// The directional pools the three hops walk.
     ///
     /// The list has one entry per hop and holds the **directional pool
@@ -338,7 +352,12 @@ pub struct ClosedLoopRow {
     /// the direction rows it was built from without re-deriving the
     /// direction from the token order.
     pub directional_pool_ids: Vec<String>,
-    pub backup_pool_ids: BTreeMap<String, Vec<String>>,
+    /// The backup pools of each hop, as **directional** pool ids.
+    ///
+    /// A backup is a pool the hop could trade instead of the one in effect,
+    /// so it is a directional row as well: a candidate without a direction
+    /// row cannot be traded and is therefore not a backup.
+    pub backup_directional_pool_ids: BTreeMap<String, Vec<String>>,
     pub hop_candidate_counts: BTreeMap<String, usize>,
     pub hop_candidate_combination_count: usize,
     pub recommendation_basis: String,
@@ -368,9 +387,10 @@ pub struct ClosedLoopRow {
     pub single_tick_capacity_anchor_raw: Option<u128>,
     /// The hop whose folded capacity is the smallest.
     ///
-    /// The pool is named so an operator can see **which** hop bounds the
-    /// loop instead of having to re-derive the fold.
-    pub single_tick_capacity_binding_pool_id: Option<String>,
+    /// The **directional** pool is named so an operator can see **which**
+    /// hop bounds the loop instead of having to re-derive the fold. The
+    /// closed loop names no base pool, so the name is a directional one.
+    pub single_tick_capacity_binding_directional_pool_id: Option<String>,
     /// The USDG value of **one whole** borrow token, in raw USDG units.
     ///
     /// The value is the spot rate of the pool that pairs the borrow token
@@ -414,25 +434,25 @@ pub struct ClosedLoopHopRow {
     pub output_token_key_id: String,
     pub input_address: String,
     pub output_address: String,
-    pub pool_id: String,
-    pub base_pool_id: String,
     pub pool_selection_basis: String,
     /// The directional pool the hop walks.
     ///
     /// The identity is the direction layer's own id, and it resolves to the
     /// row that carries the hop's direction, its tick state and its
-    /// capacity. `pool_id` and `base_pool_id` stay the **base** pool, so the
-    /// foreign keys of the hop table keep pointing at the base pool table.
-    pub directional_pool_id: Option<String>,
+    /// capacity. The hop holds **no** base pool: the base pool facts live
+    /// inside the directional row, so a consumer that needs the base facts
+    /// resolves them through the direction layer and can never pick up a
+    /// base pool without its direction.
+    pub directional_pool_id: String,
     /// The direction of the hop: `0` is high address to low address,
     /// `1` is low address to high address.
     ///
     /// The value is the direction of the directional pool the hop walks. It
     /// is written from that row, so the stored direction and the numbers
     /// that belong to it can never drift apart.
-    pub hop_direction: Option<i64>,
+    pub hop_direction: i64,
     /// The scope of the direction layer the hop's row was published under.
-    pub directional_scope_key: Option<String>,
+    pub directional_scope_key: String,
     /// The rank the row held inside its (pair, direction) group.
     ///
     /// `None` means the row was not measured, so it holds no rank.
@@ -447,8 +467,11 @@ pub struct ClosedLoopOptimizationRow {
     pub loop_key: String,
     pub hop_index: usize,
     pub optimization_id: String,
-    pub original_pool_id: String,
-    pub optimized_pool_id: String,
+    /// The directional pool the recommendation named before the
+    /// optimization took over.
+    pub original_directional_pool_id: String,
+    /// The directional pool that took the hop over.
+    pub optimized_directional_pool_id: String,
     pub optimization_basis: String,
     pub expected_price_improvement: Option<f64>,
     pub status: String,
@@ -464,6 +487,39 @@ pub struct ClosedLoopRuntimeStateRow {
     pub review_generation: i64,
     pub review_required: bool,
     pub last_rebuilt_at: String,
+    /// The moment the loop was measured the last time.
+    ///
+    /// The field is `None` for a loop that was never measured: the review
+    /// clock of a loop starts with its **first** review, not with the
+    /// rebuild that published it.
+    pub last_reviewed_at: Option<String>,
+    /// The moment the last review of the loop goes stale.
+    ///
+    /// The moment is the measurement plus the review interval, so every
+    /// measurement restarts the clock of the loop.
+    pub next_review_at: Option<String>,
+    /// The seconds the review clock of the loop still has to run.
+    ///
+    /// The wait is **counted** from the moment the loop is scheduled at:
+    /// the loop keeps no timer of its own, so the seconds that are left
+    /// are the distance between the moment the next round may start and
+    /// now.  Zero means the loop waits for nothing: it is due.
+    pub review_wait_seconds: Option<i64>,
+    /// The seconds the loop waited already beyond its start moment.
+    ///
+    /// The start moment is the one the loop is scheduled at, so the
+    /// distance between it and now says how long the loop waited for a
+    /// round that did not start yet.
+    pub review_waited_seconds: Option<i64>,
+    /// The moment the review cycle of the loop started.
+    ///
+    /// The cycle of a loop is the time from the start of a review round
+    /// to the end of that round -- a confirmed broadcast, or a
+    /// measurement that found no profit -- and the cycle is as long as
+    /// the automatic review interval.  The moment the round started is
+    /// what decides when the next round is due, so it is kept beside the
+    /// loop.
+    pub review_cycle_started_at: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -679,7 +735,6 @@ impl DirectionalPoolIndex {
 struct HopPool {
     directional_pool_id: String,
     scope_key: String,
-    base_pool_id: String,
     direction: PoolDirection,
     rank: Option<i64>,
 }
@@ -694,8 +749,6 @@ struct HopPool {
 /// list dropped stays in the group and stays reachable as a backup.
 #[derive(Debug, Clone)]
 struct HopCandidate {
-    /// The base pool id of the candidate.
-    base_pool_id: String,
     /// The optimization that records this candidate, when it is not the
     /// primary of the hop.
     optimization_id: Option<String>,
@@ -729,13 +782,15 @@ impl SelectedHop {
             .expect("the winning candidate always resolves to a direction row")
     }
 
-    /// The pool the hop used before any optimization: the primary of the
-    /// candidate tier.
-    fn primary_pool_id(&self) -> &str {
+    /// The **directional** pool the hop used before any optimization.
+    ///
+    /// The closed loop names directional pools only, so the optimization
+    /// row names the direction row of the primary and not its base pool.
+    fn primary_directional_pool_id(&self) -> Option<&str> {
         self.candidates
             .first()
-            .map(|candidate| candidate.base_pool_id.as_str())
-            .unwrap_or_default()
+            .and_then(|candidate| candidate.hop_pool.as_ref())
+            .map(|hop_pool| hop_pool.directional_pool_id.as_str())
     }
 }
 
@@ -1089,8 +1144,6 @@ fn materialize_on_connection(
     if apply {
         if checksum_changed {
             replace_closed_loop_rows(connection, network, chain_id, &desired, &result)?;
-        } else if previous.consumers_need_rebuild {
-            clear_consumers_need_rebuild(connection, network, chain_id)?;
         }
         if let Some((request, request_digest)) = prepared_write {
             persist_write_request(connection, request, &request_digest, &result)?;
@@ -1750,46 +1803,147 @@ fn read_valuation_pool_states(
     network: &str,
     chain_id: i64,
 ) -> Result<BTreeMap<String, ValuationPoolState>, ClosedLoopError> {
-    // The tick state is published by **two** pool tables:
+    // The valuation reads **two** halves of a pool:
     //
-    //   * `v4_exchange_pools_candidate_exchange` — the pools that took part
-    //     in the last candidate-exchange materialization;
-    //   * `v4_exchange_pools_core4` — the pools of the core scope, which
-    //     includes the anchor pools that only exist there.
+    //   * the static facts -- fee, tick spacing and the two token key ids --
+    //     come from the base pool tables, which own them;
+    //   * the market half -- the price, and the liquidity that makes the
+    //     price an observation -- comes from the liquidity snapshot table,
+    //     which the liquidity worker refreshes.
     //
-    // A closed loop may mix both kinds of pools. Reading only one of the
-    // two tables therefore leaves the loops that touch a core-only pool
-    // without a tick state, and their folded capacity stays `None` even
-    // though every hop really does have a published state.
-    //
-    // The candidate-exchange table wins when both carry the same pool: it
-    // is the table the closed-loop layer actually consumes, so its state is
-    // the freshest one for the pools it publishes.
-    let mut states = BTreeMap::new();
+    // The split keeps the pool **universe** whole: the static facts still
+    // come from the full base pool set, so no pool that carries a fact
+    // today drops out of the universe.  What changes is the market half,
+    // and it changes to the snapshot the capacity fold already reads -- so
+    // the valuation and the fold can no longer describe two different
+    // moments.
+    let market = read_valuation_market_states(connection, network, chain_id)?;
+    let mut facts = BTreeMap::new();
     for table in [
         "v4_exchange_pools_candidate_exchange",
         "v4_exchange_pools_core4",
     ] {
-        read_valuation_pool_states_from_table(connection, network, chain_id, table, &mut states)?;
+        read_valuation_pool_facts_from_table(connection, network, chain_id, table, &mut facts)?;
+    }
+    let mut states = BTreeMap::new();
+    for (pool_id, fact) in facts {
+        // A pool without a market snapshot publishes no valuation.  The
+        // absence is a coverage gap of the pool index, never a zero.
+        let Some(market_state) = market.get(&pool_id) else {
+            continue;
+        };
+        states.insert(
+            pool_id,
+            ValuationPoolState {
+                sqrt_price_x96: market_state.sqrt_price_x96,
+                token0_key_id: fact.token0_key_id,
+                token1_key_id: fact.token1_key_id,
+            },
+        );
     }
     Ok(states)
 }
 
-/// Read the published single-tick state of every candidate pool.
+/// The market half of a pool's published state.
 ///
-/// The state is what lets the path capacity be expressed in the **anchor**
-/// token: the bound of a hop is denominated in the token that hop spends,
-/// and the conversion between the tokens of the hops is read from the
-/// pools themselves.
+/// The valuation needs the **price** of a pool, and a price is only an
+/// observation when the pool publishes liquidity next to it.
+struct ValuationMarketState {
+    /// The square-root price of the pool, in Q96 fixed point.
+    sqrt_price_x96: u128,
+}
+
+/// Read the market half of every pool the snapshot table carries.
 ///
-/// A pool without a usable state is absent from the map. That is a
-/// coverage gap of the pool index, not a market conclusion.
-fn read_valuation_pool_states_from_table(
+/// The snapshot table is the store's live market reading: the liquidity
+/// worker refreshes it, and the price columns it holds always belong to the
+/// liquidity measured next to them.
+fn read_valuation_market_states(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+) -> Result<BTreeMap<String, ValuationMarketState>, ClosedLoopError> {
+    let mut states = BTreeMap::new();
+    if !table_exists(connection, VALUATION_SNAPSHOT_TABLE)? {
+        return Ok(states);
+    }
+    // The market columns are read only when the table carries them.  A
+    // store whose snapshot table does not publish them publishes no
+    // valuation at all, which is a coverage gap of the pool index rather
+    // than a wrong number.
+    for column in ["sqrt_price_x96", "tick", "liquidity"] {
+        if !table_has_column(connection, VALUATION_SNAPSHOT_TABLE, column)? {
+            return Ok(states);
+        }
+    }
+    let mut statement = connection.prepare(&format!(
+        "SELECT pool_id, sqrt_price_x96, tick, liquidity
+         FROM {VALUATION_SNAPSHOT_TABLE}
+         WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3"
+    ))?;
+    let rows = statement.query_map(params![network, chain_id, NETWORK_PROTOCOL], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, Option<String>>(1)?,
+            row.get::<_, Option<i64>>(2)?,
+            row.get::<_, Option<String>>(3)?,
+        ))
+    })?;
+    for row in rows {
+        let (pool_id, sqrt_price_x96, tick, liquidity) = row?;
+        let Some(sqrt_price_x96) =
+            sqrt_price_x96.and_then(|text| text.trim().parse::<u128>().ok())
+        else {
+            continue;
+        };
+        if sqrt_price_x96 == 0 {
+            continue;
+        }
+        // The liquidity column stores the raw uint128 liquidity as TEXT, the
+        // same representation the pool snapshot table uses.  Reading it as an
+        // INTEGER truncates every value above i64::MAX and fails outright on
+        // the production store, so the value is parsed from its text form.
+        //
+        // A pool that publishes an **empty** liquidity has been measured as
+        // having none -- the pool manager writes the literal empty string
+        // for a pool whose live liquidity is zero -- so it is not an
+        // observation and it publishes no state.
+        let Some(liquidity) = liquidity.and_then(|text| text.trim().parse::<u128>().ok()) else {
+            continue;
+        };
+        if liquidity <= 0 {
+            continue;
+        }
+        // The tick is not part of the valuation view, but a pool that does
+        // not publish one does not publish a usable price either, so it
+        // stays out of the map.
+        if tick.is_none() {
+            continue;
+        }
+        states.entry(pool_id).or_insert(ValuationMarketState { sqrt_price_x96 });
+    }
+    Ok(states)
+}
+
+/// The static half of a pool's published state.
+struct ValuationPoolFacts {
+    /// The key id of the pool's token0.
+    token0_key_id: String,
+    /// The key id of the pool's token1.
+    token1_key_id: String,
+}
+
+/// Read the static facts of every pool of one scope table.
+///
+/// The candidate-exchange table wins when both tables carry the same pool:
+/// it is the table the closed-loop layer actually consumes, so its facts are
+/// the ones that belong to the pools it publishes.
+fn read_valuation_pool_facts_from_table(
     connection: &Connection,
     network: &str,
     chain_id: i64,
     table: &str,
-    states: &mut BTreeMap<String, ValuationPoolState>,
+    facts: &mut BTreeMap<String, ValuationPoolFacts>,
 ) -> Result<(), ClosedLoopError> {
     let table_exists = connection
         .query_row(
@@ -1807,9 +1961,6 @@ fn read_valuation_pool_states_from_table(
         rows.collect::<Result<BTreeSet<_>, _>>()?
     };
     for required in [
-        "sqrt_price_x96",
-        "tick",
-        "liquidity",
         "fee",
         "tick_spacing",
         "token0_key_id",
@@ -1820,61 +1971,30 @@ fn read_valuation_pool_states_from_table(
         }
     }
     let mut statement = connection.prepare(&format!(
-        "SELECT pool_id, sqrt_price_x96, tick, liquidity, fee, tick_spacing,
-                token0_key_id, token1_key_id
+        "SELECT pool_id, fee, tick_spacing, token0_key_id, token1_key_id
          FROM {table}
          WHERE network = ?1 AND chain_id = ?2"
     ))?;
     let rows = statement.query_map(params![network, chain_id], |row| {
         Ok((
             row.get::<_, String>(0)?,
-            row.get::<_, Option<String>>(1)?,
+            row.get::<_, Option<i64>>(1)?,
             row.get::<_, Option<i64>>(2)?,
             row.get::<_, Option<String>>(3)?,
-            row.get::<_, Option<i64>>(4)?,
-            row.get::<_, Option<i64>>(5)?,
-            row.get::<_, Option<String>>(6)?,
-            row.get::<_, Option<String>>(7)?,
+            row.get::<_, Option<String>>(4)?,
         ))
     })?;
     for row in rows {
         let (
             pool_id,
-            sqrt_price_x96,
-            tick,
-            liquidity,
             fee,
             tick_spacing,
             token0_key_id,
             token1_key_id,
         ) = row?;
-        // A state that cannot be used is not published: the capacity of a
-        // hop with an unusable price or an unusable liquidity is not
-        // computable, and publishing a zero would read as "measured, and
-        // there is no room".
-        let Some(sqrt_price_x96) = sqrt_price_x96.and_then(|text| text.trim().parse::<u128>().ok())
-        else {
-            continue;
-        };
-        if sqrt_price_x96 == 0 {
-            continue;
-        }
-        // The liquidity column stores the raw uint128 liquidity as TEXT, the
-        // same representation the pool snapshot table uses. Reading it as an
-        // INTEGER truncates every value above i64::MAX and fails outright on
-        // the production store, so the value is parsed from its text form.
-        let Some(liquidity) = liquidity.and_then(|text| text.trim().parse::<u128>().ok()) else {
-            continue;
-        };
-        if liquidity <= 0 {
-            continue;
-        }
-        // The tick is not part of the valuation view, but a pool that does
-        // not publish one does not publish a usable price either, so it
-        // stays out of the map.
-        if tick.is_none() {
-            continue;
-        }
+        // A fact that cannot be used is not published: the valuation needs
+        // the fee and the tick spacing to describe the pool, and it needs
+        // both token key ids to know which side of the pool it is on.
         let Some(fee) = fee else { continue };
         if fee <= 0 {
             continue;
@@ -1894,8 +2014,7 @@ fn read_valuation_pool_states_from_table(
         if token0_key_id.trim().is_empty() || token1_key_id.trim().is_empty() {
             continue;
         }
-        states.entry(pool_id.clone()).or_insert(ValuationPoolState {
-            sqrt_price_x96,
+        facts.entry(pool_id).or_insert(ValuationPoolFacts {
             token0_key_id,
             token1_key_id,
         });
@@ -2031,8 +2150,11 @@ fn read_directional_pools(
                 "directional pool {directional_pool_id} has direction {direction}, expected 0 or 1"
             )));
         };
-        let pool = DirectionalPool {
-            base: V4Pool {
+        // The directional pool is built through its constructor, so the
+        // base pool enters the object **together with** the direction it
+        // is traded in.  There is no way to hold the base pool alone.
+        let mut pool = DirectionalPool::of_pool(
+            V4Pool {
                 base_pool_id: base_pool_id.clone(),
                 pool_manager,
                 pool_key_json,
@@ -2049,13 +2171,13 @@ fn read_directional_pools(
                 depth_capacity_raw,
             },
             direction,
-            input_capacity_raw,
-            input_capacity_measured,
-            directional_output,
-            directional_output_measured,
-            pair_direction_rank,
-            pool_status,
-        };
+        );
+        pool.input_capacity_raw = input_capacity_raw;
+        pool.input_capacity_measured = input_capacity_measured;
+        pool.directional_output = directional_output;
+        pool.directional_output_measured = directional_output_measured;
+        pool.pair_direction_rank = pair_direction_rank;
+        pool.pool_status = pool_status;
         index
             .by_base
             .entry((scope_key.to_owned(), base_pool_id))
@@ -2165,7 +2287,7 @@ fn path_min_single_tick_bound(
             .map(str::trim)
             .and_then(|text| text.parse::<u128>().ok());
         if bound == Some(0) {
-            unusable_pool = Some(pool.base.base_pool_id.clone());
+            unusable_pool = Some(directional_pool_id.to_owned());
             break;
         }
     }
@@ -2190,9 +2312,7 @@ struct UsableTickState {
 /// The tick state of one directional pool, when it is usable.
 fn usable_tick_state(pool: &DirectionalPool) -> Option<UsableTickState> {
     let sqrt_price_x96 = pool
-        .base
-        .sqrt_price_x96
-        .as_deref()
+        .sqrt_price_x96()
         .map(str::trim)
         .and_then(|text| text.parse::<u128>().ok())?;
     if sqrt_price_x96 == 0 {
@@ -2203,20 +2323,18 @@ fn usable_tick_state(pool: &DirectionalPool) -> Option<UsableTickState> {
     // INTEGER truncates every value above i64::MAX and fails outright on
     // the production store, so the value is parsed from its text form.
     let liquidity = pool
-        .base
-        .liquidity
-        .as_deref()
+        .liquidity()
         .map(str::trim)
         .and_then(|text| text.parse::<u128>().ok())?;
     if liquidity == 0 {
         return None;
     }
-    let tick = pool.base.tick?;
-    let fee = pool.base.fee;
+    let tick = pool.tick()?;
+    let fee = pool.fee();
     if fee <= 0 {
         return None;
     }
-    let tick_spacing = pool.base.tick_spacing;
+    let tick_spacing = pool.tick_spacing();
     if tick_spacing <= 0 {
         return None;
     }
@@ -2274,7 +2392,9 @@ fn folded_path_capacity(
         let pool = directional_pools.row(directional_pool_id)?;
         let state = usable_tick_state(pool)?;
         hops.push(pool_manager::single_tick_capacity::CapacityHop {
-            pool_id: pool.base.base_pool_id.clone(),
+            // The capacity binds a **directional** pool, so the pool the
+            // fold names is the directional one the hop walks.
+            pool_id: directional_pool_id.to_owned(),
             token_in: pool.input_token_key_id().to_owned(),
             token_out: pool.output_token_key_id().to_owned(),
             sqrt_price_x96: state.sqrt_price_x96,
@@ -2318,12 +2438,11 @@ fn folded_path_depth_capacity(
     for directional_pool_id in hop_directional_pool_ids {
         let pool = directional_pools.row(directional_pool_id)?;
         let state = usable_tick_state(pool)?;
-        let Some(capacity) = parse_depth_capacity(pool.base.depth_capacity_raw.as_deref())
-        else {
+        let Some(capacity) = parse_depth_capacity(pool.depth_capacity_raw()) else {
             return None;
         };
         hops.push(pool_manager::single_tick_capacity::DepthCapacityHop {
-            pool_id: pool.base.base_pool_id.clone(),
+            pool_id: pool.base_pool_id().to_owned(),
             token_in: pool.input_token_key_id().to_owned(),
             token_out: pool.output_token_key_id().to_owned(),
             sqrt_price_x96: state.sqrt_price_x96,
@@ -2452,7 +2571,6 @@ fn resolve_hop_directional_pool(
     Ok(HopPool {
         directional_pool_id: directional_pool_id.to_owned(),
         scope_key: scope_key.to_owned(),
-        base_pool_id: base_pool_id.to_owned(),
         direction: row.direction,
         rank: row.pair_direction_rank,
     })
@@ -2501,7 +2619,6 @@ fn build_hop_candidates(
             // direction row is a topology error, not a missing backup.
             let hop_pool = resolved?;
             candidates.push(HopCandidate {
-                base_pool_id: pool_id.clone(),
                 optimization_id: optimization_id.clone(),
                 basis: basis.clone(),
                 hop_pool: Some(hop_pool),
@@ -2509,7 +2626,6 @@ fn build_hop_candidates(
             continue;
         }
         candidates.push(HopCandidate {
-            base_pool_id: pool_id.clone(),
             optimization_id: optimization_id.clone(),
             basis: basis.clone(),
             hop_pool: resolved.ok(),
@@ -2530,7 +2646,7 @@ fn build_hop_candidates(
         .rows_of_group(scope_key, &pair_key_id, direction);
     let eligible = group.len();
     for (directional_pool_id, row) in group {
-        let base_pool_id = row.base.base_pool_id.clone();
+        let base_pool_id = row.base_pool_id().to_owned();
         if named.contains(&base_pool_id) {
             continue;
         }
@@ -2545,13 +2661,11 @@ fn build_hop_candidates(
             DirectionalPoolTier::Backup => "backup",
         };
         candidates.push(HopCandidate {
-            base_pool_id: base_pool_id.clone(),
             optimization_id: Some(format!("{backup_id_prefix}-{tier}-rank-{rank}")),
             basis: format!("directional_{tier}_tier_rank:{rank}"),
             hop_pool: Some(HopPool {
                 directional_pool_id: directional_pool_id.to_owned(),
                 scope_key: scope_key.to_owned(),
-                base_pool_id,
                 direction: row.direction,
                 rank: Some(rank),
             }),
@@ -2702,10 +2816,12 @@ fn path_min_capacity(
         let Some(pool) = directional_pools.row(directional_pool_id) else {
             continue;
         };
-        let Some(capacity) = parse_depth_capacity(pool.base.depth_capacity_raw.as_deref()) else {
+        let Some(capacity) = parse_depth_capacity(pool.depth_capacity_raw()) else {
             continue;
         };
-        let pool_id = pool.base.base_pool_id.clone();
+        // The blocking pool is named the way the loop names its pools:
+        // by the **directional** pool the hop walks.
+        let pool_id = directional_pool_id.to_owned();
         if capacity < MIN_CLOSED_LOOP_CAPACITY_RAW {
             return (Some(capacity), Some(pool_id));
         }
@@ -3074,7 +3190,15 @@ fn build_closed_loop_rows(
                         let Some(candidate) = candidates.get(chosen[hop_index]) else {
                             continue;
                         };
-                        if candidate.base_pool_id != blocking {
+                        // The gate names the pool that blocked the path by
+                        // its **directional** identity, so the candidate is
+                        // matched the same way: a candidate that resolves to
+                        // no direction row cannot be the blocking one.
+                        let candidate_directional_pool_id = candidate
+                            .hop_pool
+                            .as_ref()
+                            .map(|hop_pool| hop_pool.directional_pool_id.as_str());
+                        if candidate_directional_pool_id != Some(blocking.as_str()) {
                             continue;
                         }
                         if let Some(optimization_id) = &candidate.optimization_id {
@@ -3262,13 +3386,15 @@ fn push_loop(
         z.token_symbol.clone(),
         anchor.token_symbol.clone(),
     ];
-    let pool_ids = vec![
-        first_hop.chosen_candidate().base_pool_id.clone(),
-        middle_hop.chosen_candidate().base_pool_id.clone(),
-        third_hop.chosen_candidate().base_pool_id.clone(),
-    ];
+    // The loop holds **directional** pools and nothing else.  The three
+    // entries are the pools the hops walk, in hop order, and each of them
+    // carries the base pool facts inside its own direction row.
+    let directional_pool_ids = hop_pools
+        .iter()
+        .map(|hop| hop.directional_pool_id.clone())
+        .collect::<Vec<_>>();
     let mut pool_path_parts = path_addresses.clone();
-    pool_path_parts.extend(pool_ids.iter().cloned());
+    pool_path_parts.extend(directional_pool_ids.iter().cloned());
     let mut hop_candidate_counts = BTreeMap::new();
     hop_candidate_counts.insert("1".to_owned(), first_hop.candidates.len());
     hop_candidate_counts.insert("2".to_owned(), middle_hop.candidates.len());
@@ -3276,21 +3402,30 @@ fn push_loop(
     // The backups of a hop are the candidates that are not in effect.  When a
     // backup took over, the primary of the hop is a backup as well: the hop
     // trades a different pool than the one the recommendation named.
+    //
+    // A backup is named by its **directional** pool id: a candidate without
+    // a direction row cannot be traded in the hop's direction, so it is not
+    // a backup at all.
     let backups_of = |hop: &SelectedHop| -> Vec<String> {
         hop.candidates
             .iter()
             .enumerate()
             .filter(|(position, _)| *position != hop.chosen)
-            .map(|(_, candidate)| candidate.base_pool_id.clone())
+            .filter_map(|(_, candidate)| {
+                candidate
+                    .hop_pool
+                    .as_ref()
+                    .map(|hop_pool| hop_pool.directional_pool_id.clone())
+            })
             .collect::<Vec<_>>()
     };
     let first_backups = backups_of(first_hop);
     let middle_backups = backups_of(middle_hop);
     let third_backups = backups_of(third_hop);
-    let mut backup_pool_ids = BTreeMap::new();
-    backup_pool_ids.insert("first".to_owned(), first_backups);
-    backup_pool_ids.insert("middle".to_owned(), middle_backups);
-    backup_pool_ids.insert("third".to_owned(), third_backups);
+    let mut backup_directional_pool_ids = BTreeMap::new();
+    backup_directional_pool_ids.insert("first".to_owned(), first_backups);
+    backup_directional_pool_ids.insert("middle".to_owned(), middle_backups);
+    backup_directional_pool_ids.insert("third".to_owned(), third_backups);
     let route_tokens = [
         parse_token_key_id(&anchor.token_key_id)?,
         parse_token_key_id(&y.token_key_id)?,
@@ -3311,12 +3446,8 @@ fn push_loop(
         path_addresses: path_addresses.clone(),
         path_symbols,
         pool_path_key: pool_path_parts.join(":"),
-        pool_ids: pool_ids.clone(),
-        directional_pool_ids: hop_pools
-            .iter()
-            .map(|hop| hop.directional_pool_id.clone())
-            .collect(),
-        backup_pool_ids,
+        directional_pool_ids,
+        backup_directional_pool_ids,
         hop_candidate_counts: hop_candidate_counts.clone(),
         // The count follows the legacy contract: it multiplies the two side
         // hops, the ones the candidate edge publishes.  The middle hop is
@@ -3344,7 +3475,7 @@ fn push_loop(
             .folded_capacity
             .as_ref()
             .map(|(capacity, _)| *capacity),
-        single_tick_capacity_binding_pool_id: measures
+        single_tick_capacity_binding_directional_pool_id: measures
             .folded_capacity
             .as_ref()
             .map(|(_, binding_pool)| binding_pool.clone()),
@@ -3389,7 +3520,6 @@ fn push_loop(
             _ => third_hop,
         };
         let chosen = selected.chosen_candidate();
-        let original_pool_id = selected.primary_pool_id().to_owned();
         desired.hops.push(ClosedLoopHopRow {
             loop_key: loop_key.clone(),
             hop_index,
@@ -3398,12 +3528,10 @@ fn push_loop(
             output_token_key_id: output_token.token_key_id.clone(),
             input_address: address_from_token_key_id(&input_token.token_key_id),
             output_address: address_from_token_key_id(&output_token.token_key_id),
-            pool_id: hop_pool.base_pool_id.clone(),
-            base_pool_id: original_pool_id,
             pool_selection_basis: basis,
-            directional_pool_id: Some(hop_pool.directional_pool_id.clone()),
-            hop_direction: Some(hop_pool.direction.raw()),
-            directional_scope_key: Some(hop_pool.scope_key.clone()),
+            directional_pool_id: hop_pool.directional_pool_id.clone(),
+            hop_direction: hop_pool.direction.raw(),
+            directional_scope_key: hop_pool.scope_key.clone(),
             directional_pool_rank: hop_pool.rank,
             optimization_id: chosen.optimization_id.clone(),
             temporary_override: chosen.optimization_id.is_some(),
@@ -3423,12 +3551,26 @@ fn push_loop(
         (2usize, middle_hop),
         (3usize, third_hop),
     ] {
-        let original_pool_id = hop.primary_pool_id().to_owned();
+        let Some(original_directional_pool_id) = hop.primary_directional_pool_id() else {
+            // The primary of the hop has no direction row, so the hop cannot
+            // be traded at all and there is nothing to optimize.
+            continue;
+        };
+        let original_directional_pool_id = original_directional_pool_id.to_owned();
         for (position, candidate) in hop.candidates.iter().enumerate() {
             if position == 0 {
                 continue;
             }
             let Some(optimization_id) = candidate.optimization_id.clone() else {
+                continue;
+            };
+            // An optimization that has no direction row cannot be traded, so
+            // it is not an optimization of this hop.
+            let Some(optimized_directional_pool_id) = candidate
+                .hop_pool
+                .as_ref()
+                .map(|hop_pool| hop_pool.directional_pool_id.clone())
+            else {
                 continue;
             };
             let status = if position == hop.chosen {
@@ -3450,8 +3592,8 @@ fn push_loop(
                 loop_key: loop_key.clone(),
                 hop_index,
                 optimization_id,
-                original_pool_id: original_pool_id.clone(),
-                optimized_pool_id: candidate.base_pool_id.clone(),
+                original_directional_pool_id: original_directional_pool_id.clone(),
+                optimized_directional_pool_id,
                 optimization_basis: candidate.basis.clone(),
                 expected_price_improvement: None,
                 status: status.to_owned(),
@@ -3466,6 +3608,11 @@ fn push_loop(
         review_generation: 1,
         review_required: true,
         last_rebuilt_at: chrono::Utc::now().to_rfc3339(),
+        last_reviewed_at: None,
+        next_review_at: None,
+        review_wait_seconds: None,
+        review_waited_seconds: None,
+        review_cycle_started_at: None,
     });
     Ok(())
 }
@@ -3841,13 +3988,13 @@ fn read_loops(
         "SELECT loop_key, route_key_id, anchor_token_key_id, anchor_address,
                 anchor_symbol, token_y_key_id, token_z_key_id, path_text,
                 path_addresses_json, path_symbols_json, pool_path_key,
-                pool_ids_json, backup_pool_ids_json, hop_candidate_counts_json,
+                backup_directional_pool_ids_json, hop_candidate_counts_json,
                 hop_candidate_combination_count, recommendation_basis,
                 recommended_first_priority, candidate_edge_version,
                 candidate_edge_checksum, observation_version,
                 observation_checksum, status, source,
                 single_tick_capacity_anchor_raw,
-                single_tick_capacity_binding_pool_id,
+                single_tick_capacity_binding_directional_pool_id,
                 borrow_token_usdg_value_raw,
                 borrow_token_decimals,
                 cross_tick_review_threshold_usdg_raw,
@@ -3881,39 +4028,38 @@ fn read_loops(
                 path_addresses: serde_json::from_str(&row.get::<_, String>(8)?).unwrap_or_default(),
                 path_symbols: serde_json::from_str(&row.get::<_, String>(9)?).unwrap_or_default(),
                 pool_path_key: row.get(10)?,
-                pool_ids: serde_json::from_str(&row.get::<_, String>(11)?).unwrap_or_default(),
-                backup_pool_ids: serde_json::from_str(&row.get::<_, String>(12)?)
+                backup_directional_pool_ids: serde_json::from_str(&row.get::<_, String>(11)?)
                     .unwrap_or_default(),
-                hop_candidate_counts: serde_json::from_str(&row.get::<_, String>(13)?)
+                hop_candidate_counts: serde_json::from_str(&row.get::<_, String>(12)?)
                     .unwrap_or_default(),
-                hop_candidate_combination_count: usize_from_i64(row.get(14)?),
-                recommendation_basis: row.get(15)?,
-                recommended_first_priority: row.get::<_, i64>(16)? != 0,
-                candidate_edge_version: row.get(17)?,
-                candidate_edge_checksum: row.get(18)?,
-                observation_version: row.get(19)?,
-                observation_checksum: row.get(20)?,
-                status: row.get(21)?,
-                source: row.get(22)?,
+                hop_candidate_combination_count: usize_from_i64(row.get(13)?),
+                recommendation_basis: row.get(14)?,
+                recommended_first_priority: row.get::<_, i64>(15)? != 0,
+                candidate_edge_version: row.get(16)?,
+                candidate_edge_checksum: row.get(17)?,
+                observation_version: row.get(18)?,
+                observation_checksum: row.get(19)?,
+                status: row.get(20)?,
+                source: row.get(21)?,
                 single_tick_capacity_anchor_raw: row
-                    .get::<_, Option<String>>(23)?
+                    .get::<_, Option<String>>(22)?
                     .and_then(|value| value.trim().parse::<u128>().ok()),
-                single_tick_capacity_binding_pool_id: row
-                    .get::<_, Option<String>>(24)?
+                single_tick_capacity_binding_directional_pool_id: row
+                    .get::<_, Option<String>>(23)?
                     .map(|value| value.trim().to_owned())
                     .filter(|value| !value.is_empty()),
                 borrow_token_usdg_value_raw: row
-                    .get::<_, Option<String>>(25)?
+                    .get::<_, Option<String>>(24)?
                     .and_then(|value| value.trim().parse::<u128>().ok()),
                 borrow_token_decimals: row
-                    .get::<_, Option<i64>>(26)?
+                    .get::<_, Option<i64>>(25)?
                     .and_then(|value| u32::try_from(value).ok()),
                 cross_tick_review_threshold_usdg_raw: row
-                    .get::<_, Option<String>>(27)?
+                    .get::<_, Option<String>>(26)?
                     .and_then(|value| value.trim().parse::<u128>().ok())
                     .unwrap_or(0),
                 cross_tick_capacity_anchor_raw: row
-                    .get::<_, Option<String>>(28)?
+                    .get::<_, Option<String>>(27)?
                     .and_then(|value| value.trim().parse::<u128>().ok()),
                 // The column was added by migration `20261124_016`, so a row
                 // that predates it — or a fixture that never wrote it —
@@ -3921,7 +4067,7 @@ fn read_loops(
                 // NULL into a hard error, which is exactly what the
                 // nullable columns around it already avoid.
                 directional_pool_ids: row
-                    .get::<_, Option<String>>(29)?
+                    .get::<_, Option<String>>(28)?
                     .and_then(|value| serde_json::from_str(&value).ok())
                     .unwrap_or_default(),
             })
@@ -3940,8 +4086,7 @@ fn read_hops(
     let mut statement = connection.prepare(
         "SELECT h.loop_key, h.hop_index, h.hop_name, h.input_token_key_id,
                 h.output_token_key_id, h.input_address, h.output_address,
-                h.pool_id, h.base_pool_id, h.pool_selection_basis,
-                h.optimization_id, h.temporary_override,
+                h.pool_selection_basis, h.optimization_id, h.temporary_override,
                 h.directional_pool_id, h.hop_direction,
                 h.directional_scope_key, h.directional_pool_rank
          FROM manager_v4_closed_loop_hops h
@@ -3973,15 +4118,13 @@ fn read_hops(
                 output_token_key_id: row.get(4)?,
                 input_address: row.get(5)?,
                 output_address: row.get(6)?,
-                pool_id: row.get(7)?,
-                base_pool_id: row.get(8)?,
-                pool_selection_basis: row.get(9)?,
-                optimization_id: row.get(10)?,
-                temporary_override: row.get::<_, i64>(11)? != 0,
-                directional_pool_id: row.get(12)?,
-                hop_direction: row.get(13)?,
-                directional_scope_key: row.get(14)?,
-                directional_pool_rank: row.get(15)?,
+                pool_selection_basis: row.get(7)?,
+                optimization_id: row.get(8)?,
+                temporary_override: row.get::<_, i64>(9)? != 0,
+                directional_pool_id: row.get(10)?,
+                hop_direction: row.get(11)?,
+                directional_scope_key: row.get(12)?,
+                directional_pool_rank: row.get(13)?,
             })
         },
     )?;
@@ -4002,7 +4145,8 @@ fn read_optimizations(
     // hop the loop actually trades.
     let mut statement = connection.prepare(
         "SELECT o.loop_key, o.hop_index, o.optimization_id,
-                o.original_pool_id, o.optimized_pool_id, o.optimization_basis,
+                o.original_directional_pool_id, o.optimized_directional_pool_id,
+                o.optimization_basis,
                 o.expected_price_improvement, o.status, o.expires_at
          FROM manager_v4_closed_loop_optimizations o
          JOIN manager_v4_closed_loops l
@@ -4030,8 +4174,8 @@ fn read_optimizations(
                 loop_key: row.get(0)?,
                 hop_index: usize_from_i64(row.get(1)?),
                 optimization_id: row.get(2)?,
-                original_pool_id: row.get(3)?,
-                optimized_pool_id: row.get(4)?,
+                original_directional_pool_id: row.get(3)?,
+                optimized_directional_pool_id: row.get(4)?,
                 optimization_basis: row.get(5)?,
                 expected_price_improvement: row.get(6)?,
                 status: row.get(7)?,
@@ -4055,7 +4199,8 @@ fn read_pending_optimizations(
 ) -> Result<Vec<ClosedLoopOptimizationRow>, ClosedLoopError> {
     let mut statement = connection.prepare(
         "SELECT o.loop_key, o.hop_index, o.optimization_id,
-                o.original_pool_id, o.optimized_pool_id, o.optimization_basis,
+                o.original_directional_pool_id, o.optimized_directional_pool_id,
+                o.optimization_basis,
                 o.expected_price_improvement, o.status, o.expires_at
          FROM manager_v4_closed_loop_optimizations o
          JOIN manager_v4_closed_loops l
@@ -4083,8 +4228,8 @@ fn read_pending_optimizations(
                 loop_key: row.get(0)?,
                 hop_index: usize_from_i64(row.get(1)?),
                 optimization_id: row.get(2)?,
-                original_pool_id: row.get(3)?,
-                optimized_pool_id: row.get(4)?,
+                original_directional_pool_id: row.get(3)?,
+                optimized_directional_pool_id: row.get(4)?,
                 optimization_basis: row.get(5)?,
                 expected_price_improvement: row.get(6)?,
                 status: row.get(7)?,
@@ -4105,6 +4250,7 @@ fn read_runtime_states(
     let mut statement = connection.prepare(
         "SELECT r.loop_key, r.runtime_status, r.status_reason,
                 r.review_generation, r.review_required, r.last_rebuilt_at
+                , r.last_reviewed_at, r.next_review_at, r.review_cycle_started_at
          FROM manager_v4_closed_loop_runtime_state r
          JOIN manager_v4_closed_loops l
            ON l.network = r.network AND l.chain_id = r.chain_id
@@ -4133,10 +4279,1349 @@ fn read_runtime_states(
                 review_generation: row.get(3)?,
                 review_required: row.get::<_, i64>(4)? != 0,
                 last_rebuilt_at: row.get(5)?,
+                last_reviewed_at: row.get(6)?,
+                next_review_at: row.get(7)?,
+                review_wait_seconds: row
+                    .get::<_, Option<String>>(7)?
+                    .as_deref()
+                    .map(seconds_until_moment),
+                review_waited_seconds: row
+                    .get::<_, Option<String>>(7)?
+                    .as_deref()
+                    .map(seconds_since_moment),
+                review_cycle_started_at: row.get(8)?,
             })
         },
     )?;
     Ok(rows.collect::<Result<Vec<_>, _>>()?)
+}
+
+/// The period after which the review of a closed loop goes stale, in seconds.
+///
+/// A review is a **measurement**: it describes the market of the moment it
+/// was taken, so it goes stale and the loop has to be measured again.  The
+/// interval is how long a measurement is trusted.
+///
+/// The default is one minute: the broadcast gate only accepts a review that
+/// is at most two minutes old, so a loop that is measured less often than
+/// that could never be traded on a fresh measurement.
+pub const DEFAULT_REVIEW_INTERVAL_SECONDS: i64 = 60;
+
+/// The environment variable that overrides the review interval.
+pub const REVIEW_INTERVAL_SECONDS_ENV: &str = "CLOSED_LOOP_REVIEW_INTERVAL_SECONDS";
+
+/// The namespace of the parameter page the review interval lives on.
+///
+/// The interval is a **configuration parameter**, so it is read from the
+/// parameter store of the running system and not from the environment of
+/// the process: changing it does not need a restart.
+pub const REVIEW_INTERVAL_PARAMETER_NAMESPACE: &str = "strategy_config";
+
+/// The key of the review interval inside the parameter page.
+///
+/// The interval is **one** parameter: it is the automatic review interval
+/// of every closed loop and at the same time the length of the review cycle
+/// of a loop -- the time between the start of a review round and the end of
+/// the round (a confirmed broadcast, or a review that found no profit).
+pub const REVIEW_INTERVAL_PARAMETER_KEY: &str = "CLOSED_LOOP_REVIEW_INTERVAL_SECONDS";
+
+/// The spacing of the review time points of a fresh catalog, in seconds.
+///
+/// The loops of a fresh catalog do not all become due in the same
+/// second: their review time points are spread by this spacing, so the
+/// first round of the reviews does not hit the RPC provider with every
+/// loop at once.
+pub const DEFAULT_REVIEW_START_SPACING_SECONDS: i64 = 2;
+
+/// The key of the spacing of the review time points inside the parameter
+/// page.
+pub const REVIEW_START_SPACING_PARAMETER_KEY: &str =
+    "CLOSED_LOOP_REVIEW_START_SPACING_SECONDS";
+
+/// The state of a closed loop that has to be measured again.
+///
+/// A loop in this state is **due**: the measurement it needs is missing, so
+/// the next round of the review has to start.  This is the review state of
+/// the loop.
+pub const RUNTIME_STATUS_READY_FOR_REVIEW: &str = "ready_for_review";
+
+/// The state of a closed loop whose review clock is running.
+///
+/// The loop has been dealt with -- a broadcast confirmed its profit, or a
+/// review found no profit at all -- and its clock counts down to the moment
+/// it is due again.  The remaining seconds are published in
+/// `review_wait_seconds`.
+///
+/// The name is the one the schema gives the state: the loop is cooling
+/// down until the clock of its next round runs out.
+pub const RUNTIME_STATUS_COOLDOWN: &str = "cooldown";
+
+/// The state of a closed loop whose review round is running.
+///
+/// The loop claimed its round: the review is being measured right now,
+/// and the clock of the cycle is already running.  The claim is what
+/// keeps two workers from measuring the same loop at the same time.
+pub const RUNTIME_STATUS_REVIEW_PENDING: &str = "review_pending";
+
+/// The state of a closed loop that waits for the receipt of its trade.
+///
+/// The loop traded: its review found a profit and the transaction was
+/// sent.  What is left is the answer of the chain, and the chain is
+/// asked by the broadcast confirmation, not by the review.  So the loop
+/// has **no** scheduled review while it waits, and the moment it is
+/// scheduled at says so.
+pub const RUNTIME_STATUS_BROADCAST_PENDING: &str = "broadcast_pending";
+
+/// The moment a loop that is **being reviewed** is parked at.
+///
+/// The loop has no scheduled review while its round runs: the round
+/// ends with a measurement, and the moment it ends is when the next
+/// round is scheduled.  So the loop is parked at a moment far ahead,
+/// and the moment is a **marker** that tells the two busy situations
+/// apart.
+///
+/// The marker is a **specific** moment and not NULL: NULL is taken by
+/// "the loop was never measured", which means the very opposite.
+pub const REVIEW_PENDING_SENTINEL_AT: &str = "2036-06-06T06:06:00+00:00";
+
+/// The seconds since the epoch of the review sentinel.
+///
+/// The value fits an `i32` -- it is below the limit of 2038-01-19 --
+/// so a reader that counts in `i32` does not overflow on it.
+pub const REVIEW_PENDING_SENTINEL_EPOCH: i64 = 2_096_345_160;
+
+/// The moment a loop that **waits for its receipt** is parked at.
+///
+/// The loop traded and the chain has not answered yet, so the loop has
+/// no scheduled review either.  It is parked at a moment of its own,
+/// so the queue tells the two busy situations apart without reading
+/// the state of the loop.
+pub const BROADCAST_PENDING_SENTINEL_AT: &str = "2035-05-05T05:05:00+00:00";
+
+/// The seconds since the epoch of the broadcast sentinel.
+///
+/// The value fits an `i32` -- it is below the limit of 2038-01-19 --
+/// so a reader that counts in `i32` does not overflow on it.
+pub const BROADCAST_PENDING_SENTINEL_EPOCH: i64 = 2_061_954_300;
+
+/// Whether a moment is one of the two sentinels.
+///
+/// A sentinel is a marker, so it is **excluded** from the due set on
+/// its own: the loop it belongs to has no scheduled review, no matter
+/// how far ahead the marker is.
+pub fn is_review_sentinel(moment: &str) -> bool {
+    let moment = moment.trim();
+    moment == REVIEW_PENDING_SENTINEL_AT || moment == BROADCAST_PENDING_SENTINEL_AT
+}
+
+/// The sentinel of a state that has no scheduled review.
+///
+/// A state that is not listed here has a scheduled review, so it is
+/// scheduled at a real moment.
+pub fn review_sentinel_for_status(status: &str) -> Option<&'static str> {
+    match status {
+        RUNTIME_STATUS_REVIEW_PENDING => Some(REVIEW_PENDING_SENTINEL_AT),
+        RUNTIME_STATUS_BROADCAST_PENDING => Some(BROADCAST_PENDING_SENTINEL_AT),
+        _ => None,
+    }
+}
+
+/// Whether a loop in this state may start a round of the review.
+///
+/// The state decides whether a loop is **work**: a loop that waits for
+/// its clock and a loop that is due may start a round, and every other
+/// state is either busy or out of the game.
+pub fn is_claimable_status(status: &str) -> bool {
+    status == RUNTIME_STATUS_READY_FOR_REVIEW || status == RUNTIME_STATUS_COOLDOWN
+}
+
+/// The state of a closed loop that is not traded any more.
+///
+/// A retired loop is not claimed and not measured: it keeps the state it
+/// was retired with.
+pub const RUNTIME_STATUS_RETIRED: &str = "retired";
+
+/// The review interval the store uses, in seconds.
+///
+/// The interval is a parameter and never a gate: a shorter interval makes
+/// the store measure a loop more often, it does not refuse anything.
+pub fn review_interval_seconds() -> i64 {
+    std::env::var(REVIEW_INTERVAL_SECONDS_ENV)
+        .ok()
+        .and_then(|value| value.trim().parse::<i64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_REVIEW_INTERVAL_SECONDS)
+}
+
+/// The review interval the store uses, read from the configuration
+/// parameters.
+///
+/// The parameter store lives in the same file as the closed loops, so the
+/// interval is read from there and every loop picks a new value up on its
+/// next cycle.  The environment variable is the fallback for a store that
+/// carries no parameter yet, and the default is the fallback for both.
+pub fn review_interval_seconds_on_connection(connection: &Connection) -> i64 {
+    read_parameter_seconds(
+        connection,
+        REVIEW_INTERVAL_PARAMETER_NAMESPACE,
+        REVIEW_INTERVAL_PARAMETER_KEY,
+    )
+    .unwrap_or_else(review_interval_seconds)
+}
+
+/// The spacing of the review time points of a fresh catalog.
+///
+/// The spacing is a parameter like the interval itself, so it is read
+/// from the store the closed loops live in and a changed value is in
+/// force the next time a catalog is published.
+pub fn review_start_spacing_seconds_on_connection(connection: &Connection) -> i64 {
+    read_parameter_seconds(
+        connection,
+        REVIEW_INTERVAL_PARAMETER_NAMESPACE,
+        REVIEW_START_SPACING_PARAMETER_KEY,
+    )
+    .unwrap_or(DEFAULT_REVIEW_START_SPACING_SECONDS)
+}
+
+/// Read one numeric parameter out of the parameter store.
+///
+/// The parameter store keeps every value as a JSON document, and the value
+/// itself is carried inside that document as a JSON text, so a parameter is
+/// read in two steps: the document, then the value it carries.  A store that
+/// does not carry the parameter at all answers with nothing, and the caller
+/// falls back to its own default.
+fn read_parameter_seconds(
+    connection: &Connection,
+    namespace: &str,
+    key: &str,
+) -> Option<i64> {
+    let stored: Option<String> = connection
+        .query_row(
+            "SELECT value_json FROM kv_entries
+              WHERE collection = 'parameters' AND key = ?1",
+            params![format!("{namespace}|{key}")],
+            |row| row.get(0),
+        )
+        .ok();
+    let document = stored?;
+    let parsed: serde_json::Value = serde_json::from_str(&document).ok()?;
+    let raw = parsed.get("value_json")?;
+    let value = match raw {
+        serde_json::Value::String(text) => serde_json::from_str::<serde_json::Value>(text).ok()?,
+        other => other.clone(),
+    };
+    let seconds = value.as_i64()?;
+    if seconds > 0 {
+        Some(seconds)
+    } else {
+        None
+    }
+}
+
+/// The moment the review of a loop that was measured at `reviewed_at` is
+/// due again.
+///
+/// The moment is the measurement plus the review interval, so the clock of
+/// a loop **restarts** with every measurement instead of running into a
+/// fixed moment that was set once.
+pub fn next_review_moment(reviewed_at: &str) -> Option<String> {
+    next_review_moment_with_interval(reviewed_at, review_interval_seconds())
+}
+
+/// The moment the review of a loop that was measured at `reviewed_at` is
+/// due again, for a given interval.
+fn next_review_moment_with_interval(reviewed_at: &str, interval_seconds: i64) -> Option<String> {
+    let measured = chrono::DateTime::parse_from_rfc3339(reviewed_at.trim()).ok()?;
+    let due = measured.with_timezone(&chrono::Utc)
+        + chrono::Duration::seconds(interval_seconds);
+    Some(due.to_rfc3339())
+}
+
+/// Claim the review round of a closed loop.
+///
+/// The claim starts the round of the review of the loop: the moment the
+/// round starts is written down, and the loop waits for the round to end.
+/// The round that ends resets the review start time of the loop, so the
+/// moment written here is the one the loop falls back on if the round
+/// never ends at all.
+///
+/// The claim is also the lock of the loop: a loop whose round is already
+/// running is not claimed a second time, so two workers never measure
+/// the same loop at the same time.  A loop that still waits for its
+/// clock is not claimed either -- it is not due.
+///
+/// The answer tells whether the round was started: `false` means the
+/// loop was not due, or that it is already being measured.
+pub fn begin_review_cycle_on_connection(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+    loop_key: &str,
+    reason: &str,
+) -> Result<bool, ClosedLoopError> {
+    let row: Option<(String, Option<String>)> = connection
+        .query_row(
+            "SELECT runtime_status, next_review_at
+               FROM manager_v4_closed_loop_runtime_state
+              WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
+                AND scope_key = ?4 AND loop_key = ?5",
+            params![network, chain_id, NETWORK_PROTOCOL, CLOSED_LOOP_SCOPE_KEY, loop_key],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .ok();
+    let Some((status, due_at)) = row else {
+        return Ok(false);
+    };
+    if status == RUNTIME_STATUS_REVIEW_PENDING {
+        // The round of this loop is already running.
+        return Ok(false);
+    }
+    if status == RUNTIME_STATUS_BROADCAST_PENDING {
+        // The loop traded and waits for the receipt of its transaction.
+        return Ok(false);
+    }
+    if due_at.as_deref().is_some_and(is_review_sentinel) {
+        // The loop is parked at a sentinel: it is either being measured
+        // or it waits for the receipt of its trade.  Either way it has
+        // no round to start, whatever its state says.
+        return Ok(false);
+    }
+    if status == RUNTIME_STATUS_RETIRED {
+        return Ok(false);
+    }
+    if status == RUNTIME_STATUS_COOLDOWN {
+        let remaining = due_at.as_deref().map(remaining_review_seconds).unwrap_or(0);
+        if remaining > 0 {
+            // The clock of the loop still runs, so the loop is not due.
+            return Ok(false);
+        }
+    }
+    let now = chrono::Utc::now();
+    let updated = connection.execute(
+        "UPDATE manager_v4_closed_loop_runtime_state
+            SET runtime_status = ?5, status_reason = ?6,
+                review_cycle_started_at = ?7, next_review_at = ?8,
+                review_required = 0, updated_at = ?9
+          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
+            AND scope_key = ?4 AND loop_key = ?10",
+        params![
+            network,
+            chain_id,
+            NETWORK_PROTOCOL,
+            CLOSED_LOOP_SCOPE_KEY,
+            RUNTIME_STATUS_REVIEW_PENDING,
+            reason,
+            now.to_rfc3339(),
+            REVIEW_PENDING_SENTINEL_AT,
+            now.to_rfc3339(),
+            loop_key
+        ],
+    )?;
+    Ok(updated > 0)
+}
+
+/// Record that a closed loop was measured.
+///
+/// The write ends the review round of the loop: the measurement is kept
+/// and the review start time of the loop is reset, so the next round of
+/// the review starts one review interval after this moment.
+pub fn record_review_schedule_on_connection(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+    loop_key: &str,
+    reviewed_at: &str,
+    reason: &str,
+) -> Result<bool, ClosedLoopError> {
+    reset_review_start_on_connection(
+        connection,
+        network,
+        chain_id,
+        loop_key,
+        ReviewStartReset::AfterRound,
+        Some(reviewed_at),
+        reason,
+    )
+}
+
+/// Mark that a closed loop has to be measured again.
+///
+/// A loop whose review went stale has no fresh measurement, so the store
+/// says so: the loop waits for a review, and the moment it is scheduled
+/// at is **now** -- the round of the review may start at once.
+///
+/// A manual review asks for the same thing: the review time point of the
+/// loop is the moment the request was made, so the loop is due right away
+/// and the round of the review starts with it.
+pub fn mark_review_required_on_connection(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+    loop_key: &str,
+) -> Result<bool, ClosedLoopError> {
+    reset_review_start_on_connection(
+        connection,
+        network,
+        chain_id,
+        loop_key,
+        ReviewStartReset::Manual,
+        None,
+        "review_required",
+    )
+}
+
+/// How the review start time of a closed loop is reset.
+///
+/// The loop keeps **one** time point: the moment its next round of the
+/// review may start.  The main thread of the review compares that moment
+/// with the clock and starts the round of the loop when the moment has
+/// come.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReviewStartReset {
+    /// The end of a normal round: a confirmed broadcast, or a review that
+    /// found no profit.
+    ///
+    /// The round is over, so the next round starts one review interval
+    /// after the moment the round ended.
+    AfterRound,
+    /// A manual review.
+    ///
+    /// The review was asked for by hand, so the next round starts at once.
+    Manual,
+    /// A loop that traded and waits for the receipt of its transaction.
+    ///
+    /// The loop has no scheduled review while it waits, so it is parked
+    /// at the broadcast sentinel.
+    BroadcastPending,
+}
+
+/// Reset the review start time of a closed loop.
+///
+/// This is the one place the review start time of a loop is set, so the
+/// state machine has a single rule for it:
+///
+/// * the end of a normal round schedules the next round one review
+///   interval later, and
+/// * a manual review schedules it at once.
+/// * a loop that waits for its receipt is parked at the broadcast
+///   sentinel, because it has no scheduled review at all.
+///
+/// The loop keeps no timer of its own: the moment that is written here is
+/// the moment the main thread of the review compares with the clock, and
+/// everything an operator sees -- how long the loop still waits, how long
+/// it waited already -- is counted from that moment when it is read.
+pub fn reset_review_start_on_connection(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+    loop_key: &str,
+    reset: ReviewStartReset,
+    last_reviewed_at: Option<&str>,
+    reason: &str,
+) -> Result<bool, ClosedLoopError> {
+    let interval = review_interval_seconds_on_connection(connection);
+    let now = chrono::Utc::now();
+    let (start_at, status, required) = match reset {
+        ReviewStartReset::AfterRound => (
+            (now + chrono::Duration::seconds(interval)).to_rfc3339(),
+            RUNTIME_STATUS_COOLDOWN,
+            0,
+        ),
+        ReviewStartReset::Manual => (
+            now.to_rfc3339(),
+            RUNTIME_STATUS_READY_FOR_REVIEW,
+            1,
+        ),
+        ReviewStartReset::BroadcastPending => (
+            BROADCAST_PENDING_SENTINEL_AT.to_owned(),
+            RUNTIME_STATUS_BROADCAST_PENDING,
+            0,
+        ),
+    };
+    let updated = connection.execute(
+        "UPDATE manager_v4_closed_loop_runtime_state
+            SET runtime_status = ?5, status_reason = ?6,
+                next_review_at = ?7, review_required = ?8,
+                last_reviewed_at = COALESCE(?9, last_reviewed_at),
+                updated_at = ?10
+          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
+            AND scope_key = ?4 AND loop_key = ?11",
+        params![
+            network,
+            chain_id,
+            NETWORK_PROTOCOL,
+            CLOSED_LOOP_SCOPE_KEY,
+            status,
+            reason,
+            start_at,
+            required,
+            last_reviewed_at.map(|value| value.to_owned()),
+            now.to_rfc3339(),
+            loop_key
+        ],
+    )?;
+    Ok(updated > 0)
+}
+
+/// Start the review clock of a closed loop.
+///
+/// The clock is the wait between two review rounds of a loop.  It is
+/// started when the loop has been dealt with: a broadcast that confirmed a
+/// profit, or a review that found no profit at all.  From that moment the
+/// loop waits, and when the wait is over the loop is due again and the
+/// next round of the review starts.
+///
+/// The clock publishes the moment the loop is due again and the number of
+/// seconds that are left, so the state of the loop says how long it still
+/// waits.
+pub fn start_review_clock_on_connection(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+    loop_key: &str,
+    reason: &str,
+) -> Result<bool, ClosedLoopError> {
+    reset_review_start_on_connection(
+        connection,
+        network,
+        chain_id,
+        loop_key,
+        ReviewStartReset::AfterRound,
+        None,
+        reason,
+    )
+}
+
+/// Advance the review clock of a closed loop.
+///
+/// The clock is advanced against the moment the loop is due again.  While
+/// that moment is in the future the loop keeps waiting and the remaining
+/// seconds are published; when the moment has come the loop is due again:
+/// its state becomes the review state and it waits for the next round of the
+/// review.
+///
+/// The remaining seconds are returned; zero means the loop is due.
+pub fn advance_review_clock_on_connection(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+    loop_key: &str,
+) -> Result<i64, ClosedLoopError> {
+    let row: Option<(String, Option<String>)> = connection
+        .query_row(
+            "SELECT runtime_status, next_review_at
+               FROM manager_v4_closed_loop_runtime_state
+              WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
+                AND scope_key = ?4 AND loop_key = ?5",
+            params![
+                network,
+                chain_id,
+                NETWORK_PROTOCOL,
+                CLOSED_LOOP_SCOPE_KEY,
+                loop_key
+            ],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .ok();
+    let Some((status, due_at)) = row else {
+        return Ok(0);
+    };
+    if due_at.as_deref().is_some_and(is_review_sentinel) {
+        // The loop is parked at a sentinel: it is being measured, or it
+        // waits for the receipt of its trade.  It has no clock, so there
+        // is no wait to publish.
+        return Ok(0);
+    }
+    if status != RUNTIME_STATUS_COOLDOWN && status != RUNTIME_STATUS_REVIEW_PENDING {
+        // A loop that does not wait has no clock to advance: it is due
+        // already, or it was never measured.
+        return Ok(0);
+    }
+    let remaining = due_at
+        .as_deref()
+        .map(remaining_review_seconds)
+        .unwrap_or(0);
+    let now = chrono::Utc::now();
+    if remaining > 0 {
+        // The loop still waits, and its wait is counted from the moment
+        // it is scheduled at: there is nothing to write, so no row of the
+        // scope is touched in this pass.
+        return Ok(remaining);
+    }
+    // The clock ran out: the loop is due again, so its state becomes the
+    // review state and the next round of the review may start.  A round
+    // that was still running when its moment came did not finish at all,
+    // so the loop is measured again.  The moment the loop was scheduled
+    // at stays: it says how long the loop waited, and the queue of the
+    // due loops is ordered by it.
+    connection.execute(
+        "UPDATE manager_v4_closed_loop_runtime_state
+            SET runtime_status = ?5, status_reason = ?6,
+                review_required = 1, review_cycle_started_at = NULL,
+                updated_at = ?7
+          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
+            AND scope_key = ?4 AND loop_key = ?8",
+        params![
+            network,
+            chain_id,
+            NETWORK_PROTOCOL,
+            CLOSED_LOOP_SCOPE_KEY,
+            RUNTIME_STATUS_READY_FOR_REVIEW,
+            "review_clock_elapsed",
+            now.to_rfc3339(),
+            loop_key
+        ],
+    )?;
+    Ok(0)
+}
+
+/// Advance the review clocks of every closed loop of a scope.
+///
+/// The number of loops that became due is returned, so the caller can see
+/// how many review rounds the scope is waiting for.
+///
+/// The pass is **one** statement: the loops whose review time point has
+/// come are turned into the review state in one write, and the loops that
+/// still wait are not touched at all.  A pass that walks the loops one by
+/// one would write a row for every loop of the scope on every round of the
+/// healer, and the loop keeps no timer of its own, so there is nothing to
+/// refresh.
+pub fn advance_review_clocks_on_connection(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+) -> Result<usize, ClosedLoopError> {
+    let now = chrono::Utc::now().to_rfc3339();
+    let updated = connection.execute(
+        "UPDATE manager_v4_closed_loop_runtime_state
+            SET runtime_status = ?5, status_reason = ?6,
+                review_required = 1, review_cycle_started_at = NULL,
+                updated_at = ?7
+          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
+            AND scope_key = ?4
+            AND runtime_status IN (?8, ?9)
+            AND next_review_at IS NOT NULL
+            AND next_review_at NOT IN (?10, ?11)
+            AND (julianday(next_review_at) IS NULL
+                 OR julianday(next_review_at) <= julianday(?7))",
+        params![
+            network,
+            chain_id,
+            NETWORK_PROTOCOL,
+            CLOSED_LOOP_SCOPE_KEY,
+            RUNTIME_STATUS_READY_FOR_REVIEW,
+            "review_clock_elapsed",
+            now,
+            RUNTIME_STATUS_COOLDOWN,
+            RUNTIME_STATUS_REVIEW_PENDING,
+            REVIEW_PENDING_SENTINEL_AT,
+            BROADCAST_PENDING_SENTINEL_AT,
+        ],
+    )?;
+    Ok(updated)
+}
+
+/// The seconds that are left until a loop is due again.
+fn remaining_review_seconds(next_review_at: &str) -> i64 {
+    seconds_until_moment(next_review_at)
+}
+
+/// The seconds between now and a moment.
+///
+/// The wait of a loop is **counted** from the moment the loop is
+/// scheduled at: the loop keeps no timer of its own, so the distance
+/// between that moment and now is what the loop still waits.
+fn seconds_until_moment(moment: &str) -> i64 {
+    let due = match chrono::DateTime::parse_from_rfc3339(moment.trim()) {
+        Ok(moment) => moment.with_timezone(&chrono::Utc),
+        Err(_) => return 0,
+    };
+    let remaining = (due - chrono::Utc::now()).num_seconds();
+    if remaining > 0 {
+        remaining
+    } else {
+        0
+    }
+}
+
+/// The seconds between a moment and now.
+///
+/// The wait a loop spent already is counted from the same moment: it
+/// says how long the loop waited for a round that did not start yet.
+fn seconds_since_moment(moment: &str) -> i64 {
+    let due = match chrono::DateTime::parse_from_rfc3339(moment.trim()) {
+        Ok(moment) => moment.with_timezone(&chrono::Utc),
+        Err(_) => return 0,
+    };
+    let waited = (chrono::Utc::now() - due).num_seconds();
+    if waited > 0 {
+        waited
+    } else {
+        0
+    }
+}
+
+/// The review clock of one closed loop.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClosedLoopReviewClock {
+    /// The loop the clock belongs to.
+    pub loop_key: String,
+    /// The state of the loop: the review state, or the state of a loop
+    /// whose clock is running.
+    pub runtime_status: String,
+    /// Whether the loop waits for a review.
+    pub review_required: bool,
+    /// The seconds the clock of the loop still has to run.
+    ///
+    /// The wait is **counted** from the moment the loop is scheduled at:
+    /// the loop keeps no timer of its own, so the seconds that are left
+    /// are the distance between the moment the next round may start and
+    /// now.  Zero means the loop waits for nothing: it is due.
+    pub review_wait_seconds: Option<i64>,
+    /// The seconds the loop waited already beyond its scheduled moment.
+    ///
+    /// The scheduled moment is the one the loop is measured against, so
+    /// the distance between it and now says how long the loop waited for
+    /// a round that did not start yet.
+    pub review_waited_seconds: Option<i64>,
+    /// The moment the loop is due again.
+    pub next_review_at: Option<String>,
+    /// The moment the review cycle of the loop started.
+    ///
+    /// The cycle is the round of the review: it starts when the round is
+    /// claimed and it is as long as the automatic review interval.  The
+    /// moment it started decides when the next round is due.
+    pub review_cycle_started_at: Option<String>,
+}
+
+/// Read the review clock of every closed loop of a scope.
+pub fn read_review_clocks(
+    database_path: impl AsRef<Path>,
+    network: &str,
+    chain_id: i64,
+) -> Result<Vec<ClosedLoopReviewClock>, ClosedLoopError> {
+    let connection = open_connection(database_path.as_ref(), false)?;
+    let mut statement = connection.prepare(
+        "SELECT loop_key, runtime_status, review_required,
+                next_review_at, review_cycle_started_at
+         FROM manager_v4_closed_loop_runtime_state
+         WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
+           AND scope_key = ?4
+         ORDER BY loop_key",
+    )?;
+    let rows = statement.query_map(
+        params![network, chain_id, NETWORK_PROTOCOL, CLOSED_LOOP_SCOPE_KEY],
+        |row| {
+            Ok(ClosedLoopReviewClock {
+                loop_key: row.get(0)?,
+                runtime_status: row.get(1)?,
+                review_required: row.get::<_, i64>(2)? != 0,
+                review_wait_seconds: row
+                    .get::<_, Option<String>>(3)?
+                    .as_deref()
+                    .map(seconds_until_moment),
+                review_waited_seconds: row
+                    .get::<_, Option<String>>(3)?
+                    .as_deref()
+                    .map(seconds_since_moment),
+                next_review_at: row.get(3)?,
+                review_cycle_started_at: row.get(4)?,
+            })
+        },
+    )?;
+    Ok(rows.collect::<Result<Vec<_>, _>>()?)
+}
+
+/// One closed loop that is due for a round of the review.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClosedLoopReviewDue {
+    /// The loop that is due.
+    pub loop_key: String,
+    /// The state of the loop.
+    pub runtime_status: String,
+    /// The moment the loop was scheduled at.
+    ///
+    /// This is the one time point the loop keeps: the main thread of the
+    /// review compares it with the clock, and the queue of the due loops
+    /// is ordered by it.
+    pub next_review_at: Option<String>,
+    /// The seconds the loop waited already beyond its scheduled moment.
+    pub review_waited_seconds: i64,
+    /// The moment the round of the review started.
+    pub review_cycle_started_at: Option<String>,
+}
+
+/// Read the closed loops of a scope that are due for a round of the review.
+///
+/// The queue is the work list of the main thread of the review: it holds
+/// every loop whose scheduled moment has come, ordered by that moment, so
+/// the loop that waited the longest comes first and the loops do not all
+/// start in the same second.
+///
+/// A loop whose round is still running is not in the queue: it is being
+/// measured, so it must not be measured a second time.
+pub fn read_due_review_loops(
+    database_path: impl AsRef<Path>,
+    network: &str,
+    chain_id: i64,
+) -> Result<Vec<ClosedLoopReviewDue>, ClosedLoopError> {
+    let connection = open_connection(database_path.as_ref(), false)?;
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut statement = connection.prepare(
+        "SELECT loop_key, runtime_status, next_review_at, review_cycle_started_at
+         FROM manager_v4_closed_loop_runtime_state
+         WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
+           AND scope_key = ?4
+           AND runtime_status IN ('ready_for_review', 'cooldown')
+           AND (next_review_at IS NULL
+                OR (next_review_at NOT IN (?6, ?7)
+                    AND (julianday(next_review_at) IS NULL
+                         OR julianday(next_review_at) <= julianday(?5))))
+         ORDER BY julianday(next_review_at) ASC, loop_key ASC",
+    )?;
+    let rows = statement.query_map(
+        params![
+            network,
+            chain_id,
+            NETWORK_PROTOCOL,
+            CLOSED_LOOP_SCOPE_KEY,
+            now,
+            REVIEW_PENDING_SENTINEL_AT,
+            BROADCAST_PENDING_SENTINEL_AT
+        ],
+        |row| {
+            let next_review_at: Option<String> = row.get(2)?;
+            Ok(ClosedLoopReviewDue {
+                loop_key: row.get(0)?,
+                runtime_status: row.get(1)?,
+                review_waited_seconds: next_review_at
+                    .as_deref()
+                    .map(seconds_since_moment)
+                    .unwrap_or(0),
+                next_review_at,
+                review_cycle_started_at: row.get(3)?,
+            })
+        },
+    )?;
+    Ok(rows.collect::<Result<Vec<_>, _>>()?)
+}
+
+/// The number of closed loops of a scope that still wait for their round.
+///
+/// The count is what the queue of the due loops leaves out: the main
+/// thread of the review walks the queue and stops at the first loop that
+/// is not due, so the loops that still wait are never looked at.
+pub fn count_waiting_review_loops(
+    database_path: impl AsRef<Path>,
+    network: &str,
+    chain_id: i64,
+) -> Result<usize, ClosedLoopError> {
+    let queue = read_review_queue(database_path, network, chain_id)?;
+    let due = queue.due_entries(chrono::Utc::now().timestamp()).len();
+    Ok(queue.len().saturating_sub(due))
+}
+
+/// One entry of the review queue.
+///
+/// The entry is a **loop** and the moment the loop is scheduled at.  The
+/// moment says when the loop is due, and it is the only thing the queue
+/// is ordered by.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewSlot {
+    /// The loop the entry belongs to.
+    pub loop_key: String,
+    /// The state of the loop.
+    pub runtime_status: String,
+    /// The moment the loop is scheduled at, as it is written.
+    pub due_at: Option<String>,
+    /// The moment the loop is scheduled at, in seconds since the epoch.
+    ///
+    /// A loop that is **busy** -- it is being measured, or it waits for
+    /// the receipt of its trade -- carries the largest value there is, so
+    /// it sorts **last** for ever.  The marker it carries in the store is
+    /// a date, but the queue does not count on the date: the date only
+    /// says which of the two busy situations the loop is in.
+    ///
+    /// A loop that was never measured carries the smallest value there
+    /// is, so it is **due at once**: a loop that has no review time point
+    /// must not stay in the queue for ever.
+    pub due_epoch: i64,
+    /// Whether the loop has no scheduled review at all.
+    pub is_sentinel: bool,
+}
+
+/// The review queue of a scope.
+///
+/// The queue is **one** queue: a loop that waits for a review and a loop
+/// that waits for the receipt of its trade both have an entry, and the
+/// entry of a busy loop carries the marker of its situation.
+///
+/// The queue is ordered by the moment a loop is scheduled at, so the main
+/// thread of the review looks at the **first** entry only: the first
+/// entry that is not due means that no entry behind it is due either.
+#[derive(Debug, Default)]
+pub struct ReviewQueue {
+    /// The order of the entries: (the moment, the loop).
+    order: BTreeSet<(i64, String)>,
+    /// The entry of every loop.
+    slots: HashMap<String, ReviewSlot>,
+}
+
+impl ReviewQueue {
+    /// Put a loop into the queue.
+    ///
+    /// The queue holds **one** entry per loop, so a loop that is
+    /// scheduled again **replaces** its entry: the second result of a
+    /// loop covers the first one.
+    pub fn insert(&mut self, slot: ReviewSlot) {
+        self.remove(&slot.loop_key);
+        let mut slot = slot;
+        if slot.is_sentinel {
+            // A parked loop sorts **last** for ever: the marker it
+            // carries in the store is a date, but the queue does not
+            // count on the date.
+            slot.due_epoch = i64::MAX;
+        }
+        self.order.insert((slot.due_epoch, slot.loop_key.clone()));
+        self.slots.insert(slot.loop_key.clone(), slot);
+    }
+
+    /// Take a loop out of the queue.
+    pub fn remove(&mut self, loop_key: &str) -> Option<ReviewSlot> {
+        let slot = self.slots.remove(loop_key)?;
+        self.order.remove(&(slot.due_epoch, slot.loop_key.clone()));
+        Some(slot)
+    }
+
+    /// The entry of a loop.
+    pub fn get(&self, loop_key: &str) -> Option<&ReviewSlot> {
+        self.slots.get(loop_key)
+    }
+
+    /// The first entry of the queue: the loop that is due first.
+    pub fn first(&self) -> Option<&ReviewSlot> {
+        let (_, loop_key) = self.order.iter().next()?;
+        self.slots.get(loop_key)
+    }
+
+    /// The number of entries of the queue.
+    pub fn len(&self) -> usize {
+        self.slots.len()
+    }
+
+    /// Whether the queue is empty.
+    pub fn is_empty(&self) -> bool {
+        self.slots.is_empty()
+    }
+
+    /// The entries of the queue, in order.
+    pub fn iter(&self) -> impl Iterator<Item = &ReviewSlot> {
+        self.order
+            .iter()
+            .filter_map(|(_, loop_key)| self.slots.get(loop_key))
+    }
+
+    /// The loops that are due at the given moment.
+    ///
+    /// The walk stops at the **first** entry that is not due: the queue
+    /// is ordered, so nothing behind it is due either.  A loop that has
+    /// no scheduled review is never due, whatever its marker says.
+    pub fn due_entries(&self, now_epoch: i64) -> Vec<&ReviewSlot> {
+        let mut due = Vec::new();
+        for (moment, loop_key) in &self.order {
+            let Some(slot) = self.slots.get(loop_key) else {
+                continue;
+            };
+            if *moment > now_epoch {
+                // The queue is ordered, so nothing behind this entry
+                // is due either.
+                break;
+            }
+            if slot.is_sentinel || !is_claimable_status(&slot.runtime_status) {
+                // A parked loop is busy -- it is being measured, or it
+                // waits for the receipt of its trade -- and a loop that
+                // may not start a round is not work: neither of them
+                // is due.
+                continue;
+            }
+            due.push(slot);
+        }
+        due
+    }
+
+    /// Take the loops that are due at the given moment out of the queue.
+    pub fn take_due(&mut self, now_epoch: i64) -> Vec<ReviewSlot> {
+        let due: Vec<String> = self
+            .due_entries(now_epoch)
+            .into_iter()
+            .map(|slot| slot.loop_key.clone())
+            .collect();
+        due.into_iter()
+            .filter_map(|loop_key| self.remove(&loop_key))
+            .collect()
+    }
+
+    /// The moment the next loop becomes due.
+    ///
+    /// The moment is read from the **first** entry of the queue, so the
+    /// answer is the moment the main thread of the review waits for.
+    pub fn next_due_epoch(&self) -> Option<i64> {
+        self.first().map(|slot| slot.due_epoch)
+    }
+}
+
+/// The moment a loop is scheduled at, in seconds since the epoch.
+///
+/// A moment that cannot be read is treated as "due now": a loop whose
+/// moment is unreadable must not stay in the queue for ever.
+fn moment_epoch(moment: &str) -> Option<i64> {
+    chrono::DateTime::parse_from_rfc3339(moment.trim())
+        .ok()
+        .map(|moment| moment.with_timezone(&chrono::Utc).timestamp())
+}
+
+/// Read the review queue of a scope.
+///
+/// The queue is built from the store, so it is a **derived** index: the
+/// store stays the truth, and the queue can be rebuilt from it at any
+/// time.
+pub fn load_review_queue_on_connection(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+) -> Result<ReviewQueue, ClosedLoopError> {
+    let mut statement = connection.prepare(
+        "SELECT loop_key, runtime_status, next_review_at
+           FROM manager_v4_closed_loop_runtime_state
+          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
+            AND scope_key = ?4
+            AND runtime_status <> ?5",
+    )?;
+    let rows = statement.query_map(
+        params![
+            network,
+            chain_id,
+            NETWORK_PROTOCOL,
+            CLOSED_LOOP_SCOPE_KEY,
+            RUNTIME_STATUS_RETIRED
+        ],
+        |row| {
+            let loop_key: String = row.get(0)?;
+            let runtime_status: String = row.get(1)?;
+            let due_at: Option<String> = row.get(2)?;
+            let is_sentinel = due_at.as_deref().is_some_and(is_review_sentinel);
+            let due_epoch = if is_sentinel {
+                // A loop that has no scheduled review sorts **last** for
+                // ever: the marker in the store is a date, but the queue
+                // does not count on the date.
+                i64::MAX
+            } else {
+                due_at.as_deref().and_then(moment_epoch).unwrap_or(i64::MIN)
+            };
+            Ok(ReviewSlot {
+                loop_key,
+                runtime_status,
+                due_at,
+                due_epoch,
+                is_sentinel,
+            })
+        },
+    )?;
+    let mut queue = ReviewQueue::default();
+    for slot in rows {
+        queue.insert(slot?);
+    }
+    Ok(queue)
+}
+
+/// Read the review queue of a scope from the store.
+pub fn read_review_queue(
+    database_path: impl AsRef<Path>,
+    network: &str,
+    chain_id: i64,
+) -> Result<ReviewQueue, ClosedLoopError> {
+    let connection = open_connection(database_path.as_ref(), false)?;
+    load_review_queue_on_connection(&connection, network, chain_id)
+}
+
+/// One entry of the review queue, as an operator sees it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClosedLoopReviewQueueEntry {
+    /// The loop the entry belongs to.
+    pub loop_key: String,
+    /// The state of the loop.
+    pub runtime_status: String,
+    /// The moment the loop is scheduled at.
+    pub next_review_at: Option<String>,
+    /// Whether the loop is parked at a sentinel.
+    ///
+    /// A parked loop is busy: it is either being measured, or it waits
+    /// for the receipt of its trade.  The two situations are told apart
+    /// by the state of the loop, because the sentinel itself is only a
+    /// marker.
+    pub is_sentinel: bool,
+    /// The seconds the loop waits before it is due again.
+    ///
+    /// Zero means the loop is due now.
+    pub review_wait_seconds: i64,
+}
+
+/// The review queue of a scope, as an operator sees it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClosedLoopReviewQueue {
+    /// The entries of the queue, ordered by the moment the loops are
+    /// scheduled at.
+    pub entries: Vec<ClosedLoopReviewQueueEntry>,
+    /// The moment the next loop becomes due.
+    ///
+    /// The moment is `None` when the next loop has no moment at all -- it
+    /// was never measured -- or when the queue holds no loop that is left.
+    /// `due_count` tells the two apart.
+    pub next_due_at: Option<String>,
+    /// The seconds until the next loop becomes due.
+    ///
+    /// Zero means a loop is due now.
+    pub next_due_in_seconds: i64,
+    /// The number of loops that are due now.
+    pub due_count: usize,
+    /// The number of loops that still wait.
+    pub waiting_count: usize,
+    /// The number of entries of the queue.
+    pub length: usize,
+}
+
+/// The view of a review queue at a given moment.
+///
+/// The view is what the main thread of the review works from: the
+/// entries are ordered by the moment the loops are scheduled at, so the
+/// walk stops at the **first** entry that is not due.
+pub fn review_queue_view(queue: &ReviewQueue, now_epoch: i64) -> ClosedLoopReviewQueue {
+    let entries: Vec<ClosedLoopReviewQueueEntry> = queue
+        .iter()
+        .map(|slot| ClosedLoopReviewQueueEntry {
+            loop_key: slot.loop_key.clone(),
+            runtime_status: slot.runtime_status.clone(),
+            next_review_at: slot.due_at.clone(),
+            is_sentinel: slot.is_sentinel,
+            review_wait_seconds: if slot.is_sentinel {
+                0
+            } else {
+                slot.due_epoch.saturating_sub(now_epoch).max(0)
+            },
+        })
+        .collect();
+    let due_count = queue.due_entries(now_epoch).len();
+    // The first entry that is not parked is the next loop that is due: a
+    // parked loop sorts last, so it never hides a loop that is due.
+    let next = queue.iter().find(|slot| !slot.is_sentinel);
+    let (next_due_at, next_due_in_seconds) = match next {
+        Some(slot) => (
+            slot.due_at.clone(),
+            slot.due_epoch.saturating_sub(now_epoch).max(0),
+        ),
+        None => (None, 0),
+    };
+    ClosedLoopReviewQueue {
+        length: entries.len(),
+        due_count,
+        waiting_count: entries.len().saturating_sub(due_count),
+        entries,
+        next_due_at,
+        next_due_in_seconds,
+    }
+}
+
+/// Read the review queue of a scope and turn it into its view.
+pub fn read_review_queue_view(
+    database_path: impl AsRef<Path>,
+    network: &str,
+    chain_id: i64,
+) -> Result<ClosedLoopReviewQueue, ClosedLoopError> {
+    let queue = read_review_queue(database_path, network, chain_id)?;
+    Ok(review_queue_view(&queue, chrono::Utc::now().timestamp()))
+}
+/// Set the wait of a closed loop.
+///
+/// A wait of **zero** is what a manual review asks for: the loop waits for
+/// nothing, so the next round of the review starts at once.  A wait of
+/// more than zero starts the clock of the loop with that interval.
+pub fn set_review_wait(
+    database_path: impl AsRef<Path>,
+    network: &str,
+    chain_id: i64,
+    loop_key: &str,
+    wait_seconds: i64,
+) -> Result<bool, ClosedLoopError> {
+    let connection = open_connection(database_path.as_ref(), true)?;
+    if wait_seconds <= 0 {
+        return mark_review_required_on_connection(&connection, network, chain_id, loop_key);
+    }
+    let updated = connection.execute(
+        "UPDATE manager_v4_closed_loop_runtime_state
+            SET runtime_status = ?5, status_reason = ?6,
+                next_review_at = ?7, review_required = 0,
+                review_cycle_started_at = ?8, updated_at = ?9
+          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
+            AND scope_key = ?4 AND loop_key = ?10",
+        params![
+            network,
+            chain_id,
+            NETWORK_PROTOCOL,
+            CLOSED_LOOP_SCOPE_KEY,
+            RUNTIME_STATUS_COOLDOWN,
+            "manual_review_wait",
+            (chrono::Utc::now() + chrono::Duration::seconds(wait_seconds)).to_rfc3339(),
+            chrono::Utc::now().to_rfc3339(),
+            chrono::Utc::now().to_rfc3339(),
+            loop_key
+        ],
+    )?;
+    Ok(updated > 0)
+}
+
+/// Advance the review clocks of every closed loop of a scope.
+///
+/// The number of loops that became due is returned.
+pub fn advance_review_clocks(
+    database_path: impl AsRef<Path>,
+    network: &str,
+    chain_id: i64,
+) -> Result<usize, ClosedLoopError> {
+    let connection = open_connection(database_path.as_ref(), true)?;
+    advance_review_clocks_on_connection(&connection, network, chain_id)
+}
+
+/// Claim the review round of one closed loop.
+///
+/// The claim starts the cycle of the loop and is the lock of the loop:
+/// a loop whose round is already running is not claimed again.
+pub fn begin_review_cycle(
+    database_path: impl AsRef<Path>,
+    network: &str,
+    chain_id: i64,
+    loop_key: &str,
+    reason: &str,
+) -> Result<bool, ClosedLoopError> {
+    let connection = open_connection(database_path.as_ref(), true)?;
+    begin_review_cycle_on_connection(&connection, network, chain_id, loop_key, reason)
+}
+
+/// Resolve the closed loop of a route.
+///
+/// The route is the list of the symbols the loop walks, in order.  A route
+/// that no published loop walks has no loop, so nothing is resolved and
+/// the caller reports that instead of guessing.
+pub fn resolve_loop_key_by_path_symbols(
+    database_path: impl AsRef<Path>,
+    network: &str,
+    chain_id: i64,
+    symbols: &[String],
+) -> Result<Option<String>, ClosedLoopError> {
+    let wanted: Vec<String> = symbols
+        .iter()
+        .map(|symbol| symbol.trim().to_uppercase())
+        .filter(|symbol| !symbol.is_empty())
+        .collect();
+    if wanted.is_empty() {
+        return Ok(None);
+    }
+    let connection = open_connection(database_path.as_ref(), false)?;
+    let mut statement = connection.prepare(
+        "SELECT loop_key, path_symbols_json FROM manager_v4_closed_loops
+          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
+            AND scope_key = ?4",
+    )?;
+    let rows = statement.query_map(
+        params![network, chain_id, NETWORK_PROTOCOL, CLOSED_LOOP_SCOPE_KEY],
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, Option<String>>(1)?,
+            ))
+        },
+    )?;
+    for row in rows {
+        let (loop_key, symbols_json) = row?;
+        let published: Vec<String> = symbols_json
+            .as_deref()
+            .and_then(|raw| serde_json::from_str::<Vec<String>>(raw).ok())
+            .unwrap_or_default()
+            .iter()
+            .map(|symbol| symbol.trim().to_uppercase())
+            .collect();
+        if published == wanted {
+            return Ok(Some(loop_key));
+        }
+    }
+    Ok(None)
+}
+
+/// The review schedule of one closed loop.
+#[derive(Debug, Clone, Default)]
+struct ReviewSchedule {
+    last_reviewed_at: Option<String>,
+    next_review_at: Option<String>,
+    review_required: bool,
+    runtime_status: Option<String>,
+    review_cycle_started_at: Option<String>,
+}
+
+/// The review schedules the store holds.
+///
+/// The schedules are read **before** the catalog is replaced, because a
+/// rebuild publishes the topology again and must not reset the review
+/// clock of a loop that was measured.
+fn read_review_schedules(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+) -> Result<BTreeMap<String, ReviewSchedule>, ClosedLoopError> {
+    let mut statement = connection.prepare(
+        "SELECT loop_key, last_reviewed_at, next_review_at, review_required,
+                runtime_status, review_cycle_started_at
+         FROM manager_v4_closed_loop_runtime_state
+         WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
+           AND scope_key = ?4",
+    )?;
+    let rows = statement.query_map(
+        params![network, chain_id, NETWORK_PROTOCOL, CLOSED_LOOP_SCOPE_KEY],
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, Option<String>>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, i64>(3)? != 0,
+                row.get::<_, Option<String>>(4)?,
+                row.get::<_, Option<String>>(5)?,
+            ))
+        },
+    )?;
+    let mut schedules = BTreeMap::new();
+    for row in rows {
+        let (
+            loop_key,
+            last_reviewed_at,
+            next_review_at,
+            review_required,
+            runtime_status,
+            review_cycle_started_at,
+        ) = row?;
+        schedules.insert(
+            loop_key,
+            ReviewSchedule {
+                last_reviewed_at,
+                next_review_at,
+                review_required,
+                runtime_status,
+                review_cycle_started_at,
+            },
+        );
+    }
+    Ok(schedules)
 }
 
 fn read_skipped_tokens(
@@ -4185,6 +5670,11 @@ fn replace_closed_loop_rows(
     result: &ClosedLoopMaterializationResult,
 ) -> Result<(), ClosedLoopError> {
     let now = chrono::Utc::now().to_rfc3339();
+    // The review clock of a loop **survives** the rebuild.  A rebuild
+    // publishes the topology again; it does not measure the loop again, so
+    // it must not claim that the loop is waiting for a review it already
+    // has, and it must not forget when the loop was measured.
+    let schedules = read_review_schedules(connection, network, chain_id)?;
     for table in [
         "manager_v4_closed_loop_runtime_state",
         "manager_v4_closed_loop_optimizations",
@@ -4209,13 +5699,13 @@ fn replace_closed_loop_rows(
                  anchor_token_key_id, anchor_address, anchor_symbol,
                  token_y_key_id, token_z_key_id, path_text,
                  path_addresses_json, path_symbols_json, pool_path_key,
-                 pool_ids_json, backup_pool_ids_json, hop_candidate_counts_json,
+                 backup_directional_pool_ids_json, hop_candidate_counts_json,
                  hop_candidate_combination_count, recommendation_basis,
                  recommended_first_priority, candidate_edge_version,
                  candidate_edge_checksum, observation_version,
                  observation_checksum, status, source,
                  single_tick_capacity_anchor_raw,
-                 single_tick_capacity_binding_pool_id,
+                 single_tick_capacity_binding_directional_pool_id,
                  borrow_token_usdg_value_raw,
                  borrow_token_decimals,
                  cross_tick_review_threshold_usdg_raw,
@@ -4225,7 +5715,7 @@ fn replace_closed_loop_rows(
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
                        ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23,
                        ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33,
-                       ?34, ?35, ?35)",
+                       ?34, ?34)",
             params![
                 network,
                 chain_id,
@@ -4242,8 +5732,7 @@ fn replace_closed_loop_rows(
                 serde_json::to_string(&row.path_addresses)?,
                 serde_json::to_string(&row.path_symbols)?,
                 row.pool_path_key,
-                serde_json::to_string(&row.pool_ids)?,
-                serde_json::to_string(&row.backup_pool_ids)?,
+                serde_json::to_string(&row.backup_directional_pool_ids)?,
                 serde_json::to_string(&row.hop_candidate_counts)?,
                 row.hop_candidate_combination_count as i64,
                 row.recommendation_basis,
@@ -4256,7 +5745,7 @@ fn replace_closed_loop_rows(
                 row.source,
                 row.single_tick_capacity_anchor_raw
                     .map(|value| value.to_string()),
-                row.single_tick_capacity_binding_pool_id.clone(),
+                row.single_tick_capacity_binding_directional_pool_id.clone(),
                 row.borrow_token_usdg_value_raw.map(|value| value.to_string()),
                 row.borrow_token_decimals.map(|value| i64::from(value)),
                 row.cross_tick_review_threshold_usdg_raw.to_string(),
@@ -4271,13 +5760,13 @@ fn replace_closed_loop_rows(
             "INSERT INTO manager_v4_closed_loop_hops (
                  network, chain_id, protocol, scope_key, loop_key, hop_index,
                  hop_name, input_token_key_id, output_token_key_id,
-                 input_address, output_address, pool_id, base_pool_id,
+                 input_address, output_address,
                  pool_selection_basis, optimization_id, temporary_override,
                  directional_pool_id, hop_direction, directional_scope_key,
                  directional_pool_rank,
                  created_at, updated_at
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
-                       ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?21)",
+                       ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?19)",
             params![
                 network,
                 chain_id,
@@ -4290,8 +5779,6 @@ fn replace_closed_loop_rows(
                 row.output_token_key_id,
                 row.input_address,
                 row.output_address,
-                row.pool_id,
-                row.base_pool_id,
                 row.pool_selection_basis,
                 row.optimization_id,
                 i64::from(row.temporary_override),
@@ -4307,7 +5794,8 @@ fn replace_closed_loop_rows(
         connection.execute(
             "INSERT INTO manager_v4_closed_loop_optimizations (
                  network, chain_id, protocol, scope_key, loop_key, hop_index,
-                 optimization_id, original_pool_id, optimized_pool_id,
+                 optimization_id, original_directional_pool_id,
+                 optimized_directional_pool_id,
                  optimization_basis, expected_price_improvement, status,
                  expires_at, created_at, updated_at
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
@@ -4320,8 +5808,8 @@ fn replace_closed_loop_rows(
                 row.loop_key,
                 row.hop_index as i64,
                 row.optimization_id,
-                row.original_pool_id,
-                row.optimized_pool_id,
+                row.original_directional_pool_id,
+                row.optimized_directional_pool_id,
                 row.optimization_basis,
                 row.expected_price_improvement,
                 row.status,
@@ -4330,23 +5818,75 @@ fn replace_closed_loop_rows(
             ],
         )?;
     }
+    // The review time points of a **fresh** catalog are staggered: the
+    // loops do not all become due in the same second, so the first round
+    // of the reviews does not hit the RPC provider with every loop at
+    // once.  The position of a loop in the catalog is its place in that
+    // order, and the spacing is a parameter of the running system.
+    let spacing = review_start_spacing_seconds_on_connection(connection);
+    let mut positions: Vec<(&String, usize)> = desired
+        .runtime_states
+        .iter()
+        .enumerate()
+        .map(|(position, row)| (&row.loop_key, position))
+        .collect();
+    positions.sort_by(|left, right| left.0.cmp(right.0));
+    let positions: BTreeMap<&String, usize> =
+        positions.into_iter().map(|(key, position)| (key, position)).collect();
     for row in &desired.runtime_states {
+        let schedule = schedules.get(&row.loop_key);
+        let last_reviewed_at = schedule
+            .and_then(|value| value.last_reviewed_at.clone())
+            .or_else(|| row.last_reviewed_at.clone());
+        let carried = schedule
+            .and_then(|value| value.next_review_at.clone())
+            .or_else(|| row.next_review_at.clone());
+        // A loop that is published for the first time is scheduled at
+        // once: its review time point is the moment of the rebuild plus
+        // the spacing times its position in the catalog.
+        let next_review_at = match carried {
+            Some(moment) => Some(moment),
+            None => {
+                let position = positions.get(&row.loop_key).copied().unwrap_or(0) as i64;
+                Some(
+                    (chrono::Utc::now() + chrono::Duration::seconds(position * spacing))
+                        .to_rfc3339(),
+                )
+            }
+        };
+        let review_required = schedule.map_or(row.review_required, |value| value.review_required);
+        // The state of a loop belongs to the **loop**, so a rebuild that
+        // publishes the topology again keeps the state and the clock of a
+        // loop that is still published.  A loop that is published for the
+        // first time waits for its first review.
+        let runtime_status = schedule
+            .and_then(|value| value.runtime_status.clone())
+            .unwrap_or_else(|| row.runtime_status.clone());
+        let review_cycle_started_at = schedule
+            .and_then(|value| value.review_cycle_started_at.clone())
+            .or_else(|| row.review_cycle_started_at.clone());
         connection.execute(
             "INSERT INTO manager_v4_closed_loop_runtime_state (
                  network, chain_id, protocol, scope_key, loop_key,
                  runtime_status, status_reason, review_generation,
-                 review_required, last_rebuilt_at, updated_at
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10)",
+                 review_required, last_rebuilt_at, last_reviewed_at,
+                 next_review_at, review_cycle_started_at,
+                 updated_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
             params![
                 network,
                 chain_id,
                 NETWORK_PROTOCOL,
                 CLOSED_LOOP_SCOPE_KEY,
                 row.loop_key,
-                row.runtime_status,
+                runtime_status,
                 row.status_reason,
                 row.review_generation,
-                i64::from(row.review_required),
+                i64::from(review_required),
+                now,
+                last_reviewed_at,
+                next_review_at,
+                review_cycle_started_at,
                 now
             ],
         )?;
@@ -4443,25 +5983,67 @@ fn insert_state(
     Ok(())
 }
 
-fn clear_consumers_need_rebuild(
+/// Acknowledge that the consumers rebuilt against one generation of the
+/// closed-loop library.
+///
+/// The flag `consumers_need_rebuild` says that the library moved and that
+/// the consumers may still hold the generation before it.  **Only the
+/// consumer knows when it rebuilt**, so only the consumer may clear the
+/// flag, and the acknowledgement carries the generation the consumer
+/// rebuilt against.
+///
+/// The flag is cleared **only** when that generation is the one the library
+/// publishes now.  An acknowledgement of an older generation says nothing
+/// about the current one, and a flag that a stale acknowledgement clears is
+/// a flag that lies: the consumers would be told to rebuild a generation
+/// they have already rebuilt, while a directory that moved again would be
+/// published as if nobody had to rebuild it at all.
+///
+/// The answer is whether the acknowledgement changed the stored flag.
+pub fn acknowledge_consumers_rebuilt(
+    database_path: impl AsRef<Path>,
+    network: &str,
+    chain_id: i64,
+    closed_loop_version: i64,
+    materialized_checksum: Option<&str>,
+) -> Result<bool, ClosedLoopError> {
+    validate_operation(network, chain_id)?;
+    let connection = open_connection(database_path.as_ref(), true)?;
+    connection.busy_timeout(std::time::Duration::from_secs(60))?;
+    acknowledge_consumers_rebuilt_on_connection(
+        &connection,
+        network,
+        chain_id,
+        closed_loop_version,
+        materialized_checksum,
+    )
+}
+
+fn acknowledge_consumers_rebuilt_on_connection(
     connection: &Connection,
     network: &str,
     chain_id: i64,
-) -> Result<(), ClosedLoopError> {
-    connection.execute(
+    closed_loop_version: i64,
+    materialized_checksum: Option<&str>,
+) -> Result<bool, ClosedLoopError> {
+    let changed = connection.execute(
         "UPDATE manager_v4_closed_loop_library_state
          SET consumers_need_rebuild = 0, updated_at = ?5
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
-           AND scope_key = ?4 AND consumers_need_rebuild != 0",
+           AND scope_key = ?4 AND consumers_need_rebuild != 0
+           AND closed_loop_version = ?6
+           AND (?7 IS NULL OR materialized_checksum = ?7)",
         params![
             network,
             chain_id,
             NETWORK_PROTOCOL,
             CLOSED_LOOP_SCOPE_KEY,
-            chrono::Utc::now().to_rfc3339()
+            chrono::Utc::now().to_rfc3339(),
+            closed_loop_version,
+            materialized_checksum,
         ],
     )?;
-    Ok(())
+    Ok(changed > 0)
 }
 
 pub fn compare_closed_loops(
@@ -4576,6 +6158,12 @@ pub fn compare_closed_loops(
 fn manager_loop_comparison_rows(
     rows: &[ClosedLoopRow],
 ) -> Result<BTreeMap<String, String>, ClosedLoopError> {
+    // The pool identity is **not** part of this comparison.  The manager rows
+    // name directional pools and the legacy rows name base pools, so the two
+    // layers no longer describe the pool in the same terms and a field by
+    // field comparison would report a difference for every row.  The route
+    // shape is compared here, and the drift of the pool identity belongs to
+    // the direction layer's own integrity audit.
     let mut values = BTreeMap::new();
     for row in rows {
         values.insert(
@@ -4584,8 +6172,6 @@ fn manager_loop_comparison_rows(
                 "pathText": row.path_text,
                 "pathAddresses": row.path_addresses,
                 "pathSymbols": row.path_symbols,
-                "poolPathKey": row.pool_path_key,
-                "poolIds": row.pool_ids,
                 "hopCandidateCounts": row.hop_candidate_counts,
                 "hopCandidateCombinationCount": row.hop_candidate_combination_count,
                 "recommendationBasis": row.recommendation_basis,
@@ -4598,6 +6184,9 @@ fn manager_loop_comparison_rows(
 }
 
 fn manager_hop_comparison_rows(rows: &[ClosedLoopHopRow]) -> BTreeMap<String, String> {
+    // The hop's pool identity is left out for the same reason as the loop's:
+    // the manager hop names a directional pool and the legacy hop names a
+    // base pool.  The hop's **shape** is compared here.
     let mut values = BTreeMap::new();
     for row in rows {
         let key = format!("{}|{}", row.loop_key, row.hop_index);
@@ -4605,8 +6194,6 @@ fn manager_hop_comparison_rows(rows: &[ClosedLoopHopRow]) -> BTreeMap<String, St
             "hopName": row.hop_name,
             "inputAddress": row.input_address,
             "outputAddress": row.output_address,
-            "poolId": row.pool_id,
-            "basePoolId": row.base_pool_id,
             "poolSelectionBasis": row.pool_selection_basis,
             "temporaryOverride": row.temporary_override
         })) {
@@ -4654,8 +6241,6 @@ fn read_legacy_loops(
                         "pathText": row.get::<_, Option<String>>(2)?,
                         "pathAddresses": parse_json_value(row.get::<_, Option<String>>(3)?),
                         "pathSymbols": parse_json_value(row.get::<_, Option<String>>(4)?),
-                        "poolPathKey": row.get::<_, Option<String>>(5)?,
-                        "poolIds": parse_json_value(row.get::<_, Option<String>>(6)?),
                         "hopCandidateCounts": parse_json_value(row.get::<_, Option<String>>(7)?),
                         "hopCandidateCombinationCount": row.get::<_, Option<i64>>(8)?,
                         "recommendationBasis": row.get::<_, Option<String>>(9)?,
@@ -4713,8 +6298,6 @@ fn read_legacy_hops(
                         "hopName": row.get::<_, Option<String>>(2)?,
                         "inputAddress": row.get::<_, Option<String>>(3)?,
                         "outputAddress": row.get::<_, Option<String>>(4)?,
-                        "poolId": row.get::<_, String>(5)?,
-                        "basePoolId": row.get::<_, Option<String>>(6)?,
                         "poolSelectionBasis": row.get::<_, Option<String>>(7)?,
                         "temporaryOverride": row.get::<_, Option<i64>>(8)?.unwrap_or(0) != 0
                     })
@@ -5042,17 +6625,35 @@ fn usize_from_i64(value: i64) -> usize {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_closed_loop_rows, compare_closed_loops, directional_primary_order_from_value,
+        acknowledge_consumers_rebuilt, build_closed_loop_rows, compare_closed_loops,
+        directional_primary_order_from_value,
         folded_path_capacity, materialize_closed_loops,
         materialize_closed_loops_write, path_min_capacity, read_closed_loop_input,
         read_closed_loop_snapshot, read_closed_loop_status, ClosedLoopError,
         ClosedLoopWriteRequest, ExpectedUpstream, MIN_CLOSED_LOOP_CAPACITY_RAW,
         DesiredClosedLoopData, DirectionalPoolIndex, resolve_hop_directional_pool,
+        advance_review_clock_on_connection, review_interval_seconds,
+        review_interval_seconds_on_connection, set_review_wait,
+        start_review_clock_on_connection, REVIEW_INTERVAL_PARAMETER_KEY,
+        REVIEW_INTERVAL_PARAMETER_NAMESPACE,
         HOP_MIDDLE_SCOPE_KEY, HOP_SIDE_SCOPE_KEY,
         path_min_single_tick_bound,
         hop_candidate_combinations, read_hops, read_optimizations,
         read_pending_optimizations, CLOSED_LOOP_SCOPE_KEY, NETWORK_PROTOCOL,
         MAX_HOP_CANDIDATE_COMBINATIONS,
+        read_valuation_pool_states,
+        mark_review_required_on_connection,
+        record_review_schedule_on_connection,
+        begin_review_cycle_on_connection,
+        reset_review_start_on_connection, ReviewStartReset,
+        is_review_sentinel, review_sentinel_for_status,
+        REVIEW_PENDING_SENTINEL_AT, REVIEW_PENDING_SENTINEL_EPOCH,
+        BROADCAST_PENDING_SENTINEL_AT, BROADCAST_PENDING_SENTINEL_EPOCH,
+        RUNTIME_STATUS_COOLDOWN, RUNTIME_STATUS_REVIEW_PENDING,
+        RUNTIME_STATUS_BROADCAST_PENDING,
+        ReviewQueue, ReviewSlot, moment_epoch,
+        read_review_queue, load_review_queue_on_connection, read_review_queue_view,
+        count_waiting_review_loops, read_due_review_loops, RUNTIME_STATUS_RETIRED,
     };
     use manager_contracts::directional_pool::{DirectionalPool, PoolDirection, V4Pool};
     use manager_contracts::TokenKeyId;
@@ -5100,12 +6701,26 @@ mod tests {
     ///
     /// The capacity is denominated in the pool's own tokens, so the fixture
     /// never needs a USD price.
+    ///
+    /// The shape of the liquidity snapshot table in the fixture.
+    ///
+    /// The table carries the **market** columns -- price, tick and
+    /// liquidity -- next to the capacity columns, because the USDG
+    /// valuation reads the market half of this table and the capacity fold
+    /// reads the same rows.
+    fn snapshot_table_sql() -> String {
+        "CREATE TABLE IF NOT EXISTS v4_exchange_pool_liquidity_snapshots (
+            network TEXT, chain_id INTEGER, protocol TEXT, pool_id TEXT,
+            capacity_raw TEXT, liquidity_read_at TEXT,
+            single_tick_max_token0_raw TEXT, single_tick_max_token1_raw TEXT,
+            sqrt_price_x96 TEXT, tick INTEGER, liquidity TEXT)"
+            .to_owned()
+    }
+
     fn seed_capacities(connection: &Connection, capacities: &[(&str, i64)]) {
         connection
             .execute(
-                "CREATE TABLE IF NOT EXISTS v4_exchange_pool_liquidity_snapshots (
-                    network TEXT, chain_id INTEGER, protocol TEXT, pool_id TEXT,
-                    capacity_raw TEXT, liquidity_read_at TEXT)",
+                &snapshot_table_sql(),
                 [],
             )
             .unwrap();
@@ -5159,6 +6774,23 @@ mod tests {
                     ],
                 )
                 .unwrap();
+            // The USDG valuation reads the market half of the snapshot
+            // table, so the published price is written there as well: the
+            // valuation and the capacity fold then describe the same
+            // observation.
+            connection
+                .execute(&snapshot_table_sql(), [])
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO v4_exchange_pool_liquidity_snapshots (
+                        network, chain_id, protocol, pool_id, capacity_raw,
+                        liquidity_read_at, sqrt_price_x96, tick, liquidity
+                     ) VALUES (?1, ?2, 'uniswap_v4', ?3, '1000000000000',
+                               'fixture', ?4, 0, '1000000000000')",
+                    params![NETWORK, CHAIN_ID, pool_id, sqrt_price_x96.to_string()],
+                )
+                .unwrap();
             // The tick state of a hop comes from the directional row the hop
             // walks, so the row carries the same price the pool table
             // publishes.
@@ -5183,10 +6815,7 @@ mod tests {
     ) {
         connection
             .execute(
-                "CREATE TABLE IF NOT EXISTS v4_exchange_pool_liquidity_snapshots (
-                    network TEXT, chain_id INTEGER, protocol TEXT, pool_id TEXT,
-                    capacity_raw TEXT, liquidity_read_at TEXT,
-                    single_tick_max_token0_raw TEXT, single_tick_max_token1_raw TEXT)",
+                &snapshot_table_sql(),
                 [],
             )
             .unwrap();
@@ -5539,15 +7168,33 @@ mod tests {
             pools
                 .entry(hop.hop_index)
                 .or_default()
-                .insert(hop.base_pool_id.clone());
+                .insert(base_pool_of(&hop.directional_pool_id).to_owned());
         }
         for optimization in &desired.optimizations {
             pools
                 .entry(optimization.hop_index)
                 .or_default()
-                .insert(optimization.optimized_pool_id.clone());
+                .insert(base_pool_of(&optimization.optimized_directional_pool_id).to_owned());
         }
         pools
+    }
+
+    /// The base pool of a directional pool id.
+    ///
+    /// The id carries the base pool and the direction inseparably --
+    /// `dpool:v1:<network>:<chain>:<scope>:<base pool>:<direction>` -- so the
+    /// base pool of a hop is read out of the hop's own identity, and never
+    /// from a field of its own.
+    fn base_pool_of(directional_pool_id: &str) -> &str {
+        directional_pool_id
+            .rsplit(':')
+            .nth(1)
+            .expect("a directional pool id names its base pool")
+    }
+
+    /// The directional pool id of a base pool in a scope.
+    fn directional_pool_id_of(scope_key: &str, base_pool_id: &str, direction: i64) -> String {
+        format!("dpool:v1:{NETWORK}:{CHAIN_ID}:{scope_key}:{base_pool_id}:{direction}")
     }
 
     #[test]
@@ -5589,12 +7236,13 @@ mod tests {
             .find(|hop| hop.hop_index == 1)
             .expect("the first hop of the published loop");
         assert_eq!(
-            first.pool_id, POOL_A2,
+            base_pool_of(&first.directional_pool_id), POOL_A2,
             "the hop trades the pool the direction layer ranked first"
         );
         assert_eq!(
-            first.base_pool_id, POOL_A2,
-            "the primary of the hop is the pool the direction layer ranked first"
+            first.directional_pool_id,
+            directional_pool_id_of(HOP_SIDE_SCOPE_KEY, POOL_A2, first.hop_direction),
+            "the hop names the directional pool of the pool the direction layer ranked first"
         );
         assert_eq!(first.directional_pool_rank, Some(1));
         assert_eq!(
@@ -5624,7 +7272,7 @@ mod tests {
             .find(|hop| hop.hop_index == 1)
             .expect("the first hop of the published loop");
         assert_eq!(
-            first.base_pool_id, POOL_A1,
+            base_pool_of(&first.directional_pool_id), POOL_A1,
             "the legacy candidate tier keeps naming the primary"
         );
         assert_eq!(
@@ -5678,7 +7326,7 @@ mod tests {
             .find(|hop| hop.hop_index == 1)
             .expect("the first hop of the published loop");
         assert_eq!(
-            first.base_pool_id, POOL_A2,
+            base_pool_of(&first.directional_pool_id), POOL_A2,
             "the ranked pool is the primary"
         );
         assert_eq!(first.directional_pool_rank, Some(1));
@@ -5686,7 +7334,7 @@ mod tests {
             .optimizations
             .iter()
             .filter(|optimization| optimization.hop_index == 1)
-            .map(|optimization| optimization.optimized_pool_id.as_str())
+            .map(|optimization| base_pool_of(&optimization.optimized_directional_pool_id))
             .collect::<Vec<_>>();
         assert_eq!(
             alternatives,
@@ -5723,10 +7371,10 @@ mod tests {
             .iter()
             .find(|hop| hop.hop_index == 2)
             .expect("the middle hop of the published loop");
-        assert_eq!(middle.pool_id, POOL_YZ_2, "the hop trades the backup");
         assert_eq!(
-            middle.base_pool_id, POOL_YZ,
-            "the hop still names the pool the recommendation named"
+            base_pool_of(&middle.directional_pool_id),
+            POOL_YZ_2,
+            "the hop names the directional pool of the backup"
         );
         assert_eq!(
             middle.optimization_id.as_deref(),
@@ -5734,7 +7382,7 @@ mod tests {
             "the hop names the optimization that took it over"
         );
         assert!(middle.temporary_override, "the takeover is a temporary one");
-        assert_eq!(middle.hop_direction, Some(MIDDLE_DIRECTION));
+        assert_eq!(middle.hop_direction, MIDDLE_DIRECTION);
     }
 
     #[test]
@@ -5774,10 +7422,10 @@ mod tests {
             .iter()
             .find(|hop| hop.hop_index == 2)
             .expect("the middle hop of the published loop");
-        assert_eq!(middle.pool_id, POOL_YZ_3, "the hop trades the backup");
         assert_eq!(
-            middle.base_pool_id, POOL_YZ,
-            "the hop still names the pool the recommendation named"
+            base_pool_of(&middle.directional_pool_id),
+            POOL_YZ_3,
+            "the hop names the directional pool of the backup"
         );
         assert_eq!(
             middle.optimization_id.as_deref(),
@@ -5890,8 +7538,14 @@ mod tests {
         );
         assert_eq!(consumed[0].optimization_id, "middle-rank-3");
         assert_eq!(consumed[0].status, "temporary");
-        assert_eq!(consumed[0].original_pool_id, POOL_YZ);
-        assert_eq!(consumed[0].optimized_pool_id, POOL_YZ_3);
+        assert_eq!(
+            base_pool_of(&consumed[0].original_directional_pool_id),
+            POOL_YZ
+        );
+        assert_eq!(
+            base_pool_of(&consumed[0].optimized_directional_pool_id),
+            POOL_YZ_3
+        );
 
         let pending = read_pending_optimizations(&connection, NETWORK, CHAIN_ID, None, 64).unwrap();
         let pending_ids = pending
@@ -6147,7 +7801,7 @@ mod tests {
             "the two directions must not share a loop key"
         );
         assert_ne!(
-            first.pool_ids, second.pool_ids,
+            first.directional_pool_ids, second.directional_pool_ids,
             "the two directions must not share a pool set"
         );
         assert_eq!(
@@ -6288,7 +7942,9 @@ mod tests {
         ];
         let (minimum, binding) = path_min_capacity(&input.directional_pools, &hop_directional_pool_ids);
         assert_eq!(minimum, Some(1_200));
-        assert_eq!(binding.as_deref(), Some(POOL_YZ));
+        // The blocking pool is named by its **directional** identity, so it
+        // always carries the direction the hop trades in.
+        assert_eq!(binding.as_deref(), Some(hop_directional_pool_ids[1].as_str()));
     }
 
     #[test]
@@ -6319,12 +7975,872 @@ mod tests {
             snapshot.loops[0].path_symbols,
             ["USDG", "AMZN", "TA", "USDG"]
         );
-        assert_eq!(snapshot.loops[0].pool_ids, [POOL_A1, POOL_YZ, POOL_D]);
+        assert_eq!(
+            snapshot.loops[0]
+                .directional_pool_ids
+                .iter()
+                .map(|id| base_pool_of(id).to_owned())
+                .collect::<Vec<_>>(),
+            [POOL_A1, POOL_YZ, POOL_D]
+        );
         assert_eq!(
             snapshot.runtime_states[0].runtime_status,
             "ready_for_review"
         );
         assert!(!snapshot.loops[0].pool_path_key.contains("usd"));
+    }
+
+    /// A measurement restarts the review clock of the loop it measured.
+    ///
+    /// The clock belongs to the loop, so the catalog publishes it: the
+    /// moment of the measurement and the moment the next round of the
+    /// review may start.  A rebuild of the catalog publishes the topology
+    /// again and must not reset that clock -- a loop that was measured
+    /// does not become a loop that waits for a review.
+    #[test]
+    fn a_measurement_restarts_the_review_clock_of_the_loop() {
+        let (_directory, path) = database();
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let loop_key = snapshot.loops[0].loop_key.clone();
+        let measured_at = "2026-11-27T01:00:00+00:00";
+        {
+            let connection = Connection::open(&path).unwrap();
+            assert!(record_review_schedule_on_connection(
+                &connection,
+                NETWORK,
+                CHAIN_ID,
+                &loop_key,
+                measured_at,
+                "measured",
+            )
+            .unwrap());
+        }
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let state = &snapshot.runtime_states[0];
+        assert_eq!(state.last_reviewed_at.as_deref(), Some(measured_at));
+        let due = state
+            .next_review_at
+            .as_deref()
+            .expect("the loop is scheduled again after a measurement");
+        assert!(
+            due.starts_with(&chrono::Utc::now().to_rfc3339()[..13]),
+            "the next round starts one interval after the round ended, got {due}",
+        );
+        let wait = state.review_wait_seconds.expect("the wait is counted");
+        assert!(
+            (review_interval_seconds() - 5..=review_interval_seconds() + 5).contains(&wait),
+            "the loop waits the review interval, got {wait}",
+        );
+        assert!(!state.review_required);
+        assert_eq!(
+            state.runtime_status, "cooldown",
+            "the clock of the loop is running after a measurement",
+        );
+
+        let scheduled = state.next_review_at.clone();
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let state = &snapshot.runtime_states[0];
+        assert_eq!(state.last_reviewed_at.as_deref(), Some(measured_at));
+        assert_eq!(
+            state.next_review_at, scheduled,
+            "a rebuild keeps the review time point of the loop",
+        );
+        assert!(
+            !state.review_required,
+            "a rebuild publishes the topology, it does not ask for a review again"
+        );
+        assert_eq!(
+            state.runtime_status, "cooldown",
+            "a rebuild keeps the state of the loop",
+        );
+    }
+
+    /// A loop whose measurement went stale waits for a new one.
+    ///
+    /// The moment of the last measurement stays: it says how old the
+    /// measurement is.  The review time point of the loop becomes the
+    /// moment of the request, because the loop is due **now**.
+    #[test]
+    fn a_stale_measurement_clears_the_schedule_of_the_loop() {
+        let (_directory, path) = database();
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let loop_key = snapshot.loops[0].loop_key.clone();
+        {
+            let connection = Connection::open(&path).unwrap();
+            record_review_schedule_on_connection(
+                &connection,
+                NETWORK,
+                CHAIN_ID,
+                &loop_key,
+                "2026-11-27T01:00:00+00:00",
+                "measured",
+            )
+            .unwrap();
+            assert!(mark_review_required_on_connection(
+                &connection,
+                NETWORK,
+                CHAIN_ID,
+                &loop_key,
+            )
+            .unwrap());
+        }
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let state = &snapshot.runtime_states[0];
+        assert_eq!(
+            state.last_reviewed_at.as_deref(),
+            Some("2026-11-27T01:00:00+00:00")
+        );
+        let due = state
+            .next_review_at
+            .as_deref()
+            .expect("a manual review schedules the loop");
+        assert!(
+            due.starts_with(&chrono::Utc::now().to_rfc3339()[..13]),
+            "the manual review starts the next round at once, got {due}",
+        );
+        assert!(state.review_required);
+        assert_eq!(
+            state.runtime_status, "ready_for_review",
+            "a loop that waits for a review is in the review state",
+        );
+        assert_eq!(state.review_wait_seconds, Some(0));
+    }
+
+    /// The review clock of a loop runs out and the loop is due again.
+    ///
+    /// The clock is the wait between two review rounds: it is started when
+    /// the loop has been dealt with, it runs while the loop waits, and when
+    /// it runs out the state of the loop becomes the review state and the
+    /// next round of the review may start.
+    #[test]
+    fn the_review_clock_runs_out_and_the_loop_becomes_due_again() {
+        let (_directory, path) = database();
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let loop_key = snapshot.loops[0].loop_key.clone();
+        {
+            let connection = Connection::open(&path).unwrap();
+            assert!(start_review_clock_on_connection(
+                &connection,
+                NETWORK,
+                CHAIN_ID,
+                &loop_key,
+                "broadcast_confirmed",
+            )
+            .unwrap());
+        }
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let state = &snapshot.runtime_states[0];
+        assert_eq!(state.runtime_status, "cooldown");
+        assert!(!state.review_required);
+        let wait = state.review_wait_seconds.expect("the clock publishes its wait");
+        assert!(
+            (review_interval_seconds() - 5..=review_interval_seconds() + 5).contains(&wait),
+            "the clock of a loop waits the interval, got {wait}",
+        );
+
+        // The clock runs out: the loop is due again, so the state of the
+        // loop becomes the review state and it waits for nothing.
+        {
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute(
+                    "UPDATE manager_v4_closed_loop_runtime_state
+                        SET next_review_at = '2026-11-27T00:00:00+00:00'
+                      WHERE network = ?1 AND chain_id = ?2 AND loop_key = ?3",
+                    params![NETWORK, CHAIN_ID, loop_key],
+                )
+                .unwrap();
+            assert_eq!(
+                advance_review_clock_on_connection(&connection, NETWORK, CHAIN_ID, &loop_key)
+                    .unwrap(),
+                0,
+                "a clock that ran out leaves nothing to wait for",
+            );
+        }
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let state = &snapshot.runtime_states[0];
+        assert_eq!(state.runtime_status, "ready_for_review");
+        assert!(state.review_required);
+        assert_eq!(state.review_wait_seconds, Some(0));
+        assert_eq!(
+            state.next_review_at.as_deref(),
+            Some("2026-11-27T00:00:00+00:00"),
+            "the moment the loop was scheduled at stays: it says how long it waited",
+        );
+    }
+
+    /// A manual review sets the wait of the loop to zero.
+    ///
+    /// A manual review asks for the next round of the review at once, so
+    /// the loop waits for nothing: the clock is not started, the loop is
+    /// due.
+    #[test]
+    fn a_manual_review_sets_the_wait_of_the_loop_to_zero() {
+        let (_directory, path) = database();
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let loop_key = snapshot.loops[0].loop_key.clone();
+        assert!(set_review_wait(&path, NETWORK, CHAIN_ID, &loop_key, 0).unwrap());
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let state = &snapshot.runtime_states[0];
+        assert_eq!(state.runtime_status, "ready_for_review");
+        assert_eq!(state.review_wait_seconds, Some(0));
+        assert!(state.review_required);
+        let due = state
+            .next_review_at
+            .as_deref()
+            .expect("a manual review schedules the loop");
+        assert!(
+            due.starts_with(&chrono::Utc::now().to_rfc3339()[..13]),
+            "the manual review starts the next round at once, got {due}",
+        );
+    }
+
+    /// The round that ends schedules the next round one interval later.
+    ///
+    /// The loop keeps one time point: the moment its next round of the
+    /// review may start.  A round that ends -- a measurement that found no
+    /// profit, or a broadcast that confirmed one -- resets that moment
+    /// to one review interval after the moment the round ended.
+    #[test]
+    fn the_round_that_ends_schedules_the_next_round_one_interval_later() {
+        let (_directory, path) = database();
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let loop_key = snapshot.loops[0].loop_key.clone();
+        {
+            let connection = Connection::open(&path).unwrap();
+            assert!(begin_review_cycle_on_connection(
+                &connection,
+                NETWORK,
+                CHAIN_ID,
+                &loop_key,
+                "review_round_started",
+            )
+            .unwrap());
+            let (status, due, started): (String, Option<String>, Option<String>) = connection
+                .query_row(
+                    "SELECT runtime_status, next_review_at, review_cycle_started_at
+                       FROM manager_v4_closed_loop_runtime_state
+                      WHERE network = ?1 AND chain_id = ?2 AND loop_key = ?3",
+                    params![NETWORK, CHAIN_ID, loop_key],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+            assert_eq!(status, "review_pending");
+            assert!(started.is_some(), "the round publishes when it started");
+            assert!(due.is_some(), "the loop keeps its review time point");
+        }
+        // The round ends with a measurement.
+        {
+            let connection = Connection::open(&path).unwrap();
+            assert!(record_review_schedule_on_connection(
+                &connection,
+                NETWORK,
+                CHAIN_ID,
+                &loop_key,
+                &chrono::Utc::now().to_rfc3339(),
+                "measured_without_profit",
+            )
+            .unwrap());
+        }
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let state = &snapshot.runtime_states[0];
+        assert_eq!(state.runtime_status, "cooldown");
+        let wait = state.review_wait_seconds.expect("the wait is counted");
+        assert!(
+            (review_interval_seconds() - 5..=review_interval_seconds() + 5).contains(&wait),
+            "the next round starts one interval after the round ended, got {wait}",
+        );
+    }
+
+    /// A loop is claimed once per round.
+    ///
+    /// The claim is the lock of the loop: a round that is already running
+    /// is not claimed again, and a loop that still waits for its clock is
+    /// not due and not claimed either.
+    #[test]
+    fn a_loop_is_claimed_once_per_round() {
+        let (_directory, path) = database();
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let loop_key = snapshot.loops[0].loop_key.clone();
+        let connection = Connection::open(&path).unwrap();
+        assert!(begin_review_cycle_on_connection(
+            &connection,
+            NETWORK,
+            CHAIN_ID,
+            &loop_key,
+            "review_round_started",
+        )
+        .unwrap());
+        assert!(
+            !begin_review_cycle_on_connection(
+                &connection,
+                NETWORK,
+                CHAIN_ID,
+                &loop_key,
+                "review_round_started",
+            )
+            .unwrap(),
+            "a round that is already running is not claimed again",
+        );
+        // The round ends and the loop waits for the next round.
+        assert!(record_review_schedule_on_connection(
+            &connection,
+            NETWORK,
+            CHAIN_ID,
+            &loop_key,
+            &chrono::Utc::now().to_rfc3339(),
+            "measured_without_profit",
+        )
+        .unwrap());
+        assert!(
+            !begin_review_cycle_on_connection(
+                &connection,
+                NETWORK,
+                CHAIN_ID,
+                &loop_key,
+                "review_round_started",
+            )
+            .unwrap(),
+            "a loop that still waits for its clock is not due",
+        );
+    }
+
+    /// The next round starts when the cycle ran out.
+    ///
+    /// The review time point of the loop passes, the loop becomes due
+    /// again, and the round it ran is cleared: the next round starts a
+    /// new one.
+    #[test]
+    fn the_next_round_starts_when_the_cycle_ran_out() {
+        let (_directory, path) = database();
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let loop_key = snapshot.loops[0].loop_key.clone();
+        let connection = Connection::open(&path).unwrap();
+        assert!(begin_review_cycle_on_connection(
+            &connection,
+            NETWORK,
+            CHAIN_ID,
+            &loop_key,
+            "review_round_started",
+        )
+        .unwrap());
+        assert!(record_review_schedule_on_connection(
+            &connection,
+            NETWORK,
+            CHAIN_ID,
+            &loop_key,
+            &chrono::Utc::now().to_rfc3339(),
+            "measured_without_profit",
+        )
+        .unwrap());
+        // The cycle runs out.
+        connection
+            .execute(
+                "UPDATE manager_v4_closed_loop_runtime_state
+                    SET next_review_at = '2026-11-27T00:00:00+00:00'
+                  WHERE network = ?1 AND chain_id = ?2 AND loop_key = ?3",
+                params![NETWORK, CHAIN_ID, loop_key],
+            )
+            .unwrap();
+        assert_eq!(
+            advance_review_clock_on_connection(&connection, NETWORK, CHAIN_ID, &loop_key)
+                .unwrap(),
+            0,
+        );
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let state = &snapshot.runtime_states[0];
+        assert_eq!(state.runtime_status, "ready_for_review");
+        assert!(state.review_required);
+        assert_eq!(state.review_cycle_started_at, None);
+        assert_eq!(
+            state.next_review_at.as_deref(),
+            Some("2026-11-27T00:00:00+00:00"),
+            "the moment the loop was scheduled at stays: it says how long it waited",
+        );
+        // The loop is due, so the next round may claim it.
+        assert!(begin_review_cycle_on_connection(
+            &connection,
+            NETWORK,
+            CHAIN_ID,
+            &loop_key,
+            "review_round_started",
+        )
+        .unwrap());
+    }
+    /// The state of a closed loop, as the store holds it.
+    fn runtime_state_of(
+        connection: &Connection,
+        loop_key: &str,
+    ) -> (String, Option<String>, Option<String>) {
+        connection
+            .query_row(
+                "SELECT runtime_status, next_review_at, review_cycle_started_at
+                   FROM manager_v4_closed_loop_runtime_state
+                  WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
+                    AND scope_key = ?4 AND loop_key = ?5",
+                params![
+                    NETWORK,
+                    CHAIN_ID,
+                    NETWORK_PROTOCOL,
+                    CLOSED_LOOP_SCOPE_KEY,
+                    loop_key
+                ],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap()
+    }
+
+    /// An entry of the review queue, built by hand.
+    fn review_slot(loop_key: &str, due_at: Option<&str>, is_sentinel: bool) -> ReviewSlot {
+        let due_epoch = if is_sentinel {
+            i64::MAX
+        } else {
+            due_at.and_then(moment_epoch).unwrap_or(i64::MIN)
+        };
+        ReviewSlot {
+            loop_key: loop_key.to_owned(),
+            runtime_status: RUNTIME_STATUS_COOLDOWN.to_owned(),
+            due_at: due_at.map(|value| value.to_owned()),
+            due_epoch,
+            is_sentinel,
+        }
+    }
+
+    /// A loop that is being measured is parked at the review sentinel.
+    ///
+    /// The loop has no scheduled review while its round runs, so the
+    /// queue must not offer it again.  The marker says the loop is busy,
+    /// and the state of the loop says which busy it is.
+    #[test]
+    fn a_claimed_loop_is_parked_at_the_review_sentinel() {
+        let (_directory, path) = database();
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let loop_key = snapshot.loops[0].loop_key.clone();
+        let connection = Connection::open(&path).unwrap();
+        assert!(begin_review_cycle_on_connection(
+            &connection,
+            NETWORK,
+            CHAIN_ID,
+            &loop_key,
+            "review_round_started",
+        )
+        .unwrap());
+        let (status, due_at, cycle_started_at) = runtime_state_of(&connection, &loop_key);
+        assert_eq!(status, RUNTIME_STATUS_REVIEW_PENDING);
+        assert_eq!(due_at.as_deref(), Some(REVIEW_PENDING_SENTINEL_AT));
+        assert!(cycle_started_at.is_some(), "the round keeps its start moment");
+        // The loop is not claimed a second time while its round runs.
+        assert!(!begin_review_cycle_on_connection(
+            &connection,
+            NETWORK,
+            CHAIN_ID,
+            &loop_key,
+            "review_round_started",
+        )
+        .unwrap());
+    }
+
+    /// A loop that waits for the receipt of its trade is parked at the
+    /// broadcast sentinel.
+    #[test]
+    fn a_loop_that_waits_for_its_receipt_is_parked_at_the_broadcast_sentinel() {
+        let (_directory, path) = database();
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let loop_key = snapshot.loops[0].loop_key.clone();
+        let connection = Connection::open(&path).unwrap();
+        assert!(reset_review_start_on_connection(
+            &connection,
+            NETWORK,
+            CHAIN_ID,
+            &loop_key,
+            ReviewStartReset::BroadcastPending,
+            None,
+            "broadcast_sent",
+        )
+        .unwrap());
+        let (status, due_at, _) = runtime_state_of(&connection, &loop_key);
+        assert_eq!(status, RUNTIME_STATUS_BROADCAST_PENDING);
+        assert_eq!(due_at.as_deref(), Some(BROADCAST_PENDING_SENTINEL_AT));
+        // A loop that waits for its receipt is not claimed for a review.
+        assert!(!begin_review_cycle_on_connection(
+            &connection,
+            NETWORK,
+            CHAIN_ID,
+            &loop_key,
+            "review_round_started",
+        )
+        .unwrap());
+    }
+
+    /// The two sentinels tell the two busy situations apart.
+    #[test]
+    fn the_two_sentinels_tell_the_two_busy_situations_apart() {
+        assert_ne!(REVIEW_PENDING_SENTINEL_AT, BROADCAST_PENDING_SENTINEL_AT);
+        assert_ne!(
+            REVIEW_PENDING_SENTINEL_EPOCH,
+            BROADCAST_PENDING_SENTINEL_EPOCH
+        );
+        assert!(is_review_sentinel(REVIEW_PENDING_SENTINEL_AT));
+        assert!(is_review_sentinel(BROADCAST_PENDING_SENTINEL_AT));
+        assert!(!is_review_sentinel("2026-11-27T00:00:00+00:00"));
+        assert_eq!(
+            review_sentinel_for_status(RUNTIME_STATUS_REVIEW_PENDING),
+            Some(REVIEW_PENDING_SENTINEL_AT)
+        );
+        assert_eq!(
+            review_sentinel_for_status(RUNTIME_STATUS_BROADCAST_PENDING),
+            Some(BROADCAST_PENDING_SENTINEL_AT)
+        );
+        assert_eq!(review_sentinel_for_status(RUNTIME_STATUS_COOLDOWN), None);
+        // Both sentinels fit an i32, so a reader that counts in i32 does
+        // not overflow on them.
+        assert!(REVIEW_PENDING_SENTINEL_EPOCH <= i32::MAX as i64);
+        assert!(BROADCAST_PENDING_SENTINEL_EPOCH <= i32::MAX as i64);
+    }
+
+    /// The queue is ordered by the moment a loop is scheduled at.
+    #[test]
+    fn the_review_queue_is_ordered_by_the_review_moment() {
+        let mut queue = ReviewQueue::default();
+        for (loop_key, moment) in [
+            ("loop-c", "2026-11-27T00:30:00+00:00"),
+            ("loop-a", "2026-11-27T00:10:00+00:00"),
+            ("loop-b", "2026-11-27T00:20:00+00:00"),
+        ] {
+            queue.insert(review_slot(loop_key, Some(moment), false));
+        }
+        let order: Vec<&str> = queue.iter().map(|slot| slot.loop_key.as_str()).collect();
+        assert_eq!(order, vec!["loop-a", "loop-b", "loop-c"]);
+        assert_eq!(queue.first().unwrap().loop_key, "loop-a");
+        assert_eq!(queue.len(), 3);
+    }
+
+    /// One entry per loop: the second result covers the first one.
+    #[test]
+    fn a_loop_is_covered_by_one_entry() {
+        let mut queue = ReviewQueue::default();
+        queue.insert(review_slot("loop-a", Some("2026-11-27T00:10:00+00:00"), false));
+        queue.insert(review_slot("loop-a", Some("2026-11-27T00:40:00+00:00"), false));
+        assert_eq!(queue.len(), 1);
+        let entry = queue.get("loop-a").unwrap();
+        assert_eq!(
+            entry.due_at.as_deref(),
+            Some("2026-11-27T00:40:00+00:00"),
+            "the second result covers the first one"
+        );
+        assert_eq!(queue.first().unwrap().loop_key, "loop-a");
+    }
+
+    /// The walk stops at the first loop that is not due.
+    #[test]
+    fn the_walk_stops_at_the_first_loop_that_is_not_due() {
+        let mut queue = ReviewQueue::default();
+        queue.insert(review_slot("loop-a", Some("2026-11-27T00:10:00+00:00"), false));
+        queue.insert(review_slot("loop-b", Some("2026-11-27T00:20:00+00:00"), false));
+        queue.insert(review_slot("loop-c", Some("2026-11-27T00:30:00+00:00"), false));
+        let now = moment_epoch("2026-11-27T00:15:00+00:00").unwrap();
+        let due: Vec<&str> = queue
+            .due_entries(now)
+            .into_iter()
+            .map(|slot| slot.loop_key.as_str())
+            .collect();
+        assert_eq!(due, vec!["loop-a"]);
+        let now = moment_epoch("2026-11-27T00:25:00+00:00").unwrap();
+        let due: Vec<&str> = queue
+            .due_entries(now)
+            .into_iter()
+            .map(|slot| slot.loop_key.as_str())
+            .collect();
+        assert_eq!(due, vec!["loop-a", "loop-b"]);
+    }
+
+    /// A sentinel is never due.
+    #[test]
+    fn a_sentinel_is_never_due() {
+        let mut queue = ReviewQueue::default();
+        queue.insert(review_slot(
+            "loop-a",
+            Some(REVIEW_PENDING_SENTINEL_AT),
+            true,
+        ));
+        queue.insert(review_slot(
+            "loop-b",
+            Some(BROADCAST_PENDING_SENTINEL_AT),
+            true,
+        ));
+        assert!(queue.due_entries(i64::MAX).is_empty());
+        assert!(queue.take_due(i64::MAX).is_empty());
+        assert_eq!(queue.len(), 2);
+        // A sentinel sorts last, so it never hides a loop that is due.
+        queue.insert(review_slot(
+            "loop-c",
+            Some("2026-11-27T00:10:00+00:00"),
+            false,
+        ));
+        let due: Vec<&str> = queue
+            .due_entries(i64::MAX)
+            .into_iter()
+            .map(|slot| slot.loop_key.as_str())
+            .collect();
+        assert_eq!(due, vec!["loop-c"]);
+    }
+
+    /// The queue is read from the store.
+    #[test]
+    fn the_queue_is_read_from_the_store() {
+        let (_directory, path) = database();
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let loop_key = snapshot.loops[0].loop_key.clone();
+        let connection = Connection::open(&path).unwrap();
+        assert!(begin_review_cycle_on_connection(
+            &connection,
+            NETWORK,
+            CHAIN_ID,
+            &loop_key,
+            "review_round_started",
+        )
+        .unwrap());
+        let queue = load_review_queue_on_connection(&connection, NETWORK, CHAIN_ID).unwrap();
+        let entry = queue.get(&loop_key).unwrap();
+        assert!(entry.is_sentinel);
+        assert_eq!(entry.due_epoch, i64::MAX);
+        assert_eq!(entry.due_at.as_deref(), Some(REVIEW_PENDING_SENTINEL_AT));
+        assert!(queue
+            .due_entries(i64::MAX)
+            .iter()
+            .all(|slot| slot.loop_key != loop_key));
+        // A loop that was never measured has no review time point, so it
+        // is due at once.
+        connection
+            .execute(
+                "UPDATE manager_v4_closed_loop_runtime_state
+                    SET next_review_at = NULL
+                  WHERE network = ?1 AND chain_id = ?2 AND loop_key = ?3",
+                params![NETWORK, CHAIN_ID, loop_key],
+            )
+            .unwrap();
+        let queue = read_review_queue(&path, NETWORK, CHAIN_ID).unwrap();
+        let entry = queue.get(&loop_key).unwrap();
+        assert!(!entry.is_sentinel);
+        assert_eq!(entry.due_epoch, i64::MIN);
+    }
+
+    /// The review interval is read from the configuration parameters.
+    ///
+    /// Put a closed loop into the runtime state by hand.
+    fn insert_runtime_state(
+        connection: &Connection,
+        loop_key: &str,
+        runtime_status: &str,
+        next_review_at: Option<&str>,
+    ) {
+        connection
+            .execute(
+                "INSERT INTO manager_v4_closed_loop_runtime_state (
+                     network, chain_id, protocol, scope_key, loop_key,
+                     runtime_status, status_reason, review_generation,
+                     review_required, last_rebuilt_at, updated_at,
+                     last_reviewed_at, next_review_at, review_cycle_started_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'test', 0, 0, ?7, ?7,
+                           NULL, ?8, NULL)",
+                params![
+                    NETWORK,
+                    CHAIN_ID,
+                    NETWORK_PROTOCOL,
+                    CLOSED_LOOP_SCOPE_KEY,
+                    loop_key,
+                    runtime_status,
+                    "2026-11-27T00:00:00+00:00",
+                    next_review_at
+                ],
+            )
+            .unwrap();
+    }
+
+    /// The queue and the store agree on the loops that are due.
+    ///
+    /// The due set is computed **twice**: once by the store and once by
+    /// the queue.  The two answers have to be the same, otherwise the
+    /// main thread of the review would work from a different list than
+    /// the one the store published.
+    #[test]
+    fn the_queue_and_the_store_agree_on_the_due_loops() {
+        let (_directory, path) = database();
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let seeded = snapshot.loops[0].loop_key.clone();
+        let connection = Connection::open(&path).unwrap();
+        // The seeded loop waits, so it never shows up in the due set.
+        connection
+            .execute(
+                "UPDATE manager_v4_closed_loop_runtime_state
+                    SET runtime_status = 'cooldown',
+                        next_review_at = '2099-01-01T00:00:00+00:00'
+                  WHERE network = ?1 AND chain_id = ?2 AND loop_key = ?3",
+                params![NETWORK, CHAIN_ID, seeded],
+            )
+            .unwrap();
+        // One loop per situation.
+        insert_runtime_state(&connection, "loop-due-null", "ready_for_review", None);
+        insert_runtime_state(
+            &connection,
+            "loop-due-past",
+            "cooldown",
+            Some("2026-01-01T00:00:00+00:00"),
+        );
+        insert_runtime_state(
+            &connection,
+            "loop-waits",
+            "cooldown",
+            Some("2099-01-01T00:00:00+00:00"),
+        );
+        insert_runtime_state(
+            &connection,
+            "loop-measured",
+            RUNTIME_STATUS_REVIEW_PENDING,
+            Some(REVIEW_PENDING_SENTINEL_AT),
+        );
+        insert_runtime_state(
+            &connection,
+            "loop-broadcast",
+            RUNTIME_STATUS_BROADCAST_PENDING,
+            Some(BROADCAST_PENDING_SENTINEL_AT),
+        );
+        insert_runtime_state(
+            &connection,
+            "loop-retired",
+            RUNTIME_STATUS_RETIRED,
+            Some("2026-01-01T00:00:00+00:00"),
+        );
+        let due_from_store: Vec<String> = read_due_review_loops(&path, NETWORK, CHAIN_ID)
+            .unwrap()
+            .into_iter()
+            .map(|row| row.loop_key)
+            .collect();
+        let queue = read_review_queue(&path, NETWORK, CHAIN_ID).unwrap();
+        let due_from_queue: Vec<String> = queue
+            .due_entries(chrono::Utc::now().timestamp())
+            .into_iter()
+            .map(|slot| slot.loop_key.clone())
+            .collect();
+        assert_eq!(due_from_queue, vec!["loop-due-null", "loop-due-past"]);
+        assert_eq!(
+            due_from_store, due_from_queue,
+            "the queue and the store have to name the same due loops"
+        );
+        // A retired loop is out of the queue, and a parked loop is in it
+        // but never due.
+        assert!(queue.get("loop-retired").is_none());
+        assert!(queue.get("loop-measured").unwrap().is_sentinel);
+        assert!(queue.get("loop-broadcast").unwrap().is_sentinel);
+        assert_eq!(queue.len(), 6);
+        assert_eq!(
+            count_waiting_review_loops(&path, NETWORK, CHAIN_ID).unwrap(),
+            4
+        );
+    }
+
+    /// The queue is published as a view.
+    #[test]
+    fn the_queue_is_published_as_a_view() {
+        let (_directory, path) = database();
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let loop_key = snapshot.loops[0].loop_key.clone();
+        let connection = Connection::open(&path).unwrap();
+        assert!(begin_review_cycle_on_connection(
+            &connection,
+            NETWORK,
+            CHAIN_ID,
+            &loop_key,
+            "review_round_started",
+        )
+        .unwrap());
+        let view = read_review_queue_view(&path, NETWORK, CHAIN_ID).unwrap();
+        assert_eq!(view.length, 1);
+        assert_eq!(view.due_count, 0, "a parked loop is never due");
+        assert_eq!(view.waiting_count, 1);
+        assert_eq!(view.next_due_in_seconds, 0);
+        assert_eq!(view.next_due_at.as_deref(), None);
+        let entry = &view.entries[0];
+        assert_eq!(entry.loop_key, loop_key);
+        assert_eq!(entry.runtime_status, RUNTIME_STATUS_REVIEW_PENDING);
+        assert!(entry.is_sentinel);
+        assert_eq!(entry.next_review_at.as_deref(), Some(REVIEW_PENDING_SENTINEL_AT));
+        assert_eq!(entry.review_wait_seconds, 0);
+    }
+    /// The interval is a parameter, so it is read from the store the
+    /// parameters live in and a changed value is in force on the next
+    /// cycle -- without a restart of the process.
+    #[test]
+    fn the_review_interval_is_read_from_the_configuration_parameters() {
+        let (_directory, path) = database();
+        let connection = Connection::open(&path).unwrap();
+        // The parameter store of the running system keeps the value inside
+        // a JSON document, so a parameter is read in two steps.
+        connection
+            .execute(
+                "CREATE TABLE IF NOT EXISTS kv_entries (
+                     collection TEXT NOT NULL,
+                     key TEXT NOT NULL,
+                     value_json TEXT NOT NULL,
+                     updated_at TEXT NOT NULL,
+                     PRIMARY KEY (collection, key)
+                 )",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO kv_entries (collection, key, value_json, updated_at)
+                 VALUES ('parameters', ?1, ?2, 'fixture')",
+                params![
+                    format!(
+                        "{}|{}",
+                        REVIEW_INTERVAL_PARAMETER_NAMESPACE,
+                        REVIEW_INTERVAL_PARAMETER_KEY
+                    ),
+                    r#"{"namespace":"strategy_config","parameter_key":"CLOSED_LOOP_REVIEW_INTERVAL_SECONDS","value_json":"30"}"#,
+                ],
+            )
+            .unwrap();
+        assert_eq!(review_interval_seconds_on_connection(&connection), 30);
+        drop(connection);
+
+        // The clock of a loop follows the parameter.
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let loop_key = snapshot.loops[0].loop_key.clone();
+        {
+            let connection = Connection::open(&path).unwrap();
+            assert!(start_review_clock_on_connection(
+                &connection,
+                NETWORK,
+                CHAIN_ID,
+                &loop_key,
+                "broadcast_confirmed",
+            )
+            .unwrap());
+        }
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let wait = snapshot.runtime_states[0]
+            .review_wait_seconds
+            .expect("the clock publishes its wait");
+        assert!(
+            (25..=30).contains(&wait),
+            "the clock follows the parameter, got {wait}",
+        );
     }
 
     /// The folded single-tick capacity is published on the closed-loop row.
@@ -6354,18 +8870,18 @@ mod tests {
             .single_tick_capacity_anchor_raw
             .expect("the fold must be published when every hop publishes a state");
         assert!(capacity > 0);
-        assert_eq!(
-            loop_row.single_tick_capacity_binding_pool_id.as_deref(),
-            Some(loop_row.pool_ids[0].as_str())
-                .or_else(|| { loop_row.single_tick_capacity_binding_pool_id.as_deref() })
+        // The binding pool is one of the **directional** pools of the loop,
+        // so the capacity always names a direction and not a bare pool.
+        let binding = loop_row
+            .single_tick_capacity_binding_directional_pool_id
+            .as_ref()
+            .expect("the binding pool of the capacity must be published");
+        assert!(
+            loop_row.directional_pool_ids.contains(binding),
+            "the binding pool must be one of the directional pools of the loop: \
+             binding={binding:?} pools={:?}",
+            loop_row.directional_pool_ids
         );
-        // The binding pool must be one of the hops of the loop.
-        assert!(loop_row.pool_ids.contains(
-            loop_row
-                .single_tick_capacity_binding_pool_id
-                .as_ref()
-                .unwrap()
-        ));
     }
 
     /// A loop whose hops do not all publish a usable tick state has **no**
@@ -6378,7 +8894,10 @@ mod tests {
         let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
         let loop_row = &snapshot.loops[0];
         assert_eq!(loop_row.single_tick_capacity_anchor_raw, None);
-        assert_eq!(loop_row.single_tick_capacity_binding_pool_id, None);
+        assert_eq!(
+            loop_row.single_tick_capacity_binding_directional_pool_id,
+            None
+        );
     }
 
     #[test]
@@ -6394,8 +8913,11 @@ mod tests {
         assert_eq!(first.materialized_checksum, second.materialized_checksum);
         assert_eq!(first.closed_loop_version, second.closed_loop_version);
         assert!(!second.consumers_need_rebuild);
+        // The second run found the library unchanged, so it did not move the
+        // generation.  It says nothing about the consumers, though: nobody
+        // has told the Manager that they rebuilt, so the flag stays set.
         assert!(
-            !read_closed_loop_status(&path, NETWORK, CHAIN_ID)
+            read_closed_loop_status(&path, NETWORK, CHAIN_ID)
                 .unwrap()
                 .consumers_need_rebuild
         );
@@ -6425,6 +8947,136 @@ mod tests {
         assert_eq!(
             outcome.result.materialized_checksum,
             replay.result.materialized_checksum
+        );
+    }
+
+    /// The flag says that the consumers still have to rebuild.  Only the
+    /// consumer knows when it rebuilt, so only the consumer may clear the
+    /// flag, and it clears it by naming the generation it rebuilt against.
+    #[test]
+    fn an_acknowledgement_of_the_current_generation_clears_the_flag() {
+        let (_directory, path) = database();
+        let first = materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        assert!(
+            read_closed_loop_status(&path, NETWORK, CHAIN_ID)
+                .unwrap()
+                .consumers_need_rebuild
+        );
+
+        let cleared = acknowledge_consumers_rebuilt(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            first.closed_loop_version,
+            Some(&first.materialized_checksum),
+        )
+        .unwrap();
+        assert!(cleared);
+        assert!(
+            !read_closed_loop_status(&path, NETWORK, CHAIN_ID)
+                .unwrap()
+                .consumers_need_rebuild
+        );
+    }
+
+    /// An acknowledgement of a generation the library does not publish
+    /// clears nothing: the consumers are behind, and a flag that a stale
+    /// acknowledgement clears is a flag that lies.
+    #[test]
+    fn an_acknowledgement_of_another_generation_clears_nothing() {
+        let (_directory, path) = database();
+        let first = materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+
+        assert!(!acknowledge_consumers_rebuilt(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            first.closed_loop_version + 1,
+            Some(&first.materialized_checksum),
+        )
+        .unwrap());
+        assert!(!acknowledge_consumers_rebuilt(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            first.closed_loop_version,
+            Some("sha256:another-checksum"),
+        )
+        .unwrap());
+        assert!(
+            read_closed_loop_status(&path, NETWORK, CHAIN_ID)
+                .unwrap()
+                .consumers_need_rebuild,
+            "the flag must survive an acknowledgement that names another \
+             generation: the consumers are still behind"
+        );
+    }
+
+    /// A library that moved on after the measurement leaves the flag set.
+    /// The acknowledgement of the generation the consumers rebuilt against
+    /// says nothing about the generation the library publishes now.
+    #[test]
+    fn an_acknowledgement_of_a_generation_the_library_left_clears_nothing() {
+        let (_directory, path) = database();
+        let first = materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        assert!(
+            acknowledge_consumers_rebuilt(
+                &path,
+                NETWORK,
+                CHAIN_ID,
+                first.closed_loop_version,
+                Some(&first.materialized_checksum),
+            )
+            .unwrap()
+        );
+
+        // The market moved: the library publishes another generation, so the
+        // consumers have to rebuild again.
+        {
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute(
+                    "DELETE FROM manager_dex_candidate_pool_recommendations
+                     WHERE network = ?1 AND chain_id = ?2 AND pool_id = ?3",
+                    params![NETWORK, CHAIN_ID, POOL_A2],
+                )
+                .unwrap();
+        }
+        let second = materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        assert_ne!(second.closed_loop_version, first.closed_loop_version);
+        assert!(
+            read_closed_loop_status(&path, NETWORK, CHAIN_ID)
+                .unwrap()
+                .consumers_need_rebuild
+        );
+
+        assert!(!acknowledge_consumers_rebuilt(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            first.closed_loop_version,
+            Some(&first.materialized_checksum),
+        )
+        .unwrap());
+        assert!(
+            read_closed_loop_status(&path, NETWORK, CHAIN_ID)
+                .unwrap()
+                .consumers_need_rebuild,
+            "the flag must survive the acknowledgement of the generation the \
+             library has already left"
+        );
+        assert!(acknowledge_consumers_rebuilt(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            second.closed_loop_version,
+            Some(&second.materialized_checksum),
+        )
+        .unwrap());
+        assert!(
+            !read_closed_loop_status(&path, NETWORK, CHAIN_ID)
+                .unwrap()
+                .consumers_need_rebuild
         );
     }
 
@@ -6591,7 +9243,7 @@ mod tests {
         connection
             .execute(
                 "UPDATE manager_v4_closed_loop_hops
-                 SET pool_id = 'pool-stale'
+                 SET directional_pool_id = 'dpool-stale'
                  WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
                    AND scope_key = ?4",
                 params![NETWORK, CHAIN_ID, "uniswap_v4", "core4"],
@@ -6659,7 +9311,7 @@ mod tests {
             .query_row(
                 "SELECT COUNT(*) FROM manager_v4_closed_loop_hops
                  WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
-                   AND scope_key = ?4 AND pool_id = 'pool-stale'",
+                   AND scope_key = ?4 AND directional_pool_id = 'dpool-stale'",
                 params![NETWORK, CHAIN_ID, "uniswap_v4", "core4"],
                 |row| row.get(0),
             )
@@ -6718,12 +9370,33 @@ mod tests {
         scope_key: &str,
         pools: &[(&str, u128, &str, &str, i64)],
     ) -> DirectionalPoolIndex {
+        directional_index_with_prices(
+            scope_key,
+            &pools
+                .iter()
+                .map(|(base, price, token0, token1, direction)| {
+                    (*base, Some(*price), *token0, *token1, *direction)
+                })
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    /// The direction layer rows of a scope, with the price each row
+    /// publishes.
+    ///
+    /// A row that publishes no price is a **coverage gap** of the pool
+    /// index, and the gap has to be expressible: the capacity fold reads a
+    /// row without a price as no room, never as a price of zero.
+    fn directional_index_with_prices(
+        scope_key: &str,
+        pools: &[(&str, Option<u128>, &str, &str, i64)],
+    ) -> DirectionalPoolIndex {
         let mut index = DirectionalPoolIndex::default();
         for (base_pool_id, sqrt_price_x96, token0, token1, direction) in pools {
             let direction = PoolDirection::from_raw(*direction).expect("direction must be 0 or 1");
             let directional_pool_id = format!("{scope_key}:{base_pool_id}:{direction}");
-            let pool = DirectionalPool {
-                base: V4Pool {
+            let mut pool = DirectionalPool::of_pool(
+                V4Pool {
                     base_pool_id: (*base_pool_id).to_owned(),
                     pool_manager: "0xpoolmanager".to_owned(),
                     pool_key_json: "{}".to_owned(),
@@ -6734,19 +9407,19 @@ mod tests {
                     fee: 3000,
                     tick_spacing: 60,
                     hooks: "0x0".to_owned(),
-                    sqrt_price_x96: Some(sqrt_price_x96.to_string()),
+                    sqrt_price_x96: sqrt_price_x96.map(|price| price.to_string()),
                     tick: Some(0),
                     liquidity: Some("1000000000000".to_owned()),
                     depth_capacity_raw: Some("1000000000000".to_owned()),
                 },
                 direction,
-                input_capacity_raw: Some("1000000000000".to_owned()),
-                input_capacity_measured: true,
-                directional_output: Some(1.0),
-                directional_output_measured: true,
-                pair_direction_rank: Some(1),
-                pool_status: "active".to_owned(),
-            };
+            );
+            pool.input_capacity_raw = Some("1000000000000".to_owned());
+            pool.input_capacity_measured = true;
+            pool.directional_output = Some(1.0);
+            pool.directional_output_measured = true;
+            pool.pair_direction_rank = Some(1);
+            pool.pool_status = "active".to_owned();
             index
                 .by_base
                 .entry((scope_key.to_owned(), (*base_pool_id).to_owned()))
@@ -6996,7 +9669,14 @@ mod tests {
             current.0, legacy.0,
             "the same tick state must fold into the same capacity",
         );
-        assert_eq!(current.1, legacy.1, "the binding pool must not move");
+        // The fold names the binding pool by its **directional** identity
+        // now, so the two bindings are compared through the base pool they
+        // name: the binding **pool** must not move.
+        assert_eq!(
+            base_pool_of(&current.1),
+            legacy.1.as_str(),
+            "the binding pool must not move"
+        );
     }
 
     /// The direction of a hop is a **pure function** of the token order.
@@ -7022,14 +9702,14 @@ mod tests {
     /// other direction.
     #[test]
     fn the_single_tick_bound_is_taken_from_the_direction_of_the_row() {
-        let mut index = directional_index("core4", &[("pool-a", 1u128 << 96, USDG, AMZN, 0)]);
+        // The row publishes no price, so the fold cannot be performed and
+        // the bound decides whether the hop has any room.
+        let mut index =
+            directional_index_with_prices("core4", &[("pool-a", None, USDG, AMZN, 0)]);
         let pool = index
             .pools
             .get_mut("core4:pool-a:0")
             .expect("the row is published");
-        // The row publishes no price, so the fold cannot be performed and
-        // the bound decides whether the hop has any room.
-        pool.base.sqrt_price_x96 = None;
         pool.input_capacity_raw = Some("0".to_owned());
         let (bound, blocking) = path_min_single_tick_bound(&index, &["core4:pool-a:0".to_owned()]);
         assert_eq!(
@@ -7037,16 +9717,17 @@ mod tests {
             Some(0),
             "a measured zero bound means the direction has no room",
         );
-        assert_eq!(blocking.as_deref(), Some("pool-a"));
+        // The blocking pool is named by the directional row the hop walks.
+        assert_eq!(blocking.as_deref(), Some("core4:pool-a:0"));
 
         // The other direction of the same base pool publishes room, so it
         // is not disqualified.
-        let mut index = directional_index("core4", &[("pool-a", 1u128 << 96, USDG, AMZN, 1)]);
+        let mut index =
+            directional_index_with_prices("core4", &[("pool-a", None, USDG, AMZN, 1)]);
         let pool = index
             .pools
             .get_mut("core4:pool-a:1")
             .expect("the row is published");
-        pool.base.sqrt_price_x96 = None;
         pool.input_capacity_raw = Some("5000".to_owned());
         let (bound, blocking) = path_min_single_tick_bound(&index, &["core4:pool-a:1".to_owned()]);
         assert_eq!(bound, None, "a hop with room is not disqualified");
@@ -7081,10 +9762,7 @@ mod tests {
         assert_eq!(snapshot.hops.len(), 3, "the loop has three hops");
         let connection = Connection::open(&path).unwrap();
         for hop in &snapshot.hops {
-            let directional_pool_id = hop
-                .directional_pool_id
-                .as_ref()
-                .expect("every hop names the directional row it walks");
+            let directional_pool_id = hop.directional_pool_id.as_str();
             let row = connection
                 .query_row(
                     "SELECT base_pool_id, direction, input_token_key_id, output_token_key_id FROM manager_v4_directional_exchange_pools WHERE directional_pool_id = ?1",
@@ -7100,16 +9778,13 @@ mod tests {
                 )
                 .expect("the hop resolves to exactly one directional row");
             assert_eq!(
-                row.0, hop.base_pool_id,
+                row.0,
+                base_pool_of(directional_pool_id),
                 "I-8/I-11: the hop base pool is the row base pool",
             );
             assert_eq!(
-                hop.pool_id, hop.base_pool_id,
-                "I-8: the hop pool id is the base pool id",
-            );
-            assert_eq!(
                 row.1,
-                hop.hop_direction.expect("every hop stores its direction"),
+                hop.hop_direction,
                 "I-12: the stored direction is the direction of the row",
             );
             assert_eq!(
@@ -7122,7 +9797,6 @@ mod tests {
             );
         }
         for row in &snapshot.loops {
-            assert_eq!(row.pool_ids.len(), 3, "I-16: the loop has one pool per hop");
             assert_eq!(
                 row.directional_pool_ids.len(),
                 3,
@@ -7161,6 +9835,74 @@ mod tests {
         assert!(
             checksum.starts_with("sha256:"),
             "I-15: the recorded identity is a checksum, got {checksum}",
+        );
+    }
+
+    /// The USDG valuation reads two halves of a pool, and each half has to
+    /// be there.
+    ///
+    /// The market half -- price, tick and liquidity -- comes from the
+    /// liquidity snapshot table, and the static half -- fee, tick spacing
+    /// and the two token key ids -- comes from the base pool tables.  A
+    /// pool that is missing either half publishes no valuation at all: the
+    /// absence is a coverage gap, never a zero.
+    #[test]
+    fn a_pool_without_a_market_snapshot_publishes_no_valuation() {
+        let (_directory, path) = database();
+        let connection = Connection::open(&path).unwrap();
+        seed_pool_tick_states(
+            &connection,
+            &[(POOL_A1, 1u128 << 96, &token(USDG), &token(AMZN))],
+        );
+        let states = read_valuation_pool_states(&connection, NETWORK, CHAIN_ID).unwrap();
+        assert!(
+            states.contains_key(POOL_A1),
+            "the pool publishes a state while it has both halves"
+        );
+
+        // The market half goes away: the valuation must stop quoting a
+        // price the store no longer holds.
+        connection
+            .execute(
+                "UPDATE v4_exchange_pool_liquidity_snapshots
+                 SET sqrt_price_x96 = NULL, tick = NULL, liquidity = NULL
+                 WHERE pool_id = ?1",
+                params![POOL_A1],
+            )
+            .unwrap();
+        let states = read_valuation_pool_states(&connection, NETWORK, CHAIN_ID).unwrap();
+        assert!(
+            !states.contains_key(POOL_A1),
+            "a pool without a market snapshot publishes no valuation"
+        );
+    }
+
+    #[test]
+    fn a_pool_without_static_facts_publishes_no_valuation() {
+        let (_directory, path) = database();
+        let connection = Connection::open(&path).unwrap();
+        seed_pool_tick_states(
+            &connection,
+            &[(POOL_A1, 1u128 << 96, &token(USDG), &token(AMZN))],
+        );
+        let states = read_valuation_pool_states(&connection, NETWORK, CHAIN_ID).unwrap();
+        assert!(
+            states.contains_key(POOL_A1),
+            "the pool publishes a state while it has both halves"
+        );
+
+        // The static half goes away: the pool keeps its price but no
+        // longer says which tokens it pairs.
+        connection
+            .execute(
+                "DELETE FROM v4_exchange_pools_candidate_exchange WHERE pool_id = ?1",
+                params![POOL_A1],
+            )
+            .unwrap();
+        let states = read_valuation_pool_states(&connection, NETWORK, CHAIN_ID).unwrap();
+        assert!(
+            !states.contains_key(POOL_A1),
+            "a pool without static facts publishes no valuation"
         );
     }
 }

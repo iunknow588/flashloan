@@ -781,11 +781,32 @@ class DexOpportunityNativeRustMixin:
         total_group_limit = resolve_resident_group_limit(
             discovered_group_count + stale_resident_count
         )
-        batch_limit = max(1, int(new_groups_per_scan_override() or 16))
-        batch_limit = min(
-            batch_limit,
-            max(0, total_group_limit - worker_group_count),
-        )
+        # The ramp **is** the wait.  A group that is not admitted in this
+        # scan is not measured in this scan, so a ramp of N groups per scan
+        # puts (groups / N) scans between the start of the runtime and the
+        # refresh of the last closed loop - and every closed loop that was
+        # not refreshed carries a **stale** verdict, and a stale profit is
+        # no profit at all.
+        #
+        # An operator who wants the runtime to refresh the **whole**
+        # catalog the moment it starts therefore sets the override to
+        # **0**: zero wait, every pending group is admitted in this scan.
+        # The resident limit still bounds how many groups may hold a
+        # worker, and the review concurrency inside the pool still bounds
+        # how many of them measure at the same time, so a full sweep costs
+        # no more concurrency than the ramp ever did - it only stops
+        # waiting between the batches.
+        #
+        # The override of **0** used to be discarded here: the `or 16`
+        # fallback read a deliberate zero as unset, so the one value that
+        # means \"do not wait\" was the one value that did nothing.
+        per_scan_override = new_groups_per_scan_override()
+        resident_room = max(0, total_group_limit - worker_group_count)
+        if per_scan_override is not None and int(per_scan_override) <= 0:
+            batch_limit = resident_room
+        else:
+            batch_limit = max(1, int(per_scan_override or 16))
+            batch_limit = min(batch_limit, resident_room)
         capacity = {
             "workerGroupCount": worker_group_count,
             "totalGroupLimit": total_group_limit,
@@ -1789,6 +1810,8 @@ class DexOpportunityNativeRustMixin:
                 "broadcast",
                 "broadcastError",
                 "broadcastExecuted",
+                "broadcastRecord",
+                "broadcastConfirmation",
                 "deferBroadcast",
                 "executionQueued",
                 "executionQueueAt",

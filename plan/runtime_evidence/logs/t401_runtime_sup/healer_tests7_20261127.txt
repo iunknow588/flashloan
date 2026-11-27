@@ -1,0 +1,58 @@
+........................................................................ [ 50%]
+......................F................................................  [100%]
+================================== FAILURES ===================================
+_ MainnetArbitrageHealerTests.test_the_record_table_is_the_fallback_when_no_manager_library_exists _
+
+self = <scripts.tests.test_mainnet_arbitrage_healer.MainnetArbitrageHealerTests testMethod=test_the_record_table_is_the_fallback_when_no_manager_library_exists>
+
+    def test_the_record_table_is_the_fallback_when_no_manager_library_exists(self):
+        # A store that has not materialized its reviews yet is still audited
+        # from the record table, so the fallback has to keep working.
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "legacy.sqlite3"
+            connection = sqlite3.connect(database)
+            connection.execute(
+                "CREATE TABLE cow_execution_reviews (id INTEGER,attempt_key TEXT,"
+                "network TEXT,chain_id INTEGER,market_id TEXT,pair TEXT,tx_hash TEXT,"
+                "created_at TEXT,category TEXT,payload_json TEXT,summary_json TEXT,"
+                "updated_at TEXT,selected_profit_raw TEXT,selected_profit_amount REAL,"
+                "selected_profit_amount_symbol TEXT,selected_profit_source TEXT,"
+                "selected_profit_missing_reason TEXT)"
+            )
+            connection.execute(
+                "INSERT INTO cow_execution_reviews (network,chain_id,created_at,category,"
+                "payload_json,selected_profit_amount,selected_profit_amount_symbol) "
+                "VALUES ('robinhood',4663,'2026-11-26 10:00:00','closed_loop',?,2.5,'ETH')",
+                (json.dumps({"loopKey": "loop-a"}),),
+            )
+            connection.execute(
+                "INSERT INTO cow_execution_reviews (network,chain_id,created_at,category,"
+                "payload_json,selected_profit_amount,selected_profit_amount_symbol) "
+                "VALUES ('robinhood',4663,'2026-11-26 11:00:00','closed_loop',?,-1.0,'ETH')",
+                (json.dumps({"loopKey": "loop-a"}),),
+            )
+            connection.commit()
+            connection.close()
+            loops = [{"loop_key": "loop-a", "path_text": "ETH -> A -> ETH",
+                      "path_symbols_json": json.dumps(["ETH", "A", "ETH"]),
+                      "path_addresses_json": json.dumps(["0x0", "0xa", "0x0"])}]
+            with mock.patch.object(HEALER, "manager_loop_rows", return_value=loops), \
+                    mock.patch.object(HEALER, "manager_review_rows", return_value=[]), \
+                    mock.patch.object(HEALER, "observation_started_at",
+                                      return_value="2000-01-01 00:00:00"):
+                candidates = HEALER.historical_positive_candidates(
+                    database, 5, None, None)
+>       self.assertEqual([item["loopKey"] for item in candidates], ["loop-a"])
+E       AssertionError: Lists differ: [] != ['loop-a']
+E       
+E       Second list contains 1 additional elements.
+E       First extra element 0:
+E       'loop-a'
+E       
+E       - []
+E       + ['loop-a']
+
+scripts\tests\test_mainnet_arbitrage_healer.py:2038: AssertionError
+=========================== short test summary info ===========================
+FAILED scripts/tests/test_mainnet_arbitrage_healer.py::MainnetArbitrageHealerTests::test_the_record_table_is_the_fallback_when_no_manager_library_exists
+1 failed, 142 passed in 83.80s (0:01:23)

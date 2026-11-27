@@ -1,0 +1,45 @@
+{
+  "variable": "ROBINHOOD_MAINNET_RPC_URLS",
+  "endpoint_count": 5,
+  "results": [
+    {
+      "url": "https://robinhood-rpc.publicnode.com",
+      "http": 200,
+      "elapsed_ms": 2328,
+      "block": "0x75a5143",
+      "ok": true
+    },
+    {
+      "url": "https://blissful-billowing-pine.robinh...fc7e117b",
+      "http": 200,
+      "elapsed_ms": 859,
+      "block": "0x75a5148",
+      "ok": true
+    },
+    {
+      "url": "https://rpc.mainnet.chain.robinhood.com",
+      "http": 403,
+      "elapsed_ms": 640,
+      "block": null,
+      "ok": false,
+      "error": "Forbidden"
+    },
+    {
+      "url": "https://rpc.ordofi.network",
+      "http": null,
+      "elapsed_ms": 0,
+      "block": null,
+      "ok": false,
+      "error": "URLError: <urlopen error [Errno 11002] getaddrinfo failed>"
+    },
+    {
+      "url": "https://robinhood-mainnet.g.alchemy.co...ARKfxR_T",
+      "http": 429,
+      "elapsed_ms": 766,
+      "block": null,
+      "ok": false,
+      "error": "Too Many Requests"
+    }
+  ],
+  "alive_count": 2
+}

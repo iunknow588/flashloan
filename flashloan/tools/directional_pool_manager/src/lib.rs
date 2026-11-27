@@ -447,6 +447,134 @@ pub fn materialize_directional_pools(
     .map(|(result, _)| result)
 }
 
+/// The result of materializing one chain's whole directional layer.
+///
+/// The chain level is the level the **runtime** works at: a chain has
+/// several scopes and every one of them has to be materialized, or the
+/// closed loop that walks one scope would read a stale direction layer.
+/// The per-scope result is carried whole, so the caller reads the same
+/// numbers the single-scope entry publishes.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirectionalPoolChainMaterializationResult {
+    pub network: String,
+    pub chain_id: i64,
+    pub protocol: String,
+    pub apply: bool,
+    pub dry_run: bool,
+    /// The scopes this chain runs, in the order they were materialized.
+    ///
+    /// The order is the scope key order, so a run is reproducible: the
+    /// same chain materializes its scopes in the same sequence every
+    /// time, and a reader can replay a run from this list alone.
+    pub scope_keys: Vec<String>,
+    /// One entry per scope, in the same order.
+    pub scopes: Vec<DirectionalPoolMaterializationResult>,
+    /// The scopes that could not be materialized, with the reason.
+    ///
+    /// A scope that fails is **reported, not swallowed**: the other
+    /// scopes are still materialized and the failure is named here.  The
+    /// list is not a decoration -- it carries the chain's verdict.  A
+    /// chain with a failed scope has **not** been refreshed as a whole,
+    /// and a consumer that published on it anyway would mix two
+    /// direction layer generations, so the caller has to treat a
+    /// non-empty list as a failed chain.
+    pub failed_scopes: Vec<DirectionalPoolScopeFailure>,
+}
+
+/// One scope that could not be materialized.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirectionalPoolScopeFailure {
+    pub scope_key: String,
+    pub error: String,
+}
+
+/// Materialize the directional projection of **every enabled scope** of
+/// one chain.
+///
+/// The scopes are the ones `pool_scope_config` publishes as enabled, in
+/// scope key order.  The enumeration is **data logic** and therefore
+/// lives here, in the manager that owns the layer: the caller asks for
+/// "refresh this chain" and reads the result back, and it never has to
+/// know which scopes the chain runs.
+///
+/// A single scope behaves exactly like `materialize_directional_pools`:
+/// the per-scope call is the same call, so the per-scope result is the
+/// same result.
+pub fn materialize_directional_pools_for_chain(
+    database_path: impl AsRef<Path>,
+    network: &str,
+    chain_id: i64,
+    apply: bool,
+) -> Result<DirectionalPoolChainMaterializationResult, DirectionalPoolError> {
+    let database_path = database_path.as_ref();
+    if network.trim().is_empty() {
+        return Err(DirectionalPoolError::InvalidRequest(
+            "network must not be empty".to_owned(),
+        ));
+    }
+    if chain_id <= 0 {
+        return Err(DirectionalPoolError::InvalidRequest(
+            "chain_id must be greater than zero".to_owned(),
+        ));
+    }
+    // The enumeration only reads the scope configuration, so it opens a
+    // **read-only** connection: a dry run never holds a writable handle
+    // on the production store, not even for a moment.
+    let connection = open_connection(database_path, false)?;
+    let scope_keys = enabled_scope_keys(&connection, network, chain_id)?;
+    drop(connection);
+    let mut scopes = Vec::with_capacity(scope_keys.len());
+    let mut failed_scopes = Vec::new();
+    for scope_key in &scope_keys {
+        match materialize_impl(database_path, network, chain_id, scope_key, apply, None) {
+            Ok((result, _)) => scopes.push(result),
+            Err(error) => failed_scopes.push(DirectionalPoolScopeFailure {
+                scope_key: scope_key.clone(),
+                error: error.to_string(),
+            }),
+        }
+    }
+    Ok(DirectionalPoolChainMaterializationResult {
+        network: network.to_owned(),
+        chain_id,
+        protocol: NETWORK_PROTOCOL.to_owned(),
+        apply,
+        dry_run: !apply,
+        scope_keys,
+        scopes,
+        failed_scopes,
+    })
+}
+
+/// The scope keys this chain runs, in scope key order.
+///
+/// Only the **enabled** scopes are listed: a scope that is switched off
+/// publishes no pools, and materializing it would write rows nobody
+/// reads.  "Enabled" is the value the schema allows -- the column is
+/// `CHECK (enabled IN (0, 1))` -- so the test is the literal `1` and
+/// not a negation.
+fn enabled_scope_keys(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+) -> Result<Vec<String>, DirectionalPoolError> {
+    let mut statement = connection.prepare(
+        "SELECT scope_key FROM pool_scope_config
+         WHERE network = ?1 AND chain_id = ?2 AND enabled = 1
+         ORDER BY scope_key",
+    )?;
+    let rows = statement.query_map(params![network, chain_id], |row| {
+        row.get::<_, String>(0)
+    })?;
+    let mut scope_keys = Vec::new();
+    for row in rows {
+        scope_keys.push(row?);
+    }
+    Ok(scope_keys)
+}
+
 /// Materialize the directional projection and record the write request.
 pub fn materialize_directional_pools_write(
     database_path: impl AsRef<Path>,
@@ -1461,6 +1589,21 @@ fn build_directional_rows(
         let snapshot = input.snapshots.get(&pool.pool_id);
 
         for direction in PoolDirection::ALL {
+            // The direction decides **which token this row is about**, and
+            // nothing else.  Direction 0 (high address to low address)
+            // spends token1 and delivers token0; direction 1 spends token0
+            // and delivers token1.  The tokens themselves are address
+            // ordered -- `token_order_is_canonical` above dropped every
+            // pool whose token0 is not the lower address -- so "token1 is
+            // the high address" holds for every projected row.
+            //
+            // The rank that is assigned to these rows reads the **output**
+            // side, so the same rule reads "the most output per unit of
+            // input first" in both directions.  Nothing here may start to
+            // depend on the direction to choose an ascending order; that
+            // flip belongs to the other spelling of the rule and is pinned
+            // by the test
+            // `the_direction_picks_the_target_token_and_never_flips_the_order`.
             let input_token_key_id = match direction.input_token_index() {
                 0 => pool.token0_key_id.as_str(),
                 _ => pool.token1_key_id.as_str(),
@@ -1599,6 +1742,24 @@ fn build_directional_rows(
 /// then the tick order descending, then the fee ascending, and finally the
 /// base pool id ascending so that the order never depends on the row order
 /// of the database.
+///
+/// **The direction never flips this order.**  The key is the output of
+/// *this* direction, counted in the token *this* direction hands out:
+/// direction 0 (high address to low address) is ranked by the low address
+/// token it delivers, direction 1 (low address to high address) by the
+/// high address token it delivers.  Both directions therefore read as
+/// "the most output per unit of input first", and no direction needs an
+/// ascending order of its own.
+///
+/// The same rule has one other spelling: keep a single price series -- the
+/// price of the **high address** token -- and let the direction choose the
+/// sort direction.  In that spelling the order *does* depend on the
+/// direction: direction 1 descends on that price, direction 0 **ascends**
+/// on it, because direction 0 spends the high address token and receives
+/// the low address one.  The two spellings agree only when that flip is
+/// made exactly once and exactly there, so the flip is written down here
+/// and pinned by the test
+/// `the_direction_picks_the_target_token_and_never_flips_the_order`.
 ///
 /// One key sits between the fee and the pool id: when the main order keys
 /// are all equal, the pool with the **larger** direction capacity wins, and

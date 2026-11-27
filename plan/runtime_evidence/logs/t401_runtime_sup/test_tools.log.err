@@ -1,0 +1,4 @@
+   Compiling broadcast-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\broadcast_manager)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.93s
+     Running unittests src\lib.rs (target\debug\deps\broadcast_manager-0c1ef65cb2a506a5.exe)
+   Doc-tests broadcast_manager

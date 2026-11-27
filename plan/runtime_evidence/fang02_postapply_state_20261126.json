@@ -1,0 +1,109 @@
+{
+ "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+ "readOnly": true,
+ "queryOnly": true,
+ "directionalRowCount": 692,
+ "directionalRowsByScope": {
+  "candidate_exchange": 352,
+  "core4": 340
+ },
+ "directionalMaterializedAt": [
+  "2026-11-25T18:19:39.143677900+00:00",
+  "2026-11-25T18:19:39.742100700+00:00"
+ ],
+ "directionalLibraryState": [
+  {
+   "network": "robinhood",
+   "chain_id": 4663,
+   "protocol": "uniswap_v4",
+   "scope_key": "candidate_exchange",
+   "directional_pool_version": 3,
+   "materialized_checksum": "sha256:4aa8b79107c0259d0bef99e8c99188452004d7f8fa014fce07fabdbbb38b8f02",
+   "pool_scope_version": 1,
+   "pool_scope_checksum": "sha256:2bea9bb4c62f4b1bacc4dd8731a3e05b0b26514f5f58b31f4bff69b6a51f7f75",
+   "snapshot_checksum": "sha256:01adb94a1b66b123f5bd5ec32125b32154afe03b08b6fa71730bc7662f83e471",
+   "library_versions_json": "{}",
+   "library_checksums_json": "{}",
+   "base_pool_count": 494,
+   "directional_pool_count": 352,
+   "direction0_count": 176,
+   "direction1_count": 176,
+   "eligible_pair_count": 112,
+   "measured_capacity_count": 216,
+   "measured_output_count": 212,
+   "excluded_pool_count": 318,
+   "generated_at": "2026-11-25T18:19:39.166271900+00:00",
+   "updated_at": "2026-11-25T18:19:39.166271900+00:00"
+  },
+  {
+   "network": "robinhood",
+   "chain_id": 4663,
+   "protocol": "uniswap_v4",
+   "scope_key": "core4",
+   "directional_pool_version": 3,
+   "materialized_checksum": "sha256:e0d8d6d1890a3d6c153eafce1997b244cfe6bec857c4fea95cc500d69a17baa4",
+   "pool_scope_version": 1,
+   "pool_scope_checksum": "sha256:ae6b14ac4d533b80ca8493310e413b51ed2f5c6f2d4e72ac83a0e39a50ff12c6",
+   "snapshot_checksum": "sha256:01adb94a1b66b123f5bd5ec32125b32154afe03b08b6fa71730bc7662f83e471",
+   "library_versions_json": "{}",
+   "library_checksums_json": "{}",
+   "base_pool_count": 488,
+   "directional_pool_count": 340,
+   "direction0_count": 170,
+   "direction1_count": 170,
+   "eligible_pair_count": 110,
+   "measured_capacity_count": 212,
+   "measured_output_count": 208,
+   "excluded_pool_count": 318,
+   "generated_at": "2026-11-25T18:19:39.766497900+00:00",
+   "updated_at": "2026-11-25T18:19:39.766497900+00:00"
+  }
+ ],
+ "closedLoopLibraryState": [
+  {
+   "network": "robinhood",
+   "chain_id": 4663,
+   "protocol": "uniswap_v4",
+   "scope_key": "core4",
+   "closed_loop_version": 21,
+   "materialized_checksum": "sha256:034e780179edfdf3dbdcd8c75256aeaa851b2884e1494e9b6e2312fc53bb7203",
+   "candidate_edge_version": 10,
+   "candidate_edge_checksum": "sha256:3ffef94a46a8d8e1b48210685b004e21430a479a29e7196ece1f838b54138622",
+   "observation_version": 13,
+   "observation_checksum": "sha256:2cf0212151de45efbcb6cf0514f798fa1eb17afecc1499d944279b0bc4571aa4",
+   "pool_scope_checksum": "sha256:ae6b14ac4d533b80ca8493310e413b51ed2f5c6f2d4e72ac83a0e39a50ff12c6",
+   "library_versions_json": "{\"core\":1,\"stocks\":1,\"test\":1}",
+   "library_checksums_json": "{\"core\":\"sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452\",\"stocks\":\"sha256:a7752808e288c80f4445b912f7d5883bd23577f6fa53a352d093c6683801cb2e\",\"test\":\"sha256:c345fa3181bf5662f9401d3e766a503e8bf1d7e2b40cec747a31335773efaf5b\"}",
+   "anchor_count": 34,
+   "loop_count": 174,
+   "hop_count": 522,
+   "optimization_count": 503,
+   "skipped_token_count": 79,
+   "consumers_need_rebuild": 1,
+   "generated_at": "2026-11-25T10:14:49.024915400+00:00",
+   "updated_at": "2026-11-25T10:14:49.024915400+00:00",
+   "directional_pool_version": 2,
+   "directional_pool_checksum": "sha256:84cf7aef56554c5e140522b989e43701a911bc6ab03d061135df3d1b6b42f9cf"
+  }
+ ],
+ "scopeConfiguration": [
+  {
+   "network": "robinhood",
+   "chain_id": 4663,
+   "scope_key": "candidate_exchange",
+   "pool_table": "v4_exchange_pools_candidate_exchange",
+   "enabled": 1,
+   "materialized_checksum": "sha256:2bea9bb4c62f4b1bacc4dd8731a3e05b0b26514f5f58b31f4bff69b6a51f7f75",
+   "last_rebuilt_at": "2026-11-19T11:38:09.186172100+00:00"
+  },
+  {
+   "network": "robinhood",
+   "chain_id": 4663,
+   "scope_key": "core4",
+   "pool_table": "v4_exchange_pools_core4",
+   "enabled": 1,
+   "materialized_checksum": "sha256:ae6b14ac4d533b80ca8493310e413b51ed2f5c6f2d4e72ac83a0e39a50ff12c6",
+   "last_rebuilt_at": "2026-11-22T06:21:33.619693800+00:00"
+  }
+ ]
+}

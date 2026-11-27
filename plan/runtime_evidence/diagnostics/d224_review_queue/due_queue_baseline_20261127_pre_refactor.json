@@ -1,0 +1,195 @@
+{
+  "capturedAt": "2026-11-27T07:17:09.009492+00:00",
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "scope": {
+    "network": "robinhood",
+    "chainId": 4663,
+    "protocol": "uniswap_v4",
+    "scopeKey": "core4"
+  },
+  "ledger": {
+    "table": "schema_migrations",
+    "count": 20,
+    "last": [
+      "20261125_017_observation_optimal_pool_view",
+      "20261125_018_closed_loop_directional_only",
+      "20261127_019_review_schedule_schema"
+    ]
+  },
+  "runtimeStateColumns": [
+    "chain_id",
+    "last_rebuilt_at",
+    "last_reviewed_at",
+    "loop_key",
+    "network",
+    "next_review_at",
+    "protocol",
+    "review_generation",
+    "review_required",
+    "runtime_status",
+    "scope_key",
+    "status_reason",
+    "updated_at"
+  ],
+  "dueCount": 10,
+  "waitingCount": 0,
+  "due": [
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "runtime_status": "ready_for_review",
+      "next_review_at": "2026-11-27T05:21:14+00:00",
+      "review_cycle_started_at": null
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "runtime_status": "ready_for_review",
+      "next_review_at": "2026-11-27T05:21:22+00:00",
+      "review_cycle_started_at": null
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "runtime_status": "ready_for_review",
+      "next_review_at": "2026-11-27T05:26:04.016864300+00:00",
+      "review_cycle_started_at": null
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "runtime_status": "ready_for_review",
+      "next_review_at": "2026-11-27T05:26:33.846822900+00:00",
+      "review_cycle_started_at": null
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "runtime_status": "ready_for_review",
+      "next_review_at": "2026-11-27T05:27:05.579126500+00:00",
+      "review_cycle_started_at": null
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "runtime_status": "ready_for_review",
+      "next_review_at": "2026-11-27T05:27:35.073123200+00:00",
+      "review_cycle_started_at": null
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "runtime_status": "ready_for_review",
+      "next_review_at": "2026-11-27T05:28:04.824997100+00:00",
+      "review_cycle_started_at": null
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "runtime_status": "ready_for_review",
+      "next_review_at": "2026-11-27T05:28:41.024849800+00:00",
+      "review_cycle_started_at": null
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "runtime_status": "ready_for_review",
+      "next_review_at": "2026-11-27T05:29:26.676661200+00:00",
+      "review_cycle_started_at": null
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "runtime_status": "ready_for_review",
+      "next_review_at": "2026-11-27T05:30:33.978808+00:00",
+      "review_cycle_started_at": null
+    }
+  ],
+  "dueKeys": [
+    "0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+    "0x0000000000000000000000000000000000000000:0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+    "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+    "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+    "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+    "0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+    "0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+    "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+    "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+    "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd"
+  ],
+  "dueKeysSha256": "bc9c24be262b402771e99812d6848573651ec46ca52c2e2880c47ff8854dcd15",
+  "allCount": 10,
+  "all": [
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "runtime_status": "ready_for_review",
+      "review_required": 0,
+      "last_reviewed_at": "2026-11-27T05:18:41.024849800+00:00",
+      "next_review_at": "2026-11-27T05:28:41.024849800+00:00",
+      "review_cycle_started_at": null
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "runtime_status": "ready_for_review",
+      "review_required": 0,
+      "last_reviewed_at": "2026-11-27T05:19:26.676661200+00:00",
+      "next_review_at": "2026-11-27T05:29:26.676661200+00:00",
+      "review_cycle_started_at": null
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "runtime_status": "ready_for_review",
+      "review_required": 0,
+      "last_reviewed_at": "2026-11-27T05:17:05.579126500+00:00",
+      "next_review_at": "2026-11-27T05:27:05.579126500+00:00",
+      "review_cycle_started_at": null
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "runtime_status": "ready_for_review",
+      "review_required": 0,
+      "last_reviewed_at": "2026-11-27T05:20:33.978808+00:00",
+      "next_review_at": "2026-11-27T05:30:33.978808+00:00",
+      "review_cycle_started_at": null
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "runtime_status": "ready_for_review",
+      "review_required": 0,
+      "last_reviewed_at": "2026-11-27T05:11:14Z",
+      "next_review_at": "2026-11-27T05:21:14+00:00",
+      "review_cycle_started_at": null
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "runtime_status": "ready_for_review",
+      "review_required": 0,
+      "last_reviewed_at": "2026-11-27T05:11:22Z",
+      "next_review_at": "2026-11-27T05:21:22+00:00",
+      "review_cycle_started_at": null
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "runtime_status": "ready_for_review",
+      "review_required": 0,
+      "last_reviewed_at": "2026-11-27T05:16:33.846822900+00:00",
+      "next_review_at": "2026-11-27T05:26:33.846822900+00:00",
+      "review_cycle_started_at": null
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "runtime_status": "ready_for_review",
+      "review_required": 0,
+      "last_reviewed_at": "2026-11-27T05:16:04.016864300+00:00",
+      "next_review_at": "2026-11-27T05:26:04.016864300+00:00",
+      "review_cycle_started_at": null
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "runtime_status": "ready_for_review",
+      "review_required": 0,
+      "last_reviewed_at": "2026-11-27T05:17:35.073123200+00:00",
+      "next_review_at": "2026-11-27T05:27:35.073123200+00:00",
+      "review_cycle_started_at": null
+    },
+    {
+      "loop_key": "0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "runtime_status": "ready_for_review",
+      "review_required": 0,
+      "last_reviewed_at": "2026-11-27T05:18:04.824997100+00:00",
+      "next_review_at": "2026-11-27T05:28:04.824997100+00:00",
+      "review_cycle_started_at": null
+    }
+  ],
+  "label": "baseline_20261127_pre_refactor"
+}

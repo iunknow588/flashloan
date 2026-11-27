@@ -315,7 +315,51 @@ pub fn network_for_chain_id(chain_id: i64) -> String {
 /// Every listed variable may hold a comma separated list. The first non-empty
 /// variable wins, matching the Python reader exactly.
 pub fn rpc_urls_from_env() -> Vec<String> {
-    for name in ROBINHOOD_RPC_ENV_VARS {
+    rpc_urls_from_env_vars(ROBINHOOD_RPC_ENV_VARS)
+}
+
+/// The environment variables that carry the RPC endpoints of one chain.
+///
+/// The mainnet and the testnet own **separate** variables.  A reader that
+/// took the mainnet list for the testnet would send the testnet's calls to
+/// the mainnet's nodes, and the answer it gets back describes a chain the
+/// task is not serving.
+pub fn rpc_env_vars_for(chain_id: i64) -> &'static [&'static str] {
+    match chain_id {
+        ROBINHOOD_TESTNET_CHAIN_ID => &[
+            "ROBINHOOD_TESTNET_RPC_URLS",
+            "ROBINHOOD_TESTNET_RPCS",
+            "ROBINHOOD_TESTNET_RPC_URL",
+            "ROBINHOOD_TESTNET_RPC",
+            "ROBINHOOD_TESTNET_ALCHEMY_RPC_URL",
+            "ROBINHOOD_TESTNET_ALCHEMY_RPC",
+        ],
+        _ => ROBINHOOD_RPC_ENV_VARS,
+    }
+}
+
+/// The RPC endpoints of one chain: the environment of that chain first, the
+/// chain configuration second.
+///
+/// The environment wins as a whole, matching the Python reader, and the
+/// chain configuration is the fallback that makes the reader usable on a
+/// machine where the endpoints live in configuration rather than in the
+/// environment.  Both sources are read for the chain that is asked for, so
+/// the endpoints of one chain never answer for another chain.
+pub fn rpc_urls_for_chain(chain_id: i64) -> Vec<String> {
+    let from_env = rpc_urls_from_env_vars(rpc_env_vars_for(chain_id));
+    if !from_env.is_empty() {
+        return from_env;
+    }
+    rpc_urls_from_chain_config_for(chain_id)
+}
+
+/// Collects candidate RPC endpoints from the named environment variables.
+///
+/// Every listed variable may hold a comma separated list.  The first
+/// non-empty variable wins, matching the Python reader exactly.
+fn rpc_urls_from_env_vars(names: &[&str]) -> Vec<String> {
+    for name in names {
         let mut urls = Vec::new();
         for item in std::env::var(name).unwrap_or_default().split(',') {
             let value = item.trim();
@@ -759,6 +803,28 @@ pub fn read_v4_pool_states_with_fallback(
         return Err(
             "no V4 pool state RPC URL configured; set ROBINHOOD_MAINNET_RPC_URLS".to_string(),
         );
+    }
+    // The read blocks, and the caller may be a thread that is already
+    // driving an async runtime.  A runtime cannot block the thread that
+    // drives it — the attempt panics — so the read moves to a thread that
+    // is free to block.
+    if tokio::runtime::Handle::try_current().is_ok() {
+        let rpc_urls = rpc_urls.to_vec();
+        let pool_manager = pool_manager.to_owned();
+        let pool_ids = pool_ids.to_vec();
+        return std::thread::Builder::new()
+            .name("pool-manager-pool-state".to_owned())
+            .spawn(move || {
+                read_v4_pool_states_with_fallback(
+                    &rpc_urls,
+                    &pool_manager,
+                    &pool_ids,
+                    timeout_seconds,
+                )
+            })
+            .map_err(|error| format!("the pool state thread could not be started: {error}"))?
+            .join()
+            .map_err(|_| "the pool state thread panicked".to_string())?;
     }
     let mut errors = Vec::new();
     let mut skipped_endpoints: Vec<String> = Vec::new();
@@ -1256,6 +1322,44 @@ mod tests {
                     error.contains("[REDACTED]"),
                     "the dead endpoint must be named: {error}"
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn the_endpoint_variables_follow_the_chain() {
+        // The mainnet and the testnet own separate variables, so the
+        // endpoints of one chain never answer for the other.
+        let mainnet = rpc_env_vars_for(ROBINHOOD_CHAIN_ID);
+        let testnet = rpc_env_vars_for(ROBINHOOD_TESTNET_CHAIN_ID);
+        assert!(mainnet.contains(&"ROBINHOOD_RPCS"));
+        assert!(testnet.contains(&"ROBINHOOD_TESTNET_RPCS"));
+        for name in testnet {
+            assert!(
+                !mainnet.contains(name),
+                "the two chains must not share an endpoint variable: {name}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_endpoints_of_a_chain_never_name_another_chain() {
+        // The reader of a chain resolves the endpoints of **that** chain,
+        // whether they come from the environment or from the chain
+        // configuration.
+        for chain_id in [ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID] {
+            for url in rpc_urls_for_chain(chain_id) {
+                if chain_id == ROBINHOOD_CHAIN_ID {
+                    assert!(
+                        !url.contains("testnet") && !url.contains("sepolia"),
+                        "the mainnet endpoint list must not name the testnet: {url}"
+                    );
+                } else {
+                    assert!(
+                        !url.contains("mainnet.chain.robinhood.com"),
+                        "the testnet endpoint list must not name the mainnet: {url}"
+                    );
+                }
             }
         }
     }

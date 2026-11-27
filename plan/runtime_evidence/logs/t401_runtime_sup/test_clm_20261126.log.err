@@ -1,0 +1,4 @@
+   Compiling closed-loop-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\closed_loop_manager)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.62s
+     Running unittests src\lib.rs (target\debug\deps\closed_loop_manager-1d8fe489d2f22258.exe)
+   Doc-tests closed_loop_manager

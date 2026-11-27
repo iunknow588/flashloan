@@ -1,0 +1,2092 @@
+{
+  "probe": "compare_clone_live_closed_loop_20261126",
+  "readOnly": true,
+  "live": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "clone": "E:\\2026OPC大赛\\flashLoan\\plan\\runtime_evidence\\kernel01_slice_4663.sqlite3",
+  "loops": {
+    "live": 174,
+    "clone": 174,
+    "shared": 174,
+    "onlyInLive": 0,
+    "onlyInClone": 0
+  },
+  "hops": {
+    "live": 522,
+    "clone": 522
+  },
+  "borrowTokenUsdgValueChanges": 78,
+  "singleTickCapacityChanges": 170,
+  "directionalPoolPathChanges": 118,
+  "valueChanges": [
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "WETH",
+      "liveBorrowTokenUsdgValueRaw": "1804537685",
+      "cloneBorrowTokenUsdgValueRaw": "1669049657",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "anchorSymbol": "WETH",
+      "liveBorrowTokenUsdgValueRaw": "1804537685",
+      "cloneBorrowTokenUsdgValueRaw": "1669049657",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "anchorSymbol": "WETH",
+      "liveBorrowTokenUsdgValueRaw": "1804537685",
+      "cloneBorrowTokenUsdgValueRaw": "1669049657",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "anchorSymbol": "WETH",
+      "liveBorrowTokenUsdgValueRaw": "1804537685",
+      "cloneBorrowTokenUsdgValueRaw": "1669049657",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000",
+      "anchorSymbol": "WETH",
+      "liveBorrowTokenUsdgValueRaw": "1804537685",
+      "cloneBorrowTokenUsdgValueRaw": "1669049657",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "WETH",
+      "liveBorrowTokenUsdgValueRaw": "1804537685",
+      "cloneBorrowTokenUsdgValueRaw": "1669049657",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "anchorSymbol": "SPY",
+      "liveBorrowTokenUsdgValueRaw": "740758294",
+      "cloneBorrowTokenUsdgValueRaw": "717496920",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "anchorSymbol": "GOOGL",
+      "liveBorrowTokenUsdgValueRaw": "293809739",
+      "cloneBorrowTokenUsdgValueRaw": "279163811",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "GOOGL",
+      "liveBorrowTokenUsdgValueRaw": "293809739",
+      "cloneBorrowTokenUsdgValueRaw": "279163811",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000",
+      "anchorSymbol": "GOOGL",
+      "liveBorrowTokenUsdgValueRaw": "293809739",
+      "cloneBorrowTokenUsdgValueRaw": "279163811",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "GOOGL",
+      "liveBorrowTokenUsdgValueRaw": "293809739",
+      "cloneBorrowTokenUsdgValueRaw": "279163811",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "anchorSymbol": "GOOGL",
+      "liveBorrowTokenUsdgValueRaw": "293809739",
+      "cloneBorrowTokenUsdgValueRaw": "279163811",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "anchorSymbol": "GOOGL",
+      "liveBorrowTokenUsdgValueRaw": "293809739",
+      "cloneBorrowTokenUsdgValueRaw": "279163811",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "TSLA",
+      "liveBorrowTokenUsdgValueRaw": "389150133",
+      "cloneBorrowTokenUsdgValueRaw": "384227512",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "TSLA",
+      "liveBorrowTokenUsdgValueRaw": "389150133",
+      "cloneBorrowTokenUsdgValueRaw": "384227512",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "anchorSymbol": "TSLA",
+      "liveBorrowTokenUsdgValueRaw": "389150133",
+      "cloneBorrowTokenUsdgValueRaw": "384227512",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+      "anchorSymbol": "TSLA",
+      "liveBorrowTokenUsdgValueRaw": "389150133",
+      "cloneBorrowTokenUsdgValueRaw": "384227512",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "SPCX",
+      "liveBorrowTokenUsdgValueRaw": "146790376",
+      "cloneBorrowTokenUsdgValueRaw": "126025769",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "SPCX",
+      "liveBorrowTokenUsdgValueRaw": "146790376",
+      "cloneBorrowTokenUsdgValueRaw": "126025769",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "anchorSymbol": "SPCX",
+      "liveBorrowTokenUsdgValueRaw": "146790376",
+      "cloneBorrowTokenUsdgValueRaw": "126025769",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+      "anchorSymbol": "SPCX",
+      "liveBorrowTokenUsdgValueRaw": "146790376",
+      "cloneBorrowTokenUsdgValueRaw": "126025769",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+      "anchorSymbol": "PFE",
+      "liveBorrowTokenUsdgValueRaw": "28303664",
+      "cloneBorrowTokenUsdgValueRaw": "28743137",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "PFE",
+      "liveBorrowTokenUsdgValueRaw": "28303664",
+      "cloneBorrowTokenUsdgValueRaw": "28743137",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "AMD",
+      "liveBorrowTokenUsdgValueRaw": "542550726",
+      "cloneBorrowTokenUsdgValueRaw": "411298134",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "anchorSymbol": "AMD",
+      "liveBorrowTokenUsdgValueRaw": "542550726",
+      "cloneBorrowTokenUsdgValueRaw": "411298134",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "anchorSymbol": "AMD",
+      "liveBorrowTokenUsdgValueRaw": "542550726",
+      "cloneBorrowTokenUsdgValueRaw": "411298134",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "anchorSymbol": "AMD",
+      "liveBorrowTokenUsdgValueRaw": "542550726",
+      "cloneBorrowTokenUsdgValueRaw": "411298134",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "anchorSymbol": "AMD",
+      "liveBorrowTokenUsdgValueRaw": "542550726",
+      "cloneBorrowTokenUsdgValueRaw": "411298134",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "AMD",
+      "liveBorrowTokenUsdgValueRaw": "542550726",
+      "cloneBorrowTokenUsdgValueRaw": "411298134",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "AAPL",
+      "liveBorrowTokenUsdgValueRaw": "354732328",
+      "cloneBorrowTokenUsdgValueRaw": "353419979",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "anchorSymbol": "AAPL",
+      "liveBorrowTokenUsdgValueRaw": "354732328",
+      "cloneBorrowTokenUsdgValueRaw": "353419979",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "anchorSymbol": "META",
+      "liveBorrowTokenUsdgValueRaw": "624825758",
+      "cloneBorrowTokenUsdgValueRaw": "588879600",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "META",
+      "liveBorrowTokenUsdgValueRaw": "624825758",
+      "cloneBorrowTokenUsdgValueRaw": "588879600",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000",
+      "anchorSymbol": "META",
+      "liveBorrowTokenUsdgValueRaw": "624825758",
+      "cloneBorrowTokenUsdgValueRaw": "588879600",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "META",
+      "liveBorrowTokenUsdgValueRaw": "624825758",
+      "cloneBorrowTokenUsdgValueRaw": "588879600",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "anchorSymbol": "META",
+      "liveBorrowTokenUsdgValueRaw": "624825758",
+      "cloneBorrowTokenUsdgValueRaw": "588879600",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "anchorSymbol": "META",
+      "liveBorrowTokenUsdgValueRaw": "624825758",
+      "cloneBorrowTokenUsdgValueRaw": "588879600",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "CRCL",
+      "liveBorrowTokenUsdgValueRaw": "78821389",
+      "cloneBorrowTokenUsdgValueRaw": "78821382",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "anchorSymbol": "CRCL",
+      "liveBorrowTokenUsdgValueRaw": "78821389",
+      "cloneBorrowTokenUsdgValueRaw": "78821382",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+      "anchorSymbol": "CRCL",
+      "liveBorrowTokenUsdgValueRaw": "78821389",
+      "cloneBorrowTokenUsdgValueRaw": "78821382",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "CRCL",
+      "liveBorrowTokenUsdgValueRaw": "78821389",
+      "cloneBorrowTokenUsdgValueRaw": "78821382",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "anchorSymbol": "MU",
+      "liveBorrowTokenUsdgValueRaw": "735947907",
+      "cloneBorrowTokenUsdgValueRaw": "626268922",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "MU",
+      "liveBorrowTokenUsdgValueRaw": "735947907",
+      "cloneBorrowTokenUsdgValueRaw": "626268922",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "anchorSymbol": "MU",
+      "liveBorrowTokenUsdgValueRaw": "735947907",
+      "cloneBorrowTokenUsdgValueRaw": "626268922",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000",
+      "anchorSymbol": "MU",
+      "liveBorrowTokenUsdgValueRaw": "735947907",
+      "cloneBorrowTokenUsdgValueRaw": "626268922",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "MU",
+      "liveBorrowTokenUsdgValueRaw": "735947907",
+      "cloneBorrowTokenUsdgValueRaw": "626268922",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "anchorSymbol": "MU",
+      "liveBorrowTokenUsdgValueRaw": "735947907",
+      "cloneBorrowTokenUsdgValueRaw": "626268922",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "anchorSymbol": "MU",
+      "liveBorrowTokenUsdgValueRaw": "735947907",
+      "cloneBorrowTokenUsdgValueRaw": "626268922",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "anchorSymbol": "MU",
+      "liveBorrowTokenUsdgValueRaw": "735947907",
+      "cloneBorrowTokenUsdgValueRaw": "626268922",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "anchorSymbol": "MU",
+      "liveBorrowTokenUsdgValueRaw": "735947907",
+      "cloneBorrowTokenUsdgValueRaw": "626268922",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000",
+      "anchorSymbol": "MU",
+      "liveBorrowTokenUsdgValueRaw": "735947907",
+      "cloneBorrowTokenUsdgValueRaw": "626268922",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "anchorSymbol": "MU",
+      "liveBorrowTokenUsdgValueRaw": "735947907",
+      "cloneBorrowTokenUsdgValueRaw": "626268922",
+      "liveHops": 3,
+      "cloneHops": 3
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "anchorSymbol": "MU",
+      "liveBorrowTokenUsdgValueRaw": "735947907",
+      "cloneBorrowTokenUsdgValueRaw": "626268922",
+      "liveHops": 3,
+      "cloneHops": 3
+    }
+  ],
+  "capacityChanges": [
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "14500960878328788",
+      "cloneSingleTickCapacityAnchorRaw": "1864720781413282"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveSingleTickCapacityAnchorRaw": "611528982508671",
+      "cloneSingleTickCapacityAnchorRaw": "241555701935468"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "liveSingleTickCapacityAnchorRaw": "678547557244017",
+      "cloneSingleTickCapacityAnchorRaw": "16416064367734021"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "10160028248549603",
+      "cloneSingleTickCapacityAnchorRaw": "57981299427488738"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "liveSingleTickCapacityAnchorRaw": "8263474613270345",
+      "cloneSingleTickCapacityAnchorRaw": "12482926322994536"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveSingleTickCapacityAnchorRaw": "1960008222614426",
+      "cloneSingleTickCapacityAnchorRaw": "481392874542242"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "liveSingleTickCapacityAnchorRaw": "1169178994154697",
+      "cloneSingleTickCapacityAnchorRaw": "12493445611169873"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "37255938244537603",
+      "cloneSingleTickCapacityAnchorRaw": "700903952835438"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "14512144365604486",
+      "cloneSingleTickCapacityAnchorRaw": "29296699492730020"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "14486712379423360",
+      "cloneSingleTickCapacityAnchorRaw": "30768971694418373"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "liveSingleTickCapacityAnchorRaw": "7079834091562748",
+      "cloneSingleTickCapacityAnchorRaw": "7603636062163881"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "11325478090912487",
+      "cloneSingleTickCapacityAnchorRaw": "3181884108105220"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "liveSingleTickCapacityAnchorRaw": "18283899383126380",
+      "cloneSingleTickCapacityAnchorRaw": "10939224888618405"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+      "liveSingleTickCapacityAnchorRaw": "20956384530837606",
+      "cloneSingleTickCapacityAnchorRaw": "10939224888618405"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "liveSingleTickCapacityAnchorRaw": "98592968459463",
+      "cloneSingleTickCapacityAnchorRaw": "590369936599718"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveSingleTickCapacityAnchorRaw": "1963394325313515",
+      "cloneSingleTickCapacityAnchorRaw": "481098272455838"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+      "liveSingleTickCapacityAnchorRaw": "9400238573059",
+      "cloneSingleTickCapacityAnchorRaw": "428076562278321"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xec262a75e413fafd0df80480274532c79d42da09",
+      "liveSingleTickCapacityAnchorRaw": "62196071285452487",
+      "cloneSingleTickCapacityAnchorRaw": "10939224888618405"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "liveSingleTickCapacityAnchorRaw": "12320124663752199",
+      "cloneSingleTickCapacityAnchorRaw": "10939224888618405"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "4202792557483310",
+      "cloneSingleTickCapacityAnchorRaw": "4079654692538307"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "1745514729021489",
+      "cloneSingleTickCapacityAnchorRaw": "349738639879869"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "liveSingleTickCapacityAnchorRaw": "1261385402807058",
+      "cloneSingleTickCapacityAnchorRaw": "2427719480598512"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "72749175910174176",
+      "cloneSingleTickCapacityAnchorRaw": "93053035511721021"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "14464798788733406",
+      "cloneSingleTickCapacityAnchorRaw": "93053035511721021"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "liveSingleTickCapacityAnchorRaw": "12216783191454432",
+      "cloneSingleTickCapacityAnchorRaw": "12506970188153076"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "14870101049",
+      "cloneSingleTickCapacityAnchorRaw": "14529621443"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xec262a75e413fafd0df80480274532c79d42da09:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "490273526440136",
+      "cloneSingleTickCapacityAnchorRaw": "399506430271935"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "21481744637647980",
+      "cloneSingleTickCapacityAnchorRaw": "25748198687175033"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "4541732400245641",
+      "cloneSingleTickCapacityAnchorRaw": "25748198687175033"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveSingleTickCapacityAnchorRaw": "1964260472277047",
+      "cloneSingleTickCapacityAnchorRaw": "480474494640250"
+    },
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "7079300218287119",
+      "cloneSingleTickCapacityAnchorRaw": "7601811363426029"
+    },
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveSingleTickCapacityAnchorRaw": "1261290284766525",
+      "cloneSingleTickCapacityAnchorRaw": "2427136883456036"
+    },
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "14499867395732260",
+      "cloneSingleTickCapacityAnchorRaw": "1864273291080299"
+    },
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveSingleTickCapacityAnchorRaw": "1264443518554226",
+      "cloneSingleTickCapacityAnchorRaw": "1864273291080299"
+    },
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "611482868578373",
+      "cloneSingleTickCapacityAnchorRaw": "241497734092470"
+    },
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "611482868578373",
+      "cloneSingleTickCapacityAnchorRaw": "241497734092470"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "liveSingleTickCapacityAnchorRaw": "89908589576623208",
+      "cloneSingleTickCapacityAnchorRaw": "1630974240747326"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "27331421765628609",
+      "cloneSingleTickCapacityAnchorRaw": "7404111499718291"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveSingleTickCapacityAnchorRaw": "175563309022405591",
+      "cloneSingleTickCapacityAnchorRaw": "216530529367118301"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "liveSingleTickCapacityAnchorRaw": "51841221910423796",
+      "cloneSingleTickCapacityAnchorRaw": "59914983550230185"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "1637517579936868",
+      "cloneSingleTickCapacityAnchorRaw": "38199496535740619"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "1637517579936868",
+      "cloneSingleTickCapacityAnchorRaw": "7400970633048548"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "4783938100109308",
+      "cloneSingleTickCapacityAnchorRaw": "7395655822275313"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "24507430574426906",
+      "cloneSingleTickCapacityAnchorRaw": "134920063481928314"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "liveSingleTickCapacityAnchorRaw": "74974446660650093",
+      "cloneSingleTickCapacityAnchorRaw": "1634116585712133"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+      "liveSingleTickCapacityAnchorRaw": "74974446660650093",
+      "cloneSingleTickCapacityAnchorRaw": "134920063481928314"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+      "liveSingleTickCapacityAnchorRaw": "74974446660650093",
+      "cloneSingleTickCapacityAnchorRaw": "15901934733504743"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+      "liveSingleTickCapacityAnchorRaw": "74974446660650093",
+      "cloneSingleTickCapacityAnchorRaw": "134920063481928314"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "liveSingleTickCapacityAnchorRaw": "237932532098598",
+      "cloneSingleTickCapacityAnchorRaw": "1374695796140313"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveSingleTickCapacityAnchorRaw": "74974446660650093",
+      "cloneSingleTickCapacityAnchorRaw": "112568511058122374"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "liveSingleTickCapacityAnchorRaw": "74974446660650093",
+      "cloneSingleTickCapacityAnchorRaw": "134920063481928314"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "27618913699832101",
+      "cloneSingleTickCapacityAnchorRaw": "7368840334540728"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveSingleTickCapacityAnchorRaw": "39502297870947595",
+      "cloneSingleTickCapacityAnchorRaw": "40369803640032418"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "27326964696704593",
+      "cloneSingleTickCapacityAnchorRaw": "7423426170601187"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "4205215112669177",
+      "cloneSingleTickCapacityAnchorRaw": "811681177897974"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "4730026491271749",
+      "cloneSingleTickCapacityAnchorRaw": "1120181124505721"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "27284285538424663",
+      "cloneSingleTickCapacityAnchorRaw": "7408645431406232"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+      "liveSingleTickCapacityAnchorRaw": "129754903295832723",
+      "cloneSingleTickCapacityAnchorRaw": "15833419561204280"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "liveSingleTickCapacityAnchorRaw": "92851942330529325",
+      "cloneSingleTickCapacityAnchorRaw": "50669982476623443"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "2821543068841550",
+      "cloneSingleTickCapacityAnchorRaw": "29071726429227161"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "2821543068841550",
+      "cloneSingleTickCapacityAnchorRaw": "7362971955066825"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveSingleTickCapacityAnchorRaw": "2821543068841550",
+      "cloneSingleTickCapacityAnchorRaw": "60167729237569337"
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "4214015720626947",
+      "cloneSingleTickCapacityAnchorRaw": "98287119720014209"
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "113677773950838766",
+      "cloneSingleTickCapacityAnchorRaw": "65549895147261731"
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "231147084241581839",
+      "cloneSingleTickCapacityAnchorRaw": "4199948450138035"
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "192752714950176589",
+      "cloneSingleTickCapacityAnchorRaw": "4199948450138035"
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "90125450816064872",
+      "cloneSingleTickCapacityAnchorRaw": "175246187983851036"
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "4173034296022976",
+      "cloneSingleTickCapacityAnchorRaw": "19042661621913431"
+    },
+    {
+      "loopKey": "0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "147999348281227352",
+      "cloneSingleTickCapacityAnchorRaw": "252405117477766284"
+    },
+    {
+      "loopKey": "0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "469205486767430909",
+      "cloneSingleTickCapacityAnchorRaw": "35669017416421315"
+    },
+    {
+      "loopKey": "0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "9376669848687442",
+      "cloneSingleTickCapacityAnchorRaw": "13835609978756945"
+    },
+    {
+      "loopKey": "0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+      "liveSingleTickCapacityAnchorRaw": "400858840933989714",
+      "cloneSingleTickCapacityAnchorRaw": "54226390214068337"
+    },
+    {
+      "loopKey": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "274403211373581270",
+      "cloneSingleTickCapacityAnchorRaw": "145399294523279297"
+    },
+    {
+      "loopKey": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "1097641374580617279",
+      "cloneSingleTickCapacityAnchorRaw": "165069955480199873"
+    },
+    {
+      "loopKey": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "189807576080684581",
+      "cloneSingleTickCapacityAnchorRaw": "407701798209832663"
+    },
+    {
+      "loopKey": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+      "liveSingleTickCapacityAnchorRaw": "1287381913621293771",
+      "cloneSingleTickCapacityAnchorRaw": "108747741580581976"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "liveSingleTickCapacityAnchorRaw": "24747011",
+      "cloneSingleTickCapacityAnchorRaw": "3113886"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "17336919",
+      "cloneSingleTickCapacityAnchorRaw": "96822645"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "liveSingleTickCapacityAnchorRaw": "24747011",
+      "cloneSingleTickCapacityAnchorRaw": "48922393"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+      "liveSingleTickCapacityAnchorRaw": "24747011",
+      "cloneSingleTickCapacityAnchorRaw": "51380932"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveSingleTickCapacityAnchorRaw": "24747011",
+      "cloneSingleTickCapacityAnchorRaw": "155388740"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+      "liveSingleTickCapacityAnchorRaw": "25",
+      "cloneSingleTickCapacityAnchorRaw": "24"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xec262a75e413fafd0df80480274532c79d42da09",
+      "liveSingleTickCapacityAnchorRaw": "24747011",
+      "cloneSingleTickCapacityAnchorRaw": "21143659"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "liveSingleTickCapacityAnchorRaw": "7749943",
+      "cloneSingleTickCapacityAnchorRaw": "42996772"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "12086627",
+      "cloneSingleTickCapacityAnchorRaw": "12703510"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveSingleTickCapacityAnchorRaw": "1043621",
+      "cloneSingleTickCapacityAnchorRaw": "403071"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "19334751",
+      "cloneSingleTickCapacityAnchorRaw": "5316022"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "liveSingleTickCapacityAnchorRaw": "1145848",
+      "cloneSingleTickCapacityAnchorRaw": "5316022"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+      "liveSingleTickCapacityAnchorRaw": "3347548",
+      "cloneSingleTickCapacityAnchorRaw": "5316022"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+      "liveSingleTickCapacityAnchorRaw": "1170658",
+      "cloneSingleTickCapacityAnchorRaw": "564046"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+      "liveSingleTickCapacityAnchorRaw": "19334751",
+      "cloneSingleTickCapacityAnchorRaw": "5316022"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+      "liveSingleTickCapacityAnchorRaw": "19334751",
+      "cloneSingleTickCapacityAnchorRaw": "5316022"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "liveSingleTickCapacityAnchorRaw": "2942588",
+      "cloneSingleTickCapacityAnchorRaw": "582378"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveSingleTickCapacityAnchorRaw": "19334751",
+      "cloneSingleTickCapacityAnchorRaw": "5316022"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "liveSingleTickCapacityAnchorRaw": "1974367",
+      "cloneSingleTickCapacityAnchorRaw": "5316022"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "31214103",
+      "cloneSingleTickCapacityAnchorRaw": "18299158"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "52926820",
+      "cloneSingleTickCapacityAnchorRaw": "1172473"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "52836983",
+      "cloneSingleTickCapacityAnchorRaw": "96980990"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+      "liveSingleTickCapacityAnchorRaw": "167510213",
+      "cloneSingleTickCapacityAnchorRaw": "13705017"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "35776545",
+      "cloneSingleTickCapacityAnchorRaw": "18324057"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+      "liveSingleTickCapacityAnchorRaw": "143109899",
+      "cloneSingleTickCapacityAnchorRaw": "20835271"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x6330d8c3178a418788df01a47479c0ce7ccf450b:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "584009",
+      "cloneSingleTickCapacityAnchorRaw": "1195872"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+      "liveSingleTickCapacityAnchorRaw": "25",
+      "cloneSingleTickCapacityAnchorRaw": "24"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "52486215",
+      "cloneSingleTickCapacityAnchorRaw": "11409589"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveSingleTickCapacityAnchorRaw": "27653770",
+      "cloneSingleTickCapacityAnchorRaw": "29123546"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "53046954",
+      "cloneSingleTickCapacityAnchorRaw": "96618193"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "168317",
+      "cloneSingleTickCapacityAnchorRaw": "986340"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "3351888",
+      "cloneSingleTickCapacityAnchorRaw": "803778"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "liveSingleTickCapacityAnchorRaw": "2158033",
+      "cloneSingleTickCapacityAnchorRaw": "3114362"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "53129932",
+      "cloneSingleTickCapacityAnchorRaw": "80767560"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+      "liveSingleTickCapacityAnchorRaw": "228826393",
+      "cloneSingleTickCapacityAnchorRaw": "80767560"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "liveSingleTickCapacityAnchorRaw": "7750184",
+      "cloneSingleTickCapacityAnchorRaw": "36357893"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "16048",
+      "cloneSingleTickCapacityAnchorRaw": "715194"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+      "liveSingleTickCapacityAnchorRaw": "16048",
+      "cloneSingleTickCapacityAnchorRaw": "715194"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xec262a75e413fafd0df80480274532c79d42da09:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "106180555",
+      "cloneSingleTickCapacityAnchorRaw": "18307925"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "21032802",
+      "cloneSingleTickCapacityAnchorRaw": "18239817"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "53412301",
+      "cloneSingleTickCapacityAnchorRaw": "97411484"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveSingleTickCapacityAnchorRaw": "67477872",
+      "cloneSingleTickCapacityAnchorRaw": "43440742"
+    },
+    {
+      "loopKey": "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+      "liveSingleTickCapacityAnchorRaw": "579216456005086",
+      "cloneSingleTickCapacityAnchorRaw": "24882252149320309"
+    },
+    {
+      "loopKey": "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "910278042318",
+      "cloneSingleTickCapacityAnchorRaw": "851658306515"
+    },
+    {
+      "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "119183248245777208",
+      "cloneSingleTickCapacityAnchorRaw": "27740435065054299"
+    },
+    {
+      "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveSingleTickCapacityAnchorRaw": "206265088165439689",
+      "cloneSingleTickCapacityAnchorRaw": "27740435065054299"
+    },
+    {
+      "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "43904450041055967",
+      "cloneSingleTickCapacityAnchorRaw": "12924984462412816"
+    },
+    {
+      "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveSingleTickCapacityAnchorRaw": "519608291967825757",
+      "cloneSingleTickCapacityAnchorRaw": "196372298321567399"
+    },
+    {
+      "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "62794890567732019",
+      "cloneSingleTickCapacityAnchorRaw": "70808846590276257"
+    },
+    {
+      "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "62794890567732019",
+      "cloneSingleTickCapacityAnchorRaw": "70808846590276257"
+    },
+    {
+      "loopKey": "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "151135625084447434",
+      "cloneSingleTickCapacityAnchorRaw": "273380677340422257"
+    },
+    {
+      "loopKey": "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "55086473792802612",
+      "cloneSingleTickCapacityAnchorRaw": "15041656684240758"
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "24484225619768326",
+      "cloneSingleTickCapacityAnchorRaw": "35484027969977745"
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "292125600611977",
+      "cloneSingleTickCapacityAnchorRaw": "1673763162256948"
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "12470790847623536",
+      "cloneSingleTickCapacityAnchorRaw": "11566266023459847"
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "292552751921220",
+      "cloneSingleTickCapacityAnchorRaw": "1677030139505824"
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "5171865159403829",
+      "cloneSingleTickCapacityAnchorRaw": "991547190239463"
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "5171865159403829",
+      "cloneSingleTickCapacityAnchorRaw": "991547190239463"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "liveSingleTickCapacityAnchorRaw": "7869702090188117",
+      "cloneSingleTickCapacityAnchorRaw": "2647390758932566"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "25287568541021636",
+      "cloneSingleTickCapacityAnchorRaw": "5288386080718878"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "25287568541021636",
+      "cloneSingleTickCapacityAnchorRaw": "5288386080718878"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "liveSingleTickCapacityAnchorRaw": "25287568541021636",
+      "cloneSingleTickCapacityAnchorRaw": "5288386080718878"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "16280796868174885",
+      "cloneSingleTickCapacityAnchorRaw": "26667846368851271"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "16280796868174885",
+      "cloneSingleTickCapacityAnchorRaw": "20490668213963504"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "938592884920394637",
+      "cloneSingleTickCapacityAnchorRaw": "1022242753876995653"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "400826816140433171",
+      "cloneSingleTickCapacityAnchorRaw": "531437045299041648"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+      "liveSingleTickCapacityAnchorRaw": "211186357366650636",
+      "cloneSingleTickCapacityAnchorRaw": "190586239118700007"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "liveSingleTickCapacityAnchorRaw": "15084474447751250",
+      "cloneSingleTickCapacityAnchorRaw": "284052440134469254"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "186698252805556787",
+      "cloneSingleTickCapacityAnchorRaw": "1022366220418199227"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "liveSingleTickCapacityAnchorRaw": "7873367394912563",
+      "cloneSingleTickCapacityAnchorRaw": "2651974002582443"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "145866675782813727",
+      "cloneSingleTickCapacityAnchorRaw": "34976287780008050"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+      "liveSingleTickCapacityAnchorRaw": "208627643318531358",
+      "cloneSingleTickCapacityAnchorRaw": "191615750325537584"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "liveSingleTickCapacityAnchorRaw": "505881689673952214",
+      "cloneSingleTickCapacityAnchorRaw": "285814454505196795"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "692419320608662830",
+      "cloneSingleTickCapacityAnchorRaw": "74749729115996214"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "1726329203250813742",
+      "cloneSingleTickCapacityAnchorRaw": "529147292427115635"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "157682945339289363",
+      "cloneSingleTickCapacityAnchorRaw": "137385707938234311"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "496403108985325776",
+      "cloneSingleTickCapacityAnchorRaw": "239213484478131089"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "58469521220397274",
+      "cloneSingleTickCapacityAnchorRaw": "239213484478131089"
+    },
+    {
+      "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "322787648110529",
+      "cloneSingleTickCapacityAnchorRaw": "15042395424672017"
+    },
+    {
+      "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "325336040892535",
+      "cloneSingleTickCapacityAnchorRaw": "14937903597659549"
+    },
+    {
+      "loopKey": "0xec262a75e413fafd0df80480274532c79d42da09:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "1294766150402167018",
+      "cloneSingleTickCapacityAnchorRaw": "236416425620538441"
+    },
+    {
+      "loopKey": "0xec262a75e413fafd0df80480274532c79d42da09:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "301765159442130016",
+      "cloneSingleTickCapacityAnchorRaw": "273035217076605759"
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "3230371974162263",
+      "cloneSingleTickCapacityAnchorRaw": "33515336617520234"
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "33841395031188080",
+      "cloneSingleTickCapacityAnchorRaw": "29124576550526171"
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveSingleTickCapacityAnchorRaw": "33841395031188080",
+      "cloneSingleTickCapacityAnchorRaw": "33515336617520234"
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "59422972142181355",
+      "cloneSingleTickCapacityAnchorRaw": "69072982198275812"
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "85939418306717370",
+      "cloneSingleTickCapacityAnchorRaw": "155542580350782274"
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveSingleTickCapacityAnchorRaw": "106431487899498252",
+      "cloneSingleTickCapacityAnchorRaw": "58414883727049144"
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "12548536309023867",
+      "cloneSingleTickCapacityAnchorRaw": "68655446141460727"
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "3176721072537406",
+      "cloneSingleTickCapacityAnchorRaw": "8488401408875852"
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveSingleTickCapacityAnchorRaw": "12548536309023867",
+      "cloneSingleTickCapacityAnchorRaw": "58054762456172106"
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000",
+      "liveSingleTickCapacityAnchorRaw": "5427134776900497",
+      "cloneSingleTickCapacityAnchorRaw": "1290105370628405"
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveSingleTickCapacityAnchorRaw": "3237380285647277",
+      "cloneSingleTickCapacityAnchorRaw": "69364360036135557"
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveSingleTickCapacityAnchorRaw": "108570664141668872",
+      "cloneSingleTickCapacityAnchorRaw": "69364360036135557"
+    }
+  ],
+  "pathChanges": [
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6:1\",\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6:1\",\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\"]"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e:1\",\"dpool:v1:robinhood:4663:core4:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30:1\",\"dpool:v1:robinhood:4663:core4:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:0\"]"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\",\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\",\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\"]"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe6b713cf680868a40aafca45810b0c894eb5c696f5a2230d4816e6695e90e681:1\",\"dpool:v1:robinhood:4663:core4:0xf89d70906c1464e5f0853fbb0601c111bfb48ef54537c0527694a559b33dd801:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x8dc0387af606d84be8e4c2fc1da7bdc6d467337e9f3e075113f968922a190847:1\",\"dpool:v1:robinhood:4663:core4:0xf89d70906c1464e5f0853fbb0601c111bfb48ef54537c0527694a559b33dd801:0\"]"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c:1\",\"dpool:v1:robinhood:4663:core4:0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c:1\",\"dpool:v1:robinhood:4663:core4:0x5fb97aef826b674c4bc76707563816f171043a3b1bf91431b7f82acd6381876b:0\"]"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30:0\",\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e:0\",\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:0\"]"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:1\",\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:1\",\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\"]"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448:1\",\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448:1\",\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\"]"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6:0\",\"dpool:v1:robinhood:4663:core4:0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x6ba18d461bfe3df70a80b50a4700e330e49efdaf597901b931f210554a5035d2:0\",\"dpool:v1:robinhood:4663:core4:0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc:0\"]"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\",\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\",\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:0\"]"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:0\",\"dpool:v1:robinhood:4663:core4:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:0\",\"dpool:v1:robinhood:4663:core4:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:0\"]"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448:0\",\"dpool:v1:robinhood:4663:core4:0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448:0\",\"dpool:v1:robinhood:4663:core4:0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168:0\"]"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f:1\",\"dpool:v1:robinhood:4663:core4:0xf89d70906c1464e5f0853fbb0601c111bfb48ef54537c0527694a559b33dd801:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f:1\",\"dpool:v1:robinhood:4663:core4:0xf89d70906c1464e5f0853fbb0601c111bfb48ef54537c0527694a559b33dd801:0\"]"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:1\",\"dpool:v1:robinhood:4663:core4:0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:1\",\"dpool:v1:robinhood:4663:core4:0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35:0\"]"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x628c98ab436ee34a6a7decd606242890582591bdf7c9a35d90e0d08021c31ea0:1\",\"dpool:v1:robinhood:4663:core4:0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x628c98ab436ee34a6a7decd606242890582591bdf7c9a35d90e0d08021c31ea0:1\",\"dpool:v1:robinhood:4663:core4:0x10906975ba92bce9209431984d3e3e4b0eac706db274e8d1a29358331a555987:0\"]"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xec262a75e413fafd0df80480274532c79d42da09",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x319bac87e616a89e241c10aeb8afd4892a852cdd8b373cd9765ecddc40b87cfe:1\",\"dpool:v1:robinhood:4663:core4:0x1dae69f15c48eef452c79360cc8df58f5d5c3c1e6324ff8777d58c1feb053cdc:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x319bac87e616a89e241c10aeb8afd4892a852cdd8b373cd9765ecddc40b87cfe:1\",\"dpool:v1:robinhood:4663:core4:0x1dae69f15c48eef452c79360cc8df58f5d5c3c1e6324ff8777d58c1feb053cdc:0\"]"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:1\",\"dpool:v1:robinhood:4663:core4:0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:1\",\"dpool:v1:robinhood:4663:core4:0x5fb97aef826b674c4bc76707563816f171043a3b1bf91431b7f82acd6381876b:0\"]"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xf89d70906c1464e5f0853fbb0601c111bfb48ef54537c0527694a559b33dd801:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x8dc0387af606d84be8e4c2fc1da7bdc6d467337e9f3e075113f968922a190847:0\",\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xf89d70906c1464e5f0853fbb0601c111bfb48ef54537c0527694a559b33dd801:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe6b713cf680868a40aafca45810b0c894eb5c696f5a2230d4816e6695e90e681:0\",\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:0\"]"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xf89d70906c1464e5f0853fbb0601c111bfb48ef54537c0527694a559b33dd801:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f:0\",\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xf89d70906c1464e5f0853fbb0601c111bfb48ef54537c0527694a559b33dd801:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f:0\",\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\"]"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:0\",\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:0\",\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\"]"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x7b1c4469fbc25827332bcf7a4c273fcbb5d60815c03e5844c74feb51c2313cc7:1\",\"dpool:v1:robinhood:4663:core4:0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x7b1c4469fbc25827332bcf7a4c273fcbb5d60815c03e5844c74feb51c2313cc7:1\",\"dpool:v1:robinhood:4663:core4:0x5fb97aef826b674c4bc76707563816f171043a3b1bf91431b7f82acd6381876b:0\"]"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x10906975ba92bce9209431984d3e3e4b0eac706db274e8d1a29358331a555987:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00:0\",\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00:0\",\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\"]"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xec262a75e413fafd0df80480274532c79d42da09:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x1dae69f15c48eef452c79360cc8df58f5d5c3c1e6324ff8777d58c1feb053cdc:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xc105b8300ff65d750a0e4e63c7a879e20504069b770713464a5315e797735326:0\",\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x1dae69f15c48eef452c79360cc8df58f5d5c3c1e6324ff8777d58c1feb053cdc:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xc105b8300ff65d750a0e4e63c7a879e20504069b770713464a5315e797735326:0\",\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\"]"
+    },
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:0\",\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:0\",\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\"]"
+    },
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\",\"dpool:v1:robinhood:4663:core4:0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\",\"dpool:v1:robinhood:4663:core4:0x6ba18d461bfe3df70a80b50a4700e330e49efdaf597901b931f210554a5035d2:0\"]"
+    },
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\",\"dpool:v1:robinhood:4663:core4:0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\",\"dpool:v1:robinhood:4663:core4:0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc:1\"]"
+    },
+    {
+      "loopKey": "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x647836c4965c512f0d82a2128abe7826eacf5a79d2dbed252a89ba5c591d1e87:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:0\",\"dpool:v1:robinhood:4663:core4:0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x647836c4965c512f0d82a2128abe7826eacf5a79d2dbed252a89ba5c591d1e87:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:0\",\"dpool:v1:robinhood:4663:core4:0x6ba18d461bfe3df70a80b50a4700e330e49efdaf597901b931f210554a5035d2:0\"]"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:1\",\"dpool:v1:robinhood:4663:core4:0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:1\",\"dpool:v1:robinhood:4663:core4:0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e:0\"]"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\",\"dpool:v1:robinhood:4663:core4:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\",\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\"]"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:0\",\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:0\",\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1\"]"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:1\",\"dpool:v1:robinhood:4663:core4:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:1\",\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\"]"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xa821b3724b451b22476c5347471b2a96d185b86af8760f226273e34ab4b2b8a0:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e:1\",\"dpool:v1:robinhood:4663:core4:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e:1\",\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\"]"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\",\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\",\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1\"]"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:0\",\"dpool:v1:robinhood:4663:core4:0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:0\",\"dpool:v1:robinhood:4663:core4:0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e:0\"]"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e:0\",\"dpool:v1:robinhood:4663:core4:0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e:0\",\"dpool:v1:robinhood:4663:core4:0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f:0\"]"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274:1\",\"dpool:v1:robinhood:4663:core4:0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274:1\",\"dpool:v1:robinhood:4663:core4:0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82:0\"]"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xc748f4671a867db48b552f6b7650bf3255e05f80f00e3f7aad1b17ccb7898fdb:1\",\"dpool:v1:robinhood:4663:core4:0xeab0adac76db99a233ed077ca6be7a3f708baee6f98b17df69f7e1a07d1dc2e4:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xc748f4671a867db48b552f6b7650bf3255e05f80f00e3f7aad1b17ccb7898fdb:1\",\"dpool:v1:robinhood:4663:core4:0xeab0adac76db99a233ed077ca6be7a3f708baee6f98b17df69f7e1a07d1dc2e4:0\"]"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f:1\",\"dpool:v1:robinhood:4663:core4:0x8dc0387af606d84be8e4c2fc1da7bdc6d467337e9f3e075113f968922a190847:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f:1\",\"dpool:v1:robinhood:4663:core4:0xe6b713cf680868a40aafca45810b0c894eb5c696f5a2230d4816e6695e90e681:0\"]"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:1\",\"dpool:v1:robinhood:4663:core4:0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:1\",\"dpool:v1:robinhood:4663:core4:0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0:0\"]"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:1\",\"dpool:v1:robinhood:4663:core4:0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:1\",\"dpool:v1:robinhood:4663:core4:0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c:0\"]"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274:0\",\"dpool:v1:robinhood:4663:core4:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274:0\",\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\"]"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xeab0adac76db99a233ed077ca6be7a3f708baee6f98b17df69f7e1a07d1dc2e4:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xc748f4671a867db48b552f6b7650bf3255e05f80f00e3f7aad1b17ccb7898fdb:0\",\"dpool:v1:robinhood:4663:core4:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xeab0adac76db99a233ed077ca6be7a3f708baee6f98b17df69f7e1a07d1dc2e4:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xc748f4671a867db48b552f6b7650bf3255e05f80f00e3f7aad1b17ccb7898fdb:0\",\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\"]"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe6b713cf680868a40aafca45810b0c894eb5c696f5a2230d4816e6695e90e681:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f:0\",\"dpool:v1:robinhood:4663:core4:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x8dc0387af606d84be8e4c2fc1da7bdc6d467337e9f3e075113f968922a190847:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f:0\",\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\"]"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:0\",\"dpool:v1:robinhood:4663:core4:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:0\",\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\"]"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237:0\",\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x5fb97aef826b674c4bc76707563816f171043a3b1bf91431b7f82acd6381876b:0\",\"dpool:v1:robinhood:4663:core4:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1\"]"
+    },
+    {
+      "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:0\",\"dpool:v1:robinhood:4663:core4:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:0\",\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\"]"
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1\",\"dpool:v1:robinhood:4663:core4:0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1\",\"dpool:v1:robinhood:4663:core4:0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30:1\"]"
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\",\"dpool:v1:robinhood:4663:core4:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\",\"dpool:v1:robinhood:4663:core4:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:0\"]"
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:0\",\"dpool:v1:robinhood:4663:core4:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:0\",\"dpool:v1:robinhood:4663:core4:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:1\"]"
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\",\"dpool:v1:robinhood:4663:core4:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\",\"dpool:v1:robinhood:4663:core4:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:0\"]"
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\",\"dpool:v1:robinhood:4663:core4:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\",\"dpool:v1:robinhood:4663:core4:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:1\"]"
+    },
+    {
+      "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\",\"dpool:v1:robinhood:4663:core4:0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\",\"dpool:v1:robinhood:4663:core4:0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30:1\"]"
+    },
+    {
+      "loopKey": "0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\",\"dpool:v1:robinhood:4663:core4:0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\",\"dpool:v1:robinhood:4663:core4:0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e:0\"]"
+    },
+    {
+      "loopKey": "0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\",\"dpool:v1:robinhood:4663:core4:0xa821b3724b451b22476c5347471b2a96d185b86af8760f226273e34ab4b2b8a0:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\",\"dpool:v1:robinhood:4663:core4:0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f:1\"]"
+    },
+    {
+      "loopKey": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\",\"dpool:v1:robinhood:4663:core4:0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\",\"dpool:v1:robinhood:4663:core4:0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448:0\"]"
+    },
+    {
+      "loopKey": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\",\"dpool:v1:robinhood:4663:core4:0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\",\"dpool:v1:robinhood:4663:core4:0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168:1\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc:1\",\"dpool:v1:robinhood:4663:core4:0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc:1\",\"dpool:v1:robinhood:4663:core4:0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6:1\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1\",\"dpool:v1:robinhood:4663:core4:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1\",\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:1\",\"dpool:v1:robinhood:4663:core4:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:1\",\"dpool:v1:robinhood:4663:core4:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:1\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168:1\",\"dpool:v1:robinhood:4663:core4:0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168:1\",\"dpool:v1:robinhood:4663:core4:0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448:1\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c:1\",\"dpool:v1:robinhood:4663:core4:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c:1\",\"dpool:v1:robinhood:4663:core4:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:0\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x10906975ba92bce9209431984d3e3e4b0eac706db274e8d1a29358331a555987:1\",\"dpool:v1:robinhood:4663:core4:0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748:1\",\"dpool:v1:robinhood:4663:core4:0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00:0\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xec262a75e413fafd0df80480274532c79d42da09",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x1dae69f15c48eef452c79360cc8df58f5d5c3c1e6324ff8777d58c1feb053cdc:1\",\"dpool:v1:robinhood:4663:core4:0x319bac87e616a89e241c10aeb8afd4892a852cdd8b373cd9765ecddc40b87cfe:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x1dae69f15c48eef452c79360cc8df58f5d5c3c1e6324ff8777d58c1feb053cdc:1\",\"dpool:v1:robinhood:4663:core4:0x319bac87e616a89e241c10aeb8afd4892a852cdd8b373cd9765ecddc40b87cfe:0\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237:1\",\"dpool:v1:robinhood:4663:core4:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237:1\",\"dpool:v1:robinhood:4663:core4:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:0\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x0000000000000000000000000000000000000000",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc:0\",\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x6ba18d461bfe3df70a80b50a4700e330e49efdaf597901b931f210554a5035d2:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc:0\",\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0bd7d308f8e1639fab988df18a8011f41eacad73:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x647836c4965c512f0d82a2128abe7826eacf5a79d2dbed252a89ba5c591d1e87:1\",\"dpool:v1:robinhood:4663:core4:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x6ba18d461bfe3df70a80b50a4700e330e49efdaf597901b931f210554a5035d2:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x647836c4965c512f0d82a2128abe7826eacf5a79d2dbed252a89ba5c591d1e87:1\",\"dpool:v1:robinhood:4663:core4:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:0\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:0\",\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:0\",\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e:1\",\"dpool:v1:robinhood:4663:core4:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30:1\",\"dpool:v1:robinhood:4663:core4:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:1\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xa821b3724b451b22476c5347471b2a96d185b86af8760f226273e34ab4b2b8a0:1\",\"dpool:v1:robinhood:4663:core4:0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f:1\",\"dpool:v1:robinhood:4663:core4:0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e:1\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x982af6ff6a2169c91a78634d3d10b3e1fe1e6a7e76387de04167234a41d50e4c:1\",\"dpool:v1:robinhood:4663:core4:0x007a13fa152f6dc383cad20a8eaab4e1e2538b606936eae2a424f8aa47d6db31:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x982af6ff6a2169c91a78634d3d10b3e1fe1e6a7e76387de04167234a41d50e4c:1\",\"dpool:v1:robinhood:4663:core4:0x007a13fa152f6dc383cad20a8eaab4e1e2538b606936eae2a424f8aa47d6db31:0\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82:1\",\"dpool:v1:robinhood:4663:core4:0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82:1\",\"dpool:v1:robinhood:4663:core4:0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274:0\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xeab0adac76db99a233ed077ca6be7a3f708baee6f98b17df69f7e1a07d1dc2e4:1\",\"dpool:v1:robinhood:4663:core4:0xc748f4671a867db48b552f6b7650bf3255e05f80f00e3f7aad1b17ccb7898fdb:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xeab0adac76db99a233ed077ca6be7a3f708baee6f98b17df69f7e1a07d1dc2e4:1\",\"dpool:v1:robinhood:4663:core4:0xc748f4671a867db48b552f6b7650bf3255e05f80f00e3f7aad1b17ccb7898fdb:0\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe6b713cf680868a40aafca45810b0c894eb5c696f5a2230d4816e6695e90e681:1\",\"dpool:v1:robinhood:4663:core4:0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x8dc0387af606d84be8e4c2fc1da7bdc6d467337e9f3e075113f968922a190847:1\",\"dpool:v1:robinhood:4663:core4:0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f:0\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0:1\",\"dpool:v1:robinhood:4663:core4:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0:1\",\"dpool:v1:robinhood:4663:core4:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:0\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c:1\",\"dpool:v1:robinhood:4663:core4:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c:1\",\"dpool:v1:robinhood:4663:core4:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:0\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:0\",\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:0\",\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30:0\",\"dpool:v1:robinhood:4663:core4:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e:0\",\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x322f0929c4625ed5bad873c95208d54e1c003b2d:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f:0\",\"dpool:v1:robinhood:4663:core4:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f:0\",\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea:0x0000000000000000000000000000000000000000",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168:0\",\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x541942afd092e6c18ccd56bb3d9205f80a2adce77edf260c464c5f9919f37168:0\",\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x6330d8c3178a418788df01a47479c0ce7ccf450b:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x007a13fa152f6dc383cad20a8eaab4e1e2538b606936eae2a424f8aa47d6db31:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x982af6ff6a2169c91a78634d3d10b3e1fe1e6a7e76387de04167234a41d50e4c:0\",\"dpool:v1:robinhood:4663:core4:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x007a13fa152f6dc383cad20a8eaab4e1e2538b606936eae2a424f8aa47d6db31:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x982af6ff6a2169c91a78634d3d10b3e1fe1e6a7e76387de04167234a41d50e4c:0\",\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x632d9bdccf26e13dbf23b185f29cba47e237371010e1abf7aceaeff653f66be4:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x9d287d9cc4292d4edd599d983a221ad4c1b16340996326be9b3e0b5786caf33d:1\",\"dpool:v1:robinhood:4663:core4:0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00:0\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xd250bed35cb53a2242120ad41fa43c160044418f9b75968b2a7edae4b2fca24e:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x9d287d9cc4292d4edd599d983a221ad4c1b16340996326be9b3e0b5786caf33d:1\",\"dpool:v1:robinhood:4663:core4:0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00:0\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82:0\",\"dpool:v1:robinhood:4663:core4:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82:0\",\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xc748f4671a867db48b552f6b7650bf3255e05f80f00e3f7aad1b17ccb7898fdb:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xeab0adac76db99a233ed077ca6be7a3f708baee6f98b17df69f7e1a07d1dc2e4:0\",\"dpool:v1:robinhood:4663:core4:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xc748f4671a867db48b552f6b7650bf3255e05f80f00e3f7aad1b17ccb7898fdb:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xeab0adac76db99a233ed077ca6be7a3f708baee6f98b17df69f7e1a07d1dc2e4:0\",\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x8dc0387af606d84be8e4c2fc1da7bdc6d467337e9f3e075113f968922a190847:0\",\"dpool:v1:robinhood:4663:core4:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe6b713cf680868a40aafca45810b0c894eb5c696f5a2230d4816e6695e90e681:0\",\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35:0\",\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35:0\",\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0:0\",\"dpool:v1:robinhood:4663:core4:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0:0\",\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x0000000000000000000000000000000000000000",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x628c98ab436ee34a6a7decd606242890582591bdf7c9a35d90e0d08021c31ea0:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748:0\",\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x628c98ab436ee34a6a7decd606242890582591bdf7c9a35d90e0d08021c31ea0:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x10906975ba92bce9209431984d3e3e4b0eac706db274e8d1a29358331a555987:0\",\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xec262a75e413fafd0df80480274532c79d42da09:0x0000000000000000000000000000000000000000",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x319bac87e616a89e241c10aeb8afd4892a852cdd8b373cd9765ecddc40b87cfe:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x1dae69f15c48eef452c79360cc8df58f5d5c3c1e6324ff8777d58c1feb053cdc:0\",\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x319bac87e616a89e241c10aeb8afd4892a852cdd8b373cd9765ecddc40b87cfe:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x1dae69f15c48eef452c79360cc8df58f5d5c3c1e6324ff8777d58c1feb053cdc:0\",\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237:0\",\"dpool:v1:robinhood:4663:core4:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x5fb97aef826b674c4bc76707563816f171043a3b1bf91431b7f82acd6381876b:0\",\"dpool:v1:robinhood:4663:core4:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\"]"
+    },
+    {
+      "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c:0\",\"dpool:v1:robinhood:4663:core4:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c:0\",\"dpool:v1:robinhood:4663:core4:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\"]"
+    },
+    {
+      "loopKey": "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x9d287d9cc4292d4edd599d983a221ad4c1b16340996326be9b3e0b5786caf33d:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00:0\",\"dpool:v1:robinhood:4663:core4:0x632d9bdccf26e13dbf23b185f29cba47e237371010e1abf7aceaeff653f66be4:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x9d287d9cc4292d4edd599d983a221ad4c1b16340996326be9b3e0b5786caf33d:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00:0\",\"dpool:v1:robinhood:4663:core4:0xd250bed35cb53a2242120ad41fa43c160044418f9b75968b2a7edae4b2fca24e:1\"]"
+    },
+    {
+      "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\",\"dpool:v1:robinhood:4663:core4:0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\",\"dpool:v1:robinhood:4663:core4:0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274:1\"]"
+    },
+    {
+      "loopKey": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\",\"dpool:v1:robinhood:4663:core4:0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\",\"dpool:v1:robinhood:4663:core4:0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82:1\"]"
+    },
+    {
+      "loopKey": "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xeab0adac76db99a233ed077ca6be7a3f708baee6f98b17df69f7e1a07d1dc2e4:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\",\"dpool:v1:robinhood:4663:core4:0xc748f4671a867db48b552f6b7650bf3255e05f80f00e3f7aad1b17ccb7898fdb:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xeab0adac76db99a233ed077ca6be7a3f708baee6f98b17df69f7e1a07d1dc2e4:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\",\"dpool:v1:robinhood:4663:core4:0xc748f4671a867db48b552f6b7650bf3255e05f80f00e3f7aad1b17ccb7898fdb:1\"]"
+    },
+    {
+      "loopKey": "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xc748f4671a867db48b552f6b7650bf3255e05f80f00e3f7aad1b17ccb7898fdb:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\",\"dpool:v1:robinhood:4663:core4:0xeab0adac76db99a233ed077ca6be7a3f708baee6f98b17df69f7e1a07d1dc2e4:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xc748f4671a867db48b552f6b7650bf3255e05f80f00e3f7aad1b17ccb7898fdb:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\",\"dpool:v1:robinhood:4663:core4:0xeab0adac76db99a233ed077ca6be7a3f708baee6f98b17df69f7e1a07d1dc2e4:1\"]"
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xf89d70906c1464e5f0853fbb0601c111bfb48ef54537c0527694a559b33dd801:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1\",\"dpool:v1:robinhood:4663:core4:0xe6b713cf680868a40aafca45810b0c894eb5c696f5a2230d4816e6695e90e681:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xf89d70906c1464e5f0853fbb0601c111bfb48ef54537c0527694a559b33dd801:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1\",\"dpool:v1:robinhood:4663:core4:0x8dc0387af606d84be8e4c2fc1da7bdc6d467337e9f3e075113f968922a190847:1\"]"
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xf89d70906c1464e5f0853fbb0601c111bfb48ef54537c0527694a559b33dd801:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\",\"dpool:v1:robinhood:4663:core4:0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xf89d70906c1464e5f0853fbb0601c111bfb48ef54537c0527694a559b33dd801:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\",\"dpool:v1:robinhood:4663:core4:0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f:1\"]"
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x8dc0387af606d84be8e4c2fc1da7bdc6d467337e9f3e075113f968922a190847:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:0\",\"dpool:v1:robinhood:4663:core4:0xf89d70906c1464e5f0853fbb0601c111bfb48ef54537c0527694a559b33dd801:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe6b713cf680868a40aafca45810b0c894eb5c696f5a2230d4816e6695e90e681:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:0\",\"dpool:v1:robinhood:4663:core4:0xf89d70906c1464e5f0853fbb0601c111bfb48ef54537c0527694a559b33dd801:1\"]"
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x8dc0387af606d84be8e4c2fc1da7bdc6d467337e9f3e075113f968922a190847:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\",\"dpool:v1:robinhood:4663:core4:0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xe6b713cf680868a40aafca45810b0c894eb5c696f5a2230d4816e6695e90e681:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\",\"dpool:v1:robinhood:4663:core4:0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f:1\"]"
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\",\"dpool:v1:robinhood:4663:core4:0xf89d70906c1464e5f0853fbb0601c111bfb48ef54537c0527694a559b33dd801:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\",\"dpool:v1:robinhood:4663:core4:0xf89d70906c1464e5f0853fbb0601c111bfb48ef54537c0527694a559b33dd801:1\"]"
+    },
+    {
+      "loopKey": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\",\"dpool:v1:robinhood:4663:core4:0xe6b713cf680868a40aafca45810b0c894eb5c696f5a2230d4816e6695e90e681:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\",\"dpool:v1:robinhood:4663:core4:0x8dc0387af606d84be8e4c2fc1da7bdc6d467337e9f3e075113f968922a190847:1\"]"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\",\"dpool:v1:robinhood:4663:core4:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\",\"dpool:v1:robinhood:4663:core4:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:1\"]"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\",\"dpool:v1:robinhood:4663:core4:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\",\"dpool:v1:robinhood:4663:core4:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:1\"]"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\",\"dpool:v1:robinhood:4663:core4:0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\",\"dpool:v1:robinhood:4663:core4:0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c:1\"]"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6:0\",\"dpool:v1:robinhood:4663:core4:0x647836c4965c512f0d82a2128abe7826eacf5a79d2dbed252a89ba5c591d1e87:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x6ba18d461bfe3df70a80b50a4700e330e49efdaf597901b931f210554a5035d2:0\",\"dpool:v1:robinhood:4663:core4:0x647836c4965c512f0d82a2128abe7826eacf5a79d2dbed252a89ba5c591d1e87:1\"]"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\",\"dpool:v1:robinhood:4663:core4:0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\",\"dpool:v1:robinhood:4663:core4:0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0:1\"]"
+    },
+    {
+      "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x7b1c4469fbc25827332bcf7a4c273fcbb5d60815c03e5844c74feb51c2313cc7:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237:0\",\"dpool:v1:robinhood:4663:core4:0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x7b1c4469fbc25827332bcf7a4c273fcbb5d60815c03e5844c74feb51c2313cc7:1\",\"dpool:v1:robinhood:4663:candidate_exchange:0x5fb97aef826b674c4bc76707563816f171043a3b1bf91431b7f82acd6381876b:0\",\"dpool:v1:robinhood:4663:core4:0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c:1\"]"
+    },
+    {
+      "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\",\"dpool:v1:robinhood:4663:core4:0x628c98ab436ee34a6a7decd606242890582591bdf7c9a35d90e0d08021c31ea0:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x10906975ba92bce9209431984d3e3e4b0eac706db274e8d1a29358331a555987:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\",\"dpool:v1:robinhood:4663:core4:0x628c98ab436ee34a6a7decd606242890582591bdf7c9a35d90e0d08021c31ea0:1\"]"
+    },
+    {
+      "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\",\"dpool:v1:robinhood:4663:core4:0x10906975ba92bce9209431984d3e3e4b0eac706db274e8d1a29358331a555987:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\",\"dpool:v1:robinhood:4663:core4:0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748:1\"]"
+    },
+    {
+      "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x632d9bdccf26e13dbf23b185f29cba47e237371010e1abf7aceaeff653f66be4:1\",\"dpool:v1:robinhood:4663:core4:0x9d287d9cc4292d4edd599d983a221ad4c1b16340996326be9b3e0b5786caf33d:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xd250bed35cb53a2242120ad41fa43c160044418f9b75968b2a7edae4b2fca24e:1\",\"dpool:v1:robinhood:4663:core4:0x9d287d9cc4292d4edd599d983a221ad4c1b16340996326be9b3e0b5786caf33d:1\"]"
+    },
+    {
+      "loopKey": "0xec262a75e413fafd0df80480274532c79d42da09:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x1dae69f15c48eef452c79360cc8df58f5d5c3c1e6324ff8777d58c1feb053cdc:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\",\"dpool:v1:robinhood:4663:core4:0x319bac87e616a89e241c10aeb8afd4892a852cdd8b373cd9765ecddc40b87cfe:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x1dae69f15c48eef452c79360cc8df58f5d5c3c1e6324ff8777d58c1feb053cdc:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\",\"dpool:v1:robinhood:4663:core4:0x319bac87e616a89e241c10aeb8afd4892a852cdd8b373cd9765ecddc40b87cfe:1\"]"
+    },
+    {
+      "loopKey": "0xec262a75e413fafd0df80480274532c79d42da09:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x319bac87e616a89e241c10aeb8afd4892a852cdd8b373cd9765ecddc40b87cfe:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\",\"dpool:v1:robinhood:4663:core4:0x1dae69f15c48eef452c79360cc8df58f5d5c3c1e6324ff8777d58c1feb053cdc:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x319bac87e616a89e241c10aeb8afd4892a852cdd8b373cd9765ecddc40b87cfe:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\",\"dpool:v1:robinhood:4663:core4:0x1dae69f15c48eef452c79360cc8df58f5d5c3c1e6324ff8777d58c1feb053cdc:1\"]"
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1\",\"dpool:v1:robinhood:4663:core4:0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x5fb97aef826b674c4bc76707563816f171043a3b1bf91431b7f82acd6381876b:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1\",\"dpool:v1:robinhood:4663:core4:0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c:1\"]"
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:1\",\"dpool:v1:robinhood:4663:core4:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x5fb97aef826b674c4bc76707563816f171043a3b1bf91431b7f82acd6381876b:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:1\",\"dpool:v1:robinhood:4663:core4:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:1\"]"
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c:1\",\"dpool:v1:robinhood:4663:core4:0x7b1c4469fbc25827332bcf7a4c273fcbb5d60815c03e5844c74feb51c2313cc7:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x5fb97aef826b674c4bc76707563816f171043a3b1bf91431b7f82acd6381876b:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c:1\",\"dpool:v1:robinhood:4663:core4:0x7b1c4469fbc25827332bcf7a4c273fcbb5d60815c03e5844c74feb51c2313cc7:1\"]"
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907:1\",\"dpool:v1:robinhood:4663:core4:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:1\",\"dpool:v1:robinhood:4663:core4:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:1\"]"
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e:0\",\"dpool:v1:robinhood:4663:core4:0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982:0\",\"dpool:v1:robinhood:4663:core4:0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237:1\"]"
+    },
+    {
+      "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "liveDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9:0\",\"dpool:v1:robinhood:4663:core4:0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c:1\"]",
+      "cloneDirectionalPoolIds": "[\"dpool:v1:robinhood:4663:core4:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:0\",\"dpool:v1:robinhood:4663:candidate_exchange:0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288:0\",\"dpool:v1:robinhood:4663:core4:0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c:1\"]"
+    }
+  ],
+  "onlyInLiveLoops": [],
+  "onlyInCloneLoops": []
+}

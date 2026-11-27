@@ -2117,6 +2117,90 @@ def test_scanner_resident_limit_covers_every_discovered_group(
     assert len(submitted) == capacity["batchLimit"]
 
 
+def test_a_zero_per_scan_override_admits_every_group_in_one_scan(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The override of zero must mean *do not wait*, not *use the default*.
+
+    The per-scan batch is the ramp: a group that is not admitted in this
+    scan is not measured in this scan, so a ramp puts (groups / batch)
+    scans between the start of the runtime and the refresh of the last
+    closed loop.  Every closed loop that is not refreshed keeps a **stale**
+    verdict, and a stale profit is no profit at all.
+
+    An operator who sets the override to zero asks for the whole catalog to
+    be refreshed the moment the runtime starts.  The value used to be read
+    as *unset* (`override or 16`), so the one value that means "do not
+    wait" was the one value that did nothing.
+    """
+    from dex.runtime.dex_opportunity_scanner_engine import DexOpportunityScanner
+
+    trusted: dict[str, str] = {}
+
+    def _directed_route(index: int) -> dict[str, Any]:
+        symbols = [f"T{index}A", f"T{index}B", f"T{index}C"]
+        addresses = []
+        for position, symbol in enumerate(symbols):
+            address = "0x" + (f"{index:02x}{position:x}" + "0" * 37)
+            addresses.append(address)
+            trusted[address] = symbol
+        return {
+            "routeSymbols": symbols + [symbols[0]],
+            "routeAddresses": addresses + [addresses[0]],
+            "tokenSymbols": symbols,
+            "quoteStatus": "requires_live_quoter",
+            "poolPathKey": "a|b|c",
+            "pools": [],
+        }
+
+    monkeypatch.setattr(
+        "market.binance_market.dex_route_helpers.trusted_symbol_from_address",
+        lambda address, chain_id=None: trusted.get(str(address or "").strip().lower()),
+    )
+
+    submitted: list[dict[str, Any]] = []
+    monkeypatch.delenv("DEX_CLOSED_LOOP_MAX_RESIDENT_GROUPS", raising=False)
+    monkeypatch.setenv("DEX_CLOSED_LOOP_MAX_NEW_GROUPS_PER_SCAN", "0")
+    monkeypatch.setattr(
+        rust_mixin,
+        "native_worker_status",
+        lambda **kwargs: {"workers": []},
+    )
+    monkeypatch.setattr(
+        rust_mixin,
+        "build_group_task_config",
+        lambda *, chain_id, protocols, routes: (
+            "|".join(str(symbol).lower() for symbol in routes[0]["routeSymbols"][:3]),
+            {"routes": routes},
+            [],
+        ),
+    )
+    monkeypatch.setattr(
+        rust_mixin,
+        "submit_group",
+        lambda **kwargs: submitted.append(kwargs) or {"accepted": True},
+    )
+    scanner = object.__new__(DexOpportunityScanner)
+    scanner.auto_execute_enabled = True
+    scanner._native_database_url = lambda chain_id=None: str(tmp_path / "native.sqlite3")
+
+    group_count = 40
+    routes = [_directed_route(index) for index in range(group_count)]
+    submission = rust_mixin.DexOpportunityNativeRustMixin._submit_native_closed_loop_groups(
+        scanner,
+        payload={"routes": routes},
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+    )
+
+    assert submission["groupsDiscovered"] == group_count
+    assert len(submitted) == group_count, (
+        "the zero override must admit every pending group in this scan, "
+        f"got {len(submitted)} of {group_count}"
+    )
+
+
 def test_scanner_caps_total_native_group_workers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

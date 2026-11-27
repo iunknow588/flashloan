@@ -2753,3 +2753,184 @@ def test_the_execution_verdict_guard_is_not_vacuous():
     ), (
         "T-复编.01: the guard must still catch a declared verdict"
     )
+
+
+# --------------------------------------------------------------------------- #
+# T-闭.03: the base pool is an internal object of the directional pool.
+# --------------------------------------------------------------------------- #
+
+DIRECTIONAL_POOL_CONTRACT = (
+    REPO_ROOT / "flashloan" / "tools" / "manager_contracts" / "src" / "directional_pool.rs"
+)
+
+# The columns the closed-loop tables carried before the directional-only
+# migration.  A statement that names one of them against a closed-loop
+# table is a statement that reaches for a base pool, and the closed loop
+# does not hold base pools any more.
+CLOSED_LOOP_BASE_POOL_COLUMNS = {
+    "manager_v4_closed_loop_hops": ("pool_id", "base_pool_id"),
+    "manager_v4_closed_loops": (
+        "pool_ids_json",
+        "backup_pool_ids_json",
+        "single_tick_capacity_binding_pool_id",
+    ),
+    "manager_v4_closed_loop_optimizations": (
+        "original_pool_id",
+        "optimized_pool_id",
+    ),
+}
+
+
+def _rust_sources() -> list[Path]:
+    """Every Rust source of the manager tools and of the kernel."""
+    roots = [
+        REPO_ROOT / "flashloan" / "tools",
+        REPO_ROOT / "flashloan" / "rs-src" / "src",
+    ]
+    files = []
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in root.rglob("*.rs"):
+            if "target" in path.parts:
+                continue
+            files.append(path)
+    return files
+
+
+def _sql_window(source: str, index: int) -> str:
+    """The string literal that holds the SQL around ``index``."""
+    start = source.rfind('"', 0, index)
+    end = source.find('"', index)
+    if start == -1 or end == -1:
+        return source[max(0, index - 400): index + 400]
+    return source[start:end]
+
+
+def _base_pool_column_hits(source: str, table: str, columns) -> list[str]:
+    """The base pool columns a statement against ``table`` still names."""
+    hits = []
+    offset = 0
+    while True:
+        index = source.find(table, offset)
+        if index == -1:
+            break
+        offset = index + len(table)
+        window = _sql_window(source, index)
+        # An output alias is a naming choice, not a stored column: the
+        # kernel reads a directional column under a legacy name so that the
+        # payload keys downstream of it stay the same.  The stored column
+        # is what the guard is about, so the alias is taken out first.
+        window = re.sub(
+            r"\bAS\s+[A-Za-z_][A-Za-z0-9_]*", " ", window, flags=re.IGNORECASE
+        )
+        for column in columns:
+            if re.search(rf"\b{column}\b", window):
+                hits.append(f"{table}.{column}")
+    return hits
+
+
+def test_the_base_pool_is_an_internal_object_of_the_directional_pool():
+    """T-闭.03: the base pool lives inside the directional pool.
+
+    The base pool is a **sub-object** of the directional pool: the
+    directional pool *is* a base pool plus a direction.  The contract must
+    therefore not hand the base pool out -- a public field, or an accessor
+    that returns the base pool, would let a consumer hold a base pool
+    without the direction it trades in, and the whole point of the
+    projection is that the two never travel apart.
+
+    The base pool *type* stays public on purpose: the pool manager has to
+    address the chain data of a base pool, and that is a base-level
+    question.  What is sealed is the direction from a directional pool to
+    its base pool.
+    """
+    source = DIRECTIONAL_POOL_CONTRACT.read_text(encoding="utf-8")
+    # The contract's own test module builds a base pool on purpose: the
+    # test has to hand one to the projection.  The rule is about the
+    # contract that the other crates see, so only the part above the test
+    # module is read.
+    library = source.split("#[cfg(test)]", 1)[0]
+    assert not re.search(r"pub\s+base\s*:\s*V4Pool", source), (
+        "T-闭.03: the base pool must not be a public field of the "
+        "directional pool"
+    )
+    assert re.search(r"^\s+base\s*:\s*V4Pool", library, re.MULTILINE), (
+        "T-闭.03: the directional pool must own its base pool"
+    )
+    escape_hatches = re.findall(r"->\s*(?:Option<\s*)?&?\s*V4Pool\b", library)
+    assert escape_hatches == [], (
+        "T-闭.03: the directional pool must not hand out the base pool "
+        "object: " + ", ".join(escape_hatches)
+    )
+
+    # The serialized row has to be a direction row as well.  A nested
+    # "base" object would hand the reader a handle that is shaped like a
+    # bare base pool, and a handle is all it takes to start keying a
+    # closed loop by base pool again.
+    assert re.search(r"#\[serde\(flatten\)\]\s*\n\s*base\s*:\s*V4Pool", library), (
+        "T-闭.03: the base pool must be flattened into the direction row, "
+        "so the serialized row carries no nested base object"
+    )
+
+
+def test_no_closed_loop_statement_reaches_for_a_base_pool():
+    """T-闭.03: the closed-loop tables name directional pools only.
+
+    The type level cannot hold the whole rule: a crate can still ask the
+    database for a base pool by name.  The closed-loop tables dropped
+    their base pool columns, so a statement that names one of them is a
+    statement the schema itself refuses -- but only once the migration
+    has landed, and a statement that was written against the old layout
+    would otherwise sit there until the day it runs.
+
+    The guard reads the SQL of every Rust source of the manager tools and
+    of the kernel, and it names the table the statement reaches for.
+    """
+    offenders = []
+    for path in _rust_sources():
+        source = path.read_text(encoding="utf-8", errors="replace")
+        for table, columns in CLOSED_LOOP_BASE_POOL_COLUMNS.items():
+            for hit in _base_pool_column_hits(source, table, columns):
+                try:
+                    display = path.relative_to(REPO_ROOT).as_posix()
+                except ValueError:
+                    display = str(path)
+                offenders.append(f"{display}: {hit}")
+
+    assert offenders == [], (
+        "T-闭.03: the closed loop holds directional pools; no statement may "
+        "ask the closed-loop tables for a base pool: " + "; ".join(offenders)
+    )
+
+
+def test_the_base_pool_column_guard_is_not_vacuous():
+    """T-闭.03: the guard must catch a statement that reaches for a base pool.
+
+    The assertion runs the very matcher the guard runs, so a pass here
+    means the guard would really fail on a real offender.  The second half
+    is the other direction: a statement that names the directional column
+    must stay clean, otherwise the guard would forbid the very thing it
+    asks for.
+    """
+    columns = CLOSED_LOOP_BASE_POOL_COLUMNS["manager_v4_closed_loop_hops"]
+    offender = (
+        'connection.prepare("SELECT h.pool_id FROM manager_v4_closed_loop_hops h");'
+    )
+    hits = _base_pool_column_hits(offender, "manager_v4_closed_loop_hops", columns)
+    assert hits, (
+        "T-闭.03: the guard must reject a statement that names the base "
+        "pool of a hop"
+    )
+    assert any("pool_id" in hit for hit in hits), (
+        "T-闭.03: the guard must name the offending column, got: "
+        + ", ".join(hits)
+    )
+    clean = (
+        'connection.prepare("SELECT h.directional_pool_id '
+        'FROM manager_v4_closed_loop_hops h");'
+    )
+    assert _base_pool_column_hits(clean, "manager_v4_closed_loop_hops", columns) == [], (
+        "T-闭.03: a statement that names the directional pool must not be "
+        "flagged"
+    )

@@ -13,8 +13,21 @@ $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 $logDir = Join-Path $repo 'plan\runtime_evidence\logs\t401_runtime_r3'
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
-$env:DEX_CLOSED_LOOP_MAX_NEW_GROUPS_PER_SCAN = '32'
+# The per-scan batch is **0**: the ramp is the wait, and a group that is
+# not admitted in the first scan is not measured in the first scan.  Zero
+# means *no wait* - every pending group becomes resident at once, so the
+# whole catalog is reviewed in the first sweep and no closed loop keeps a
+# stale verdict (a stale profit is no profit).  The review concurrency
+# inside the pool still bounds how many groups measure at the same time.
+$env:DEX_CLOSED_LOOP_MAX_NEW_GROUPS_PER_SCAN = '0'
 $env:DEX_CLOSED_LOOP_MAX_RESIDENT_GROUPS = '256'
+# The review concurrency.  The default is 16; the Python side clamps the
+# override to `CLOSED_LOOP_WORKER_CEILING = 32`, so 32 is the highest
+# value that actually takes effect (`concurrencyLimit = 32` in the
+# runtime status).  A chain publishes more closed loops than that, so the
+# surplus loops would otherwise never get a worker and their profit data
+# would never refresh.
+$env:DEX_CLOSED_LOOP_MAX_WORKERS = '32'
 
 $stdout = Join-Path $logDir 'runtime_stdout.log'
 $stderr = Join-Path $logDir 'runtime_stderr.log'

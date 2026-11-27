@@ -4,7 +4,8 @@
 //! the idempotency ledger.  Everything that outlives one generation is moved
 //! out of it:
 //!
-//! * the review audit stream becomes **daily JSONL** under
+//! * the review audit stream becomes **hourly JSONL files inside a daily
+//!   folder** under
 //!   `runtime_records/reviews/<network>/<chain_id>/`;
 //! * the finished arbitrage attempts become **monthly SQLite** under
 //!   `runtime_records/trades/<network>/<chain_id>/`.
@@ -21,9 +22,13 @@
 //!    hexadecimal* string (`-0x2ee726109c1`), never a JSON number and never a
 //!    decimal re-interpretation.
 //!
-//! Every path and every name in here is **UTC**.  Local time only ever shows
-//! up in the presentation layer, because a machine in another time zone would
-//! otherwise expire a different set of files.
+//! Every path and every name in here carries **Beijing time** (a fixed
+//! offset of eight hours ahead of UTC).  The review was measured here, so the
+//! stamp inside the file and the name of the file are read in one clock: an
+//! operator sees the hour of the day the measurement happened in the name of
+//! the file it landed in.  The zone is a **fixed** offset and not the time
+//! zone of the machine, so the name of a file and the stamp inside it name
+//! the same hour on every machine that reads them.
 //!
 //! The whole layer lives here on purpose.  `broadcast_manager` already
 //! depends on `review-manager`, so it calls into this module instead of
@@ -36,7 +41,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use chrono::{DateTime, Datelike, NaiveDate, Utc};
+use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, Timelike, Utc};
 use rusqlite::{types::Value, Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -53,7 +58,7 @@ pub const JSONL_SCHEMA: &str = "review_record.v1";
 pub const REVIEW_CHANNEL_CAPACITY: usize = 10_000;
 /// The capacity of the trade archive channel.
 pub const TRADE_CHANNEL_CAPACITY: usize = 1_000;
-/// How long a daily review file is kept, in days.
+/// How long a daily review folder is kept, in days.
 pub const REVIEW_RETENTION_DAYS: u32 = 30;
 /// How long a monthly trade store is kept.  Zero means *forever*.
 pub const TRADE_ARCHIVE_MONTHS: u32 = 0;
@@ -255,6 +260,15 @@ pub struct ReviewRecordLine {
     pub event: ReviewRecordEvent,
     /// When the change was observed, in UTC RFC3339.
     pub observed_at: String,
+    /// When the review itself was **measured**, in UTC RFC3339.
+    ///
+    /// The observation time says when the record was written; this one
+    /// says when the market was measured.  The line has to carry the
+    /// moment of the measurement, because the file it belongs to is
+    /// chosen by that moment: a record that only knows when it was
+    /// written cannot be filed under the hour its review belongs to.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reviewed_at: Option<String>,
     /// The chain the review belongs to.
     pub network: String,
     /// The chain id the review belongs to.
@@ -327,6 +341,13 @@ pub struct ReviewGenerationContext {
 pub struct ReviewRowSnapshot {
     /// The review identity.
     pub loop_key: String,
+    /// When the review was measured, in UTC RFC3339.
+    ///
+    /// The moment is part of the audit state: a loop that was measured
+    /// again is a new measurement even when the verdict and the profit
+    /// did not move, and a record that dropped the moment would report
+    /// two measurements as one.
+    pub reviewed_at: Option<String>,
     /// The closed loop generation the review was measured under.
     pub closed_loop_version: Option<i64>,
     /// The verdict.
@@ -360,6 +381,7 @@ impl ReviewRowSnapshot {
     /// would describe a generation change that never happened.
     fn same_audit_state(&self, other: &Self) -> bool {
         self.closed_loop_version == other.closed_loop_version
+            && self.reviewed_at == other.reviewed_at
             && self.review_status == other.review_status
             && self.review_reason == other.review_reason
             && self.signed_pnl_raw == other.signed_pnl_raw
@@ -380,6 +402,7 @@ impl ReviewRecordLine {
             schema: JSONL_SCHEMA,
             event: ReviewRecordEvent::Upsert,
             observed_at: context.observed_at.clone(),
+            reviewed_at: snapshot.reviewed_at.as_deref().and_then(local_moment),
             network: context.network.clone(),
             chain_id: context.chain_id,
             review_version: context.review_version,
@@ -408,6 +431,7 @@ impl ReviewRecordLine {
             schema: JSONL_SCHEMA,
             event: ReviewRecordEvent::Removed,
             observed_at: context.observed_at.clone(),
+            reviewed_at: None,
             network: context.network.clone(),
             chain_id: context.chain_id,
             review_version: context.review_version,
@@ -468,14 +492,14 @@ pub fn diff_review_generations(
 
 /// The writer of the daily review files.
 ///
-/// One writer owns one file handle at a time and rolls over when the UTC day
+/// One writer owns one file handle at a time and rolls over when the UTC hour
 /// of the line changes.  Every line is written with a single `write_all` that
 /// includes the trailing newline, so a torn line can only ever be the last
 /// one of the file.
 pub struct JsonlWriter {
     dir: PathBuf,
-    files: BTreeMap<(NaiveDate, String), tokio::fs::File>,
-    paths: BTreeMap<(NaiveDate, String), PathBuf>,
+    files: BTreeMap<(NaiveDate, u32, String), tokio::fs::File>,
+    paths: BTreeMap<(NaiveDate, u32, String), PathBuf>,
 }
 
 impl JsonlWriter {
@@ -493,20 +517,22 @@ impl JsonlWriter {
         self.paths
             .iter()
             .rev()
-            .find(|((_, key), _)| key == loop_key)
+            .find(|((_, _, key), _)| key == loop_key)
             .map(|(_, path)| path.as_path())
     }
 
-    /// Append one line to the file of its closed loop and its UTC day.
+    /// Append one line to the file of its closed loop and its UTC hour.
     ///
     /// Every closed loop writes into a file of its own, so the audit stream
-    /// of one loop can be read without walking the others.
+    /// of one loop can be read without walking the others.  The file also
+    /// carries the hour, so one file holds one hour of one loop and its
+    /// size stays bounded by that hour.
     pub async fn append(&mut self, line: &ReviewRecordLine) -> Result<(), RecordError> {
-        let day = line_day(line);
-        let key = (day, line.loop_key.clone());
+        let (day, hour) = line_hour(line);
+        let key = (day, hour, line.loop_key.clone());
         if !self.files.contains_key(&key) {
-            self.rotate(day).await?;
-            let path = review_file_path(&self.dir, day, &line.loop_key);
+            self.rotate(day, hour).await?;
+            let path = review_file_path(&self.dir, day, hour, &line.loop_key);
             let parent = path.parent().ok_or_else(|| RecordError::InvalidPath {
                 field: "review_file",
                 value: path.to_string_lossy().to_string(),
@@ -541,13 +567,13 @@ impl JsonlWriter {
         Ok(())
     }
 
-    /// Drop the files of the days that are over.
+    /// Drop the files of the hours that are over.
     ///
-    /// Only the current day stays open, so a writer that runs for days does
-    /// not hold one handle per day it ever saw.
-    async fn rotate(&mut self, day: NaiveDate) -> Result<(), RecordError> {
-        self.files.retain(|(open_day, _), _| *open_day == day);
-        self.paths.retain(|(open_day, _), _| *open_day == day);
+    /// Only the current hour stays open, so a writer that runs for days does
+    /// not hold one handle per hour it ever saw.
+    async fn rotate(&mut self, day: NaiveDate, hour: u32) -> Result<(), RecordError> {
+        self.files.retain(|(open_day, open_hour, _), _| *open_day == day && *open_hour == hour);
+        self.paths.retain(|(open_day, open_hour, _), _| *open_day == day && *open_hour == hour);
         Ok(())
     }
 }
@@ -600,19 +626,70 @@ pub fn loop_file_stem(loop_key: &str) -> String {
 }
 
 /// The file that holds the audit lines of one closed loop on one day.
-pub fn review_file_path(dir: &Path, day: NaiveDate, loop_key: &str) -> PathBuf {
+///
+/// The file also carries the UTC hour, so one file holds the audit lines of
+/// one closed loop in one hour and never grows past that hour.  The **day
+/// folder is unchanged**: the retention pass still removes whole day
+/// folders, and the name of the folder still says which day it holds.
+pub fn review_file_path(dir: &Path, day: NaiveDate, hour: u32, loop_key: &str) -> PathBuf {
     dir.join(review_day_folder(day))
-        .join(format!("{}.jsonl", loop_file_stem(loop_key)))
+        .join(format!("{}_{}.jsonl", loop_file_stem(loop_key), review_hour_stem(day, hour)))
 }
 
-/// The UTC day a line belongs to.
+/// The name of the hour bucket, for example `20261126-19`.
 ///
-/// The line carries its own observation time, so the file it lands in does
-/// not depend on when the writer happened to run.
-fn line_day(line: &ReviewRecordLine) -> NaiveDate {
-    parse_utc(&line.observed_at)
-        .map(|observed| observed.date_naive())
-        .unwrap_or_else(|_| Utc::now().date_naive())
+/// The bucket carries the day as well as the hour, so a file that is read
+/// on its own still says when it was written.
+pub fn review_hour_stem(day: NaiveDate, hour: u32) -> String {
+    format!("{:04}{:02}{:02}-{:02}", day.year(), day.month(), day.day(), hour)
+}
+
+/// The UTC day and hour a line belongs to.
+///
+/// The day and the hour a line belongs to, in Beijing time.
+///
+/// The line carries the moment its review was **measured**, so the file it
+/// lands in follows the measurement and not the moment the writer happened
+/// to run.  The day and the hour are read in Beijing time, because that is
+/// the clock the operator reads the file name in.
+fn line_hour(line: &ReviewRecordLine) -> (NaiveDate, u32) {
+    let measured = line
+        .reviewed_at
+        .as_deref()
+        .or(Some(line.observed_at.as_str()))
+        .and_then(|value| parse_utc(value).ok());
+    measured
+        .map(|observed| {
+            let local = observed.with_timezone(&beijing_offset());
+            (local.date_naive(), local.hour())
+        })
+        .unwrap_or_else(|| {
+            let now = Utc::now().with_timezone(&beijing_offset());
+            (now.date_naive(), now.hour())
+        })
+}
+
+/// The offset of Beijing time.
+///
+/// The zone is a fixed offset and not the time zone of the machine, so a
+/// record written on one machine is filed under the same hour on every
+/// machine that reads it back.
+pub fn beijing_offset() -> FixedOffset {
+    FixedOffset::east_opt(BEIJING_OFFSET_SECONDS).expect("the offset of Beijing time is valid")
+}
+
+/// The offset of Beijing time in seconds.
+const BEIJING_OFFSET_SECONDS: i32 = 8 * 60 * 60;
+
+/// Render a moment in Beijing time.
+///
+/// The rendering keeps the offset, so the moment in the
+/// record names itself exactly and the hour of the file it belongs to can
+/// be read off the record without converting a time zone.
+fn local_moment(value: &str) -> Option<String> {
+    parse_utc(value)
+        .ok()
+        .map(|moment| moment.with_timezone(&beijing_offset()).to_rfc3339())
 }
 
 /// Parse an RFC3339 timestamp into UTC.
@@ -1790,7 +1867,10 @@ pub async fn purge_expired_review_files(
     if !reviews_root.exists() {
         return Ok(report);
     }
-    let today = Utc::now().date_naive();
+    // The day folders are named in Beijing time, so the cutoff has to be
+    // read in the same clock: a folder is expired when it is older than the
+    // retention window **in the clock it was named in**.
+    let today = Utc::now().with_timezone(&beijing_offset()).date_naive();
     let mut candidates = Vec::new();
     collect_day_folders(&reviews_root, &reviews_root, 0, &mut candidates)?;
     report.scanned = candidates.len();
@@ -1942,6 +2022,7 @@ mod tests {
     fn snapshot(loop_key: &str, raw: &str) -> ReviewRowSnapshot {
         ReviewRowSnapshot {
             loop_key: loop_key.to_owned(),
+            reviewed_at: None,
             closed_loop_version: Some(7),
             review_status: Some("completed".to_owned()),
             review_reason: None,
@@ -1954,6 +2035,32 @@ mod tests {
             capacity_anchor_raw: Some("1000".to_owned()),
             capacity_binding_pool_id: Some("pool-1".to_owned()),
         }
+    }
+
+    /// A review that was measured at a known moment.
+    fn measured_snapshot(loop_key: &str, raw: &str, moment: &str) -> ReviewRowSnapshot {
+        ReviewRowSnapshot {
+            reviewed_at: Some(moment.to_owned()),
+            ..snapshot(loop_key, raw)
+        }
+    }
+
+    /// The file a line of the given moment lands in, in the clock of this
+    /// machine.  The expectation is derived from the moment itself, so the
+    /// test states the rule instead of the time zone of the machine it
+    /// happens to run on.
+    fn expected_review_file(dir: &Path, loop_key: &str, moment: &str) -> PathBuf {
+        let local = parse_utc(moment).unwrap().with_timezone(&beijing_offset());
+        review_file_path(dir, local.date_naive(), local.hour(), loop_key)
+    }
+
+    /// The moment of an hour of a Beijing day, in UTC.
+    fn local_moment_of(day: NaiveDate, hour: u32, minute: u32) -> String {
+        day.and_hms_opt(hour, minute, 0)
+            .unwrap()
+            .and_utc()
+            .with_timezone(&beijing_offset())
+            .to_rfc3339()
     }
 
     fn context(review_version: i64) -> ReviewGenerationContext {
@@ -2059,9 +2166,13 @@ mod tests {
             .await
             .unwrap();
 
-        let day = NaiveDate::from_ymd_opt(2026, 11, 23).unwrap();
         // Every closed loop writes into a file of its own.
-        let content = std::fs::read_to_string(review_file_path(&dir, day, "loop-1")).unwrap();
+        let content = std::fs::read_to_string(expected_review_file(
+            &dir,
+            "loop-1",
+            "2026-11-23T08:00:00Z",
+        ))
+        .unwrap();
         assert!(content.ends_with('\n'), "the last line is not terminated");
         let lines: Vec<&str> = content.lines().filter(|line| !line.is_empty()).collect();
         assert_eq!(lines.len(), 1);
@@ -2072,8 +2183,12 @@ mod tests {
         assert_eq!(first["signedPnlRaw"], "-0x2ee726109c1");
         assert_eq!(first["signedPnlCurrency"], "WETH");
 
-        let removed =
-            std::fs::read_to_string(review_file_path(&dir, day, "loop-2")).unwrap();
+        let removed = std::fs::read_to_string(expected_review_file(
+            &dir,
+            "loop-2",
+            "2026-11-23T08:00:00Z",
+        ))
+        .unwrap();
         let second: serde_json::Value =
             serde_json::from_str(removed.lines().next().unwrap()).unwrap();
         assert_eq!(second["event"], "removed");
@@ -2086,8 +2201,12 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let dir = root.path().join("reviews");
         let mut writer = JsonlWriter::new(dir.clone());
+        // The two moments straddle the local midnight, so the rollover
+        // holds on a machine in any time zone.
+        let today = Utc::now().with_timezone(&beijing_offset()).date_naive();
+        let yesterday = today - chrono::Duration::days(1);
         let mut first = context(1);
-        first.observed_at = "2026-11-22T23:59:59Z".to_owned();
+        first.observed_at = local_moment_of(yesterday, 23, 59);
         writer
             .append(&ReviewRecordLine::upsert(
                 &first,
@@ -2096,7 +2215,7 @@ mod tests {
             .await
             .unwrap();
         let mut second = context(2);
-        second.observed_at = "2026-11-23T00:00:01Z".to_owned();
+        second.observed_at = local_moment_of(today, 0, 0);
         writer
             .append(&ReviewRecordLine::upsert(
                 &second,
@@ -2104,8 +2223,105 @@ mod tests {
             ))
             .await
             .unwrap();
-        assert!(dir.join("2026-11-22").join(format!("{}.jsonl", loop_file_stem("loop-1"))).exists());
-        assert!(dir.join("2026-11-23").join(format!("{}.jsonl", loop_file_stem("loop-1"))).exists());
+        assert!(
+            expected_review_file(&dir, "loop-1", &first.observed_at).exists(),
+            "the line before the local midnight has no file of its own"
+        );
+        assert!(
+            expected_review_file(&dir, "loop-1", &second.observed_at).exists(),
+            "the line after the local midnight has no file of its own"
+        );
+    }
+
+    #[tokio::test]
+    async fn one_closed_loop_writes_one_file_per_hour_of_the_day() {
+        // The audit stream is split by closed loop **and** by hour, so one
+        // file never grows past the lines of a single hour.  The day folder
+        // is unchanged: the retention pass still removes whole day folders
+        // and never has to know that the hour exists.
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path().join("reviews");
+        let mut writer = JsonlWriter::new(dir.clone());
+        let today = Utc::now().with_timezone(&beijing_offset()).date_naive();
+        let first_moment = local_moment_of(today, 8, 15);
+        let second_moment = local_moment_of(today, 9, 5);
+        let mut first = context(1);
+        first.observed_at = first_moment.clone();
+        writer
+            .append(&ReviewRecordLine::upsert(
+                &first,
+                &snapshot("loop-1", "-0x1"),
+            ))
+            .await
+            .unwrap();
+        let mut second = context(2);
+        second.observed_at = second_moment.clone();
+        writer
+            .append(&ReviewRecordLine::upsert(
+                &second,
+                &snapshot("loop-1", "-0x2"),
+            ))
+            .await
+            .unwrap();
+
+        let first_file = expected_review_file(&dir, "loop-1", &first_moment);
+        let second_file = expected_review_file(&dir, "loop-1", &second_moment);
+        assert!(first_file.exists(), "the first hour has no file of its own");
+        assert!(second_file.exists(), "the second hour has no file of its own");
+        assert_eq!(std::fs::read_to_string(&first_file).unwrap().lines().count(), 1);
+        assert_eq!(std::fs::read_to_string(&second_file).unwrap().lines().count(), 1);
+        // The day folder is the unit the retention pass removes, and it is
+        // still the only folder above the files.
+        assert_eq!(std::fs::read_dir(dir.join(review_day_folder(today))).unwrap().count(), 2);
+    }
+
+    #[tokio::test]
+    async fn the_file_follows_the_moment_of_the_measurement() {
+        // The record is filed under the hour its **review** was measured in,
+        // not under the hour the writer happened to run in: the two lines
+        // below were written in the same moment and measured in two
+        // different hours, so they belong in two different files.
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path().join("reviews");
+        let mut writer = JsonlWriter::new(dir.clone());
+        let today = Utc::now().with_timezone(&beijing_offset()).date_naive();
+        let measured_first = local_moment_of(today, 8, 15);
+        let measured_second = local_moment_of(today, 9, 5);
+        let mut context = context(1);
+        context.observed_at = local_moment_of(today, 23, 30);
+        writer
+            .append(&ReviewRecordLine::upsert(
+                &context,
+                &measured_snapshot("loop-1", "-0x1", &measured_first),
+            ))
+            .await
+            .unwrap();
+        writer
+            .append(&ReviewRecordLine::upsert(
+                &context,
+                &measured_snapshot("loop-1", "-0x2", &measured_second),
+            ))
+            .await
+            .unwrap();
+
+        let first_file = expected_review_file(&dir, "loop-1", &measured_first);
+        let second_file = expected_review_file(&dir, "loop-1", &measured_second);
+        assert!(first_file.exists(), "the measured hour has no file of its own");
+        assert!(second_file.exists(), "the measured hour has no file of its own");
+        assert_ne!(first_file, second_file, "the two measurements share a file");
+        // The record names the moment it was measured, so the file it
+        // belongs to can be read off the record itself.
+        let written: serde_json::Value = serde_json::from_str(
+            std::fs::read_to_string(&first_file)
+                .unwrap()
+                .lines()
+                .next()
+                .unwrap(),
+        )
+        .unwrap();
+        let stamp = written["reviewedAt"].as_str().unwrap().to_owned();
+        assert_eq!(stamp, measured_first);
+        assert!(expected_review_file(&dir, "loop-1", &stamp).exists());
     }
 
     #[tokio::test]
@@ -2121,7 +2337,7 @@ mod tests {
         )
         .unwrap();
         drain_review_records(&dir).await.unwrap();
-        let path = review_file_path(&dir, NaiveDate::from_ymd_opt(2026, 11, 23).unwrap(), "loop-1");
+        let path = expected_review_file(&dir, "loop-1", "2026-11-23T08:00:00Z");
         let content = std::fs::read_to_string(&path).unwrap();
         assert_eq!(content.lines().count(), 1);
     }

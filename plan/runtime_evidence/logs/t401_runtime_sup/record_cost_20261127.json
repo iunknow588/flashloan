@@ -1,0 +1,76 @@
+{
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "sizes": [
+    {
+      "table": "cow_execution_reviews",
+      "rows": 119430,
+      "payloadGiB": 12.936,
+      "averagePayloadBytes": 116299
+    },
+    {
+      "table": "manager_v4_reviews",
+      "error": "no such column: payload_json"
+    },
+    {
+      "table": "cow_execution_attempts",
+      "rows": 0,
+      "payloadGiB": 0.0,
+      "averagePayloadBytes": 0
+    }
+  ],
+  "rowCounts": [
+    {
+      "table": "cow_execution_reviews",
+      "rows": 119434
+    },
+    {
+      "table": "manager_v4_reviews",
+      "rows": 176
+    },
+    {
+      "table": "manager_v4_review_broadcast_requests",
+      "rows": 0
+    },
+    {
+      "table": "manager_cow_execution_attempts",
+      "rows": 0
+    }
+  ],
+  "reads": [
+    {
+      "label": "decision.manager_library",
+      "seconds": 0.015,
+      "rows": 1
+    },
+    {
+      "label": "decision.scope_index_window",
+      "seconds": 0.047,
+      "rows": 400
+    },
+    {
+      "label": "decision.scope_index_new_rows",
+      "seconds": 0.031,
+      "rows": 400
+    },
+    {
+      "label": "record.full_scan_with_payload",
+      "seconds": 20.641,
+      "rows": 12816
+    },
+    {
+      "label": "record.full_scan_payload_bytes",
+      "seconds": 1168.75,
+      "rows": 1
+    },
+    {
+      "label": "record.datetime_predicate_blocks_index",
+      "seconds": 0.265,
+      "rows": 1
+    },
+    {
+      "label": "record.raw_predicate_uses_index",
+      "seconds": 4.282,
+      "rows": 1
+    }
+  ]
+}

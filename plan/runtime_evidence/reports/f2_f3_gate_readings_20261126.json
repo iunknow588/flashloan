@@ -1,0 +1,38 @@
+{
+  "probe": "f2_f3_gate_readings",
+  "readOnly": true,
+  "network": "robinhood",
+  "generation": "2026-11-26T11:41:46.029348900+00:00",
+  "reviewRows": 174,
+  "reviewStatus": {
+    "not_executable": 80,
+    "data_incomplete": 94
+  },
+  "gateVerdicts": {
+    "hop_1_failed": 1
+  },
+  "ladderVerdicts": {
+    "not_profitable_after_costs": 165,
+    "single_tick_capacity_below_min_probe": 7,
+    "profitable_amount_found": 2
+  },
+  "ladderMeasured": 167,
+  "signedPnlRows": 149,
+  "selectedAboveCapacity": 0,
+  "reasonCounts": {
+    "runArbitrage returned ok=false": 79,
+    "signed PnL is missing or incomplete": 14,
+    "not_reviewed_since:2026-11-26T08:23:52.985256100+00:00": 1,
+    "not_reviewed_since:2026-11-26T08:24:03.382900400+00:00": 1,
+    "not_reviewed_since:2026-11-26T08:24:11.223399200+00:00": 1,
+    "not_reviewed_since:2026-11-26T08:24:13.884191700+00:00": 1,
+    "not_reviewed_since:2026-11-26T08:24:14.556688300+00:00": 1,
+    "not_reviewed_since:2026-11-26T08:24:41.505985900+00:00": 1,
+    "not_reviewed_since:2026-11-26T08:24:42.879254800+00:00": 1,
+    "not_reviewed_since:2026-11-26T08:24:49.119394700+00:00": 1,
+    "not_reviewed_since:2026-11-26T08:25:11.466374500+00:00": 1,
+    "not_reviewed_since:2026-11-26T08:25:55.180068600+00:00": 1
+  },
+  "broadcastRequests": {},
+  "executionAttempts": 0
+}

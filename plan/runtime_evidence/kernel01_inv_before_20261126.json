@@ -1,0 +1,123 @@
+{
+  "schema": "directional-invariant-audit-v1",
+  "database": "plan\\runtime_evidence\\kernel01_slice_4663.sqlite3",
+  "checks": [
+    {
+      "id": "inv-1",
+      "invariant": "an unmeasured capacity is not stored as a measured zero",
+      "reading": {
+        "directionalRows": 692,
+        "unmeasuredButCarriesAValue": 0,
+        "measuredButCarriesNoValue": 0
+      },
+      "verdict": "PASS",
+      "detail": "the measured flag and the value agree on every direction row"
+    },
+    {
+      "id": "inv-2",
+      "invariant": "the identity columns of a direction row equal the base pool row (I-9)",
+      "reading": {
+        "directionRowsCompared": 692,
+        "identityColumns": [
+          "pool_manager",
+          "pool_key_json",
+          "token0",
+          "token1",
+          "token0_key_id",
+          "token1_key_id",
+          "fee",
+          "tick_spacing",
+          "hooks",
+          "pool_status",
+          "source_block_number",
+          "source_tx_hash"
+        ],
+        "mismatchedCells": 0
+      },
+      "verdict": "PASS",
+      "detail": "every compared cell agrees"
+    },
+    {
+      "id": "inv-9",
+      "invariant": "the snapshot columns of a direction row still equal the liquidity snapshot table",
+      "reading": {
+        "directionRows": 692,
+        "rowsCompared": 436,
+        "rowsWithNoSnapshotRow": 256,
+        "rowsWhoseSnapshotDrifted": 83,
+        "mismatchedCells": 994,
+        "directionLayerMaterializedBetween": "2026-11-23T22:46:06.899439+00:00",
+        "and": "2026-11-23T22:46:22.591455600+00:00",
+        "newestSnapshotRead": "2026-11-25T00:44:27.222895100+00:00"
+      },
+      "verdict": "FAIL",
+      "detail": "the direction layer was materialized before the snapshot table moved on; re-materializing the direction layer is what closes it"
+    },
+    {
+      "id": "inv-4",
+      "invariant": "every hop's directional_pool_id resolves to one row (I-7)",
+      "reading": {
+        "hops": 522,
+        "hopsWithoutADirectionalPoolId": 0,
+        "hopsWhoseIdResolvesToNoRow": 0,
+        "hopsWhoseIdResolvesToMoreThanOneRow": 0
+      },
+      "verdict": "PASS",
+      "detail": "every hop names exactly one direction row"
+    },
+    {
+      "id": "inv-3",
+      "invariant": "hop_direction equals the direction of the row it names (I-12)",
+      "reading": {
+        "hopsCompared": 522,
+        "hopsWhoseDirectionDiffers": 0,
+        "hopsWhoseBasePoolIdDiffers": 0
+      },
+      "verdict": "PASS",
+      "detail": "the hop and the direction row agree"
+    },
+    {
+      "id": "inv-5",
+      "invariant": "the review layer reports no unexplained direction_mismatch",
+      "reading": {
+        "diagnosticsNamedDirectionMismatch": 0
+      },
+      "verdict": "PASS",
+      "detail": "no review carries a direction_mismatch diagnostic"
+    },
+    {
+      "id": "inv-6",
+      "invariant": "pool_ids_json carries one base pool id per hop (I-16)",
+      "reading": {
+        "loops": 174,
+        "loopsWhoseLengthDiffersFromTheHopCount": 0,
+        "poolIdsThatAreNoBasePoolId": 0
+      },
+      "verdict": "PASS",
+      "detail": "every loop carries one base pool id per hop"
+    },
+    {
+      "id": "inv-7",
+      "invariant": "every base pool has exactly two direction rows within its scope",
+      "reading": {
+        "scopeAndBasePoolGroups": 346,
+        "groupsWithoutExactlyTwoRows": 0
+      },
+      "verdict": "PASS",
+      "detail": "every base pool has its two directions"
+    },
+    {
+      "id": "inv-8",
+      "invariant": "the ranks of a (scope, pair, direction) group are continuous",
+      "reading": {
+        "rankedGroups": 222,
+        "groupsWithBrokenRanks": 0
+      },
+      "verdict": "PASS",
+      "detail": "every group ranks from 1 without a gap"
+    }
+  ],
+  "passed": 8,
+  "failed": 1,
+  "verdict": "HAS_FAILURE"
+}

@@ -1,0 +1,333 @@
+{
+  "schema": "middle-hop-pool-choice-comparison-v1",
+  "population": {
+    "observationRows": 1420,
+    "rowsWithDirectSwapPool": 386,
+    "rowsWithoutDirectSwapPool": 1034
+  },
+  "change": {
+    "changedTriples": 77,
+    "changeRateOfTriplesWithPool": 0.199482,
+    "distinctPoolsInvolved": 29,
+    "triplesThatLostTheirPrimary": 0,
+    "unchangedTriples": 309
+  },
+  "concentration": {
+    "distinctDirectionGroups": 17,
+    "topGroups": [
+      {
+        "directionKey": "robinhood:4663:0x0000000000000000000000000000000000000000->robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "changedTriples": 11
+      },
+      {
+        "directionKey": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0x0000000000000000000000000000000000000000",
+        "changedTriples": 11
+      },
+      {
+        "directionKey": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "changedTriples": 10
+      },
+      {
+        "directionKey": "robinhood:4663:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec->robinhood:4663:0x0000000000000000000000000000000000000000",
+        "changedTriples": 6
+      },
+      {
+        "directionKey": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c->robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+        "changedTriples": 4
+      },
+      {
+        "directionKey": "robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "changedTriples": 4
+      },
+      {
+        "directionKey": "robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "changedTriples": 4
+      },
+      {
+        "directionKey": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+        "changedTriples": 4
+      },
+      {
+        "directionKey": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+        "changedTriples": 4
+      },
+      {
+        "directionKey": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0xec262a75e413fafd0df80480274532c79d42da09",
+        "changedTriples": 3
+      }
+    ],
+    "shareOfChangesInTop10Groups": 0.792208
+  },
+  "samples": [
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x0000000000000000000000000000000000000000",
+      "directionKey": "robinhood:4663:0x0000000000000000000000000000000000000000->robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "oldPrimary": "0xef5672974ad552f1ce24f2873f3e4237e82d44780ef623b6a239db42b08a7d5c",
+      "newPrimary": "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+      "directSwapPoolCount": 4,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x0000000000000000000000000000000000000000",
+      "directionKey": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c->robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "oldPrimary": "0x8dc0387af606d84be8e4c2fc1da7bdc6d467337e9f3e075113f968922a190847",
+      "newPrimary": "0xe6b713cf680868a40aafca45810b0c894eb5c696f5a2230d4816e6695e90e681",
+      "directSwapPoolCount": 2,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x0000000000000000000000000000000000000000",
+      "directionKey": "robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "oldPrimary": "0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e",
+      "newPrimary": "0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30",
+      "directSwapPoolCount": 2,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x0000000000000000000000000000000000000000",
+      "directionKey": "robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "oldPrimary": "0xfa29c8b263aee15ed167cbe5e90ea9d89e6eec484f7de64a3465ad6b1ac1a7f6",
+      "newPrimary": "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e",
+      "directSwapPoolCount": 2,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x0000000000000000000000000000000000000000",
+      "directionKey": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0x0000000000000000000000000000000000000000",
+      "oldPrimary": "0xef5672974ad552f1ce24f2873f3e4237e82d44780ef623b6a239db42b08a7d5c",
+      "newPrimary": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+      "directSwapPoolCount": 4,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x0000000000000000000000000000000000000000",
+      "directionKey": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "oldPrimary": "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+      "newPrimary": "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9",
+      "directSwapPoolCount": 4,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x0000000000000000000000000000000000000000",
+      "directionKey": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "oldPrimary": "0xfa29c8b263aee15ed167cbe5e90ea9d89e6eec484f7de64a3465ad6b1ac1a7f6",
+      "newPrimary": "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e",
+      "directSwapPoolCount": 2,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x0000000000000000000000000000000000000000",
+      "directionKey": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+      "oldPrimary": "0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00",
+      "newPrimary": "0x628c98ab436ee34a6a7decd606242890582591bdf7c9a35d90e0d08021c31ea0",
+      "directSwapPoolCount": 2,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x0000000000000000000000000000000000000000",
+      "directionKey": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0xec262a75e413fafd0df80480274532c79d42da09",
+      "oldPrimary": "0xc105b8300ff65d750a0e4e63c7a879e20504069b770713464a5315e797735326",
+      "newPrimary": "0x319bac87e616a89e241c10aeb8afd4892a852cdd8b373cd9765ecddc40b87cfe",
+      "directSwapPoolCount": 4,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x0000000000000000000000000000000000000000",
+      "directionKey": "robinhood:4663:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec->robinhood:4663:0x0000000000000000000000000000000000000000",
+      "oldPrimary": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+      "newPrimary": "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35",
+      "directSwapPoolCount": 2,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x0000000000000000000000000000000000000000",
+      "directionKey": "robinhood:4663:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5->robinhood:4663:0x0000000000000000000000000000000000000000",
+      "oldPrimary": "0x10906975ba92bce9209431984d3e3e4b0eac706db274e8d1a29358331a555987",
+      "newPrimary": "0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748",
+      "directSwapPoolCount": 2,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "directionKey": "robinhood:4663:0x0000000000000000000000000000000000000000->robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "oldPrimary": "0xef5672974ad552f1ce24f2873f3e4237e82d44780ef623b6a239db42b08a7d5c",
+      "newPrimary": "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+      "directSwapPoolCount": 4,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "directionKey": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0x0000000000000000000000000000000000000000",
+      "oldPrimary": "0xef5672974ad552f1ce24f2873f3e4237e82d44780ef623b6a239db42b08a7d5c",
+      "newPrimary": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+      "directSwapPoolCount": 4,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "directionKey": "robinhood:4663:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec->robinhood:4663:0x0000000000000000000000000000000000000000",
+      "oldPrimary": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+      "newPrimary": "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35",
+      "directSwapPoolCount": 2,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "directionKey": "robinhood:4663:0x0000000000000000000000000000000000000000->robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "oldPrimary": "0xef5672974ad552f1ce24f2873f3e4237e82d44780ef623b6a239db42b08a7d5c",
+      "newPrimary": "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+      "directSwapPoolCount": 4,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "directionKey": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c->robinhood:4663:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+      "oldPrimary": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+      "newPrimary": "0xa821b3724b451b22476c5347471b2a96d185b86af8760f226273e34ab4b2b8a0",
+      "directSwapPoolCount": 2,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "directionKey": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c->robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "oldPrimary": "0x8dc0387af606d84be8e4c2fc1da7bdc6d467337e9f3e075113f968922a190847",
+      "newPrimary": "0xe6b713cf680868a40aafca45810b0c894eb5c696f5a2230d4816e6695e90e681",
+      "directSwapPoolCount": 2,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "directionKey": "robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "oldPrimary": "0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e",
+      "newPrimary": "0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30",
+      "directSwapPoolCount": 2,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "directionKey": "robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "oldPrimary": "0xfa29c8b263aee15ed167cbe5e90ea9d89e6eec484f7de64a3465ad6b1ac1a7f6",
+      "newPrimary": "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e",
+      "directSwapPoolCount": 2,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "directionKey": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0x0000000000000000000000000000000000000000",
+      "oldPrimary": "0xef5672974ad552f1ce24f2873f3e4237e82d44780ef623b6a239db42b08a7d5c",
+      "newPrimary": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+      "directSwapPoolCount": 4,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "directionKey": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "oldPrimary": "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+      "newPrimary": "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9",
+      "directSwapPoolCount": 4,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "directionKey": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "oldPrimary": "0xfa29c8b263aee15ed167cbe5e90ea9d89e6eec484f7de64a3465ad6b1ac1a7f6",
+      "newPrimary": "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e",
+      "directSwapPoolCount": 2,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "directionKey": "robinhood:4663:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec->robinhood:4663:0x0000000000000000000000000000000000000000",
+      "oldPrimary": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+      "newPrimary": "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35",
+      "directSwapPoolCount": 2,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x1d11f0496982706c5e14a514d4e79f2e6bde4516",
+      "directionKey": "robinhood:4663:0x1d11f0496982706c5e14a514d4e79f2e6bde4516->robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "oldPrimary": "0x22f0fef26dfe059f1bc407e4166baf60dccba732349412b2d64bb7e65eb8d8d4",
+      "newPrimary": "0x55f2df399bf61fd758b99848452eaf217ee9d2f98fb9c79deb23fe9a2652bc5a",
+      "directSwapPoolCount": 2,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x1d11f0496982706c5e14a514d4e79f2e6bde4516",
+      "directionKey": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0x1d11f0496982706c5e14a514d4e79f2e6bde4516",
+      "oldPrimary": "0x22f0fef26dfe059f1bc407e4166baf60dccba732349412b2d64bb7e65eb8d8d4",
+      "newPrimary": "0x55f2df399bf61fd758b99848452eaf217ee9d2f98fb9c79deb23fe9a2652bc5a",
+      "directSwapPoolCount": 2,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "directionKey": "robinhood:4663:0x0000000000000000000000000000000000000000->robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "oldPrimary": "0xef5672974ad552f1ce24f2873f3e4237e82d44780ef623b6a239db42b08a7d5c",
+      "newPrimary": "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+      "directSwapPoolCount": 4,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "directionKey": "robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "oldPrimary": "0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e",
+      "newPrimary": "0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30",
+      "directSwapPoolCount": 2,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "directionKey": "robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "oldPrimary": "0xfa29c8b263aee15ed167cbe5e90ea9d89e6eec484f7de64a3465ad6b1ac1a7f6",
+      "newPrimary": "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e",
+      "directSwapPoolCount": 2,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "directionKey": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0x0000000000000000000000000000000000000000",
+      "oldPrimary": "0xef5672974ad552f1ce24f2873f3e4237e82d44780ef623b6a239db42b08a7d5c",
+      "newPrimary": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+      "directSwapPoolCount": 4,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    },
+    {
+      "anchorTokenKeyId": "robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "directionKey": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "oldPrimary": "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+      "newPrimary": "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9",
+      "directSwapPoolCount": 4,
+      "oldPrimaryWasInThePoolList": true,
+      "newPrimaryWasInThePoolList": true
+    }
+  ]
+}

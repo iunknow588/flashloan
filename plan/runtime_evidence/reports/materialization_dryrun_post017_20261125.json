@@ -1,0 +1,46 @@
+{
+  "schema": "materialization-timing-v1",
+  "generatedAt": "2026-11-25T17:07:43.712425+08:00",
+  "mode": "dry-run (the store is opened read-only; nothing is written)",
+  "binary": "E:/2026OPC大赛/flashLoan/flashloan/tools/target/release/composite-manager.exe",
+  "database": "E:/2026OPC大赛/flashLoan/flashloan/db/local_store_4663.sqlite3",
+  "runs": 1,
+  "elapsedSeconds": {
+    "samples": [
+      2.265
+    ],
+    "minSeconds": 2.265,
+    "maxSeconds": 2.265,
+    "note": "the first run after a restart pays for a cold page cache; later runs reuse it"
+  },
+  "stages": {
+    "candidateEdges": {
+      "apply": false,
+      "changedRows": 1828,
+      "consumersNeedRebuild": true,
+      "candidateVersion": 10,
+      "materializedChecksum": "sha256:3ffef94a46a8d8e1b48210685b004e21430a479a29e7196ece1f838b54138622"
+    },
+    "candidateExchanges": {
+      "apply": false,
+      "changedRows": 7020,
+      "consumersNeedRebuild": true,
+      "poolCount": 348,
+      "directionCount": 1420,
+      "materializedChecksum": "sha256:f0e1dc20e5dbd21a745c8fc1e9d4f4579608bdda2ae9881fd833a442e7863f6f"
+    },
+    "closedLoops": {
+      "apply": false,
+      "changedRows": 2486,
+      "consumersNeedRebuild": true,
+      "closedLoopVersion": 21,
+      "loopCount": 174,
+      "hopCount": 522,
+      "optimizationCount": 516,
+      "skippedTokenCount": 79,
+      "materializedChecksum": "sha256:f73bf2b2996820e5866700672d4dc55226e5fbbc8bb0d7be1851f962cd7c42eb"
+    }
+  },
+  "poolScopePreflightCount": 1,
+  "applied": false
+}

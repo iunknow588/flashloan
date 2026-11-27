@@ -1,0 +1,45 @@
+   Compiling closed-loop-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\closed_loop_manager)
+error[E0252]: the name `mark_review_required_on_connection` is defined multiple times
+    --> closed_loop_manager\src\lib.rs:5856:9
+     |
+5845 |         advance_review_clock_on_connection, mark_review_required_on_connection,
+     |                                             ---------------------------------- previous import of the value `mark_review_required_on_connection` here
+...
+5856 |         mark_review_required_on_connection,
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^-
+     |         |
+     |         `mark_review_required_on_connection` reimported here
+     |         help: remove unnecessary import
+     |
+     = note: `mark_review_required_on_connection` must be defined only once in the value namespace of this module
+
+error[E0252]: the name `record_review_schedule_on_connection` is defined multiple times
+    --> closed_loop_manager\src\lib.rs:5857:9
+     |
+5846 |         record_review_schedule_on_connection, review_interval_seconds,
+     |         ------------------------------------ previous import of the value `record_review_schedule_on_connection` here
+...
+5857 |         record_review_schedule_on_connection,
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^-
+     |         |
+     |         `record_review_schedule_on_connection` reimported here
+     |         help: remove unnecessary import
+     |
+     = note: `record_review_schedule_on_connection` must be defined only once in the value namespace of this module
+
+warning: unused imports: `mark_review_required_on_connection` and `record_review_schedule_on_connection`
+    --> closed_loop_manager\src\lib.rs:5856:9
+     |
+5856 |         mark_review_required_on_connection,
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+5857 |         record_review_schedule_on_connection,
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling review-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\review_manager)
+   Compiling broadcast-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\broadcast_manager)
+For more information about this error, try `rustc --explain E0252`.
+warning: `closed-loop-manager` (lib test) generated 1 warning
+error: could not compile `closed-loop-manager` (lib test) due to 2 previous errors; 1 warning emitted
+warning: build failed, waiting for other jobs to finish...

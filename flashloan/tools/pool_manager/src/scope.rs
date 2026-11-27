@@ -83,13 +83,18 @@ impl TokenLoadMode {
     }
 
     /// The default mode for a scope key.
+    ///
+    /// The default is the **core library only**: the bare funding
+    /// environment.  The system starts with that environment so the
+    /// closed-loop catalog stays small enough to diagnose -- every extra
+    /// fund-token library multiplies the anchor groups and the loops
+    /// that are built from them.  The wider modes stay available as an
+    /// explicit, persisted decision (`core_stocks` and
+    /// `core_stocks_test`), and a scope that is widened has to be rebuilt
+    /// rather than left stale.
     pub fn default_for_scope(scope_key: &str) -> Self {
-        // The default load mode loads the three fund-token libraries:
-        // core, stocks and test. `TZ` is a fund token filed in the `test`
-        // library, so a scope that omitted `test` would silently drop it
-        // and every closed loop that needs it.
         let _ = scope_key;
-        TokenLoadMode::CoreStocksTest
+        TokenLoadMode::Core
     }
 }
 
@@ -1910,7 +1915,9 @@ mod tests {
         drop(connection);
 
         let dry = materialize_scope(&database, NETWORK, CHAIN_ID, "core4", false).unwrap();
-        assert_eq!(dry.library_keys, vec!["core", "stocks", "test"]);
+        // A scope that carries no persisted load mode starts from the
+        // documented default, which is the core library alone.
+        assert_eq!(dry.library_keys, vec!["core"]);
         // The pool inventory is dynamic: the count of a live scope is not
         // a constant. What must hold is the shape of the result.
         assert_scope_result_is_consistent(&dry);
@@ -1963,7 +1970,7 @@ mod tests {
             config,
             (
                 "v4_exchange_pools_core4".to_owned(),
-                "[\"core\",\"stocks\",\"test\"]".to_owned(),
+                "[\"core\"]".to_owned(),
                 "edge_any".to_owned()
             )
         );
@@ -2005,7 +2012,9 @@ mod tests {
 
         let dry =
             materialize_scope(&database, NETWORK, CHAIN_ID, "candidate_exchange", false).unwrap();
-        assert_eq!(dry.library_keys, vec!["core", "stocks", "test"]);
+        // The default load mode is the core library alone; the wider
+        // modes stay reachable as an explicit, persisted decision.
+        assert_eq!(dry.library_keys, vec!["core"]);
         assert_eq!(dry.filter_mode, "both_end");
         assert_eq!(dry.pool_table, "v4_exchange_pools_candidate_exchange");
         assert_scope_result_is_consistent(&dry);
@@ -2053,25 +2062,27 @@ mod tests {
     }
 
     #[test]
-    fn the_default_token_load_mode_loads_core_stocks_and_test() {
+    fn the_default_token_load_mode_loads_the_core_library_only() {
+        // The system starts with the **bare funding environment**: only the
+        // core library anchors the scope.  The wider modes stay available
+        // as an explicit, persisted decision.
         let (_directory, database) = database();
         let connection = Connection::open(&database).unwrap();
         seed_pools(&connection);
         drop(connection);
 
         let dry = materialize_scope(&database, NETWORK, CHAIN_ID, "core4", false).unwrap();
-        assert_eq!(dry.library_keys, vec!["core", "stocks", "test"]);
-        assert_eq!(
-            TokenLoadMode::default_for_scope("core4"),
-            TokenLoadMode::CoreStocksTest
-        );
+        assert_eq!(dry.library_keys, vec!["core"]);
+        assert_eq!(TokenLoadMode::default_for_scope("core4"), TokenLoadMode::Core);
     }
 
     #[test]
     fn a_test_library_fund_token_is_a_scope_anchor() {
         // `TZ` is a fund token that is filed in the `test` library. When it
-        // is one end of a pool, the pool must still enter the scope: an
-        // `edge_any` scope only requires ONE anchored end.
+        // is one end of a pool **and the scope loads the test library**,
+        // the pool must still enter the scope: an `edge_any` scope only
+        // requires ONE anchored end.  The mode is explicit here, because
+        // the default mode does not load the test library any more.
         let (_directory, database) = database();
         let connection = Connection::open(&database).unwrap();
         seed_pools(&connection);
@@ -2090,12 +2101,38 @@ mod tests {
         );
         drop(connection);
 
-        let dry = materialize_scope(&database, NETWORK, CHAIN_ID, "core4", false).unwrap();
+        let dry = materialize_scope_write(
+            &database,
+            ScopeWriteRequest {
+                network: NETWORK.to_owned(),
+                chain_id: CHAIN_ID,
+                scope_key: "core4".to_owned(),
+                operation: "pools.scope.rebuild".to_owned(),
+                request_id: "scope-write-test-anchor".to_owned(),
+                idempotency_key: "scope-idem-test-anchor".to_owned(),
+                apply: false,
+                token_load_mode: Some("core_stocks_test".to_owned()),
+            },
+        )
+        .unwrap();
         assert!(
-            dry.skip_reason_counts.get("no_core_anchor").is_none(),
+            dry.result.skip_reason_counts.get("no_core_anchor").is_none(),
             "the test-library fund token must anchor its pool: {dry:?}"
         );
-        let applied = materialize_scope(&database, NETWORK, CHAIN_ID, "core4", true).unwrap();
+        let applied = materialize_scope_write(
+            &database,
+            ScopeWriteRequest {
+                network: NETWORK.to_owned(),
+                chain_id: CHAIN_ID,
+                scope_key: "core4".to_owned(),
+                operation: "pools.scope.rebuild".to_owned(),
+                request_id: "scope-write-test-anchor".to_owned(),
+                idempotency_key: "scope-idem-test-anchor".to_owned(),
+                apply: true,
+                token_load_mode: Some("core_stocks_test".to_owned()),
+            },
+        )
+        .unwrap();
         let connection = Connection::open(&database).unwrap();
         let anchored: i64 = connection
             .query_row(
@@ -2111,7 +2148,7 @@ mod tests {
             )
             .unwrap();
         assert!(anchored >= 1, "the TZ-anchored pool must be materialized");
-        assert!(applied.changed_rows > 0);
+        assert!(applied.result.changed_rows > 0);
     }
 
     #[test]
@@ -2363,7 +2400,7 @@ mod tests {
         };
         let first = materialize_scope_write(&database, request.clone()).unwrap();
         assert!(!first.idempotent_replay);
-        assert_eq!(first.result.changed_rows, 8);
+        assert_eq!(first.result.changed_rows, 7);
 
         let replay = materialize_scope_write(
             &database,

@@ -24,8 +24,13 @@ use candidate_exchange_pool_manager::{
     ExpectedUpstream as ExchangeExpectedUpstream,
 };
 use closed_loop_manager::{
-    compare_closed_loops, materialize_closed_loops_write, read_closed_loop_snapshot,
-    ClosedLoopError, ClosedLoopWriteRequest, ExpectedUpstream as ClosedLoopExpectedUpstream,
+    advance_review_clocks, begin_review_cycle, compare_closed_loops,
+    count_waiting_review_loops, materialize_closed_loops_write, read_due_review_loops,
+    read_closed_loop_snapshot, read_review_clocks, read_review_queue_view,
+    resolve_loop_key_by_path_symbols,
+    set_review_wait, ClosedLoopError, ClosedLoopReviewClock, ClosedLoopWriteRequest,
+    ClosedLoopReviewDue, ClosedLoopReviewQueueEntry,
+    ExpectedUpstream as ClosedLoopExpectedUpstream,
 };
 use directional_pool_manager::{
     compare_directional_pools, materialize_directional_pools_write,
@@ -271,6 +276,10 @@ pub fn app_with_state(state: Arc<AppState>) -> Router {
         .route("/v1/closed-loops", get(list_closed_loops))
         .route("/v1/closed-loops/compare", get(compare_closed_loop_catalog))
         .route("/v1/closed-loops/rebuild", post(rebuild_closed_loops))
+        .route("/v1/closed-loops/review-clock", post(advance_closed_loop_review_clocks))
+        .route("/v1/closed-loops/review-request", post(request_closed_loop_review))
+        .route("/v1/closed-loops/review-cycle", post(begin_closed_loop_review_cycle))
+        .route("/v1/closed-loops/review-due", get(list_due_closed_loop_reviews))
         .route("/v1/reviews", get(list_reviews))
         .route("/v1/reviews/run", post(run_reviews_endpoint))
         .route("/v1/reviews/clear", post(clear_reviews_endpoint))
@@ -1243,6 +1252,342 @@ async fn rebuild_closed_loops(
             Some(&request_id),
         ),
     }
+}
+
+/// Advance the review clocks of every closed loop of a scope.
+///
+/// The closed loop owns a **review clock**: the loop starts the clock when
+/// it has been dealt with and the clock runs until the loop is due again.
+/// When it runs out the state of the loop becomes the review state, so the
+/// next round of the review may start.
+async fn advance_closed_loop_review_clocks(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    request: Result<Json<ClosedLoopReviewClockHttpRequest>, JsonRejection>,
+) -> Response {
+    let stage = "closed_loop.review_clock";
+    let request_id = match required_write_header_for(&headers, "X-Request-Id", stage) {
+        Ok(value) => value,
+        Err(error) => return failure(error),
+    };
+    let idempotency_key = match required_write_header_for(&headers, "Idempotency-Key", stage) {
+        Ok(value) => value,
+        Err(error) => return failure_with_request_id(error, Some(&request_id)),
+    };
+    let Json(request) = match request {
+        Ok(request) => request,
+        Err(rejection) => {
+            return failure_with_request_id(
+                invalid_request(rejection.body_text(), stage),
+                Some(&request_id),
+            );
+        }
+    };
+    let Some(dry_run) = request.dry_run else {
+        return failure_with_request_id(
+            invalid_request("dryRun is required and must be true or false", stage)
+                .with_details(serde_json::json!({"chainId": request.chain_id})),
+            Some(&request_id),
+        );
+    };
+    if request.chain_id == 0 {
+        return failure_with_request_id(
+            invalid_request("chainId must be greater than zero", stage),
+            Some(&request_id),
+        );
+    }
+    let Some(database_path) = state.token_database_path.as_deref() else {
+        return failure_with_request_id(
+            upstream_unavailable("MANAGER_DB_PATH is not configured", stage)
+                .with_details(serde_json::json!({"chainId": request.chain_id})),
+            Some(&request_id),
+        );
+    };
+    let network = state.network_for(request.chain_id);
+    if dry_run {
+        let clocks = match read_review_clocks(database_path, &network, request.chain_id as i64) {
+            Ok(clocks) => clocks,
+            Err(error) => {
+                return failure_with_request_id(
+                    closed_loop_failure(error, request.chain_id, stage),
+                    Some(&request_id),
+                );
+            }
+        };
+        let due_count = clocks.iter().filter(|clock| clock_is_due(clock)).count();
+        return success_with_request_id(
+            request.chain_id,
+            ClosedLoopReviewClockResponse {
+                chain_id: request.chain_id,
+                network,
+                applied: false,
+                idempotency_key,
+                due_count,
+                clocks,
+            },
+            Some(request_id.as_str()),
+        );
+    }
+    let due_count = match advance_review_clocks(database_path, &network, request.chain_id as i64) {
+        Ok(due_count) => due_count,
+        Err(error) => {
+            return failure_with_request_id(
+                closed_loop_failure(error, request.chain_id, stage),
+                Some(&request_id),
+            );
+        }
+    };
+    let clocks = match read_review_clocks(database_path, &network, request.chain_id as i64) {
+        Ok(clocks) => clocks,
+        Err(error) => {
+            return failure_with_request_id(
+                closed_loop_failure(error, request.chain_id, stage),
+                Some(&request_id),
+            );
+        }
+    };
+    success_with_request_id(
+        request.chain_id,
+        ClosedLoopReviewClockResponse {
+            chain_id: request.chain_id,
+            network,
+            applied: true,
+            idempotency_key,
+            due_count,
+            clocks,
+        },
+        Some(request_id.as_str()),
+    )
+}
+
+/// Set the wait of one closed loop.
+///
+/// A wait of **zero** is what a manual review asks for: the loop waits for
+/// nothing, so the next round of the review starts at once.
+async fn request_closed_loop_review(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    request: Result<Json<ClosedLoopReviewRequestHttpRequest>, JsonRejection>,
+) -> Response {
+    let stage = "closed_loop.review_request";
+    let request_id = match required_write_header_for(&headers, "X-Request-Id", stage) {
+        Ok(value) => value,
+        Err(error) => return failure(error),
+    };
+    let idempotency_key = match required_write_header_for(&headers, "Idempotency-Key", stage) {
+        Ok(value) => value,
+        Err(error) => return failure_with_request_id(error, Some(&request_id)),
+    };
+    let Json(request) = match request {
+        Ok(request) => request,
+        Err(rejection) => {
+            return failure_with_request_id(
+                invalid_request(rejection.body_text(), stage),
+                Some(&request_id),
+            );
+        }
+    };
+    let Some(dry_run) = request.dry_run else {
+        return failure_with_request_id(
+            invalid_request("dryRun is required and must be true or false", stage)
+                .with_details(serde_json::json!({"chainId": request.chain_id})),
+            Some(&request_id),
+        );
+    };
+    if request.chain_id == 0 {
+        return failure_with_request_id(
+            invalid_request("chainId must be greater than zero", stage),
+            Some(&request_id),
+        );
+    }
+    let Some(database_path) = state.token_database_path.as_deref() else {
+        return failure_with_request_id(
+            upstream_unavailable("MANAGER_DB_PATH is not configured", stage)
+                .with_details(serde_json::json!({"chainId": request.chain_id})),
+            Some(&request_id),
+        );
+    };
+    let network = state.network_for(request.chain_id);
+    let named_loop_key = request.loop_key.as_deref().unwrap_or_default().trim().to_owned();
+    let loop_key = if !named_loop_key.is_empty() {
+        named_loop_key
+    } else {
+        let symbols = request.route_symbols.clone().unwrap_or_default();
+        match resolve_loop_key_by_path_symbols(database_path, &network, request.chain_id as i64, &symbols) {
+            Ok(Some(loop_key)) => loop_key,
+            Ok(None) => {
+                return failure_with_request_id(
+                    invalid_request("no published closed loop walks the given route", stage)
+                        .with_details(serde_json::json!({"chainId": request.chain_id})),
+                    Some(&request_id),
+                );
+            }
+            Err(error) => {
+                return failure_with_request_id(
+                    closed_loop_failure(error, request.chain_id, stage),
+                    Some(&request_id),
+                );
+            }
+        }
+    };
+    let wait_seconds = request.wait_seconds.unwrap_or(0).max(0);
+    if dry_run {
+        return success_with_request_id(
+            request.chain_id,
+            ClosedLoopReviewRequestResponse {
+                chain_id: request.chain_id,
+                network,
+                applied: false,
+                idempotency_key,
+                loop_key,
+                updated: false,
+                wait_seconds,
+            },
+            Some(request_id.as_str()),
+        );
+    }
+    let updated = match set_review_wait(
+        database_path,
+        &network,
+        request.chain_id as i64,
+        &loop_key,
+        wait_seconds,
+    ) {
+        Ok(updated) => updated,
+        Err(error) => {
+            return failure_with_request_id(
+                closed_loop_failure(error, request.chain_id, stage),
+                Some(&request_id),
+            );
+        }
+    };
+    success_with_request_id(
+        request.chain_id,
+        ClosedLoopReviewRequestResponse {
+            chain_id: request.chain_id,
+            network,
+            applied: true,
+            idempotency_key,
+            loop_key,
+            updated,
+            wait_seconds,
+        },
+        Some(request_id.as_str()),
+    )
+}
+
+/// Start the review cycle of one closed loop.
+///
+/// The call is the claim of the loop: it starts the cycle, so the moment
+/// the loop is due again is one review interval after the moment the
+/// round starts.  A loop whose round is already running is not claimed
+/// again, so two workers never measure the same loop at the same time.
+async fn begin_closed_loop_review_cycle(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    request: Result<Json<ClosedLoopReviewCycleHttpRequest>, JsonRejection>,
+) -> Response {
+    let stage = "closed_loop.review_cycle";
+    let request_id = match required_write_header_for(&headers, "X-Request-Id", stage) {
+        Ok(value) => value,
+        Err(error) => return failure(error),
+    };
+    let idempotency_key = match required_write_header_for(&headers, "Idempotency-Key", stage) {
+        Ok(value) => value,
+        Err(error) => return failure_with_request_id(error, Some(&request_id)),
+    };
+    let Json(request) = match request {
+        Ok(request) => request,
+        Err(rejection) => {
+            return failure_with_request_id(
+                invalid_request(rejection.body_text(), stage),
+                Some(&request_id),
+            );
+        }
+    };
+    let Some(dry_run) = request.dry_run else {
+        return failure_with_request_id(
+            invalid_request("dryRun is required and must be true or false", stage)
+                .with_details(serde_json::json!({"chainId": request.chain_id})),
+            Some(&request_id),
+        );
+    };
+    if request.chain_id == 0 {
+        return failure_with_request_id(
+            invalid_request("chainId must be greater than zero", stage),
+            Some(&request_id),
+        );
+    }
+    let Some(database_path) = state.token_database_path.as_deref() else {
+        return failure_with_request_id(
+            upstream_unavailable("MANAGER_DB_PATH is not configured", stage)
+                .with_details(serde_json::json!({"chainId": request.chain_id})),
+            Some(&request_id),
+        );
+    };
+    let network = state.network_for(request.chain_id);
+    let named_loop_key = request.loop_key.as_deref().unwrap_or_default().trim().to_owned();
+    let loop_key = if !named_loop_key.is_empty() {
+        named_loop_key
+    } else {
+        let symbols = request.route_symbols.clone().unwrap_or_default();
+        match resolve_loop_key_by_path_symbols(database_path, &network, request.chain_id as i64, &symbols)
+        {
+            Ok(Some(loop_key)) => loop_key,
+            Ok(None) => {
+                return failure_with_request_id(
+                    invalid_request("no published closed loop walks the given route", stage)
+                        .with_details(serde_json::json!({"chainId": request.chain_id})),
+                    Some(&request_id),
+                );
+            }
+            Err(error) => {
+                return failure_with_request_id(
+                    closed_loop_failure(error, request.chain_id, stage),
+                    Some(&request_id),
+                );
+            }
+        }
+    };
+    let claimed = if dry_run {
+        false
+    } else {
+        match begin_review_cycle(
+            database_path,
+            &network,
+            request.chain_id as i64,
+            &loop_key,
+            "review_round_started",
+        ) {
+            Ok(claimed) => claimed,
+            Err(error) => {
+                return failure_with_request_id(
+                    closed_loop_failure(error, request.chain_id, stage),
+                    Some(&request_id),
+                );
+            }
+        }
+    };
+    let clock = read_review_clocks(database_path, &network, request.chain_id as i64)
+        .ok()
+        .and_then(|clocks| clocks.into_iter().find(|clock| clock.loop_key == loop_key));
+    success_with_request_id(
+        request.chain_id,
+        ClosedLoopReviewCycleResponse {
+            chain_id: request.chain_id,
+            network,
+            applied: !dry_run,
+            idempotency_key,
+            loop_key,
+            claimed,
+            review_cycle_started_at: clock
+                .as_ref()
+                .and_then(|clock| clock.review_cycle_started_at.clone()),
+            next_review_at: clock.as_ref().and_then(|clock| clock.next_review_at.clone()),
+            review_wait_seconds: clock.as_ref().and_then(|clock| clock.review_wait_seconds),
+        },
+        Some(request_id.as_str()),
+    )
 }
 
 async fn list_reviews(
@@ -3019,6 +3364,7 @@ fn broadcast_failure(error: BroadcastError, chain_id: u64, stage: &str) -> Manag
         BroadcastError::UnknownRequest(_)
         | BroadcastError::BroadcastRequestNotEligible { .. }
         | BroadcastError::AttemptNotFound(_)
+        | BroadcastError::ReviewRowMissing { .. }
         | BroadcastError::AttemptAlreadyTerminal { .. } => ManagerError::new(
             ErrorCode::BroadcastRequestNotEligible,
             message.clone(),
@@ -3048,7 +3394,7 @@ fn broadcast_failure(error: BroadcastError, chain_id: u64, stage: &str) -> Manag
             ManagerError::new(ErrorCode::TokenNotAdmitted, message.clone(), stage)
                 .with_details(serde_json::json!({"chainId": chain_id, "reason": message}))
         }
-        BroadcastError::ReviewRead(_) | BroadcastError::Sqlite(_) => {
+        BroadcastError::ReviewRead(_) | BroadcastError::ClosedLoopRead(_) | BroadcastError::Sqlite(_) => {
             ManagerError::new(ErrorCode::UpstreamUnavailable, message.clone(), stage)
                 .with_details(serde_json::json!({"chainId": chain_id, "reason": message}))
         }
@@ -3434,6 +3780,203 @@ struct ClosedLoopHttpRequest {
     chain_id: u64,
     dry_run: Option<bool>,
     expected_upstream: Option<ClosedLoopExpectedUpstream>,
+}
+
+/// The request that advances the review clocks of a scope.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ClosedLoopReviewClockHttpRequest {
+    chain_id: u64,
+    dry_run: Option<bool>,
+}
+
+/// The request that sets the wait of one closed loop.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ClosedLoopReviewRequestHttpRequest {
+    chain_id: u64,
+    /// The loop the wait belongs to.
+    #[serde(default)]
+    loop_key: Option<String>,
+    /// The route of the loop, as the symbols it walks in order.
+    ///
+    /// A caller that names a route instead of a loop key gets the loop the
+    /// published catalog holds for that route, or nothing at all.
+    #[serde(default)]
+    route_symbols: Option<Vec<String>>,
+    dry_run: Option<bool>,
+    /// The seconds the loop waits before it is due again.
+    ///
+    /// Zero is the manual review: the loop waits for nothing.
+    wait_seconds: Option<i64>,
+}
+
+/// The request that starts the review cycle of one closed loop.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ClosedLoopReviewCycleHttpRequest {
+    chain_id: u64,
+    /// The loop the cycle belongs to.
+    #[serde(default)]
+    loop_key: Option<String>,
+    /// The route of the loop, as the symbols it walks in order.
+    #[serde(default)]
+    route_symbols: Option<Vec<String>>,
+    dry_run: Option<bool>,
+}
+
+/// The outcome of a review cycle that was started for one closed loop.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ClosedLoopReviewCycleResponse {
+    chain_id: u64,
+    network: String,
+    applied: bool,
+    /// The key the write was filed under, so a repeated call is traceable.
+    idempotency_key: String,
+    loop_key: String,
+    /// Whether the round of the review was started.
+    ///
+    /// `false` means the loop was not due, or that its round is already
+    /// running: in both cases the loop waits and no cycle was started.
+    claimed: bool,
+    /// The moment the cycle of the loop started.
+    review_cycle_started_at: Option<String>,
+    /// The moment the loop is due again.
+    next_review_at: Option<String>,
+    /// The seconds the loop waits before it is due again.
+    review_wait_seconds: Option<i64>,
+}
+
+/// The closed loops of a scope that are due for a round of the review.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ClosedLoopReviewDueResponse {
+    chain_id: u64,
+    network: String,
+    /// The number of loops that are due.
+    due_count: usize,
+    /// The number of loops that still wait for their round.
+    ///
+    /// The queue holds the due loops only, so the main thread of the
+    /// review walks the queue and stops at its end: the loops that still
+    /// wait are never looked at.
+    waiting_count: usize,
+    /// The due loops, ordered by the moment they were scheduled at.
+    loops: Vec<ClosedLoopReviewDue>,
+    /// The moment the next loop becomes due.
+    ///
+    /// The moment is the one the main thread of the review waits for: it
+    /// is `None` when the next loop has no moment at all -- it was never
+    /// measured -- and `dueCount` tells the two apart.
+    next_due_at: Option<String>,
+    /// The seconds until the next loop becomes due.
+    ///
+    /// Zero means a loop is due now.
+    next_due_in_seconds: i64,
+    /// The whole queue of the scope, ordered by the moment the loops are
+    /// scheduled at.
+    ///
+    /// A parked loop is in the queue as well: it is busy, and the marker
+    /// it carries says which busy it is.
+    queue: Vec<ClosedLoopReviewQueueEntry>,
+    /// The number of entries of the queue.
+    queue_length: usize,
+}
+
+/// The review clocks of a scope, after they were advanced.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ClosedLoopReviewClockResponse {
+    chain_id: u64,
+    network: String,
+    applied: bool,
+    /// The key the write was filed under, so a repeated call is traceable.
+    idempotency_key: String,
+    /// The number of loops whose clock ran out.
+    due_count: usize,
+    clocks: Vec<ClosedLoopReviewClock>,
+}
+
+/// The outcome of a review request for one closed loop.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ClosedLoopReviewRequestResponse {
+    chain_id: u64,
+    network: String,
+    applied: bool,
+    /// The key the write was filed under, so a repeated call is traceable.
+    idempotency_key: String,
+    loop_key: String,
+    updated: bool,
+    wait_seconds: i64,
+}
+
+/// Whether the clock of a loop has run out.
+fn clock_is_due(clock: &ClosedLoopReviewClock) -> bool {
+    if clock.review_required {
+        return true;
+    }
+    if clock.runtime_status != "cooldown" {
+        return true;
+    }
+    match clock.review_wait_seconds {
+        Some(wait) => wait <= 0,
+        None => false,
+    }
+}
+
+/// The closed loops that are due for a round of the review.
+///
+/// The queue is the work list of the main thread of the review: every
+/// loop whose review time point has come, ordered by that time point, so
+/// the loop that waited the longest comes first.
+async fn list_due_closed_loop_reviews(
+    State(state): State<Arc<AppState>>,
+    query: Result<Query<ReviewQuery>, QueryRejection>,
+) -> Response {
+    let stage = "closed_loop.review_due";
+    let Query(query) = match query {
+        Ok(query) => query,
+        Err(rejection) => return failure(invalid_request(rejection.body_text(), stage)),
+    };
+    if query.chain_id == 0 {
+        return failure(invalid_request("chainId must be greater than zero", stage));
+    }
+    let Some(database_path) = state.token_database_path.as_deref() else {
+        return failure(upstream_unavailable("MANAGER_DB_PATH is not configured", stage));
+    };
+    let network = state.network_for(query.chain_id);
+    let loops = match read_due_review_loops(database_path, &network, query.chain_id as i64) {
+        Ok(loops) => loops,
+        Err(error) => return failure(closed_loop_failure(error, query.chain_id, stage)),
+    };
+    let waiting = match count_waiting_review_loops(database_path, &network, query.chain_id as i64) {
+        Ok(waiting) => waiting,
+        Err(error) => return failure(closed_loop_failure(error, query.chain_id, stage)),
+    };
+    // The whole queue of the scope: the entries are ordered by the
+    // moment the loops are scheduled at, and a parked loop is in it as
+    // well, because it is busy rather than due.
+    let queue = match read_review_queue_view(database_path, &network, query.chain_id as i64) {
+        Ok(queue) => queue,
+        Err(error) => return failure(closed_loop_failure(error, query.chain_id, stage)),
+    };
+    let due: Vec<ClosedLoopReviewDue> = loops;
+    success(
+        query.chain_id,
+        ClosedLoopReviewDueResponse {
+            chain_id: query.chain_id,
+            network,
+            due_count: due.len(),
+            waiting_count: waiting,
+            loops: due,
+            next_due_at: queue.next_due_at,
+            next_due_in_seconds: queue.next_due_in_seconds,
+            queue_length: queue.length,
+            queue: queue.entries,
+        },
+    )
 }
 
 #[derive(Deserialize)]
@@ -5345,13 +5888,14 @@ mod tests {
                     anchor_token_key_id, anchor_address, anchor_symbol,
                     token_y_key_id, token_z_key_id, path_text,
                     path_addresses_json, path_symbols_json, pool_path_key,
-                    pool_ids_json, backup_pool_ids_json, hop_candidate_counts_json,
+                    directional_pool_ids_json, backup_directional_pool_ids_json,
+                    hop_candidate_counts_json,
                     hop_candidate_combination_count, recommendation_basis,
                     recommended_first_priority, candidate_edge_version,
                     candidate_edge_checksum, observation_version,
                     observation_checksum, status, source,
                     single_tick_capacity_anchor_raw,
-                    single_tick_capacity_binding_pool_id,
+                    single_tick_capacity_binding_directional_pool_id,
                     created_at, updated_at
                  ) VALUES ('robinhood', 4663, 'uniswap_v4', 'core4', 'loop-1',
                            'route:v1',
@@ -5362,16 +5906,71 @@ mod tests {
                            'USDG -> AMZN -> TA -> USDG',
                            '[\"0x1111111111111111111111111111111111111111\",\"0x2222222222222222222222222222222222222222\",\"0x3333333333333333333333333333333333333333\",\"0x1111111111111111111111111111111111111111\"]',
                            '[\"USDG\",\"AMZN\",\"TA\",\"USDG\"]', 'pool-path:1',
-                           '[\"pool-a\",\"pool-yz\",\"pool-d\"]', '{}',
+                           '[\"dpool:v1:robinhood:4663:core4:pool-a:1\",\"dpool:v1:robinhood:4663:core4:pool-yz:1\",\"dpool:v1:robinhood:4663:core4:pool-d:1\"]', '{}',
                            '{\"1\":1,\"2\":1,\"3\":1}', 1, 'fixture', 1, 7,
                            'sha256:candidate-edge', 4, 'sha256:observation',
                            'active', 'fixture',
-                           '1000000000000000000000000', 'pool-yz',
+                           '1000000000000000000000000',
+                           'dpool:v1:robinhood:4663:core4:pool-yz:1',
                            'fixture', 'fixture')",
                 [],
             )
             .unwrap();
         seed_review_pool_states(&connection);
+        seed_review_directional_pools(&connection);
+    }
+
+    /// Seeds the direction layer the closed loop walks.
+    ///
+    /// The closed loop names the **directional** pools it walks, and the
+    /// base pool of every one of them travels inside the direction layer
+    /// row.  The review resolves the base pools through that layer, so a
+    /// fixture without it would publish a loop whose hops cannot be
+    /// proven.
+    fn seed_review_directional_pools(connection: &Connection) {
+        let pools = [
+            (
+                "pool-a",
+                "0x1111111111111111111111111111111111111111",
+                "0x2222222222222222222222222222222222222222",
+            ),
+            (
+                "pool-yz",
+                "0x2222222222222222222222222222222222222222",
+                "0x3333333333333333333333333333333333333333",
+            ),
+            (
+                "pool-d",
+                "0x3333333333333333333333333333333333333333",
+                "0x1111111111111111111111111111111111111111",
+            ),
+        ];
+        for (base_pool_id, token0, token1) in pools {
+            connection
+                .execute(
+                    "INSERT INTO manager_v4_directional_exchange_pools (
+                        network, chain_id, protocol, scope_key, base_pool_id,
+                        direction, directional_pool_id, pool_manager,
+                        pool_key_json, token0, token1, token0_key_id,
+                        token1_key_id, fee, tick_spacing, hooks, pair_key_id,
+                        input_token_key_id, output_token_key_id, zero_for_one,
+                        pool_status, pair_direction_rank, materialized_at,
+                        updated_at
+                     ) VALUES ('robinhood', 4663, 'uniswap_v4', 'core4', ?1, 1,
+                               ?2, '0xpoolmanager', '{}', ?3, ?4, ?5, ?6, 3000,
+                               60, '0x0', 'pair:fixture', ?5, ?6, 1, 'active',
+                               1, 'fixture', 'fixture')",
+                    rusqlite::params![
+                        base_pool_id,
+                        format!("dpool:v1:robinhood:4663:core4:{base_pool_id}:1"),
+                        token0,
+                        token1,
+                        format!("robinhood:4663:{token0}"),
+                        format!("robinhood:4663:{token1}"),
+                    ],
+                )
+                .unwrap();
+        }
     }
 
     /// Seeds the measured pool state the final single-tick gate reads.
@@ -5473,7 +6072,19 @@ mod tests {
             "dryRun": dry_run,
             "evidence": [{
                 "loopKey": "loop-1",
-                "staticPreview": {"ok": true},
+                // The preview carries the **measured** amount ladder, the
+                // way the runtime publishes it.  A review may only
+                // declare a profit the ladder actually measured, so a
+                // preview without a measured ladder would file every
+                // route as an incomplete measurement.
+                "staticPreview": {
+                    "ok": true,
+                    "bestAmountCalculation": {
+                        "bestAmountLadderStatus": "profitable_amount_found",
+                        "bestAmountMeasured": true,
+                        "probeCount": 3
+                    }
+                },
                 "reviewedAt": reviewed_at,
                 "runArbitrage": {
                     "ok": true,

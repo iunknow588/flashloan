@@ -19,8 +19,10 @@ import time
 import urllib.error
 import urllib.parse
 import re
+import socket
 import urllib.request
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -477,6 +479,131 @@ def manager_loop_rows(manager_api: str | None) -> list[dict[str, Any]]:
     return rows
 
 
+def manager_review_schedules(manager_api: str | None) -> dict[str, dict[str, Any]]:
+    """Return the review schedule every closed loop published.
+
+    The **closed-loop Manager** owns the schedule of a loop: it names the
+    moment the loop was measured and the moment it is due again.  The
+    clock of a loop **restarts** with every measurement, so the schedule
+    is the authority on when a loop has to be measured again -- and a loop
+    that was never measured publishes no moment at all.
+    """
+    schedules: dict[str, dict[str, Any]] = {}
+    if not manager_api:
+        return schedules
+    for row in manager_read_closed_loops(manager_api).get("runtimeStates") or []:
+        key = str(row.get("loopKey") or "").strip()
+        if not key:
+            continue
+        schedules[key] = {"lastReviewedAt": row.get("lastReviewedAt"),
+                         "nextReviewAt": row.get("nextReviewAt"),
+                         "reviewRequired": bool(row.get("reviewRequired")),
+                         "runtimeStatus": row.get("runtimeStatus"),
+                         "reviewWaitSeconds": row.get("reviewWaitSeconds"),
+                         "reviewCycleStartedAt": row.get("reviewCycleStartedAt")}
+    return schedules
+
+
+def advance_review_clocks(manager_api: str | None,
+                          chain_id: int | None = None) -> dict[str, Any]:
+    """Advance the review clock of every closed loop of the scope.
+
+    The closed loop runs a **review clock**: the loop starts the clock when
+    it has been dealt with -- a confirmed broadcast, or a review that found
+    no profit -- and the clock runs until the loop is due again.  Advancing
+    the clocks is what turns a clock that ran out into the review state, so
+    the next round of the review starts.
+
+    The number of loops that became due is reported, so the cycle says how
+    many review rounds the scope is waiting for.
+    """
+    if not manager_api:
+        return {"ok": False, "reason": "manager_api_unavailable", "dueCount": 0}
+    target_chain = int(chain_id if chain_id is not None else CHAIN_ID)
+    response = api_post(manager_api, "/v1/closed-loops/review-clock",
+                        {"chainId": target_chain, "dryRun": False})
+    payload = response_payload(response)
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    return {"ok": bool(response.get("ok")),
+            "status": response.get("status"),
+            "dueCount": int(data.get("dueCount") or 0),
+            "error": payload.get("error")}
+
+
+def due_review_loops(manager_api: str | None,
+                     chain_id: int | None = None) -> list[dict[str, Any]]:
+    """The closed loops that are due for a round of the review.
+
+    The **closed-loop Manager** owns the review time point of every
+    loop, so the queue of the due loops comes from there: one read, and
+    the loops are ordered by the moment they were scheduled at, so the
+    loop that waited the longest comes first and the loops do not all
+    start in the same second.
+    """
+    if not manager_api:
+        return []
+    target_chain = int(chain_id if chain_id is not None else CHAIN_ID)
+    response = api_get(
+        manager_api, f"/v1/closed-loops/review-due?chainId={target_chain}")
+    payload = response.get("payload") if isinstance(response.get("payload"), dict) else {}
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    loops = data.get("loops") if isinstance(data.get("loops"), list) else []
+    return [row for row in loops if isinstance(row, dict)]
+
+
+def due_review_queue(manager_api: str | None,
+                      chain_id: int | None = None) -> dict[str, Any]:
+    """The queue of the loops that are due for a round of the review.
+
+    The queue is the work list of the main thread of the review: the
+    loops whose review time point has come, ordered by that time point.
+    The answer says whether the queue could be read, so a caller that
+    cannot reach the Manager falls back to its own read instead of
+    believing that nothing is due.
+    """
+    if not manager_api:
+        return {"ok": False, "reason": "manager_api_unavailable", "loops": []}
+    target_chain = int(chain_id if chain_id is not None else CHAIN_ID)
+    response = api_get(
+        manager_api, f"/v1/closed-loops/review-due?chainId={target_chain}")
+    payload = response.get("payload") if isinstance(response.get("payload"), dict) else {}
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    loops = data.get("loops") if isinstance(data.get("loops"), list) else []
+    return {"ok": bool(response.get("ok")) and "loops" in data,
+            "dueCount": int(data.get("dueCount") or 0),
+            "waitingCount": int(data.get("waitingCount") or 0),
+            "loops": [row for row in loops if isinstance(row, dict)]}
+
+
+def begin_review_cycle(manager_api: str | None,
+                       loop_key: str,
+                       chain_id: int | None = None) -> dict[str, Any]:
+    """Start the review cycle of one closed loop.
+
+    The cycle of a loop is the round of its review: it starts when the
+    round starts and it is as long as the automatic review interval, so
+    the moment the round starts decides when the next round is due.
+
+    The call is also the claim of the loop.  A loop whose round is
+    already running is not claimed again, so two review workers never
+    measure the same loop at the same time.
+    """
+    if not manager_api:
+        return {"ok": False, "reason": "manager_api_unavailable", "claimed": False}
+    target_chain = int(chain_id if chain_id is not None else CHAIN_ID)
+    response = api_post(manager_api, "/v1/closed-loops/review-cycle",
+                        {"chainId": target_chain, "loopKey": loop_key,
+                         "dryRun": False})
+    payload = response_payload(response)
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    return {"ok": bool(response.get("ok")),
+            "status": response.get("status"),
+            "claimed": bool(data.get("claimed")),
+            "reviewCycleStartedAt": data.get("reviewCycleStartedAt"),
+            "nextReviewAt": data.get("nextReviewAt"),
+            "error": payload.get("error")}
+
+
 def table_names(db: Path) -> set[str]:
     """Return every user table in the store.
 
@@ -763,6 +890,188 @@ def review_missing_reason(row: dict[str, Any]) -> str:
     return status
 
 
+def review_measurement_stamp(row: dict[str, Any]) -> str | None:
+    """Return the moment the route of a review was measured.
+
+    The **Review Manager** publishes ``reviewedAt``: the moment the
+    runtime measured the route.  It does not publish a ``createdAt`` for
+    the materialized row, so reading ``created_at`` alone made every
+    Manager review look infinitely old.  The production verdict then said
+    ``review_stalled`` while the runtime was writing a fresh review every
+    few seconds, and the operator was sent to repair a review layer that
+    was already green.
+
+    The legacy library carries the same moment in ``created_at``, so both
+    spellings are accepted.  Nothing is invented: a row that publishes no
+    timestamp at all stays without one.
+    """
+    for field in ("reviewed_at", "created_at", "updated_at"):
+        value = row.get(field)
+        if value:
+            return str(value)
+    return None
+
+
+def newest_review_stamp(rows: list[dict[str, Any]]) -> str | None:
+    """Return the newest measurement moment among ``rows``.
+
+    The answer is the **maximum** of the published moments, not the first
+    row: the audit must not depend on the order the source happens to
+    publish its rows in.
+    """
+    best_value: str | None = None
+    best_key: dt.datetime | None = None
+    for row in rows:
+        value = review_measurement_stamp(row)
+        if not value:
+            continue
+        try:
+            key = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if best_key is None or key > best_key:
+            best_key = key
+            best_value = value
+    return best_value
+
+
+#: The automatic review interval of a closed loop, in seconds.
+#:
+#: One parameter answers how often every closed loop is measured again: the
+#: same number tells the cascade when a review is overdue **and** tells the
+#: production gate how old a review may be when it is broadcast.  It is read
+#: from the environment the stores read it from, so the whole system works
+#: on one cadence instead of three windows that could disagree.
+REVIEW_FRESHNESS_SECONDS = int(
+    os.environ.get("CLOSED_LOOP_REVIEW_INTERVAL_SECONDS", "60") or 60
+)
+
+
+def review_interval_seconds(db: Path | None = None) -> int:
+    """Return the automatic review interval of a closed loop.
+
+    The interval is a **configuration parameter**: it is the length of the
+    review clock every closed loop runs, and it is the length of one review
+    cycle of a loop.  It is read from the parameter store of the chain, so a
+    changed interval is in force on the next round without a restart.  The
+    environment is the fallback for a store that carries no parameter yet.
+    """
+    if db is not None:
+        stored = _parameter_seconds(db, "strategy_config",
+                                   "CLOSED_LOOP_REVIEW_INTERVAL_SECONDS")
+        if stored is not None:
+            return stored
+    return REVIEW_FRESHNESS_SECONDS
+
+
+def _parameter_seconds(db: Path, namespace: str, key: str) -> int | None:
+    """Return one numeric parameter of the parameter store.
+
+    The store keeps every value as a JSON document, and the value itself
+    travels inside that document as a JSON text, so a parameter is read in
+    two steps.  A store that does not carry the parameter answers with
+    nothing at all, and the caller falls back to its own default.
+    """
+    try:
+        con = connect(db)
+    except sqlite3.Error:
+        return None
+    try:
+        row = con.execute(
+            "SELECT value_json FROM kv_entries"
+            " WHERE collection = 'parameters' AND key = ?",
+            (f"{namespace}|{key}",),
+        ).fetchone()
+    except sqlite3.Error:
+        return None
+    finally:
+        con.close()
+    if not row:
+        return None
+    try:
+        document = json.loads(str(row["value_json"] or "{}"))
+        raw = document.get("value_json")
+        value = json.loads(raw) if isinstance(raw, str) else raw
+        seconds = int(value)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return None
+    return seconds if seconds > 0 else None
+
+
+def review_is_stale(
+    stamp: str | None,
+    freshness_seconds: int | None = None,
+    reference: dt.datetime | None = None,
+) -> bool:
+    """Whether a review measurement is too old to act on.
+
+    A row that publishes no moment at all cannot be proven fresh, so it
+    counts as stale: the gate that reads it fails closed, and the repair
+    that reads it has to refresh it.
+    """
+    if not stamp:
+        return True
+    if freshness_seconds is None:
+        freshness_seconds = REVIEW_FRESHNESS_SECONDS
+    try:
+        moment = dt.datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return True
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=dt.timezone.utc)
+    if reference is None:
+        reference = dt.datetime.now(dt.timezone.utc)
+    elif reference.tzinfo is None:
+        reference = reference.replace(tzinfo=dt.timezone.utc)
+    return (reference - moment).total_seconds() > freshness_seconds
+
+
+def review_is_due(
+    schedule: dict[str, Any],
+    reference: dt.datetime | None = None,
+) -> bool:
+    """Whether the schedule of a loop says it has to be measured again.
+
+    The closed loop runs a **review clock**: the loop starts the clock when
+    it has been dealt with -- a confirmed broadcast, or a review that found
+    no profit -- and the clock runs until the loop is due again.  The
+    state of the loop says which of the two it is in.
+
+    A loop that waits for a review, whose clock ran out, or whose schedule
+    names no moment, is due: the measurement it needs is missing.  A loop
+    whose clock still runs is not due yet -- its own clock says so, and
+    every measurement restarts that clock.
+    """
+    if schedule.get("reviewRequired"):
+        return True
+    status = str(schedule.get("runtimeStatus") or "").strip()
+    if status == "review_pending":
+        # The round of the review is running right now: the loop is being
+        # measured, so it is not due and it is not measured twice.
+        return False
+    wait = schedule.get("reviewWaitSeconds")
+    if status == "cooldown":
+        # The clock of the loop is running.  A clock that names no seconds
+        # left has run out, so the loop is due.
+        if isinstance(wait, (int, float)) and not isinstance(wait, bool):
+            if wait <= 0:
+                return True
+    due_at = schedule.get("nextReviewAt")
+    if not due_at:
+        return True
+    try:
+        moment = dt.datetime.fromisoformat(str(due_at).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return True
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=dt.timezone.utc)
+    if reference is None:
+        reference = dt.datetime.now(dt.timezone.utc)
+    elif reference.tzinfo is None:
+        reference = reference.replace(tzinfo=dt.timezone.utc)
+    return reference >= moment
+
+
 def missing_pnl_classification(message: str) -> tuple[str, bool]:
     text = message.lower()
     if "rpc" in text or "eth_call" in text or "network" in text:
@@ -802,6 +1111,21 @@ MAX_POOL_TVL_USD = 1_000_000_000.0
 # rows and the 24h window still covers thousands of them, so an unbounded scan
 # forces a full table read plus a temporary sort.
 REVIEW_QUERY_LIMIT = 20000
+
+#: How long the runtime may take to answer the liveness probe before the
+#: probe counts as **busy** rather than as a dead runtime.
+#:
+#: A runtime that is measuring a review round holds the event loop long
+#: enough that a five second probe times out.  Restarting it there would
+#: throw the whole round away and start the next one from zero, which is
+#: exactly the failure the orchestrator is supposed to prevent.  The probe
+#: therefore waits longer than one probe interval, and a runtime that stays
+#: silent for longer than :data:`RUNTIME_BUSY_RESTART_SECONDS` is treated
+#: as wedged and restarted.
+LIVENESS_TIMEOUT_SECONDS = 120
+
+#: How long a runtime may stay busy before it is treated as wedged.
+RUNTIME_BUSY_RESTART_SECONDS = 1800
 
 
 def review_payloads(row: dict[str, Any]) -> list[dict[str, Any]]:
@@ -1250,16 +1574,20 @@ def review_rows(
     manager_rows = manager_review_rows(db, limit, manager_api)
     for row in manager_rows:
         row["review_source"] = "manager"
+    if manager_rows:
+        # The Manager library is the **audit source**. Once it holds rows it
+        # is the only authority the healer may report, and the legacy table
+        # is then never read.  The legacy scan is not free: on a live store
+        # it returns twenty thousand rows carrying more than two gigabytes
+        # of payload text, and every one of those payloads is parsed again
+        # by the audit that asks a row for its identity.  Reading it here
+        # only to discard the result was the single largest cost of a
+        # healing cycle.
+        return manager_rows
     legacy_rows = legacy_review_rows(db, hours, limit)
     for row in legacy_rows:
         row["review_source"] = "legacy"
-    if not manager_rows:
-        return legacy_rows
-    if not legacy_rows:
-        return manager_rows
-    # The Manager library is the **audit source**. Once it holds rows it is
-    # the only authority the healer may report.
-    return manager_rows
+    return legacy_rows
 
 
 def review_row_carries_measurement(row: dict[str, Any]) -> bool:
@@ -1378,9 +1706,18 @@ def pnl_stats(rows: list[dict[str, Any]]) -> dict[str, Any]:
         currencies[currency] = currencies.get(currency, 0.0) + value
         if value > 0:
             positive_amount += 1
-            category = str(row.get("category") or "").strip().lower()
             source = str(signed.get("source") or "").strip().lower()
-            if category == "executable":
+            # The execution verdict is the one the reviewed row itself
+            # recorded, never one this file declares: a Review Manager row
+            # carries the kernel's own ``runArbitrage.executable`` flag and
+            # a legacy row carries the outcome under its ``category``
+            # column.  Reading the ``category`` column alone called every
+            # review of the current library non-executable -- the column
+            # holds nothing but ``not_executable`` -- so the count of the
+            # profitable routes that may be broadcast was **structurally
+            # zero** and the broadcast gate could never open, no matter
+            # what the market did.
+            if review_row_execution_verdict(row):
                 executable_positive += 1
                 confirmed_sum += value
             elif source == "native_contract_rate_delta_estimate":
@@ -1714,7 +2051,25 @@ def token_defects(db: Path) -> list[dict[str, Any]]:
                 "reason": "the admitted token carries no decimals; the token "
                           "manager has to re-read them from the chain",
             })
-        expected = official_addresses.get(symbol)
+        # The chain's **funding** allowlist and its **stock** registry are
+        # two different token universes, and a ticker may live in both
+        # while naming two different contracts.
+        #
+        # The chain itself settles it: the allowlist's NET is a nine
+        # decimal token named "NetNet", while the stock registry's NET is
+        # Cloudflare's Robinhood stock token with eighteen decimals, and
+        # the allowlist's DJT is "Trump Media & Technology Group C" while
+        # the registry's DJT is the Robinhood equity token.  All four are
+        # real contracts with the metadata they claim.
+        #
+        # The stock registry is therefore the authority for the stock
+        # library, and it is checked on its own right below.  Comparing a
+        # stock row against the funding allowlist reports a mismatch that
+        # does not exist -- and repairing it would swap a working equity
+        # token of the core library for a different token that merely
+        # shares its ticker.
+        expected = (None if str(row.get("library_name")) == "token_stocks"
+                    else official_addresses.get(symbol))
         counterfeit = address in KNOWN_COUNTERFEIT_FUNDING_TOKEN_ADDRESSES
         # A counterfeit address is also an address mismatch for a funding
         # symbol, but it must be reported **only** as a counterfeit: the
@@ -2643,7 +2998,13 @@ def audit_reviews(
             and current_best_amount_missing == 0,
         "manager": {"reviews": len(manager_rows)},
         "legacy": {"windowHours": hours, "stats": stats,
-                   "latestReviewAt": rows[0].get("created_at") if rows else None,
+                   "latestReviewAt": newest_review_stamp(rows),
+                   # The newest review of a **live** loop.  The freshness
+                   # of the profit data is a property of the routes that
+                   # are traded now, so a historical review of a loop that
+                   # left the catalog must not make a stale live review
+                   # look fresh.
+                   "currentLoopLatestReviewAt": newest_review_stamp(matched),
                    "currentLoopMatched": len(matched), "staleOrUnmatched": len(unmatched),
                    "currentDistinctLoops": len({review_loop_key(row) for row in matched}),
                    "matchedMissingPnl": sum(pnl(row) is None for row in matched),
@@ -2693,6 +3054,7 @@ def audit_broadcast(
     db: Path,
     hours: int,
     manager_api: str | None = None,
+    manager_reviews: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Return the broadcast record of the chain.
 
@@ -2803,11 +3165,22 @@ def audit_broadcast(
         else:
             missing_reason = realized_missing_reason or "realized_pnl_unavailable"
             realized_missing[missing_reason] = realized_missing.get(missing_reason, 0) + 1
-    positive = one(db, "SELECT COUNT(*) n FROM cow_execution_reviews WHERE network=? AND chain_id=? "
-        "AND created_at>=datetime('now',?) AND datetime(created_at)>=datetime(?) "
-        "AND category='executable' AND selected_profit_amount IS NOT NULL "
-        "AND selected_profit_amount!='' AND CAST(selected_profit_amount AS REAL)>0",
-        (NETWORK, CHAIN_ID, f"-{hours} hours", observation_started_at())) or {"n": 0}
+    # The profitable routes of the window are counted from the **Manager
+    # library**, which publishes the execution verdict of every review.
+    # The legacy table no longer writes the ``executable`` category at all
+    # -- every row of it says ``not_executable`` -- so a count taken from
+    # that column could only ever be zero, and it would report that the
+    # market never produced a profitable route even when the library holds
+    # several.
+    if manager_reviews is None:
+        manager_reviews = manager_review_rows(db, None, manager_api)
+    positive_count = 0
+    for row in manager_reviews:
+        signed = pnl(row)
+        if signed is None or float(signed["amount"]) <= 0:
+            continue
+        if review_row_execution_verdict(row):
+            positive_count += 1
     return {"valid": manager_attempts > 0,
         "manager": {"attempts": manager_attempts,
                     "pending": int(broadcast_status.get("pendingCount") or 0),
@@ -2835,7 +3208,8 @@ def audit_broadcast(
             "source": "contract_preview_plus_confirmed_receipt_gas",
         },
         "outcomes": outcome_counts,
-        "historicalPositiveReviewsInWindow": int(positive["n"]),
+        "historicalPositiveReviewsInWindow": positive_count,
+        "historicalPositiveReviewsSource": "manager_library",
         "automaticBroadcastCandidates": 0,
         "automaticBroadcastPolicy": "fresh_positive_review_only"}
 
@@ -2843,13 +3217,18 @@ def audit_broadcast(
 def transaction_production_status(
     layers: dict[str, Any],
     generated_at: str,
-    freshness_seconds: int = 600,
+    freshness_seconds: int = REVIEW_FRESHNESS_SECONDS,
 ) -> dict[str, Any]:
     reviews = ((layers.get("reviews") or {}).get("legacy") or {})
     best_amount = ((layers.get("reviews") or {}).get("bestAmount") or {})
     broadcast = ((layers.get("broadcast") or {}).get("legacy") or {})
-    stats = reviews.get("stats") or {}
-    latest_review_at = reviews.get("latestReviewAt")
+    # The production verdict is about the routes that are traded **now**.
+    # The whole window also holds the reviews of the loops that have left
+    # the catalog, and a history of missing best trade amounts kept the
+    # production state red while every live loop carried a confirmed,
+    # freshly measured amount.
+    stats = reviews.get("currentLoopStats") or reviews.get("stats") or {}
+    latest_review_at = reviews.get("currentLoopLatestReviewAt") or reviews.get("latestReviewAt")
     review_age_seconds = None
     if latest_review_at:
         try:
@@ -2862,7 +3241,7 @@ def transaction_production_status(
     upstream_valid = all((layers.get(name) or {}).get("valid") for name in ("tokens", "pools", "closedLoops"))
     executable_positive = int(stats.get("positive") or 0)
     attempts = int(broadcast.get("total") or 0)
-    best_amount_missing = int(best_amount.get("missing") or 0)
+    best_amount_missing = int(best_amount.get("missingCurrentLoop") or 0)
     if not upstream_valid:
         state, healthy, reason = "upstream_invalid", False, "token_pool_or_closed_loop_invalid"
     elif best_amount_missing > 0:
@@ -2899,7 +3278,7 @@ def transaction_production_status(
 #:         broadcast_success > 0
 #:         blockers == []
 #:         missingValue == 0
-#:         productionState == healthy
+#:         production.healthy == true
 #:
 #: A window that fails any condition resets the counter to zero. The
 #: windows must also be **contiguous in time**: three samples taken in the
@@ -2907,12 +3286,26 @@ def transaction_production_status(
 STABILITY_REQUIRED_WINDOWS = 3
 STABILITY_MIN_WINDOW_SECONDS = 30 * 60
 
+#: The production states that publish a healthy verdict.
+#:
+#: The verdict publishes a state and a boolean.  Both are checked: the
+#: boolean says what the producer decided, the state says which conclusion
+#: it drew.  Checking the state as well keeps the window from being
+#: satisfied by a verdict that contradicts itself.
+PRODUCTION_HEALTHY_STATES = ("market_no_executable_profit",
+                              "transaction_records_present")
+
 
 def stability_window(report: dict[str, Any]) -> dict[str, Any]:
     """Evaluate whether one observation window satisfies the criterion."""
     layers = report.get("layers") or {}
     reviews = layers.get("reviews") or {}
-    stats = (reviews.get("legacy") or {}).get("stats") or {}
+    # The criterion is about the routes that are traded now, so it reads
+    # the live scope.  The whole window also carries the reviews of the
+    # loops that have left the catalog, and a missing value of a route the
+    # system already stopped trading is not a defect of the live routes.
+    stats = ((reviews.get("legacy") or {}).get("currentLoopStats")
+             or (reviews.get("legacy") or {}).get("stats") or {})
     broadcast = layers.get("broadcast") or {}
     outcomes = broadcast.get("outcomes") or {}
     production = report.get("transactionProduction") or {}
@@ -2922,7 +3315,18 @@ def stability_window(report: dict[str, Any]) -> dict[str, Any]:
         "broadcastSuccess": int(outcomes.get("success") or 0) > 0,
         "noBlockers": not blockers,
         "noMissingReviewValue": int(stats.get("missingValue") or 0) == 0,
-        "productionHealthy": str(production.get("state") or "") == "healthy",
+        # The production verdict publishes a **state** and a **boolean**.
+        # The state is one of ``market_no_executable_profit`` /
+        # ``transaction_records_present`` / ``review_stalled`` / ... and is
+        # never the literal string ``healthy``, so comparing the state to
+        # ``healthy`` made this condition unsatisfiable for every window:
+        # the run could never reach the required number of consecutive
+        # healthy windows no matter what the chain did.  The boolean is the
+        # verdict the producer published; the state is checked as well so a
+        # verdict that contradicts itself cannot satisfy the window.
+        "productionHealthy": (bool(production.get("healthy"))
+                               and str(production.get("state") or "")
+                               in PRODUCTION_HEALTHY_STATES),
     }
     satisfied = all(conditions.values())
     return {
@@ -3029,19 +3433,37 @@ def build_report(
     # Every verdict in this report describes exactly one chain, so the
     # report may only be built from that chain's own database file.
     database = assert_chain_database(db)
+    # The Manager library is read **once** per report and handed to every
+    # layer that needs it.  A layer that read it again would pay for the
+    # same pages of the same answer twice per cycle.
+    manager_reviews = manager_review_rows(database, None, manager_api)
     layers = {"tokens": audit_tokens(database),
               "pools": audit_pools(database, hours, tools, manager_api),
               "closedLoops": audit_loops(database, manager_api),
               "reviews": audit_reviews(database, hours, manager_api),
-              "broadcast": audit_broadcast(database, hours, manager_api)}
+              "broadcast": audit_broadcast(database, hours, manager_api,
+                                           manager_reviews)}
+    # The **baseline audit** is the store's own statement about itself:
+    # the scope policy, the candidate library, the observation layer and
+    # the hop references.  The healer used to run it only inside the
+    # repair path, so the report never carried it and the healing
+    # actions could never act on what it says.
+    baseline = audit_database_baseline(database, tools) if tools is not None else {}
+    if baseline:
+        layers["databaseBaseline"] = baseline
+        apply_baseline_to_layers(layers)
     # The full-range matrix is a **read** of the same store, never a second
     # source of truth: it counts the funding tokens, the candidate tokens,
     # the candidate pools and the closed loops in one place, so an empty
     # set can never be mistaken for a skipped check.
     matrix = cascade_matrix(database, manager_api)
     layers["cascadeMatrix"] = matrix
+    # The baseline is a **diagnostic container**: the cascade layers it
+    # invalidates carry the invalidity, so the baseline itself is not a
+    # blocker of its own.  Its issues stay visible in the report.
     blockers = [name for name, layer in layers.items()
-                if name != "cascadeMatrix" and not layer.get("valid")]
+                if name not in ("cascadeMatrix", "databaseBaseline")
+                and not layer.get("valid")]
     generated_at = now()
     production = transaction_production_status(layers, generated_at)
     return {"mode": "check", "generatedAt": generated_at, "network": NETWORK, "chainId": CHAIN_ID,
@@ -3253,15 +3675,34 @@ def append_pnl_snapshot(
         handle.write(line + "\n")
 
 
-def run_tool(arguments: list[str], timeout: int = 900) -> dict[str, Any]:
-    try:
-        result = subprocess.run(arguments, capture_output=True, text=True, timeout=timeout)
-    except (FileNotFoundError, subprocess.TimeoutExpired) as error:
-        return {"ok": False, "returncode": -1, "error": str(error)}
-    stdout = result.stdout or ""
-    return {"ok": result.returncode == 0, "returncode": result.returncode,
-            "stdout": stdout[-200000:], "stdoutTruncated": len(stdout) > 200000,
-            "stderr": (result.stderr or "")[-4000:]}
+def run_tool(arguments: list[str], timeout: int = 900,
+             locked_retries: int = 4,
+             locked_backoff_seconds: float = 5.0) -> dict[str, Any]:
+    """Run a manager CLI and report its outcome.
+
+    The store is written by the runtime as well as by the managers, so a
+    write command can lose the race for the write lock.  The managers
+    that own the write give up after a short busy timeout, and the healer
+    used to report that as a failed repair even though the lock was free
+    a moment later.  The command is therefore retried with a backoff when
+    the **only** reason it failed is the lock.
+    """
+    attempts = max(1, int(locked_retries) + 1)
+    for attempt in range(attempts):
+        try:
+            result = subprocess.run(arguments, capture_output=True, text=True,
+                                    timeout=timeout)
+        except (FileNotFoundError, subprocess.TimeoutExpired) as error:
+            return {"ok": False, "returncode": -1, "error": str(error)}
+        stdout = result.stdout or ""
+        stderr = result.stderr or ""
+        locked = "database is locked" in (stderr + stdout).lower()
+        if result.returncode == 0 or not locked or attempt == attempts - 1:
+            return {"ok": result.returncode == 0, "returncode": result.returncode,
+                    "stdout": stdout[-200000:], "stdoutTruncated": len(stdout) > 200000,
+                    "stderr": stderr[-4000:], "lockedRetries": attempt}
+        time.sleep(max(0.0, locked_backoff_seconds) * (attempt + 1))
+    return {"ok": False, "returncode": -1, "error": "unreachable"}
 
 
 def pool_manager_command_support(tools: Path) -> dict[str, Any]:
@@ -3335,19 +3776,53 @@ def api_get(base: str, path: str, timeout: int = 5) -> dict[str, Any]:
             except (TypeError, ValueError, json.JSONDecodeError):
                 payload = {"body": raw[-2000:]}
             return {"ok": 200 <= response.status < 300, "status": response.status, "payload": payload}
-    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError) as error:
-        return {"ok": False, "status": getattr(error, "code", 0), "error": str(error)}
+    except urllib.error.HTTPError as error:
+        return {"ok": False, "status": getattr(error, "code", 0), "error": str(error),
+                "kind": "http"}
+    except (TimeoutError, socket.timeout) as error:
+        # A request that ran out of time is **not** a refused connection.
+        # The peer may be alive and busy; the difference decides whether a
+        # supervisor restarts a process that is doing its job or one that
+        # has died, so it is reported as its own kind and never guessed
+        # from the message text.
+        return {"ok": False, "status": 0, "error": str(error), "kind": "timeout"}
+    except urllib.error.URLError as error:
+        reason = error.reason
+        kind = "timeout" if isinstance(reason, (TimeoutError, socket.timeout)) else "connect"
+        return {"ok": False, "status": 0, "error": str(error), "kind": kind}
+    except OSError as error:
+        return {"ok": False, "status": 0, "error": str(error), "kind": "io"}
 
 
 def runtime_business_health(runtime_api: str) -> dict[str, Any]:
-    liveness = api_get(runtime_api, "/healthz", timeout=5)
+    liveness = api_get(runtime_api, "/healthz", timeout=LIVENESS_TIMEOUT_SECONDS)
     if not liveness.get("ok"):
+        if liveness.get("kind") == "timeout":
+            # The runtime did not answer in time.  A runtime that is busy
+            # measuring a review round answers late, and restarting it would
+            # throw the whole round away.  It is reported as **busy**: the
+            # caller keeps it and only restarts a runtime that stays
+            # unresponsive far beyond a review round.
+            return {"ok": True, "stage": "busy", "busy": True, "liveness": liveness}
         return {"ok": False, "stage": "liveness", "liveness": liveness}
     readiness = api_get(
         runtime_api,
         f"/api/dex/opportunity-scanner/snapshot?chain_id={CHAIN_ID}&protocols=uniswap_v4&summary=1",
         timeout=20,
     )
+    if not readiness.get("ok") and readiness.get("kind") == "timeout":
+        # The runtime proved it is alive -- the liveness probe answered --
+        # and the **heavier** readiness probe did not answer in time.  That
+        # is the same situation as a liveness timeout: the runtime is busy
+        # measuring a review round, and a restart would throw the whole
+        # round away.  It is reported as **busy**, and the caller keeps the
+        # runtime until it stays that way far beyond a review round.
+        #
+        # The readiness probe used to answer "unhealthy" here, and that
+        # killed the runtime in the middle of every review round: the
+        # round never finished, so no review ever landed.
+        return {"ok": True, "stage": "busy", "busy": True,
+                "liveness": liveness, "readiness": readiness}
     return {
         "ok": bool(readiness.get("ok")),
         "stage": "business_readiness",
@@ -3370,15 +3845,23 @@ def runtime_environment(port: int) -> dict[str, str]:
 
 def healing_actions(report: dict[str, Any]) -> list[str]:
     layers = report.get("layers") or {}
-    baseline_issues = set((layers.get("databaseBaseline") or {}).get("issues") or [])
-    if any(issue.startswith("extension_library_") for issue in baseline_issues):
+    baseline = layers.get("databaseBaseline") or {}
+    baseline_issues = set(baseline.get("issues") or [])
+    # The coverage facts the audit reports are carried, not repaired: no
+    # manager can invent a market pair or a pool it never measured, so a
+    # repair for them could never succeed.
+    actionable_issues = baseline_issues - set(NON_REPAIRABLE_BASELINE_ISSUES)
+    if any(issue.startswith("extension_library_") for issue in actionable_issues):
         return ["repair_tokens"]
-    if "latest_manager_migration_not_applied" in baseline_issues:
+    if "latest_manager_migration_not_applied" in actionable_issues:
         return ["repair_manager_schema"]
     if any(issue.startswith("core_scope_") or issue.startswith("candidate_scope_")
-           or issue.startswith("observation_")
-           for issue in baseline_issues):
-        return ["repair_pools"]
+           or issue.startswith("observation_") for issue in actionable_issues):
+        actions = ["repair_pools"]
+        for action in baseline_repair_actions(baseline):
+            if action not in actions:
+                actions.append(action)
+        return actions
     if not (layers.get("tokens") or {}).get("valid"):
         # GAP-C: a single broken symbol has to be repaired on its own.
         # The batch path rewrites every library, which cannot tell the
@@ -3432,11 +3915,23 @@ def healing_actions(report: dict[str, Any]) -> list[str]:
             return ["remeasure_pool_depth"]
         return ["repair_pools"]
     if not (layers.get("closedLoops") or {}).get("valid"):
-        return ["repair_closed_loops"]
+        actions = ["repair_closed_loops"]
+        for action in baseline_repair_actions(baseline):
+            if action not in actions:
+                actions.append(action)
+        return actions
     actions = []
     reviews = layers.get("reviews") or {}
-    stats = (reviews.get("legacy") or {}).get("stats") or {}
-    if not reviews.get("valid") or int(stats.get("missingValue") or 0) > 0:
+    # The **live** scope of the review layer is the closed-loop catalog that
+    # exists right now.  The whole-window statistics also carry the reviews
+    # of the loops that have left the catalog, and those are history: they
+    # are counted and reported, but they are not live defects and they do
+    # not decide which repair runs.  Reading the whole window here kept the
+    # review action switched on forever and kept the broadcast repair
+    # unreachable, because a missing value of a route the system already
+    # stopped trading is not a missing value of a live route.
+    current_stats = (reviews.get("legacy") or {}).get("currentLoopStats") or {}
+    if not reviews.get("valid") or int(current_stats.get("missingValue") or 0) > 0:
         actions.append("repair_reviews")
     # The broadcast layer is only repaired when the review layer above it is
     # already sound **and** produced a positive net result. A failed attempt
@@ -3445,14 +3940,172 @@ def healing_actions(report: dict[str, Any]) -> list[str]:
     # over the real cause.
     broadcast = layers.get("broadcast") or {}
     outcomes = broadcast.get("outcomes") or {}
-    reviews_sound = bool(reviews.get("valid")) and int(stats.get("missingValue") or 0) == 0
-    positive_reviews = int(stats.get("positive") or 0) > 0
+    reviews_sound = bool(reviews.get("valid")) and int(current_stats.get("missingValue") or 0) == 0
+    positive_reviews = int(current_stats.get("positive") or 0) > 0
     if int(outcomes.get("failed") or 0) > 0 and reviews_sound and positive_reviews:
         actions.append("repair_broadcast_failures")
     actions.append("fill_current_loop_reviews")
     actions.append("rereview_historical_positive_candidates")
     actions.append("observe_automatic_broadcast")
     return actions
+
+
+#: The baseline issues that a **repair can clear**.
+#:
+#: The baseline audit also reports two **coverage facts**: the extension
+#: library holds tokens that no core/stocks pool pairs them with, and the
+#: direction layer ranked one direction for a candidate pair that has no
+#: second ranked direction.  Neither is a defect a manager can clear --
+#: no manager can invent a market pair or a pool it never measured -- so
+#: they are carried with their counts and never drive a repair that
+#: cannot succeed.
+NON_REPAIRABLE_BASELINE_ISSUES = (
+    "extension_library_contains_unanchored_tokens",
+    "candidate_pairs_missing_top1_recommendation",
+)
+
+#: The baseline issues that make the **pool** layer invalid.
+BASELINE_POOL_ISSUES = (
+    "core_scope_library_policy_stale",
+    "candidate_scope_library_policy_stale",
+    "candidate_scope_contains_extension_or_test_tokens",
+    "candidate_scope_active_pool_state_incomplete",
+    "candidate_scope_active_pool_policy_invalid",
+    "recommendation_pool_reference_invalid",
+    "candidate_pool_reference_invalid",
+    "observation_pool_reference_invalid",
+)
+
+#: The baseline issues that make the **closed-loop** layer invalid.
+BASELINE_CLOSED_LOOP_ISSUES = (
+    "closed_loop_not_exactly_three_hops",
+    "closed_loop_hop_pool_reference_invalid",
+)
+
+#: The anchor libraries a **production** scope may use.  The baseline
+#: audit states the policy as the default load mode of the scope manager,
+#: and the scope manager starts with the **core library only**: the bare
+#: funding environment.  Every extra fund-token library multiplies the
+#: anchor groups and the closed loops that are built from them, so the
+#: catalog stays small enough to diagnose while the wider modes
+#: (``core_stocks`` and ``core_stocks_test``) stay available as an
+#: explicit, persisted decision.
+AUDITED_SCOPE_TOKEN_LOAD_MODE = "core"
+
+#: Every layer below the pool scope is materialized from it, so a scope
+#: repair invalidates them all.  The rebuild order is a **hard
+#: constraint**: every layer reads the version and the checksum of the
+#: layer above it.
+MANAGER_REBUILD_CHAIN = (
+    ("candidateEdge", "/v1/candidate-edge-pools/rebuild"),
+    ("candidateExchange", "/v1/candidate-exchange-pools/rebuild"),
+    ("directionalPools", "/v1/directional-pools/rebuild"),
+    ("closedLoops", "/v1/closed-loops/rebuild"),
+)
+
+#: The production scopes of the chain.
+PRODUCTION_SCOPES = ("core4", "candidate_exchange")
+
+
+def apply_baseline_to_layers(layers: dict[str, Any]) -> None:
+    """Fold the baseline audit into the cascade layers.
+
+    A layer is invalid when a repair can clear the defect the audit
+    reports for it.  The two coverage facts the audit also reports are
+    carried with their counts and never invalidate a layer, because no
+    manager can invent a market pair or a pool it never measured.
+    """
+    baseline = layers.get("databaseBaseline") or {}
+    issues = set(baseline.get("issues") or [])
+    if not issues:
+        return
+    clearable = issues - set(NON_REPAIRABLE_BASELINE_ISSUES)
+    pools = layers.get("pools") or {}
+    pool_issues = sorted(clearable & set(BASELINE_POOL_ISSUES))
+    if pool_issues:
+        pools["baselineIssues"] = pool_issues
+        pools["valid"] = False
+    loops = layers.get("closedLoops") or {}
+    loop_issues = sorted(clearable & set(BASELINE_CLOSED_LOOP_ISSUES))
+    if loop_issues:
+        loops["baselineIssues"] = loop_issues
+        loops["valid"] = False
+
+
+def baseline_repair_actions(baseline: dict[str, Any]) -> list[str]:
+    """Map the baseline issues to the repairs that can clear them."""
+    issues = set(baseline.get("issues") or []) - set(NON_REPAIRABLE_BASELINE_ISSUES)
+    actions: list[str] = []
+    if issues & {"core_scope_library_policy_stale",
+                 "candidate_scope_library_policy_stale"}:
+        actions.append("repair_scope_policy")
+    if issues & {"candidate_pool_reference_invalid",
+                 "observation_pool_reference_invalid",
+                 "closed_loop_hop_pool_reference_invalid",
+                 "candidate_scope_contains_extension_or_test_tokens",
+                 "candidate_scope_active_pool_state_incomplete",
+                 "candidate_scope_active_pool_policy_invalid",
+                 "recommendation_pool_reference_invalid"}:
+        actions.append("rebuild_cascade")
+    return actions
+
+
+def repair_scope_policy(manager_api: str, apply: bool,
+                        scopes: tuple[str, ...] = PRODUCTION_SCOPES,
+                        token_load_mode: str | None = AUDITED_SCOPE_TOKEN_LOAD_MODE,
+                        reason: str = "") -> dict[str, Any]:
+    """Bring the production scopes back to the audited anchor policy.
+
+    The scope owns the admission set, so the anchor libraries are a
+    decision of the **scope manager** and not of the healer.  The healer
+    therefore asks the manager to rebuild the scope and lets the manager
+    decide what the rebuild changes; it never edits the scope row itself.
+    """
+    results = []
+    for scope in scopes:
+        body: dict[str, Any] = {"chainId": CHAIN_ID, "scopeKey": scope,
+                                "dryRun": not apply}
+        if token_load_mode:
+            body["tokenLoadMode"] = token_load_mode
+        response = api_post(manager_api, "/v1/pools/scopes/rebuild", body)
+        results.append({"scopeKey": scope, "tokenLoadMode": token_load_mode,
+                        "response": response})
+    return {"tool": "pool-manager-api", "action": "pools.scope.rebuild",
+            "apply": apply, "dryRun": not apply, "tokenLoadMode": token_load_mode,
+            "reason": reason or ("the baseline audit states the anchor policy of a "
+                                 "production scope, and the scope manager owns it"),
+            "results": results}
+
+
+def repair_downstream_cascade(
+    manager_api: str,
+    apply: bool,
+    chain: tuple[tuple[str, str], ...] = MANAGER_REBUILD_CHAIN,
+    reason: str = "",
+) -> dict[str, Any]:
+    """Rebuild every layer below the pool scope, in order.
+
+    The pool scope owns the admission set; the candidate edge, the
+    candidate exchange (together with the observation layer it
+    materializes), the directional pools and the closed loops are all
+    materialized from it.  A scope repair therefore invalidates them
+    all, and they are rebuilt **in order**: every layer reads the
+    version and the checksum of the layer above it, so a rebuild that
+    skips a layer is rejected as stale.
+    """
+    results = []
+    for name, path in chain:
+        body: dict[str, Any] = {"chainId": CHAIN_ID, "dryRun": not apply}
+        if name == "directionalPools":
+            body["scopeKey"] = SCOPE
+        response = api_post(manager_api, path, body)
+        results.append({"layer": name, "path": path, "response": response})
+    return {"tool": "manager-api", "action": "cascade.rebuild",
+            "apply": apply, "dryRun": not apply,
+            "reason": reason or ("every layer below the pool scope is materialized "
+                                 "from it, so a scope repair invalidates them all"),
+            "order": [name for name, _path in chain],
+            "results": results}
 
 
 #: The five layers of the cascade, in dependency order.  A layer may only be
@@ -3485,7 +4138,16 @@ def cascade_layer_status(report: dict[str, Any]) -> dict[str, Any]:
     """
     layers = report.get("layers") or {}
     reviews = layers.get("reviews") or {}
-    stats = (reviews.get("legacy") or {}).get("stats") or {}
+    # The layer verdict is about the routes that are traded **now**.  The
+    # whole window also carries the reviews of the loops that have left the
+    # catalog, and a missing value of a route the system already stopped
+    # trading is not a defect of the live routes.  Reading the whole window
+    # here made the cascade contradict the review audit itself: the audit
+    # judged the live scope green (every current loop carries a value) while
+    # the cascade kept the layer red on the strength of a route that left
+    # the catalog hours ago.
+    stats = ((reviews.get("legacy") or {}).get("currentLoopStats")
+             or (reviews.get("legacy") or {}).get("stats") or {})
     broadcast = layers.get("broadcast") or {}
     outcomes = broadcast.get("outcomes") or {}
     status = {
@@ -3503,7 +4165,7 @@ def cascade_layer_status(report: dict[str, Any]) -> dict[str, Any]:
         "broadcastFailed": int(outcomes.get("failed") or 0),
         "broadcastSuccess": int(outcomes.get("success") or 0),
         "blockers": list(report.get("blockers") or []),
-        "productionState": report.get("productionState"),
+        "productionState": (report.get("transactionProduction") or {}).get("state"),
         "safeToAutoBroadcast": bool(report.get("safeToAutoBroadcast")),
     }
 
@@ -3589,39 +4251,131 @@ def collect_completed_review(
     loop_key = str(candidate.get("loopKey") or "").strip()
     if not loop_key:
         return None
-    loop_keys = {loop_key}
+    return collect_completed_reviews(db, [candidate], attempts,
+                                     interval_seconds).get(loop_key)
+
+
+#: The review window is read through the index the store already carries:
+#: `idx_cow_execution_reviews_scope_created_v2 (network, chain_id, created_at DESC)`.
+#: Ordering the very same window by `id` cannot use that index -- SQLite
+#: has to read the whole table and sort it.  Measured on the production store
+#: (114,986 rows) the `id`-ordered read took 5.63 s against 0.23 s for the
+#: index-backed read, so the order of the window is the difference between a
+#: poll that keeps up with the review and a poll that queues behind the table.
+REVIEW_WINDOW_ROWS = 400
+
+#: How many rows a **batch** window reads.  One row per candidate is not
+#: enough: the runtime keeps writing its own reviews while the batch runs.
+REVIEW_WINDOW_ROWS_PER_CANDIDATE = 60
+
+#: The upper bound of a batch window.
+REVIEW_WINDOW_ROWS_MAX = 4000
+
+
+def review_window_rows(
+    db: Path,
+    created_after: str | None = None,
+    limit: int = REVIEW_WINDOW_ROWS,
+) -> list[dict[str, Any]]:
+    """Read the newest reviews of this chain's scope.
+
+    The first poll reads the newest window; every later poll reads only the
+    rows written after the previous one.  Both shapes are served by the
+    scope index, so a poll costs what the new rows cost and not what the
+    whole table costs.
+    """
+    columns = ("id,created_at,pair,category,payload_json,summary_json,"
+               "selected_profit_raw,selected_profit_amount,selected_profit_amount_symbol,"
+               "selected_profit_source,selected_profit_missing_reason")
+    if created_after:
+        sql = ("SELECT " + columns + " FROM cow_execution_reviews "
+               "WHERE network=? AND chain_id=? AND created_at > ? "
+               "ORDER BY created_at DESC LIMIT ?")
+        params: tuple[Any, ...] = (NETWORK, CHAIN_ID, created_after, limit)
+    else:
+        sql = ("SELECT " + columns + " FROM cow_execution_reviews "
+               "WHERE network=? AND chain_id=? "
+               "ORDER BY created_at DESC LIMIT ?")
+        params = (NETWORK, CHAIN_ID, limit)
+    return all_rows(db, sql, params)
+
+
+def review_window_evidence(rows: list[dict[str, Any]],
+                           loop_key: str) -> dict[str, Any] | None:
+    """Return the finished review of one loop out of a read window.
+
+    The window is ordered newest first, so the first match is the newest
+    review of that loop.  A review that carries no measured value is not a
+    result: it never ends the wait.
+    """
+    for row in rows:
+        if not review_row_matches_loop_keys(row, {loop_key}):
+            continue
+        if not _review_row_has_concrete_pnl(row):
+            continue
+        return {
+            "reviewId": row.get("id"),
+            "reviewedAt": row.get("created_at"),
+            "pair": row.get("pair"),
+            "category": row.get("category"),
+            "signedPnlRaw": row.get("selected_profit_raw"),
+            "signedPnlAmount": row.get("selected_profit_amount"),
+            "signedPnlCurrency": row.get("selected_profit_amount_symbol"),
+            "signedPnlSource": row.get("selected_profit_source"),
+            "payload": as_json(row.get("payload_json")),
+            "summary": as_json(row.get("summary_json")),
+        }
+    return None
+
+
+def collect_completed_reviews(
+    db: Path,
+    candidates: list[dict[str, Any]],
+    attempts: int = 20,
+    interval_seconds: float = 3.0,
+) -> dict[str, dict[str, Any]]:
+    """Collect the finished reviews of a whole batch from **one** poll.
+
+    The review library is one append-only table, so a single read answers
+    for every candidate of the batch.  The healer used to poll the table
+    once per candidate, which multiplied the cost of a round by the number
+    of candidates and serialized the reviews the runtime already measures
+    in parallel.
+
+    The window is read **once per tick** for the whole batch, and every
+    later tick reads only the rows written since the previous one.
+    """
+    pending: dict[str, dict[str, Any]] = {}
+    for candidate in candidates:
+        loop_key = str(candidate.get("loopKey") or "").strip()
+        if loop_key:
+            pending[loop_key] = candidate
+    collected: dict[str, dict[str, Any]] = {}
+    if not pending:
+        return collected
+    limit = min(REVIEW_WINDOW_ROWS_MAX,
+                max(REVIEW_WINDOW_ROWS,
+                    REVIEW_WINDOW_ROWS_PER_CANDIDATE * len(pending)))
+    created_after: str | None = None
     started = time.monotonic()
     for attempt in range(max(1, attempts)):
-        rows = all_rows(
-            db,
-            "SELECT id,created_at,pair,category,payload_json,summary_json,"
-            "selected_profit_raw,selected_profit_amount,selected_profit_amount_symbol,"
-            "selected_profit_source,selected_profit_missing_reason "
-            "FROM cow_execution_reviews WHERE network=? AND chain_id=? "
-            "ORDER BY id DESC LIMIT 400",
-            (NETWORK, CHAIN_ID),
-        )
-        for row in rows:
-            if not review_row_matches_loop_keys(row, loop_keys):
+        rows = review_window_rows(db, created_after, limit)
+        if rows:
+            newest = max(str(row.get("created_at") or "") for row in rows)
+            if newest and (created_after is None or newest > created_after):
+                created_after = newest
+        for loop_key in list(pending):
+            evidence = review_window_evidence(rows, loop_key)
+            if evidence is None:
                 continue
-            if not _review_row_has_concrete_pnl(row):
-                continue
-            return {
-                "reviewId": row.get("id"),
-                "reviewedAt": row.get("created_at"),
-                "pair": row.get("pair"),
-                "category": row.get("category"),
-                "signedPnlRaw": row.get("selected_profit_raw"),
-                "signedPnlAmount": row.get("selected_profit_amount"),
-                "signedPnlCurrency": row.get("selected_profit_amount_symbol"),
-                "signedPnlSource": row.get("selected_profit_source"),
-                "payload": as_json(row.get("payload_json")),
-                "summary": as_json(row.get("summary_json")),
-                "attempts": attempt + 1,
-                "waitSeconds": round(time.monotonic() - started, 3),
-            }
+            evidence["attempts"] = attempt + 1
+            evidence["waitSeconds"] = round(time.monotonic() - started, 3)
+            collected[loop_key] = evidence
+            pending.pop(loop_key)
+        if not pending:
+            break
         time.sleep(max(0.0, interval_seconds))
-    return None
+    return collected
 
 
 def review_row_matches_loop_keys(row: dict[str, Any], loop_keys: set[str]) -> bool:
@@ -3685,7 +4439,7 @@ def merge_with_stored_evidence(
     db: Path,
     manager_api: str | None,
     evidence: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], int]:
     """Return the evidence of **every** measured cycle of the chain.
 
     The Review Manager replaces the whole review set of the scope with the
@@ -3697,6 +4451,14 @@ def merge_with_stored_evidence(
     The stored reviews are read back from the Manager library, because that
     is the authority for the structure of a review: it knows which loop a
     measurement belongs to and it already holds the signed profit.
+
+    A stored review of a loop the catalog **no longer publishes** is not
+    carried.  The Review Manager names every closed loop exactly and
+    rejects a submission that names one it does not know, so one retired
+    loop in the payload makes it refuse the **whole** write -- and with it
+    every fresh measurement of the loops that are still live.  The second
+    number of the result counts the reviews that were left out for that
+    reason, so the omission is visible instead of silent.
     """
     merged: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -3709,15 +4471,28 @@ def merge_with_stored_evidence(
         seen.add(loop_key)
         merged.append(item)
     stored = stored_review_evidence(db, manager_api)
+    # The published catalog is the authority on which loops still exist.
+    # When it cannot be read the list is empty and nothing is dropped: the
+    # submission then fails loudly on its own instead of losing reviews to
+    # a catalog that was never seen.
+    published = {
+        row["loop_key"].strip().lower()
+        for row in manager_loop_rows(manager_api)
+        if str(row.get("loop_key") or "").strip()
+    }
+    retired = 0
     for item in stored:
         loop_key = str(item.get("loopKey") or "").strip()
         if not loop_key:
+            continue
+        if published and loop_key.lower() not in published:
+            retired += 1
             continue
         if loop_key in seen:
             continue
         seen.add(loop_key)
         merged.append(item)
-    return merged
+    return merged, retired
 
 
 def stored_review_evidence(
@@ -3961,7 +4736,7 @@ def materialize_reviews(
     # carries every measured cycle: the fresh evidence for the cycles that
     # were just re-reviewed, plus the evidence that is already stored for the
     # cycles that are still valid.
-    merged = merge_with_stored_evidence(db, manager_api, evidence)
+    merged, retired_reviews = merge_with_stored_evidence(db, manager_api, evidence)
     body = {"chainId": CHAIN_ID, "dryRun": not apply, "evidence": merged}
     if expected:
         body["expectedUpstream"] = expected
@@ -3972,6 +4747,7 @@ def materialize_reviews(
             "submittedEvidenceCount": len(evidence),
             "droppedWithoutLoopIdentity": dropped_without_identity,
             "duplicateLoops": duplicate_loops,
+            "retiredReviewCount": retired_reviews,
             "expectedUpstream": expected or None,
             "managerReviewRows": materialized,
             "response": response,
@@ -4053,7 +4829,24 @@ def request_live_review(
     runtime_api: str,
     candidate: dict[str, Any],
     apply: bool,
+    collect: bool = True,
+    manager_api: str | None = None,
 ) -> dict[str, Any]:
+    """Ask the runtime for a live review of one candidate.
+
+    ``collect`` says whether the finished review is waited for here.  A
+    batch asks the runtime for every candidate first and then collects the
+    whole batch out of a single poll, so it passes ``collect=False`` and
+    collects the answers itself.
+
+    The round of the review **starts** with the request, so the cycle of
+    the loop starts here as well: the moment the loop is due again is one
+    review interval after the moment the round started, and not after the
+    moment the round ended.
+    """
+    claim: dict[str, Any] | None = None
+    if apply and manager_api:
+        claim = begin_review_cycle(manager_api, str(candidate.get("loopKey") or ""))
     body = {
         "routeSymbols": candidate["routeSymbols"],
         "routeAddresses": candidate["routeAddresses"],
@@ -4065,7 +4858,8 @@ def request_live_review(
         f"/api/dex/closed-loop-groups/manual-review?chain_id={CHAIN_ID}",
         body,
     )
-    result = {"initialReview": initial, "workerRefreshRequired": False}
+    result = {"initialReview": initial, "workerRefreshRequired": False,
+              "reviewCycleClaim": claim}
     # A closed loop that has **no resident worker** answers with
     # ``closed_loop_group_not_found`` (the worker pool never registered the
     # key), while a loop whose worker exists but is stopped answers with
@@ -4080,16 +4874,14 @@ def request_live_review(
     )
     if not worker_missing:
         result["finalReview"] = initial
-        result["completedReview"] = collect_completed_review(db, candidate)
-        return result
+        return _attach_completed_review(db, candidate, result, collect)
     result["workerRefreshRequired"] = True
     group_key = resolve_closed_loop_group_key(runtime_api, candidate["routeSymbols"])
     result["groupKey"] = group_key
     if not apply:
         result["workerRefreshApplied"] = False
         result["finalReview"] = initial
-        result["completedReview"] = collect_completed_review(db, candidate)
-        return result
+        return _attach_completed_review(db, candidate, result, collect)
     refresh_path = (
         "/api/dex/closed-loop-groups/"
         + urllib.parse.quote(group_key, safe="")
@@ -4100,11 +4892,22 @@ def request_live_review(
     result["workerRefresh"] = refresh
     if not response_succeeded(refresh):
         result["finalReview"] = initial
-        result["completedReview"] = collect_completed_review(db, candidate)
-        return result
+        return _attach_completed_review(db, candidate, result, collect)
     result["reviewTriggeredByRefresh"] = True
     result["finalReview"] = refresh
-    result["completedReview"] = collect_completed_review(db, candidate)
+    return _attach_completed_review(db, candidate, result, collect)
+
+
+def _attach_completed_review(
+    db: Path,
+    candidate: dict[str, Any],
+    result: dict[str, Any],
+    collect: bool,
+) -> dict[str, Any]:
+    """Attach the finished review of one candidate to its result."""
+    result["completedReview"] = (
+        collect_completed_review(db, candidate) if collect else None
+    )
     return result
 
 
@@ -4114,13 +4917,100 @@ def historical_positive_candidates(
     excluded_loop_keys: set[str] | None = None,
     manager_api: str | None = None,
 ) -> list[dict[str, Any]]:
+    """The routes that were profitable before, ranked for a fresh review.
+
+    The **Manager library** is the source whenever it holds rows, exactly
+    as it is for the review audit.  The library publishes every review
+    with its loop key and its signed P&L, so the candidates are found in
+    memory instead of in the record table.
+
+    The legacy table is only read when the library is empty.  That table
+    is *record* data: the runtime appends a round to it every minute and
+    nothing decides on it, but it carries the payload text of every row,
+    so a scan of it costs minutes on a store that has been running for
+    days.  Paying that price on every cycle to learn something the
+    library already publishes is the cost this avoids.
+    """
+    manager_rows = manager_review_rows(db, None, manager_api)
+    if manager_rows:
+        return manager_historical_positive_candidates(
+            db, limit, excluded_loop_keys, manager_api, manager_rows)
+    return legacy_historical_positive_candidates(
+        db, limit, excluded_loop_keys, manager_api)
+
+
+def manager_historical_positive_candidates(
+    db: Path,
+    limit: int,
+    excluded_loop_keys: set[str] | None = None,
+    manager_api: str | None = None,
+    rows: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """The historical positive candidates the Manager library names.
+
+    A candidate is a route of the **current** catalog whose published
+    review carries a positive signed P&L.  The newest such review wins,
+    because the newest measurement is the one that ranks the candidate.
+    """
+    loops = {row["loop_key"]: row for row in manager_loop_rows(manager_api)}
+    excluded = excluded_loop_keys or set()
+    latest: dict[str, dict[str, Any]] = {}
+    for row in (rows if rows is not None
+                else manager_review_rows(db, None, manager_api)):
+        key = str(row.get("loop_key") or "").strip()
+        if not key or key not in loops or key in excluded:
+            continue
+        value = pnl(row)
+        if value is None or value["amount"] <= 0:
+            continue
+        stamp = str(row.get("reviewed_at") or row.get("created_at") or "")
+        previous = latest.get(key)
+        if previous is None or stamp > previous["reviewedAt"]:
+            latest[key] = {"reviewedAt": stamp, "profit": value["amount"],
+                           "currency": value["currency"], "raw": value["raw"],
+                           "category": str(row.get("review_status") or "")}
+    candidates = []
+    for key, entry in latest.items():
+        loop = loops[key]
+        candidates.append({"loopKey": key, "path": loop["path_text"],
+            "routeSymbols": json.loads(loop["path_symbols_json"]),
+            "routeAddresses": json.loads(loop["path_addresses_json"]),
+            "historicalReviewId": None,
+            "historicalProfit": entry["profit"],
+            "historicalCurrency": entry["currency"],
+            "historicalCategory": entry["category"],
+            "historicalReviewedAt": entry["reviewedAt"],
+            "historicalReviewSource": "manager_library"})
+    candidates.sort(key=lambda item: str(item["historicalReviewedAt"]), reverse=True)
+    return candidates[:limit]
+
+
+def legacy_historical_positive_candidates(
+    db: Path,
+    limit: int,
+    excluded_loop_keys: set[str] | None = None,
+    manager_api: str | None = None,
+) -> list[dict[str, Any]]:
+    """The historical positive candidates the legacy record table names.
+
+    This is the fallback for a store that has no Manager library yet.  It
+    reads the record table directly, so it is only ever paid for on a
+    store that has not materialized its reviews.
+
+    The read is **two phased** on purpose.  The payload of a review row is
+    the largest thing in the store, and the rows that carry a value are
+    tens of thousands of them: reading the payload of every one of them
+    costs gigabytes of memory.  So the values are read first, without the
+    payload, and the payload of the handful of rows that turn out to be
+    positive is read afterwards, one row at a time.
+    """
     loops = {row["loop_key"]: row for row in manager_loop_rows(manager_api)}
     latest = {}
     con = connect(db)
     try:
         rows = con.execute(
-            "SELECT id,created_at,category,selected_profit_amount,selected_profit_amount_symbol,"
-            "payload_json "
+            "SELECT rowid AS record_rowid,id,created_at,category,selected_profit_amount,"
+            "selected_profit_amount_symbol "
             "FROM cow_execution_reviews WHERE network=? AND chain_id=? "
             "AND datetime(created_at)>=datetime(?) AND selected_profit_amount IS NOT NULL",
             (NETWORK, CHAIN_ID, observation_started_at())).fetchall()
@@ -4129,6 +5019,14 @@ def historical_positive_candidates(
             value = amount(row.get("selected_profit_amount"))
             if value is None or value <= 0:
                 continue
+            # The identity of the row lives in its payload, so the payload
+            # of this one row is read now -- and only for the rows that
+            # already proved to be positive.
+            payload = con.execute(
+                "SELECT payload_json FROM cow_execution_reviews WHERE rowid=?",
+                (row.get("record_rowid"),)).fetchone()
+            if payload is not None:
+                row["payload_json"] = payload[0]
             key = review_loop_key(row)
             if key not in loops:
                 continue
@@ -4149,7 +5047,8 @@ def historical_positive_candidates(
             "historicalReviewId": row["id"], "historicalProfit": row["selected_profit_amount"],
             "historicalCurrency": row["selected_profit_amount_symbol"],
             "historicalCategory": row["category"],
-            "historicalReviewedAt": row["created_at"]})
+            "historicalReviewedAt": row["created_at"],
+            "historicalReviewSource": "legacy_record_table"})
     candidates.sort(key=lambda item: str(item["historicalReviewedAt"]), reverse=True)
     return candidates[:limit]
 
@@ -4172,7 +5071,8 @@ def rereview_historical_positive(
     results = []
     evidence_payloads: list[dict[str, Any]] = []
     for candidate in candidates:
-        response = request_live_review(db, runtime_api, candidate, apply)
+        response = request_live_review(db, runtime_api, candidate, apply, True,
+                                       manager_api)
         evidence = live_review_evidence(response, candidate)
         if evidence:
             evidence_payloads.append(evidence)
@@ -4195,22 +5095,62 @@ def missing_review_candidates(
     excluded_loop_keys: set[str] | None = None,
     manager_api: str | None = None,
 ) -> list[dict[str, Any]]:
-    reviewed = {review_loop_key(row) for row in review_rows(db, 24 * 365, None, manager_api)}
+    # A review is **fresh** or it is nothing.  The freshness of a profit
+    # measurement is a property of the market: a review that was taken
+    # ten minutes ago describes a market that has traded since.  The
+    # production gate already refuses to broadcast on a review that is
+    # older than the freshness threshold, so a stale review must not stop
+    # the loop from being reviewed again -- otherwise the review of a loop
+    # freezes at the moment it was first written and the gate stays red
+    # forever.
+    rows = review_rows(db, 24 * 365, None, manager_api)
+    newest_by_loop: dict[str, str | None] = {}
+    for row in rows:
+        key = review_loop_key(row)
+        if not key:
+            continue
+        stamp = review_measurement_stamp(row)
+        known = newest_by_loop.get(key)
+        if known is None or (stamp and stamp > known):
+            newest_by_loop[key] = stamp
     # A review covers a loop when it was filed under the **same published
     # identity**. The key of the loop and the key of its review are the
     # same string the Manager published, so exact equality decides it. A
     # review of a different starting point of the same triangle is a
     # different loop and leaves this loop unreviewed.
-    reviewed_keys: set[str] = {key for key in reviewed if key}
     excluded = excluded_loop_keys or set()
     loops = manager_loop_rows(manager_api)
+    schedules = manager_review_schedules(manager_api)
     candidates = []
+    # The review time point of a loop decides when it is measured again,
+    # so the candidates are ordered by that moment: the loop that waited
+    # the longest comes first and the loops do not all start in the same
+    # second.
+    order: dict[str, str] = {}
     for loop in loops:
-        if loop["loop_key"] in reviewed_keys or loop["loop_key"] in excluded:
+        key = loop["loop_key"]
+        if key in excluded:
             continue
+        schedule = schedules.get(key)
+        if schedule is not None:
+            # The loop published its own schedule, so its own clock decides
+            # when it is measured again.  The schedule is restarted by every
+            # measurement, so a loop that was measured a moment ago waits.
+            if not review_is_due(schedule):
+                continue
+        else:
+            stamp = newest_by_loop.get(key)
+            if stamp is not None and not review_is_stale(
+                    stamp, review_interval_seconds(db)):
+                # The review is still fresh: it covers this loop.
+                continue
+        schedule = schedules.get(key) or {}
+        due_at = schedule.get("nextReviewAt")
+        order[key] = str(due_at or "")
         candidates.append({"loopKey": loop["loop_key"], "path": loop["path_text"],
             "routeSymbols": json.loads(loop["path_symbols_json"]),
             "routeAddresses": json.loads(loop["path_addresses_json"])})
+    candidates.sort(key=lambda candidate: order.get(str(candidate["loopKey"]), ""))
     return candidates[:limit]
 
 
@@ -4231,8 +5171,17 @@ def fill_missing_reviews(
     candidates = missing_review_candidates(db, limit, excluded_loop_keys, manager_api)
     results = []
     evidence_payloads: list[dict[str, Any]] = []
-    for candidate in candidates:
-        response = request_live_review(db, runtime_api, candidate, apply)
+    # The runtime measures the loops in a worker pool, so the whole batch
+    # is asked for at once and the finished reviews are collected out of a
+    # single poll.  Asking for one candidate at a time serialized the
+    # concurrency the runtime already had and made a round of the review
+    # take as long as the sum of all its candidates.
+    triggered = _trigger_live_reviews(db, runtime_api, candidates, apply, manager_api)
+    collected = collect_completed_reviews(db, candidates) if triggered else {}
+    for candidate, response in triggered:
+        if response.get("completedReview") is None:
+            response["completedReview"] = collected.get(
+                str(candidate.get("loopKey") or "").strip())
         evidence = live_review_evidence(response, candidate)
         if evidence:
             evidence_payloads.append(evidence)
@@ -4510,8 +5459,12 @@ def rereview_missing_pnl(
                                                manager_api)
     results = []
     evidence_payloads: list[dict[str, Any]] = []
-    for candidate in candidates:
-        response = request_live_review(db, runtime_api, candidate, apply)
+    triggered = _trigger_live_reviews(db, runtime_api, candidates, apply, manager_api)
+    collected = collect_completed_reviews(db, candidates) if triggered else {}
+    for candidate, response in triggered:
+        if response.get("completedReview") is None:
+            response["completedReview"] = collected.get(
+                str(candidate.get("loopKey") or "").strip())
         evidence = live_review_evidence(response, candidate)
         if evidence:
             evidence_payloads.append(evidence)
@@ -4526,6 +5479,48 @@ def rereview_missing_pnl(
             "evidenceCount": len(evidence_payloads),
             "materialization": materialization,
             "policy": "missing PnL must be replaced by a fresh live review, never by zero"}
+
+
+#: How many live reviews the healer asks the runtime for at the same time.
+#:
+#: The runtime measures closed loops in a worker pool
+#: (`DEX_CLOSED_LOOP_MAX_WORKERS`, clamped to 32) and serves the API requests
+#: concurrently, so the reviews themselves are already parallel.  The
+#: healer used to ask for one candidate at a time and wait for its answer
+#: before it asked for the next one, which serialized exactly the
+#: concurrency the runtime already had.
+REVIEW_REQUEST_CONCURRENCY = 8
+
+
+def _trigger_live_reviews(
+    db: Path,
+    runtime_api: str,
+    candidates: list[dict[str, Any]],
+    apply: bool,
+    manager_api: str | None = None,
+) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    """Ask the runtime for every candidate of the batch at once.
+
+    A candidate that could not be asked is reported with its own failure,
+    so it never silently disappears from the round.
+    """
+    if not candidates:
+        return []
+    workers = max(1, min(REVIEW_REQUEST_CONCURRENCY, len(candidates)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [
+            pool.submit(request_live_review, db, runtime_api, candidate, apply, False,
+                        manager_api)
+            for candidate in candidates
+        ]
+        triggered: list[tuple[dict[str, Any], dict[str, Any]]] = []
+        for candidate, future in zip(candidates, futures):
+            try:
+                response = future.result()
+            except Exception as error:  # noqa: BLE001 - the failure is reported
+                response = {"ok": False, "error": str(error)}
+            triggered.append((candidate, response))
+    return triggered
 
 
 def rematerialize_reviews(db: Path, manager_api: str, apply: bool) -> dict[str, Any]:
@@ -4590,11 +5585,52 @@ def _missing_value_identity(item: dict[str, Any]) -> str:
     return f"review:{item.get('reviewId')}"
 
 
-def reviews_missing_a_value(db: Path, hours: int) -> list[dict[str, Any]]:
-    """Returns the review routes that still carry no explicit profit value."""
+def current_catalog_loop_keys(manager_api: str | None) -> set[str] | None:
+    """Return the loop keys the **live** closed-loop catalog publishes.
+
+    ``None`` means the catalog could not be read.  A catalog that failed to
+    load is not evidence that a review belongs to a loop that no longer
+    exists, so the caller keeps every row in scope instead of narrowing the
+    scope on a failed read.
+    """
+    if not manager_api:
+        return None
+    try:
+        loops = manager_read_closed_loops(manager_api).get("loops") or []
+    except Exception:
+        return None
+    keys = {str(row.get("loopKey") or "").strip() for row in loops}
+    keys.discard("")
+    return keys or None
+
+
+def reviews_missing_a_value(db: Path, hours: int,
+                            manager_api: str | None = None) -> list[dict[str, Any]]:
+    """Returns the review routes that still carry no explicit profit value.
+
+    The scope is the **live** closed-loop catalog, and that scope is the
+    whole point of the function.  A review of a loop that has left the
+    catalog describes a route the system already stopped trading: it is
+    history, not a live defect.  Such a row is counted and reported
+    (``reviews_outside_the_current_catalog``), but it never keeps the
+    convergence from finishing.
+
+    Without this scope the convergence could never succeed.  The store
+    keeps the review of every loop that ever existed, so the missing values
+    of the routes that are gone outnumbered the ones of the live routes and
+    the loop reported "stalled" forever, even though every live loop
+    carried a complete, valued review.  The verdict of the review layer in
+    ``audit_reviews`` is scoped the same way, so the two now agree.
+
+    The rows are read newest first, so the **first** row of a loop is that
+    loop's current review.  A second review of the same loop therefore
+    replaces the first one instead of adding to it: every loop carries one
+    current verdict and one value.
+    """
     latest_by_loop: dict[str, dict[str, Any]] = {}
     unassociated: list[dict[str, Any]] = []
-    for row in review_rows(db, hours):
+    catalog = current_catalog_loop_keys(manager_api)
+    for row in review_rows(db, hours, None, manager_api):
         loop_key = review_loop_key(row)
         if not loop_key:
             # A review without a published identity is still a review that
@@ -4602,6 +5638,10 @@ def reviews_missing_a_value(db: Path, hours: int) -> list[dict[str, Any]]:
             # id instead of being dropped, so a missing measurement is
             # never silently hidden (MIO-7 / AC-214).
             unassociated.append(row)
+            continue
+        if catalog is not None and loop_key not in catalog:
+            # A loop that left the catalog.  It is reported separately and
+            # it is not a live defect.
             continue
         if loop_key not in latest_by_loop:
             latest_by_loop[loop_key] = row
@@ -4611,7 +5651,7 @@ def reviews_missing_a_value(db: Path, hours: int) -> list[dict[str, Any]]:
             continue
         missing.append({
             "loopKey": loop_key,
-            "missingReason": str(row.get("selected_profit_missing_reason") or ""),
+            "missingReason": review_missing_reason(row) or "evidence_missing",
             "reviewId": row.get("id"),
         })
     for row in unassociated:
@@ -4620,10 +5660,38 @@ def reviews_missing_a_value(db: Path, hours: int) -> list[dict[str, Any]]:
         missing.append({
             "loopKey": None,
             "unassociated": True,
-            "missingReason": str(row.get("selected_profit_missing_reason") or ""),
+            "missingReason": review_missing_reason(row) or "evidence_missing",
             "reviewId": row.get("id"),
         })
     return missing
+
+
+def reviews_outside_the_current_catalog(
+    db: Path,
+    hours: int,
+    manager_api: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return the reviews of loops the **live** catalog does not hold.
+
+    These rows are never hidden.  They are counted and their reason is
+    reported, so a reader of the journal can see how much history the
+    store still carries and why it is kept out of the live scope.
+    """
+    catalog = current_catalog_loop_keys(manager_api)
+    if catalog is None:
+        return []
+    outside: list[dict[str, Any]] = []
+    for row in review_rows(db, hours, None, manager_api):
+        loop_key = review_loop_key(row)
+        if not loop_key or loop_key in catalog:
+            continue
+        outside.append({
+            "loopKey": loop_key,
+            "reviewId": row.get("id"),
+            "missingValue": pnl(row) is None,
+            "missingReason": review_missing_reason(row) or "evidence_missing",
+        })
+    return outside
 
 
 def converge_reviews(
@@ -4645,14 +5713,14 @@ def converge_reviews(
     stalled = False
     remaining: list[dict[str, Any]] = []
     for round_index in range(1, max(1, max_rounds) + 1):
-        remaining = reviews_missing_a_value(db, hours)
+        remaining = reviews_missing_a_value(db, hours, manager_api)
         if not remaining:
             converged = True
             break
         before_keys = {_missing_value_identity(item) for item in remaining}
         result = rereview_missing_pnl(db, runtime_api, apply, hours, candidate_limit,
                                       manager_api=manager_api)
-        after = reviews_missing_a_value(db, hours)
+        after = reviews_missing_a_value(db, hours, manager_api)
         after_keys = {_missing_value_identity(item) for item in after}
         progressed = len(after_keys) < len(before_keys)
         rounds.append({
@@ -4669,7 +5737,12 @@ def converge_reviews(
             # the convergence is stalled and has to be reported as such.
             stalled = True
             break
-    remaining = reviews_missing_a_value(db, hours)
+    remaining = reviews_missing_a_value(db, hours, manager_api)
+    # The reviews of the loops that have left the catalog are counted and
+    # reported, never dropped.  They are history, so they do not keep the
+    # convergence from finishing, but the operator still sees how many of
+    # them are missing a value and why.
+    outside_catalog = reviews_outside_the_current_catalog(db, hours, manager_api)
     return {
         "mode": "converge-reviews",
         "generatedAt": now(),
@@ -4682,6 +5755,10 @@ def converge_reviews(
         "stalled": stalled,
         "remainingMissingValue": len(remaining),
         "remaining": remaining[:50],
+        "outsideCatalogReviews": len(outside_catalog),
+        "outsideCatalogMissingValue": sum(1 for item in outside_catalog
+                                           if item.get("missingValue")),
+        "outsideCatalog": outside_catalog[:20],
         "rounds": rounds,
         "policy": ("a review without an explicit value is replaced by a fresh review "
                    "until it carries one; a missing value is never read as zero profit"),
@@ -5026,16 +6103,49 @@ def repair(db: Path, tools: Path, manager_api: str, apply: bool, hours: int) -> 
     baseline_issues = set(baseline.get("issues") or [])
     results.append({"layer": "databaseBaseline", "tool": "pool-manager",
                     "result": baseline})
+    baseline_actions = baseline_repair_actions(baseline)
+    results.append({"layer": "databaseBaseline", "tool": "healer",
+                    "result": {"repairActions": baseline_actions,
+                               "carriedCoverageIssues": sorted(
+                                   baseline_issues & set(NON_REPAIRABLE_BASELINE_ISSUES)),
+                               "policy": ("a coverage fact the audit reports is carried with "
+                                          "its count; only a defect a manager can clear "
+                                          "drives a repair")}})
     pool_baseline_invalid = any(
         issue.startswith("core_scope_") or issue.startswith("candidate_scope_")
         or issue.startswith("observation_")
         for issue in baseline_issues
     )
-    if not before["layers"]["pools"]["valid"] or pool_baseline_invalid:
+    pools_invalid = not before["layers"]["pools"]["valid"] or pool_baseline_invalid
+    scope_policy_stale = bool({"core_scope_library_policy_stale",
+                               "candidate_scope_library_policy_stale"} & baseline_issues)
+    if manager_api and (pools_invalid or scope_policy_stale):
+        # The scope owns the admission set, so the anchor libraries are a
+        # decision of the **scope manager**.  The healer asks the manager
+        # to rebuild the scope with the audited policy and lets the
+        # manager decide what the rebuild changes.
+        results.append({"layer": "pools", "tool": "pool-manager-api",
+                        "result": repair_scope_policy(
+                            manager_api, apply,
+                            token_load_mode=(AUDITED_SCOPE_TOKEN_LOAD_MODE
+                                             if scope_policy_stale else None),
+                            reason=("the baseline audit reports that the scope does not "
+                                    "carry the audited anchor policy"
+                                    if scope_policy_stale else
+                                    "the pool layer is invalid, so the scope is rebuilt "
+                                    "from the store's own raw pools"))})
+    elif pools_invalid:
         command = [str(tools / "pool-manager.exe"), "materialize-scope", "--store", str(db),
                    "--chain-id", str(CHAIN_ID), "--scope", SCOPE, "--apply" if apply else "--dry-run"]
         results.append({"layer": "pools", "tool": "pool-manager", "result": run_tool(command)})
-    if before["layers"]["pools"]["valid"] and not before["layers"]["closedLoops"]["valid"]:
+    # Every layer below the pool scope is materialized from it, so a scope
+    # repair invalidates them all.  They are rebuilt **in order**: each
+    # layer reads the version and the checksum of the layer above it.
+    if manager_api and "rebuild_cascade" in baseline_actions:
+        results.append({"layer": "cascade", "tool": "manager-api",
+                        "result": repair_downstream_cascade(manager_api, apply)})
+    elif (before["layers"]["pools"]["valid"]
+          and not before["layers"]["closedLoops"]["valid"]):
         command = [str(tools / "composite-manager.exe"), "materialize-arbitrage", "--db", str(db),
                    "--chain-id", str(CHAIN_ID)] + (["--apply"] if apply else [])
         results.append({"layer": "closedLoops", "tool": "composite-manager", "result": run_tool(command)})
@@ -5472,11 +6582,24 @@ def supervise(
     startup_timeout: int,
     restart_limit: int,
     leave_runtime_running: bool,
+    observation_hours: float = 0.0,
+    pnl_interval_seconds: float = 300.0,
 ) -> Path:
+    # The observation window and the PnL cadence were command-line options
+    # that no function ever received: ``main`` passed them and ``supervise``
+    # did not declare them, so the mode raised a TypeError on its first call
+    # and the profit observation it advertises never ran.  The two parameters
+    # are declared here and the cadence drives a real PnL snapshot, so the
+    # supervisor both heals and then keeps watching what the healing produced.
     SUPERVISOR_DIR.mkdir(parents=True, exist_ok=True)
     session = stamp()
     journal_path = SUPERVISOR_DIR / f"supervisor_{session}.jsonl"
+    pnl_jsonl = SUPERVISOR_DIR / f"pnl_{session}.jsonl"
+    pnl_log = SUPERVISOR_DIR / f"pnl_{session}.log"
     runtime_log_dir = SUPERVISOR_DIR / f"runtime_{session}"
+    session_started_monotonic = time.monotonic()
+    session_started_at = now()
+    last_pnl_monotonic = session_started_monotonic
     process: subprocess.Popen[Any] | None = None
     runtime_owned = False
     launches = 0
@@ -5485,6 +6608,10 @@ def supervise(
     requested_review_loops: set[str] = set()
     rereviewed_positive_loops: set[str] = set()
     rereviewed_missing_pnl_loops: set[str] = set()
+    # When the runtime first answered late.  It is the reference point for
+    # the busy window: a runtime that stays silent for longer than the
+    # window has stopped making progress and may be restarted.
+    busy_since: float | None = None
     # The attempts this supervisor already finalized. The set makes the
     # broadcast repair idempotent across cycles: an attempt that was closed
     # in an earlier cycle is not closed again, and it never blocks the
@@ -5525,6 +6652,23 @@ def supervise(
 
         while not stopping and (max_samples is None or sample < max_samples):
             health = runtime_business_health(runtime_api)
+            if health.get("busy"):
+                # The runtime is alive and busy.  A review round takes far
+                # longer than the liveness probe, so a late answer is the
+                # normal case and not a defect.  The runtime is kept as long
+                # as it keeps answering; only a runtime that stays silent
+                # beyond the busy window is treated as wedged.
+                busy_since = busy_since if busy_since is not None else time.monotonic()
+                busy_seconds = time.monotonic() - busy_since
+                append_event({"event": "runtime_busy", "busySeconds": round(busy_seconds, 1),
+                              "health": health})
+                if busy_seconds <= RUNTIME_BUSY_RESTART_SECONDS:
+                    time.sleep(min(max(1, interval), 30))
+                    continue
+                health = {"ok": False, "stage": "busy_timeout",
+                          "busySeconds": round(busy_seconds, 1), "health": health}
+            else:
+                busy_since = None
             if not health.get("ok"):
                 append_event({"event": "runtime_unhealthy", "health": health,
                               "returncode": process.poll() if process is not None else None})
@@ -5544,9 +6688,24 @@ def supervise(
                     continue
 
             try:
+                # The closed loop runs a **review clock**: the loop starts
+                # the clock when it has been dealt with and the clock runs
+                # until the loop is due again.  Advancing the clocks is
+                # what turns a clock that ran out into the review state, so
+                # the next round of the review starts.
+                clock_outcome = advance_review_clocks(manager_api)
+                # The queue of the due loops is the work list of the main
+                # thread of the review: every loop whose review time point
+                # has come, ordered by that time point.
+                due_loops = due_review_loops(manager_api)
                 before = build_report(db, hours, tools, manager_api)
                 actions = healing_actions(before)
-                outcomes: list[dict[str, Any]] = []
+                outcomes: list[dict[str, Any]] = [
+                    {"action": "advance_review_clocks", "result": clock_outcome},
+                    {"action": "due_review_loops",
+                     "result": {"count": len(due_loops),
+                                "loops": [row.get("loopKey") for row in due_loops]}}
+                ]
                 # GAP-E: the upstream gate covers the layers that must be
                 # sound before a review can be trusted. The broadcast layer
                 # is the convergence target, never the gate opener.
@@ -5641,6 +6800,13 @@ def supervise(
                 after_status = cascade_layer_status(after)
                 before_status = cascade_layer_status(before)
                 stability_state = stability.observe(after)
+                # A cycle that ran to completion proves the runtime is
+                # usable again, so the restart budget counts **consecutive**
+                # failures and not the failures of the whole session.  A
+                # supervisor that stops supervising after three deaths in a
+                # week would end the self-healing exactly when the chain
+                # needs it most.
+                launches = 0
                 append_event({
                     "event": "healing_cycle",
                     "stability": stability_state,
@@ -5668,6 +6834,22 @@ def supervise(
                     f"stable={stability_state['stable']}",
                     flush=True,
                 )
+                # The profit observation.  It is taken from the **after**
+                # report, so it describes the state the healing cycle
+                # produced, and it is written next to the journal so the
+                # profit series and the healing series share one session.
+                elapsed = time.monotonic() - session_started_monotonic
+                if elapsed - (last_pnl_monotonic - session_started_monotonic) \
+                        >= max(1.0, float(pnl_interval_seconds)):
+                    last_pnl_monotonic = time.monotonic()
+                    snapshot = pnl_snapshot(
+                        after, session_started_at, elapsed,
+                        float(observation_hours or 0.0), sample,
+                    )
+                    append_pnl_snapshot(snapshot, pnl_jsonl, pnl_log)
+                    append_event({"event": "pnl_snapshot",
+                                  "sample": sample,
+                                  "snapshot": snapshot})
             except Exception as error:
                 append_event({
                     "event": "healing_cycle_error",
@@ -5680,6 +6862,18 @@ def supervise(
                     flush=True,
                 )
             sample += 1
+            # The observation window is a hard stop: the supervisor has
+            # watched for the requested number of hours and then returns.
+            # Without it a run with no sample limit would never end.
+            if observation_hours and float(observation_hours) > 0:
+                if (time.monotonic() - session_started_monotonic) \
+                        >= float(observation_hours) * 3600.0:
+                    append_event({"event": "observation_window_elapsed",
+                                  "sample": sample,
+                                  "observationHours": float(observation_hours),
+                                  "elapsedSeconds": round(
+                                      time.monotonic() - session_started_monotonic, 3)})
+                    break
             if not stopping and (max_samples is None or sample < max_samples):
                 deadline = time.monotonic() + max(1, interval)
                 while not stopping and time.monotonic() < deadline:

@@ -1,0 +1,3 @@
+   Compiling flashloan-rs v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\rs-src)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 48.82s
+     Running unittests src\lib.rs (target\debug\deps\flashloan_rs-7fe644539b55e008.exe)

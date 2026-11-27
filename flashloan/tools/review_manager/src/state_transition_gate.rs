@@ -92,6 +92,14 @@ pub struct HopExecutionState {
 pub struct HopTransitionVerdict {
     /// The pool this hop trades in.
     pub pool_id: String,
+    /// The input amount this hop was judged with, in raw units.
+    ///
+    /// The amount is published because it is the evidence of the **chain**:
+    /// the first hop carries the borrowed principal and every later hop
+    /// carries the output of its predecessor, because the hops of a closed
+    /// loop trade three different tokens. A reader can therefore check that
+    /// the hop was priced with the amount that really reaches it.
+    pub amount_in_raw: u128,
     /// The three-state classification of the move.
     pub outcome: TransitionOutcome,
     /// The stable reason code of the verdict.
@@ -120,7 +128,7 @@ pub struct HopTransitionVerdict {
 }
 
 impl HopTransitionVerdict {
-    fn from_verdict(pool_id: String, verdict: &StateTransitionVerdict) -> Self {
+    fn from_verdict(pool_id: String, amount_in_raw: u128, verdict: &StateTransitionVerdict) -> Self {
         let outcome = match verdict.kind {
             StateTransitionKind::Fatal => TransitionOutcome::Fatal,
             StateTransitionKind::Adverse => TransitionOutcome::Adverse,
@@ -129,6 +137,7 @@ impl HopTransitionVerdict {
         };
         Self {
             pool_id,
+            amount_in_raw,
             outcome,
             reason: verdict.reason.clone(),
             broadcast_allowed: verdict.broadcast_allowed,
@@ -195,6 +204,7 @@ pub fn evaluate_route_transition(
         let reason = verdict.reason.clone();
         verdicts.push(HopTransitionVerdict::from_verdict(
             hop.pool_id.clone(),
+            hop.amount_in_raw,
             &verdict,
         ));
         if !allowed && first_failure.is_none() {

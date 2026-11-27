@@ -170,6 +170,62 @@ def test_all_eth_price_sources_failing_refuses_a_price(monkeypatch):
     assert len(result["errors"]) == len(v4_pool_index.ETH_PRICE_SOURCES)
 
 
+def test_eth_price_reads_the_gateio_ticker_row(monkeypatch):
+    """Gate.io answers with a list of ticker rows; the ETH row is the price."""
+    calls: list[str] = []
+
+    def fake_fetch(url: str, timeout: int = 10):
+        calls.append(url)
+        if "gateio" in url:
+            return [{"currency_pair": "BTC_USDT", "last": "90000"},
+                    {"currency_pair": "ETH_USDT", "last": "1703.87"}]
+        raise OSError("network down")
+
+    monkeypatch.setattr(v4_pool_index, "_fetch_json", fake_fetch)
+    monkeypatch.setattr(v4_pool_index, "ETH_PRICE_CACHE",
+                        {"price": None, "source": None, "observedAt": None})
+    result = v4_pool_index.eth_price_usd(refresh=True)
+    assert result["price"] == Decimal("1703.87")
+    assert result["priceSource"] == "gateio"
+    assert any("gateio" in url for url in calls)
+
+
+def test_a_failed_price_fetch_is_not_retried_for_every_pool(monkeypatch):
+    """A tick walks hundreds of pools; one failure has to be enough."""
+    calls: list[str] = []
+
+    def fake_fetch(url: str, timeout: int = 10):
+        calls.append(url)
+        raise OSError("network down")
+
+    monkeypatch.setattr(v4_pool_index, "_fetch_json", fake_fetch)
+    monkeypatch.setattr(v4_pool_index, "ETH_PRICE_CACHE",
+                        {"price": None, "source": None, "observedAt": None})
+    first = v4_pool_index.eth_price_usd()
+    assert first["price"] is None
+    assert calls
+    second = v4_pool_index.eth_price_usd()
+    assert second["price"] is None
+    assert len(calls) == len(v4_pool_index.ETH_PRICE_SOURCES)
+
+
+def test_a_stale_price_is_refreshed(monkeypatch):
+    """A cached reading that grew stale is replaced, not handed out."""
+    calls: list[str] = []
+
+    def fake_fetch(url: str, timeout: int = 10):
+        calls.append(url)
+        return [{"currency_pair": "ETH_USDT", "last": "1703.87"}]
+
+    monkeypatch.setattr(v4_pool_index, "_fetch_json", fake_fetch)
+    monkeypatch.setattr(v4_pool_index, "ETH_PRICE_CACHE",
+                        {"price": Decimal("1500"), "source": "gateio",
+                         "observedAt": "2020-01-01T00:00:00Z"})
+    result = v4_pool_index.eth_price_usd()
+    assert result["price"] == Decimal("1703.87")
+    assert calls
+
+
 def test_depth_status_boundaries_match_the_rust_pool_manager():
     """Both sides classify the same binding-side capacity into the same band.
 

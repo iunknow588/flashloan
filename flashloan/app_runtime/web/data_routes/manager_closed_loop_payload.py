@@ -44,6 +44,57 @@ from .manager_page_compare_common import (
 )
 
 
+def closed_loop_review_request_payload(
+    *,
+    chain_id: int,
+    route_symbols: list[str] | None = None,
+    loop_key: str | None = None,
+    wait_seconds: int = 0,
+    dry_run: bool = False,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    """Set the wait of one closed loop through the closed-loop Manager.
+
+    The closed loop owns a **review clock**: the loop starts the clock when
+    it has been dealt with and the clock runs until the loop is due again.
+    A wait of **zero** is what a manual review asks for -- the loop waits for
+    nothing, so the next round of the review starts at once.
+    """
+    payload: dict[str, object] = {
+        "chainId": int(chain_id),
+        "dryRun": bool(dry_run),
+        "waitSeconds": int(wait_seconds),
+    }
+    if loop_key:
+        payload["loopKey"] = str(loop_key)
+    symbols = [str(item).strip().upper() for item in (route_symbols or []) if str(item).strip()]
+    if symbols:
+        payload["routeSymbols"] = symbols
+    client = _compat_manager_client().from_env()
+    try:
+        envelope = client.post_json(
+            "/v1/closed-loops/review-request",
+            payload=payload,
+            request_id=request_id,
+            idempotency_key=request_id,
+        )
+    except ManagerApiClientError as exc:
+        return {
+            "ok": False,
+            "error": exc.code,
+            "message": exc.message,
+            "status": exc.status,
+        }
+    data = envelope.get("data") if isinstance(envelope.get("data"), dict) else {}
+    return {
+        "ok": True,
+        "applied": bool(data.get("applied")),
+        "loopKey": data.get("loopKey"),
+        "waitSeconds": data.get("waitSeconds"),
+        "updated": bool(data.get("updated")),
+    }
+
+
 def closed_loop_manager_page_payload(
     *,
     chain_id: int,

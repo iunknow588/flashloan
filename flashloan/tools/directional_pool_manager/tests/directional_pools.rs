@@ -1,5 +1,6 @@
 use directional_pool_manager::{
-    compare_directional_pools, materialize_directional_pools, materialize_directional_pools_write,
+    compare_directional_pools, materialize_directional_pools,
+    materialize_directional_pools_for_chain, materialize_directional_pools_write,
     read_directional_pool_snapshot, read_directional_pool_status,
     candidate_tier_size, max_direction_candidate_pools, tier_of_rank,
     DirectionalPoolTier, DEFAULT_MAX_DIRECTION_CANDIDATE_POOLS,
@@ -123,6 +124,16 @@ struct PoolSpec {
     liquidity: &'static str,
     token0_capacity: Option<&'static str>,
     token1_capacity: Option<&'static str>,
+    /// The square root price the snapshot carries.
+    ///
+    /// `None` keeps the fixture default: one unit of the high address
+    /// token for one unit of the low address one.  A test that needs
+    /// **two pools of the same pair at different prices** sets it, and
+    /// then sets the tick that belongs to that price as well -- a price
+    /// and a tick that disagree describe no pool that ever existed.
+    sqrt_price_x96: Option<String>,
+    /// The tick that belongs to `sqrt_price_x96`.
+    tick: Option<i64>,
 }
 
 impl Default for PoolSpec {
@@ -148,22 +159,39 @@ impl Default for PoolSpec {
             // defect the single-writer rule removed.
             token0_capacity: Some("3015"),
             token1_capacity: Some("3015"),
+            sqrt_price_x96: None,
+            tick: None,
         }
     }
 }
 
 fn insert_pool(connection: &Connection, spec: &PoolSpec, salt: &str) -> String {
+    insert_pool_into(connection, "v4_exchange_pools_candidate_exchange", spec, salt)
+}
+
+/// The same insert, but into a scope table of the caller's choosing.  The
+/// chain entry materializes every enabled scope, so a test that covers more
+/// than one scope needs to seed more than one scope table.
+fn insert_pool_into(
+    connection: &Connection,
+    table: &str,
+    spec: &PoolSpec,
+    salt: &str,
+) -> String {
     let pool_id = format!("0x{}", salt.repeat(64));
+    let sql = format!(
+        "INSERT INTO {table} (
+             network, chain_id, protocol, pool_id, pool_manager,
+             pool_key_json, token0, token1, token0_key_id, token1_key_id,
+             fee, dynamic_fee, special_fee, tick_spacing, hooks,
+             pool_status, materialized_at, updated_at
+         ) VALUES (?1, ?2, 'uniswap_v4', ?3, ?4, '{{}}', ?5, ?6, ?7, ?8,
+                   ?9, ?10, 0, 60, ?11, ?12,
+                   '2026-11-04T00:00:00Z', '2026-11-04T00:00:00Z')"
+    );
     connection
         .execute(
-            "INSERT INTO v4_exchange_pools_candidate_exchange (
-                 network, chain_id, protocol, pool_id, pool_manager,
-                 pool_key_json, token0, token1, token0_key_id, token1_key_id,
-                 fee, dynamic_fee, special_fee, tick_spacing, hooks,
-                 pool_status, materialized_at, updated_at
-             ) VALUES (?1, ?2, 'uniswap_v4', ?3, ?4, '{}', ?5, ?6, ?7, ?8,
-                       ?9, ?10, 0, 60, ?11, ?12,
-                       '2026-11-04T00:00:00Z', '2026-11-04T00:00:00Z')",
+            &sql,
             params![
                 NETWORK,
                 CHAIN_ID,
@@ -181,6 +209,11 @@ fn insert_pool(connection: &Connection, spec: &PoolSpec, salt: &str) -> String {
         )
         .unwrap();
     if spec.with_snapshot {
+        let sqrt_price_x96 = spec
+            .sqrt_price_x96
+            .as_deref()
+            .unwrap_or("79228162514264337593543950336");
+        let tick = spec.tick.unwrap_or(0);
         connection
             .execute(
                 "INSERT INTO v4_exchange_pool_liquidity_snapshots (
@@ -190,7 +223,7 @@ fn insert_pool(connection: &Connection, spec: &PoolSpec, salt: &str) -> String {
                      evidence_source, single_tick_max_token0_raw,
                      single_tick_max_token1_raw
                  ) VALUES (?1, ?2, 'uniswap_v4', ?3, 1, 10.0,
-                           '79228162514264337593543950336', 0, ?4, 1.0,
+                           ?7, ?8, ?4, 1.0,
                            'deep', '2026-11-04T00:00:00Z', 100, 'fixture', ?5, ?6)",
                 params![
                     NETWORK,
@@ -199,6 +232,8 @@ fn insert_pool(connection: &Connection, spec: &PoolSpec, salt: &str) -> String {
                     spec.liquidity,
                     spec.token0_capacity,
                     spec.token1_capacity,
+                    sqrt_price_x96,
+                    tick,
                 ],
             )
             .unwrap();
@@ -742,6 +777,334 @@ fn the_rank_follows_the_candidate_edge_recommendation_order() {
     }
 }
 
+/// The price order of a direction pool is **fixed**: the direction picks the
+/// token a row is ranked for, and the order itself never turns around.
+///
+/// Direction 0 (high address to low address) spends the high address token
+/// and delivers the low address one; direction 1 spends the low address
+/// token and delivers the high address one.  The two directions therefore
+/// rank the **same** base pools in the **opposite** order: the pool with
+/// the best price of the high address token comes **first** in direction 1
+/// and **last** in direction 0.
+///
+/// The other spelling of the very same rule keeps one price series -- the
+/// price of the high address token -- and lets the direction choose the
+/// sort direction: direction 1 **descends** on that price, direction 0
+/// **ascends** on it.  Both spellings have to agree, and the test pins
+/// both of them, so a later "simplification" of the sort key cannot flip
+/// one direction silently.
+#[test]
+fn the_direction_picks_the_target_token_and_never_flips_the_order() {
+    let fixture = fixture();
+    let connection = Connection::open(&fixture.path).unwrap();
+    // Three pools of the same pair at three different prices: the high
+    // address token is worth 1.00, 1.21 and 1.44 units of the low address
+    // one, so the square root price is 1.0, 1.1 and 1.2 times Q96, and
+    // the tick is the one that belongs to that price -- a price and a tick
+    // that disagree describe no pool that ever existed.
+    const Q96: u128 = 79_228_162_514_264_337_593_543_950_336;
+    let specs = [
+        ("a", Q96, 0i64, 1.00f64),
+        ("b", Q96 * 11 / 10, 1906i64, 1.21f64),
+        ("c", Q96 * 12 / 10, 3646i64, 1.44f64),
+    ];
+    for (salt, sqrt_price_x96, tick, _price) in specs {
+        insert_pool(
+            &connection,
+            &PoolSpec {
+                sqrt_price_x96: Some(sqrt_price_x96.to_string()),
+                tick: Some(tick),
+                // The liquidity has to be **realistic**.  The single-tick
+                // capacity of a pool is `liquidity * (the price gap)` in
+                // **raw** token units, so a fixture liquidity of 1e6
+                // leaves a capacity of a few hundred raw units: the
+                // reference trade is then a few dozen units and the
+                // integer rounding of the quote eats about one percent of
+                // the rate.  That would measure the rounding of the
+                // fixture, not the price order the test is about.  At 1e18
+                // -- the order of magnitude of a mainnet pool -- the
+                // rounding is below 1e-13 and the rate is the price.
+                liquidity: "1000000000000000000",
+                // The stored bound belongs to the fixture's own default
+                // observation, which is not the one this pool carries;
+                // the published capacity is recomputed, so the stored one
+                // is absent here on purpose.
+                token0_capacity: None,
+                token1_capacity: None,
+                ..PoolSpec::default()
+            },
+            salt,
+        );
+    }
+    drop(connection);
+    materialize_directional_pools(&fixture.path, NETWORK, CHAIN_ID, SCOPE_KEY, true).unwrap();
+
+    let snapshot =
+        read_directional_pool_snapshot(&fixture.path, NETWORK, CHAIN_ID, SCOPE_KEY, None, 10)
+            .unwrap();
+    let token0_key_id = token_key_id(TOKEN0);
+    let token1_key_id = token_key_id(TOKEN1);
+
+    // The direction decides **which token** the row is about, and the
+    // token addresses stay in their canonical order (token0 is the low
+    // address one), so direction 0 spends token1 and delivers token0.
+    for row in &snapshot.rows {
+        let (input, output, zero_for_one) = if row.direction == 0 {
+            (token1_key_id.as_str(), token0_key_id.as_str(), false)
+        } else {
+            (token0_key_id.as_str(), token1_key_id.as_str(), true)
+        };
+        assert_eq!(
+            row.input_token_key_id, input,
+            "direction {} must spend the {input} token",
+            row.direction
+        );
+        assert_eq!(
+            row.output_token_key_id, output,
+            "direction {} must deliver the {output} token",
+            row.direction
+        );
+        assert_eq!(
+            row.zero_for_one, zero_for_one,
+            "direction {} must keep the swap side it is named after",
+            row.direction
+        );
+    }
+
+    // The order of the direction that delivers the high address token is
+    // the price of that token, descending; the order of the direction
+    // that delivers the low address token is the **same** price,
+    // ascending.  The two orders are therefore exact opposites.
+    let order_of = |direction: usize| -> Vec<String> {
+        let mut rows: Vec<(i64, String)> = snapshot
+            .rows
+            .iter()
+            .filter(|row| row.direction == direction as i64)
+            .map(|row| (row.pair_direction_rank.expect("a ranked row"), row.base_pool_id.clone()))
+            .collect();
+        rows.sort_by_key(|(rank, _)| *rank);
+        rows.into_iter().map(|(_, pool_id)| pool_id).collect()
+    };
+    let direction1 = order_of(1);
+    let direction0 = order_of(0);
+    let pool_a = pool_id_of("a");
+    let pool_b = pool_id_of("b");
+    let pool_c = pool_id_of("c");
+    // The high address token is worth more in pool c than in pool b than
+    // in pool a, so the direction that delivers it ranks them that way,
+    // and the direction that delivers the low address token ranks them
+    // the other way round.
+    assert_eq!(
+        direction1,
+        vec![pool_c.clone(), pool_b.clone(), pool_a.clone()],
+        "direction 1 delivers the high address token, so it ranks by that price, descending"
+    );
+    assert_eq!(
+        direction0,
+        vec![pool_a.clone(), pool_b.clone(), pool_c.clone()],
+        "direction 0 delivers the low address token, so it ranks by the same price, ascending"
+    );
+
+    // The published rate is the output of the direction per unit of input,
+    // so the two directions of one pool are **not** the same number: the
+    // one that delivers the high address token is the high address price
+    // itself, the other one is its reciprocal, both reduced by the fee.
+    let rate_of = |direction: i64, pool_id: &str| -> f64 {
+        snapshot
+            .rows
+            .iter()
+            .find(|row| row.direction == direction && row.base_pool_id == pool_id)
+            .expect("the pool is projected onto both directions")
+            .directional_output
+            .expect("a priced row")
+    };
+    for (pool_id, price) in [(&pool_a, 1.00f64), (&pool_b, 1.21f64), (&pool_c, 1.44f64)] {
+        let rate1 = rate_of(1, pool_id);
+        let rate0 = rate_of(0, pool_id);
+        assert!(
+            (rate1 / price - 0.997).abs() < 0.002,
+            "direction 1 delivers the high address token: {pool_id} has to publish the price {price} less the fee, not {rate1}"
+        );
+        assert!(
+            (rate0 * price - 0.997).abs() < 0.002,
+            "direction 0 delivers the low address token: {pool_id} has to publish the price {} less the fee, not {rate0}",
+            1.0 / price
+        );
+    }
+}
+
+/// The ranking compares **price and fee together**.
+///
+/// The published rate is the output of the swap, and the swap already
+/// carries the fee -- the fee is taken off the input before the curve is
+/// walked.  Two pools at the **same** price are therefore separated by
+/// their fee, and the **lower** fee comes first -- in **both** directions,
+/// because a lower fee improves the rate of a direction in the same way
+/// wherever it sits.
+///
+/// This is the second half of the criterion for a direction problem: a
+/// difference between two rates has to be explainable by the **price** and
+/// the **fixed fee** of the two pools.  A third explanation -- a dynamic
+/// fee -- is impossible, because a dynamic fee pool is not projected at
+/// all (see the next test).
+#[test]
+fn the_lower_fixed_fee_wins_between_pools_at_the_same_price() {
+    let fixture = fixture();
+    let connection = Connection::open(&fixture.path).unwrap();
+    // The same price, the same depth, two fixed fee tiers.
+    insert_pool(
+        &connection,
+        &PoolSpec {
+            fee: 3_000,
+            liquidity: "1000000000000000000",
+            ..PoolSpec::default()
+        },
+        "a",
+    );
+    insert_pool(
+        &connection,
+        &PoolSpec {
+            fee: 500,
+            liquidity: "1000000000000000000",
+            ..PoolSpec::default()
+        },
+        "b",
+    );
+    drop(connection);
+    materialize_directional_pools(&fixture.path, NETWORK, CHAIN_ID, SCOPE_KEY, true).unwrap();
+
+    let snapshot =
+        read_directional_pool_snapshot(&fixture.path, NETWORK, CHAIN_ID, SCOPE_KEY, None, 10)
+            .unwrap();
+    let pool_a = pool_id_of("a");
+    let pool_b = pool_id_of("b");
+    for direction in [0, 1] {
+        let rank_of = |pool_id: &str| -> i64 {
+            snapshot
+                .rows
+                .iter()
+                .find(|row| row.direction == direction && row.base_pool_id == pool_id)
+                .expect("both pools are projected onto both directions")
+                .pair_direction_rank
+                .expect("a ranked row")
+        };
+        assert_eq!(
+            rank_of(&pool_b),
+            1,
+            "direction {direction}: the lower fee pays more, so it comes first"
+        );
+        assert_eq!(rank_of(&pool_a), 2);
+
+        // The two rates differ by the fee and by nothing else.
+        let rate_of = |pool_id: &str| -> f64 {
+            snapshot
+                .rows
+                .iter()
+                .find(|row| row.direction == direction && row.base_pool_id == pool_id)
+                .expect("both pools are projected onto both directions")
+                .directional_output
+                .expect("a priced row")
+        };
+        let ratio = rate_of(&pool_b) / rate_of(&pool_a);
+        let expected = (1_000_000.0 - 500.0) / (1_000_000.0 - 3_000.0);
+        assert!(
+            (ratio - expected).abs() < 0.0005,
+            "direction {direction}: the rate difference has to be the fee difference +             ({expected}), not {ratio}"
+        );
+    }
+}
+
+/// A rate difference between two **ranked** pools can only come from the
+/// price and the fixed fee.  A **dynamic fee** pool is not projected at
+/// all, so it can never be the pool that "looks better" and shifts the
+/// order -- no matter how good its price is.
+///
+/// That is what makes a rate difference diagnosable: the explanation is
+/// the price, the fixed fee, or a defect.  A defect shows up in the
+/// **order** -- the pool that comes later must not be the better one --
+/// and that is exactly what the direction test above pins.
+#[test]
+fn a_dynamic_fee_pool_is_not_ranked_however_good_its_price_is() {
+    const Q96: u128 = 79_228_162_514_264_337_593_543_950_336;
+    let fixture = fixture();
+    let connection = Connection::open(&fixture.path).unwrap();
+    // Two fixed fee pools, and one pool with the **best** price that is
+    // charged a dynamic fee.
+    insert_pool(
+        &connection,
+        &PoolSpec {
+            liquidity: "1000000000000000000",
+            ..PoolSpec::default()
+        },
+        "a",
+    );
+    insert_pool(
+        &connection,
+        &PoolSpec {
+            liquidity: "1000000000000000000",
+            sqrt_price_x96: Some((Q96 * 11 / 10).to_string()),
+            tick: Some(1906),
+            ..PoolSpec::default()
+        },
+        "b",
+    );
+    insert_pool(
+        &connection,
+        &PoolSpec {
+            liquidity: "1000000000000000000",
+            sqrt_price_x96: Some((Q96 * 12 / 10).to_string()),
+            tick: Some(3646),
+            fee: DYNAMIC_FEE_FLAG,
+            ..PoolSpec::default()
+        },
+        "c",
+    );
+    drop(connection);
+
+    let result = materialize_directional_pools(&fixture.path, NETWORK, CHAIN_ID, SCOPE_KEY, true)
+        .unwrap();
+    assert_eq!(result.base_pool_count, 3);
+    assert_eq!(result.excluded_pool_count, 1);
+    // The dynamic fee pool has no row at all, so it has no rank.
+    assert_eq!(result.directional_pool_count, 4);
+
+    let snapshot =
+        read_directional_pool_snapshot(&fixture.path, NETWORK, CHAIN_ID, SCOPE_KEY, None, 10)
+            .unwrap();
+    let pool_c = pool_id_of("c");
+    assert!(
+        snapshot.rows.iter().all(|row| row.base_pool_id != pool_c),
+        "a dynamic fee pool must not reach the directional layer"
+    );
+    let pool_a = pool_id_of("a");
+    let pool_b = pool_id_of("b");
+    for direction in [0, 1] {
+        let ranks: Vec<(i64, String)> = snapshot
+            .rows
+            .iter()
+            .filter(|row| row.direction == direction)
+            .map(|row| {
+                (
+                    row.pair_direction_rank.expect("a ranked row"),
+                    row.base_pool_id.clone(),
+                )
+            })
+            .collect();
+        assert_eq!(ranks.len(), 2);
+        let mut ranks = ranks;
+        ranks.sort_by_key(|(rank, _)| *rank);
+        // The better price of the high address token is the better pool
+        // in direction 1 and the worse pool in direction 0.
+        let expected = if direction == 1 {
+            vec![pool_b.clone(), pool_a.clone()]
+        } else {
+            vec![pool_a.clone(), pool_b.clone()]
+        };
+        let published: Vec<String> = ranks.into_iter().map(|(_, pool_id)| pool_id).collect();
+        assert_eq!(published, expected);
+    }
+}
+
 /// T-D-14: the published capacity is **recomputed**, never read from the
 /// stored `single_tick_max_token*_raw` column.
 ///
@@ -1157,4 +1520,216 @@ fn a_projection_whose_base_pool_is_gone_is_detected() {
         !comparison.ready_for_cutover,
         "an orphaned projection is not ready: {comparison:#?}"
     );
+}
+
+#[test]
+fn the_chain_entry_materializes_every_enabled_scope_in_scope_key_order() {
+    let fixture = fixture();
+    let connection = Connection::open(&fixture.path).unwrap();
+    insert_pool(&connection, &PoolSpec::default(), "a");
+    // A second enabled scope, whose pool table holds one pool of its own.
+    connection
+        .execute_batch(
+            // The core4 scope table is part of the manager schema, so it is
+            // already there; the statement only makes sure the test does
+            // not depend on a table the schema does not own.
+            "CREATE TABLE IF NOT EXISTS v4_exchange_pools_core4 AS
+             SELECT * FROM v4_exchange_pools_candidate_exchange WHERE 0",
+        )
+        .unwrap();
+    // The second scope owns a pool of its own, so the chain entry has
+    // something to materialize in it.
+    insert_pool_into(
+        &connection,
+        "v4_exchange_pools_core4",
+        &PoolSpec::default(),
+        "b",
+    );
+    connection
+        .execute(
+            r#"INSERT INTO pool_scope_config (
+                 network, chain_id, scope_key, pool_table, library_keys_json,
+                 library_versions_json, library_checksums_json, filter_mode,
+                 excluded_token_key_ids_json, enabled, materialized_checksum,
+                 last_rebuilt_at, created_at, updated_at
+             ) VALUES (?1, ?2, 'core4', 'v4_exchange_pools_core4', '[]',
+                       '{"core": 7}', '{"core": "sha256:core"}', 'both_end',
+                       '[]', 1, 'sha256:scope-fixture',
+                       '2026-11-04T00:00:00Z', '2026-11-04T00:00:00Z',
+                       '2026-11-04T00:00:00Z')"#,
+            params![NETWORK, CHAIN_ID],
+        )
+        .unwrap();
+    // A third scope that is switched **off**: it must not be materialized.
+    // It owns a table and a pool of its own, so the skip is caused by
+    // "enabled = 0" and not by a missing table.
+    connection
+        .execute_batch(
+            // A scope table of the same shape as the ones the schema owns,
+            // so the disabled scope is skipped because it is switched off
+            // and not because its table is missing.
+            "CREATE TABLE IF NOT EXISTS v4_exchange_pools_disabled_scope AS
+             SELECT * FROM v4_exchange_pools_candidate_exchange WHERE 0",
+        )
+        .unwrap();
+    insert_pool_into(
+        &connection,
+        "v4_exchange_pools_disabled_scope",
+        &PoolSpec::default(),
+        "c",
+    );
+    connection
+        .execute(
+            r#"INSERT INTO pool_scope_config (
+                 network, chain_id, scope_key, pool_table, library_keys_json,
+                 library_versions_json, library_checksums_json, filter_mode,
+                 excluded_token_key_ids_json, enabled, materialized_checksum,
+                 last_rebuilt_at, created_at, updated_at
+             ) VALUES (?1, ?2, 'disabled_scope', 'v4_exchange_pools_disabled_scope', '[]',
+                       '{"core": 7}', '{"core": "sha256:core"}', 'both_end',
+                       '[]', 0, 'sha256:scope-fixture',
+                       '2026-11-04T00:00:00Z', '2026-11-04T00:00:00Z',
+                       '2026-11-04T00:00:00Z')"#,
+            params![NETWORK, CHAIN_ID],
+        )
+        .unwrap();
+    drop(connection);
+
+    let dry_run = materialize_directional_pools_for_chain(&fixture.path, NETWORK, CHAIN_ID, false)
+        .unwrap();
+    assert_eq!(
+        dry_run.scope_keys,
+        vec!["candidate_exchange".to_owned(), "core4".to_owned()],
+        "the scopes are enumerated in scope key order and the disabled scope is not listed"
+    );
+    assert_eq!(dry_run.scopes.len(), 2);
+    assert!(dry_run.failed_scopes.is_empty());
+    assert!(dry_run.dry_run);
+    assert!(!dry_run.apply);
+
+    let applied = materialize_directional_pools_for_chain(&fixture.path, NETWORK, CHAIN_ID, true)
+        .unwrap();
+    assert_eq!(applied.scopes.len(), 2);
+    assert!(applied.failed_scopes.is_empty());
+    let applied_scope_keys: Vec<&str> = applied
+        .scopes
+        .iter()
+        .map(|scope| scope.scope_key.as_str())
+        .collect();
+    assert_eq!(
+        applied_scope_keys,
+        vec!["candidate_exchange", "core4"],
+        "the per-scope results follow the enumerated order"
+    );
+
+    // The per-scope entry and the chain entry must publish the same
+    // numbers for the same scope: the chain entry **is** the per-scope
+    // call, one scope after another.
+    let single = materialize_directional_pools(&fixture.path, NETWORK, CHAIN_ID, SCOPE_KEY, false)
+        .unwrap();
+    let chain_scope = applied
+        .scopes
+        .iter()
+        .find(|scope| scope.scope_key == SCOPE_KEY)
+        .unwrap();
+    assert_eq!(chain_scope.directional_pool_count, single.directional_pool_count);
+    assert_eq!(chain_scope.direction0_count, single.direction0_count);
+    assert_eq!(chain_scope.direction1_count, single.direction1_count);
+    assert_eq!(chain_scope.materialized_checksum, single.materialized_checksum);
+
+    // The disabled scope published no rows.
+    let connection = Connection::open(&fixture.path).unwrap();
+    let disabled_rows: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM manager_v4_directional_exchange_pools
+             WHERE network = ?1 AND chain_id = ?2 AND scope_key = 'disabled_scope'",
+            params![NETWORK, CHAIN_ID],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(disabled_rows, 0);
+
+    // The enabled second scope published its own pool: the chain entry
+    // materialized a scope, it did not only enumerate scope names.
+    let core4_rows: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM manager_v4_directional_exchange_pools
+             WHERE network = ?1 AND chain_id = ?2 AND scope_key = 'core4'",
+            params![NETWORK, CHAIN_ID],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        core4_rows, 2,
+        "one base pool projects onto exactly two directional rows"
+    );
+
+    // A disabled scope publishes nothing at all -- not even a row that
+    // belongs to another scope.
+    let disabled_pool_id = format!("0x{}", "c".repeat(64));
+    let leaked_rows: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM manager_v4_directional_exchange_pools
+             WHERE network = ?1 AND chain_id = ?2 AND base_pool_id = ?3",
+            params![NETWORK, CHAIN_ID, disabled_pool_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(leaked_rows, 0);
+}
+
+#[test]
+fn a_scope_that_fails_is_reported_and_does_not_hide_the_other_scope() {
+    let fixture = fixture();
+    let connection = Connection::open(&fixture.path).unwrap();
+    insert_pool(&connection, &PoolSpec::default(), "a");
+    // An **enabled** scope whose pool table is not there.  The chain
+    // entry has to name the failure instead of swallowing it, and it has
+    // to keep going: the scope that can be materialized is published.
+    connection
+        .execute(
+            r#"INSERT INTO pool_scope_config (
+                 network, chain_id, scope_key, pool_table, library_keys_json,
+                 library_versions_json, library_checksums_json, filter_mode,
+                 excluded_token_key_ids_json, enabled, materialized_checksum,
+                 last_rebuilt_at, created_at, updated_at
+             ) VALUES (?1, ?2, 'broken_scope', 'v4_exchange_pools_broken_scope', '[]',
+                       '{"core": 7}', '{"core": "sha256:core"}', 'both_end',
+                       '[]', 1, 'sha256:scope-fixture',
+                       '2026-11-04T00:00:00Z', '2026-11-04T00:00:00Z',
+                       '2026-11-04T00:00:00Z')"#,
+            params![NETWORK, CHAIN_ID],
+        )
+        .unwrap();
+    drop(connection);
+
+    let result = materialize_directional_pools_for_chain(&fixture.path, NETWORK, CHAIN_ID, true)
+        .unwrap();
+    assert_eq!(
+        result.scope_keys,
+        vec!["broken_scope".to_owned(), "candidate_exchange".to_owned()],
+        "the scopes are enumerated in scope key order, the failing one included"
+    );
+    assert_eq!(result.failed_scopes.len(), 1, "the failed scope is reported");
+    assert_eq!(result.failed_scopes[0].scope_key, "broken_scope");
+    assert!(
+        !result.failed_scopes[0].error.is_empty(),
+        "a failure is reported with its reason, not as a bare name"
+    );
+    // The scope that could be materialized is published: the failure of
+    // one scope does not hide the work of another.
+    assert_eq!(result.scopes.len(), 1);
+    assert_eq!(result.scopes[0].scope_key, SCOPE_KEY);
+
+    // The failed scope published nothing.
+    let connection = Connection::open(&fixture.path).unwrap();
+    let broken_rows: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM manager_v4_directional_exchange_pools
+             WHERE network = ?1 AND chain_id = ?2 AND scope_key = 'broken_scope'",
+            params![NETWORK, CHAIN_ID],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(broken_rows, 0);
 }

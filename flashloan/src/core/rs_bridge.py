@@ -227,6 +227,49 @@ def merge_v4_pool_index(
     return payload
 
 
+def refresh_v4_pool_liquidity(
+    network: str,
+    chain_id: int,
+    pool_ids: list[str],
+    *,
+    database_url: str | None = None,
+    rpc_url: str | None = None,
+    batch_size: int = 10,
+    timeout_seconds: int = 20,
+    apply: bool = False,
+) -> dict[str, Any]:
+    """Materialise the liquidity snapshot rows of the given pools.
+
+    The depth snapshot table has exactly one writer: the Rust pool
+    manager.  It writes the price columns and the single-tick bounds in one
+    statement, so a row always describes exactly one on-chain moment.  The
+    evidence channel deliberately does not write that table, so the runtime
+    has to reach the pool manager itself.
+
+    Python only names the pools and reads the manager's receipt back; it
+    never measures a pool or recomputes a capacity.
+    """
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            "flashloan_rs unavailable; the depth snapshot table is pool-manager-owned: "
+            + str(rust_load_error())
+        )
+    payload = _RUST_MODULE.refresh_v4_pool_liquidity(
+        network,
+        int(chain_id),
+        json.dumps(list(pool_ids), ensure_ascii=False, separators=(",", ":")),
+        rpc_url,
+        int(batch_size),
+        int(timeout_seconds),
+        apply,
+        _database_path(database_url),
+    )
+    if not isinstance(payload, dict):
+        raise RuntimeError("flashloan_rs refresh_v4_pool_liquidity returned a non-dict payload")
+    return payload
+
+
 def candidate_admission_verdicts(
     database_url: str | None = None,
     *,
@@ -292,6 +335,75 @@ def build_v4_anchor_data(
     )
     if not isinstance(payload, dict):
         raise RuntimeError("flashloan_rs build_v4_anchor_data returned a non-dict payload")
+    return payload
+
+
+def rebuild_directional_pools(
+    network: str,
+    chain_id: int,
+    *,
+    apply: bool = False,
+    database_url: str | None = None,
+) -> dict[str, Any]:
+    """Materialize the directional pool layer through the Rust manager.
+
+    The projection rules belong to the directional pool manager.  The
+    caller asks for the layer to be refreshed and reads the manager's own
+    receipt back; it never projects the layer itself.
+
+    The receipt always carries ``ok``: a refusal comes back as a receipt
+    with ``ok`` false and an ``errorCode``, not as an exception.
+    """
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            "flashloan_rs unavailable; the directional pool layer is Rust-owned: "
+            f"{rust_load_error()}"
+        )
+    payload = _RUST_MODULE.rebuild_directional_pools(
+        network,
+        chain_id,
+        apply,
+        _database_path(database_url),
+    )
+    if not isinstance(payload, dict):
+        raise RuntimeError(
+            "flashloan_rs rebuild_directional_pools returned a non-dict payload"
+        )
+    return payload
+
+
+def rebuild_closed_loops(
+    network: str,
+    chain_id: int,
+    *,
+    apply: bool = False,
+    database_url: str | None = None,
+) -> dict[str, Any]:
+    """Rebuild the closed loop layer through the Rust manager.
+
+    The closed loop layer is built from the candidate edge, the observation
+    and the directional pool layers, so the directional layer has to be
+    materialized first.
+
+    The receipt always carries ``ok``.  A store without a manager-side
+    upstream answers with ``UPSTREAM_NOT_MATERIALIZED``, which says the
+    layer is not part of that store rather than that the rebuild broke.
+    """
+    _load_rust()
+    if _RUST_MODULE is None:
+        raise RuntimeError(
+            "flashloan_rs unavailable; the closed loop layer is Rust-owned: "
+            f"{rust_load_error()}"
+        )
+    payload = _RUST_MODULE.rebuild_closed_loops(
+        network,
+        chain_id,
+        apply,
+        _database_path(database_url),
+    )
+    if not isinstance(payload, dict):
+        raise RuntimeError("flashloan_rs rebuild_closed_loops returned a non-dict payload")
     return payload
 
 

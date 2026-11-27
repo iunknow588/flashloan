@@ -1,0 +1,28 @@
+{
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "network": "robinhood",
+  "chain_id": 4663,
+  "protocol": "uniswap_v4",
+  "read_only": true,
+  "directional_rows": 692,
+  "seat_entries": 356,
+  "hop_rows": 522,
+  "hops_resolved": 522,
+  "hops_missing_from_directional_layer": 0,
+  "missing_samples": [],
+  "hops_whose_direction_flag_disagrees": 0,
+  "hops_whose_row_tokens_disagree_with_direction": 0,
+  "hops_whose_seat_differs_from_published_pool_id": 338,
+  "id_mismatch_samples": [
+    "0x007a13fa152f6dc383cad20a8eaab4e1e2538b606936eae2a424f8aa47d6db31:0",
+    "0x007a13fa152f6dc383cad20a8eaab4e1e2538b606936eae2a424f8aa47d6db31:1",
+    "0x0927698e8716bbb958a2cde0fc4f31d7a2b9a5b0ee1e501dc15e29788277dfa2:1",
+    "0x0927698e8716bbb958a2cde0fc4f31d7a2b9a5b0ee1e501dc15e29788277dfa2:0",
+    "0x0927698e8716bbb958a2cde0fc4f31d7a2b9a5b0ee1e501dc15e29788277dfa2:0",
+    "0x0927698e8716bbb958a2cde0fc4f31d7a2b9a5b0ee1e501dc15e29788277dfa2:1",
+    "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237:0",
+    "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237:0",
+    "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237:0",
+    "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237:1"
+  ]
+}

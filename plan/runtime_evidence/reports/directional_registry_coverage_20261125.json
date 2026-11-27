@@ -1,0 +1,108 @@
+{
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "network": "robinhood",
+  "chain_id": 4663,
+  "protocol": "uniswap_v4",
+  "read_only": true,
+  "base_table::v4_exchange_pools_core4": {
+    "rows": 488
+  },
+  "base_table::v4_exchange_pools_candidate_exchange": {
+    "rows": 494
+  },
+  "base_total_rows": 982,
+  "base_distinct_pool_ids": 496,
+  "directional_rows": 692,
+  "directional_distinct_base_pool_ids": 178,
+  "directional_scopes": [
+    "candidate_exchange",
+    "core4"
+  ],
+  "base_covered_by_directional": 178,
+  "base_not_covered_by_directional": 318,
+  "directional_base_ids_without_base_row": 0,
+  "coverage_ratio": 0.358871,
+  "base_pools_without_exactly_two_directions": 168,
+  "direction_multiplicity_histogram": {
+    "2": 10,
+    "4": 168
+  },
+  "identity_disagreements_on_covered": {
+    "pool_manager": 0,
+    "token0": 0,
+    "token1": 0,
+    "fee": 0,
+    "tick_spacing": 0,
+    "hooks": 0
+  },
+  "directional_columns_present": {
+    "sqrt_price_x96": true,
+    "tick": true,
+    "liquidity": true,
+    "price": true,
+    "depth_status": true,
+    "depth_capacity_raw": true,
+    "input_capacity_raw": true,
+    "input_capacity_measured": true,
+    "directional_output": true,
+    "directional_output_measured": true
+  },
+  "liquidity_snapshot_rows": 2486,
+  "liquidity_snapshot_columns": [
+    "network",
+    "chain_id",
+    "protocol",
+    "pool_id",
+    "has_liquidity",
+    "liquidity",
+    "liquidity_index",
+    "estimated_tvl_usd",
+    "balances_json",
+    "depth_status",
+    "depth_band_json",
+    "depth_score_usd",
+    "sqrt_price_x96",
+    "price",
+    "tick",
+    "liquidity_read_at",
+    "liquidity_block_number",
+    "recent_swap_active",
+    "observed_at",
+    "refreshed_at",
+    "evidence_source",
+    "capacity_token0_raw",
+    "capacity_token1_raw",
+    "capacity_raw",
+    "capacity_binding_raw",
+    "price_impact_bps",
+    "price_impact_limit_bps",
+    "depth_basis",
+    "single_tick_max_token0_raw",
+    "single_tick_max_token1_raw",
+    "materialization_batch"
+  ],
+  "closed_loop_hop_rows": 522,
+  "closed_loop_distinct_base_pool_ids": 49,
+  "closed_loop_hops_covered_by_directional": 49,
+  "closed_loop_hops_missing_from_directional": 0,
+  "closed_loop_missing_sample": [],
+  "closed_loop_hop_scopes": [
+    "candidate_exchange",
+    "core4"
+  ],
+  "scope::candidate_exchange": {
+    "directional_rows": 352,
+    "hop_base_pool_ids": 45,
+    "hop_base_pool_ids_covered": 45,
+    "hop_base_pool_ids_missing": 0
+  },
+  "scope::core4": {
+    "directional_rows": 340,
+    "hop_base_pool_ids": 46,
+    "hop_base_pool_ids_covered": 46,
+    "hop_base_pool_ids_missing": 0
+  },
+  "hop_base_pool_ids_in_liquidity_snapshot": 49,
+  "hop_base_pool_ids_missing_from_liquidity_snapshot": 0,
+  "base_pool_ids_in_liquidity_snapshot": 432
+}

@@ -710,6 +710,127 @@ def _candidate_eligible_missing_liquidity_count(
     return int(counts["eligibleUnknownCount"])
 
 
+def _snapshot_age_seconds(timestamp: str | None) -> int | None:
+    """Return how old a snapshot timestamp is, in seconds.
+
+    The snapshot table carries two timestamp shapes: the RFC 3339 form the
+    Rust pool manager writes (``2026-11-25T00:44:27.222895100+00:00``) and
+    the shorter form older writers left behind
+    (``2026-11-22T13:21:12.065080Z``).  Both parse as an ISO 8601 instant.
+    """
+    text = str(timestamp or "").strip()
+    if not text:
+        return None
+    try:
+        moment = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return max(0, int((datetime.now(timezone.utc) - moment).total_seconds()))
+
+
+def _liquidity_snapshot_freshness(
+    database: str,
+    *,
+    network: str,
+    chain_id: int,
+) -> dict[str, Any]:
+    """Read how fresh the depth snapshot rows are.
+
+    The worker decided that it was ``complete`` from the number of eligible
+    pools that carry no verdict.  That count says nothing about how old the
+    verdicts are, so a writer that stopped was indistinguishable from a
+    finished sweep.  This reader states the age of the newest row next to
+    the verdict count, so a stale table is visible in the receipt.
+    """
+    from core.db.storage_business_io import query
+
+    rows = query(
+        database,
+        """
+        SELECT MAX(liquidity_read_at) AS newest_read_at,
+               MAX(liquidity_block_number) AS newest_block_number,
+               COUNT(*) AS row_count
+        FROM v4_exchange_pool_liquidity_snapshots
+        WHERE network = ? AND chain_id = ? AND protocol = ?
+        """,
+        (network, chain_id, PROTOCOL),
+    )
+    row = rows[0] if rows else {}
+    newest_read_at = row.get("newest_read_at") or None
+    return {
+        "newestReadAt": newest_read_at,
+        "newestBlockNumber": int(row.get("newest_block_number") or 0),
+        "rowCount": int(row.get("row_count") or 0),
+        "ageSeconds": _snapshot_age_seconds(newest_read_at),
+    }
+
+
+def _materialize_pool_liquidity_snapshots(
+    *,
+    database: str,
+    network: str,
+    chain_id: int,
+    pool_ids: list[str],
+    rpc_url: str,
+    rpc_batch_size: int,
+) -> dict[str, Any]:
+    """Materialise the depth snapshot rows through the Rust pool manager.
+
+    ``v4_exchange_pool_liquidity_snapshots`` has exactly **one** writer: the
+    Rust pool manager, which writes the price columns and the single-tick
+    bounds in one statement so a row always describes one on-chain moment.
+    The evidence channel deliberately does not write that table, so the
+    runtime has to reach the pool manager itself; measuring the chain in
+    Python and handing the numbers over would fuse two on-chain moments into
+    one row again.
+
+    Python only names the pools and reads the manager's receipt back.  A
+    missing entry or a failed refresh is reported as a failure: the tick
+    does not fall back to the previous measurement.
+    """
+    from core.rs_bridge import refresh_v4_pool_liquidity, rust_available
+
+    if not rust_available():
+        return {
+            "ok": False,
+            "errorCode": "BRIDGE_UNAVAILABLE",
+            "error": "flashloan_rs unavailable; the depth snapshot table is pool-manager-owned",
+        }
+    try:
+        receipt = refresh_v4_pool_liquidity(
+            network,
+            chain_id,
+            pool_ids,
+            database_url=database,
+            rpc_url=rpc_url,
+            batch_size=max(1, int(rpc_batch_size)),
+            timeout_seconds=20,
+            apply=True,
+        )
+    except Exception as exc:
+        return {
+            "ok": False,
+            "errorCode": "BRIDGE_UNAVAILABLE",
+            "error": str(exc)[:400],
+        }
+    if not isinstance(receipt, dict):
+        return {
+            "ok": False,
+            "errorCode": "BRIDGE_UNAVAILABLE",
+            "error": "the pool manager returned a non-dict receipt",
+        }
+    if not receipt.get("ok"):
+        return {
+            **receipt,
+            "ok": False,
+            "errorCode": str(receipt.get("errorCode") or "POOL_MANAGER_REFUSED"),
+            "error": str(receipt.get("error") or "the pool manager refused the refresh"),
+        }
+    return {**receipt, "ok": True}
+
+
 def _candidate_eligible_liquidity_counts(
     database: str,
     *,
@@ -1361,6 +1482,68 @@ def _run_pool_liquidity_tick_locked(
                 "broadcastEnabled": False,
             },
         }
+    # The depth snapshot table is written by the Rust pool manager and by
+    # nobody else.  Without this call the tick measures the chain, hands
+    # the measurement to the evidence channel, and the evidence channel
+    # drops it: the table only moved when an operator ran the pool manager
+    # command line by hand.  A refused or failed refresh fails the tick.
+    snapshot_materialization = _materialize_pool_liquidity_snapshots(
+        database=database,
+        network=network,
+        chain_id=chain_id,
+        pool_ids=list(chunk),
+        rpc_url=rpc_url,
+        rpc_batch_size=rpc_batch_size,
+    )
+    if not snapshot_materialization.get("ok"):
+        snapshot_error = str(
+            snapshot_materialization.get("error") or "pool_liquidity_snapshot_failed"
+        )
+        save_v4_pool_liquidity_cursor(
+            database,
+            network=network,
+            chain_id=chain_id,
+            cursor=cursor_before,
+            cursor_pool_id=cursor_pool_id_before,
+            pool_count=total,
+            scanned_pool_count=cursor_before,
+            remaining_pool_count=total - cursor_before,
+            batch_size=batch_size,
+            last_scanned_at=_utc_now_iso(),
+            mode="error",
+            error=snapshot_error,
+        )
+        return {
+            "ok": False,
+            "mode": "pool_liquidity_worker",
+            "phase": "snapshot_materialization_failed",
+            "error": snapshot_error,
+            "errorCode": str(snapshot_materialization.get("errorCode") or ""),
+            "poolCount": total,
+            "batchSize": len(chunk),
+            "cursor": cursor_before,
+            "cursorBefore": cursor_before,
+            "cursorPoolId": cursor_pool_id_before,
+            "cursorPoolIdBefore": cursor_pool_id_before,
+            "missingBefore": missing_before,
+            "missingAfter": missing_before,
+            "scannedPoolCount": cursor_before,
+            "remainingPoolCount": max(0, total - cursor_before),
+            "scopedPoolIds": scoped_pool_ids,
+            "scopedPoolCount": total,
+            "rpcBatchSize": rpc_batch_size,
+            "dynamicIndexScanEnabled": dynamic_index_scan_enabled,
+            "refreshOk": True,
+            "refreshErrors": [],
+            "snapshotMaterialization": snapshot_materialization,
+            "dynamicDiscovery": dynamic_discovery,
+            "safety": {
+                "writesSqlite": False,
+                "buildsTransaction": False,
+                "broadcastsTransaction": False,
+                "broadcastEnabled": False,
+            },
+        }
     refresh_errors = refresh_result.get("errors") or []
     refresh_ok = bool(refresh_result.get("ok"))
     missing_after = _candidate_eligible_missing_liquidity_count(
@@ -1488,6 +1671,14 @@ def _run_pool_liquidity_tick_locked(
     last_block_number = int(
         (refresh_result.get("liquidity") or {}).get("blockNumber") or 0
     )
+    # Read the table back after the write: this is the age of the newest
+    # snapshot row, so a caller can see whether the tick actually moved the
+    # data instead of trusting the verdict count alone.
+    snapshot_freshness = _liquidity_snapshot_freshness(
+        database,
+        network=network,
+        chain_id=chain_id,
+    )
     mode = "complete" if missing_after == 0 and wrapped else "scanning"
     save_v4_pool_liquidity_cursor(
         database,
@@ -1502,6 +1693,8 @@ def _run_pool_liquidity_tick_locked(
         last_scanned_at=_utc_now_iso(),
         last_block_number=last_block_number,
         mode=mode,
+        snapshot_read_at=snapshot_freshness.get("newestReadAt"),
+        snapshot_rows_written=int(snapshot_materialization.get("writtenCount") or 0),
     )
     return {
         "ok": True,
@@ -1524,6 +1717,8 @@ def _run_pool_liquidity_tick_locked(
         "lastBlockNumber": last_block_number,
         "refreshOk": True,
         "refreshErrors": [],
+        "snapshotMaterialization": snapshot_materialization,
+        "snapshotFreshness": snapshot_freshness,
         "dynamicDiscovery": dynamic_discovery,
         "zeroLiquidityPoolCount": len(zero_liquidity_pool_ids),
         "zeroLiquidityCleanup": zero_cleanup,

@@ -83,7 +83,16 @@ Q96 = Decimal(2) ** 96
 # a small set of public sources with an explicit fallback chain. The
 # api.binance.com host answers HTTP 451 from this environment, therefore
 # api.binance.us is the primary source.
+#
+# The deployment network reaches the Gate.io ticker and nothing else:
+# binance.us, kraken and coingecko all time out on the TCP connect, and the
+# price fetch sits on the critical path of the liquidity tick.  Gate.io is
+# therefore the first source and the three unreachable ones stay behind it as
+# the fallback chain.  Gate.io quotes ETH/USDT, so its reading carries the
+# USDT/USD basis with it; the price band below is what keeps a broken or
+# manipulated reading out of the reserves.
 ETH_PRICE_SOURCES: tuple[tuple[str, str], ...] = (
+    ("gateio", "https://api.gateio.ws/api/v4/spot/tickers?currency_pair=ETH_USDT"),
     ("binance_us", "https://api.binance.us/api/v3/ticker/price?symbol=ETHUSDT"),
     ("kraken", "https://api.kraken.com/0/public/Ticker?pair=ETHUSD"),
     ("coingecko", "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd"),
@@ -97,11 +106,29 @@ ETH_USD_PRICE_MAX = Decimal(str(os.getenv("ROBINHOOD_ETH_USD_PRICE_MAX", "20000"
 # Maximum age of an accepted price observation.
 ETH_PRICE_MAX_AGE_SECONDS = int(os.getenv("ROBINHOOD_ETH_PRICE_MAX_AGE_SECONDS", "900"))
 
+# How long a failed price fetch is remembered.
+#
+# The price is asked for once per pool, and a tick walks hundreds of pools.
+# When every source is unreachable, a fetch that is retried for every pool
+# costs the full source timeout once per pool, so the tick stalls for hours
+# instead of failing once.  A failure is therefore remembered for a short
+# while: the first pool pays the timeout, the rest of the tick learns from
+# the remembered failure and stops asking.
+ETH_PRICE_RETRY_COOLDOWN_SECONDS = int(
+    os.getenv("ROBINHOOD_ETH_PRICE_RETRY_COOLDOWN_SECONDS", "60")
+)
+
 # An explicit operator override always wins and is never re-validated against
 # the freshness window (the operator owns that decision).
 ETH_PRICE_OVERRIDE_USD = os.getenv("ROBINHOOD_MAINNET_ETH_PRICE_USD", "").strip()
 
-ETH_PRICE_CACHE: dict[str, Any] = {"price": None, "source": None, "observedAt": None}
+ETH_PRICE_CACHE: dict[str, Any] = {
+    "price": None,
+    "source": None,
+    "observedAt": None,
+    "lastFailureAt": None,
+    "errors": [],
+}
 
 # ---------------------------------------------------------------------------
 # Stable coin identification
@@ -145,6 +172,19 @@ def _fetch_json(url: str, timeout: int = 10) -> Any:
 def _extract_eth_price(payload: Any, source: str) -> Decimal | None:
     """Read the ETH/USD price out of one provider response."""
     try:
+        if source == "gateio":
+            # Gate.io answers with a list of ticker rows.  The pair is read
+            # from the row itself, so a different pair in the list cannot
+            # be priced as ETH.
+            rows = payload if isinstance(payload, list) else []
+            for entry in rows:
+                if not isinstance(entry, dict):
+                    continue
+                pair = str(entry.get("currency_pair") or "").strip().upper()
+                if pair not in {"ETH_USDT", "ETH_USDC"}:
+                    continue
+                return Decimal(str(entry.get("last")))
+            return None
         if source == "binance_us":
             return Decimal(str(payload["price"]))
         if source == "kraken":
@@ -170,6 +210,11 @@ def eth_price_usd(*, refresh: bool = False) -> dict[str, Any]:
     it was observed. When no source yields a usable price the price is
     ``None``: callers must then refuse to publish a TVL instead of pricing
     reserves with a stale or invented number.
+
+    A cached reading is returned while it is still fresh.  A reading that
+    grew stale is refreshed, and a refresh that failed is remembered for
+    ``ETH_PRICE_RETRY_COOLDOWN_SECONDS`` so a tick that walks many pools
+    fails once instead of stalling once per pool.
     """
     if ETH_PRICE_OVERRIDE_USD:
         try:
@@ -179,10 +224,16 @@ def eth_price_usd(*, refresh: bool = False) -> dict[str, Any]:
         if override is not None and override > 0:
             return {"price": override, "source": "operator_override",
                     "observedAt": _stamp(), "priceSource": "operator_override"}
-    if not refresh and ETH_PRICE_CACHE.get("price") is not None:
-        return {"price": ETH_PRICE_CACHE["price"], "source": ETH_PRICE_CACHE["source"],
-                "observedAt": ETH_PRICE_CACHE["observedAt"],
-                "priceSource": ETH_PRICE_CACHE["source"]}
+    cached_price = ETH_PRICE_CACHE.get("price")
+    cached_observed_at = ETH_PRICE_CACHE.get("observedAt")
+    if not refresh and cached_price is not None and _price_is_fresh(cached_observed_at):
+        return {"price": cached_price, "source": ETH_PRICE_CACHE.get("source"),
+                "observedAt": cached_observed_at,
+                "priceSource": ETH_PRICE_CACHE.get("source")}
+    if not refresh and _recent_price_failure():
+        return {"price": None, "source": None, "observedAt": None,
+                "priceSource": None,
+                "errors": list(ETH_PRICE_CACHE.get("errors") or [])}
     errors: list[str] = []
     for source, url in ETH_PRICE_SOURCES:
         try:
@@ -200,11 +251,28 @@ def eth_price_usd(*, refresh: bool = False) -> dict[str, Any]:
                           f"[{ETH_USD_PRICE_MIN},{ETH_USD_PRICE_MAX}]")
             continue
         observed = _stamp()
-        ETH_PRICE_CACHE.update({"price": price, "source": source, "observedAt": observed})
+        ETH_PRICE_CACHE.update({"price": price, "source": source, "observedAt": observed,
+                                "lastFailureAt": None, "errors": []})
         return {"price": price, "source": source, "observedAt": observed, "priceSource": source}
-    ETH_PRICE_CACHE.update({"price": None, "source": None, "observedAt": None})
+    ETH_PRICE_CACHE.update({"price": None, "source": None, "observedAt": None,
+                            "lastFailureAt": _stamp(), "errors": list(errors)})
     return {"price": None, "source": None, "observedAt": None,
             "priceSource": None, "errors": errors}
+
+
+def _recent_price_failure() -> bool:
+    """Whether a price fetch failed inside the cooldown window."""
+    observed_at = ETH_PRICE_CACHE.get("lastFailureAt")
+    if not observed_at:
+        return False
+    try:
+        observed = datetime.fromisoformat(str(observed_at).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if observed.tzinfo is None:
+        observed = observed.replace(tzinfo=timezone.utc)
+    age = (datetime.now(timezone.utc) - observed).total_seconds()
+    return 0 <= age <= ETH_PRICE_RETRY_COOLDOWN_SECONDS
 
 
 def _price_is_fresh(observed_at: str | None,

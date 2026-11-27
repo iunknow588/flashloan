@@ -1,0 +1,16 @@
+   Compiling manager-db v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\manager_db)
+   Compiling closed-loop-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\closed_loop_manager)
+   Compiling review-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\review_manager)
+   Compiling broadcast-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\broadcast_manager)
+   Compiling composite-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\composite_manager)
+   Compiling manager-api v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\manager_api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 17s
+     Running unittests src\lib.rs (target\debug\deps\broadcast_manager-01f2d8ed03b9da38.exe)
+     Running unittests src\lib.rs (target\debug\deps\closed_loop_manager-55105ea2dc721e31.exe)
+     Running unittests src\lib.rs (target\debug\deps\manager_api-5484c3f95012b716.exe)
+     Running unittests src\main.rs (target\debug\deps\manager_api-a9d504a23b4130f2.exe)
+     Running unittests src\lib.rs (target\debug\deps\manager_db-cf53c3d7b5d5901c.exe)
+     Running unittests src\main.rs (target\debug\deps\manager_db-dcab64e8ba5cbab8.exe)
+     Running tests\migration_smoke.rs (target\debug\deps\migration_smoke-4e334b79ccc44bba.exe)
+     Running unittests src\lib.rs (target\debug\deps\review_manager-1ba835cb8ef61b9c.exe)
+error: test failed, to rerun pass `-p review-manager --lib`

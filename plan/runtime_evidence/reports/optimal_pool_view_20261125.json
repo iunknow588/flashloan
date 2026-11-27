@@ -1,0 +1,114 @@
+{
+  "schema": "optimal-pool-view-probe-v1",
+  "mode": "read-only",
+  "database": "E:/2026OPC大赛/flashLoan/flashloan/db/local_store_4663.sqlite3",
+  "hasSchemaMigrationsTable": true,
+  "appliedMigrations": [
+    {
+      "migration_id": "20261124_016_closed_loop_directional_wiring",
+      "checksum": "sha256:ff22181b4910b819cc674553e803f6f7ea6021b58b5a1e84593c9681603b1f0a",
+      "applied_at": "2026-11-23T22:41:50.797Z",
+      "result_json": "{}"
+    },
+    {
+      "migration_id": "20261123_015_directional_pool_schema",
+      "checksum": "sha256:505b6cf9a2e0ce1b9b676b0358f163bb29d5068f199a6ae11ed5f596285acb18",
+      "applied_at": "2026-11-23T22:07:52.123Z",
+      "result_json": "{}"
+    },
+    {
+      "migration_id": "20261121_014_review_closed_loop_identity_schema",
+      "checksum": "sha256:85b0039054e4b4162090df704dc98f517796f04ddc5f2efc8991198fc20ab817",
+      "applied_at": "2026-11-21T16:24:40.225Z",
+      "result_json": "{}"
+    },
+    {
+      "migration_id": "20261119_013_pool_status_reason",
+      "checksum": "sha256:2a18d18eec119d582fca38ec7b36bf1aa9aa1df3ed78ea3bc81f2afbfa300eb8",
+      "applied_at": "2026-11-18T19:11:33.327Z",
+      "result_json": "{}"
+    },
+    {
+      "migration_id": "20261119_012_skipped_token_pool_localization",
+      "checksum": "sha256:875800f83d01b91f63e8645966fb24458102c2c9e51d187254ad4d176c034b7e",
+      "applied_at": "2026-11-18T19:11:33.318Z",
+      "result_json": "{}"
+    },
+    {
+      "migration_id": "20261119_011_skipped_token_reason_schema",
+      "checksum": "sha256:00bca5b77c2813c04bf25211052999f90d928effab0936f6bfdef5060705e55e",
+      "applied_at": "2026-11-18T18:08:11.024Z",
+      "result_json": "{}"
+    },
+    {
+      "migration_id": "20261118_010_cross_tick_seed_schema",
+      "checksum": "sha256:e88fa2cd6e7dbee2e3a5c295382acee4094660b179187337d590c04b6499f09f",
+      "applied_at": "2026-11-18T09:14:01.681Z",
+      "result_json": "{}"
+    },
+    {
+      "migration_id": "20261114_009_hop_price_limit_schema",
+      "checksum": "sha256:3266c5c3afc5e7f7dd26bc932ebe19afbc4b5ff322ef39f75cdf02bb52393ce3",
+      "applied_at": "2026-11-17T11:39:41.750Z",
+      "result_json": "{}"
+    }
+  ],
+  "objectsMentioningOptimalPoolId": [
+    {
+      "type": "table",
+      "name": "dex_candidate_abnormal_anchor_tokens",
+      "tbl_name": "dex_candidate_abnormal_anchor_tokens",
+      "sql": "CREATE TABLE dex_candidate_abnormal_anchor_tokens (\n        network TEXT NOT NULL,\n        chain_id INTEGER NOT NULL,\n        protocol TEXT NOT NULL,\n        anchor_scope TEXT NOT NULL,\n        anchor_symbol TEXT NOT NULL,\n        token_role TEXT NOT NULL DEFAULT 'yc_zc_abnormal',\n        token_address TEXT NOT NULL,\n        pool_count INTEGER NOT NULL DEFAULT 0,\n        has_yc_optimal_pool INTEGER NOT NULL DEFAULT 0,\n        has_zc_optimal_pool INTEGER NOT NULL DEFAULT 0,\n        yc_optimal_pool_id TEXT,\n        zc_optimal_pool_id TEXT,\n        yc_zc_same_set INTEGER NOT NULL DEFAULT 1,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL, yc_backup_pool_ids_json TEXT NOT NULL DEFAULT '[]', zc_backup_pool_ids_json TEXT NOT NULL DEFAULT '[]',\n        PRIMARY KEY (network, chain_id, protocol, anchor_scope, anchor_symbol, token_role, token_address),\n        FOREIGN KEY (network, chain_id, token_address)\n            REFERENCES chain_tokens (network, chain_id, token_address)\n    )"
+    },
+    {
+      "type": "table",
+      "name": "dex_candidate_abnormal_pool_pairs",
+      "tbl_name": "dex_candidate_abnormal_pool_pairs",
+      "sql": "CREATE TABLE \"dex_candidate_abnormal_pool_pairs\" (\n                network TEXT NOT NULL,\n                chain_id INTEGER NOT NULL,\n                protocol TEXT NOT NULL,\n                anchor_scope TEXT NOT NULL,\n                anchor_symbol TEXT NOT NULL,\n                anchor_address TEXT NOT NULL,\n                counter_address TEXT NOT NULL,\n                address_pair TEXT NOT NULL,\n                direction_key TEXT NOT NULL,\n                pool_count INTEGER NOT NULL DEFAULT 0,\n                fixed_fee_liquid_pool_count INTEGER NOT NULL DEFAULT 0,\n                priced_pool_count INTEGER NOT NULL DEFAULT 0,\n                yc_optimal_pool_id TEXT,\n                zc_optimal_pool_id TEXT,\n                price_reference_json TEXT,\n                price_outlier_filter TEXT,\n                created_at TEXT NOT NULL,\n                updated_at TEXT NOT NULL, yc_backup_pool_ids_json TEXT NOT NULL DEFAULT '[]', zc_backup_pool_ids_json TEXT NOT NULL DEFAULT '[]',\n                PRIMARY KEY (network, chain_id, protocol, anchor_scope, anchor_symbol, direction_key),\n                FOREIGN KEY (network, chain_id, anchor_address)\n                    REFERENCES chain_tokens (network, chain_id, token_address),\n                FOREIGN KEY (network, chain_id, counter_address)\n                    REFERENCES chain_tokens (network, chain_id, token_address)\n            )"
+    },
+    {
+      "type": "table",
+      "name": "dex_candidate_anchor_tokens",
+      "tbl_name": "dex_candidate_anchor_tokens",
+      "sql": "CREATE TABLE dex_candidate_anchor_tokens (\n        network TEXT NOT NULL,\n        chain_id INTEGER NOT NULL,\n        protocol TEXT NOT NULL,\n        anchor_scope TEXT NOT NULL,\n        anchor_symbol TEXT NOT NULL,\n        token_role TEXT NOT NULL DEFAULT 'yc_zc',\n        token_address TEXT NOT NULL,\n        pool_count INTEGER NOT NULL DEFAULT 0,\n        has_yc_optimal_pool INTEGER NOT NULL DEFAULT 0,\n        has_zc_optimal_pool INTEGER NOT NULL DEFAULT 0,\n        yc_optimal_pool_id TEXT,\n        zc_optimal_pool_id TEXT,\n        yc_zc_same_set INTEGER NOT NULL DEFAULT 1,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL, yc_backup_pool_ids_json TEXT NOT NULL DEFAULT '[]', zc_backup_pool_ids_json TEXT NOT NULL DEFAULT '[]',\n        PRIMARY KEY (network, chain_id, protocol, anchor_scope, anchor_symbol, token_role, token_address),\n        FOREIGN KEY (network, chain_id, token_address)\n            REFERENCES chain_tokens (network, chain_id, token_address)\n    )"
+    },
+    {
+      "type": "table",
+      "name": "dex_candidate_pool_pairs",
+      "tbl_name": "dex_candidate_pool_pairs",
+      "sql": "CREATE TABLE \"dex_candidate_pool_pairs\" (\n                network TEXT NOT NULL,\n                chain_id INTEGER NOT NULL,\n                protocol TEXT NOT NULL,\n                anchor_scope TEXT NOT NULL,\n                anchor_symbol TEXT NOT NULL,\n                anchor_address TEXT NOT NULL,\n                counter_address TEXT NOT NULL,\n                address_pair TEXT NOT NULL,\n                direction_key TEXT NOT NULL,\n                pool_count INTEGER NOT NULL DEFAULT 0,\n                fixed_fee_liquid_pool_count INTEGER NOT NULL DEFAULT 0,\n                priced_pool_count INTEGER NOT NULL DEFAULT 0,\n                yc_optimal_pool_id TEXT,\n                zc_optimal_pool_id TEXT,\n                price_reference_json TEXT,\n                price_outlier_filter TEXT,\n                created_at TEXT NOT NULL,\n                updated_at TEXT NOT NULL, yc_backup_pool_ids_json TEXT NOT NULL DEFAULT '[]', zc_backup_pool_ids_json TEXT NOT NULL DEFAULT '[]',\n                PRIMARY KEY (network, chain_id, protocol, anchor_scope, anchor_symbol, direction_key),\n                FOREIGN KEY (network, chain_id, anchor_address)\n                    REFERENCES chain_tokens (network, chain_id, token_address),\n                FOREIGN KEY (network, chain_id, counter_address)\n                    REFERENCES chain_tokens (network, chain_id, token_address)\n            )"
+    },
+    {
+      "type": "table",
+      "name": "manager_market_observation_yz_pairs",
+      "tbl_name": "manager_market_observation_yz_pairs",
+      "sql": "CREATE TABLE manager_market_observation_yz_pairs (\n    network                     TEXT    NOT NULL,\n    chain_id                    INTEGER NOT NULL,\n    protocol                    TEXT    NOT NULL,\n    scope_key                   TEXT    NOT NULL,\n    anchor_token_key_id         TEXT    NOT NULL,\n    direction_key               TEXT    NOT NULL,\n    token_x_key_id              TEXT    NOT NULL,\n    token_y_key_id              TEXT    NOT NULL,\n    has_direct_swap_pool        INTEGER NOT NULL CHECK (has_direct_swap_pool IN (0, 1)),\n    direct_swap_pool_count      INTEGER NOT NULL,\n    pool_ids_json               TEXT    NOT NULL DEFAULT '[]',\n    optimal_pool_id             TEXT,\n    observation_empty_reason    TEXT,\n    created_at                  TEXT    NOT NULL,\n    updated_at                  TEXT    NOT NULL,\n    PRIMARY KEY (\n        network, chain_id, protocol, scope_key, anchor_token_key_id, direction_key\n    )\n)"
+    },
+    {
+      "type": "table",
+      "name": "market_observation_abnormal_yz_pairs",
+      "tbl_name": "market_observation_abnormal_yz_pairs",
+      "sql": "CREATE TABLE market_observation_abnormal_yz_pairs (\n        network TEXT NOT NULL,\n        chain_id INTEGER NOT NULL,\n        protocol TEXT NOT NULL,\n        anchor_scope TEXT NOT NULL,\n        anchor_symbol TEXT NOT NULL,\n        direction_key TEXT NOT NULL,\n        token_x_address TEXT NOT NULL,\n        token_y_address TEXT NOT NULL,\n        address_pair TEXT NOT NULL,\n        has_non_normal_swap_pool INTEGER NOT NULL DEFAULT 0,\n        non_normal_swap_pool_count INTEGER NOT NULL DEFAULT 0,\n        pool_ids_json TEXT NOT NULL DEFAULT '[]',\n        observation_empty_reason TEXT,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL, optimal_pool_id TEXT,\n        PRIMARY KEY (network, chain_id, protocol, anchor_scope, anchor_symbol, direction_key),\n        FOREIGN KEY (network, chain_id, token_x_address)\n            REFERENCES chain_tokens (network, chain_id, token_address),\n        FOREIGN KEY (network, chain_id, token_y_address)\n            REFERENCES chain_tokens (network, chain_id, token_address)\n    )"
+    },
+    {
+      "type": "table",
+      "name": "market_observation_yz_pairs",
+      "tbl_name": "market_observation_yz_pairs",
+      "sql": "CREATE TABLE market_observation_yz_pairs (\n        network TEXT NOT NULL,\n        chain_id INTEGER NOT NULL,\n        protocol TEXT NOT NULL,\n        anchor_scope TEXT NOT NULL,\n        anchor_symbol TEXT NOT NULL,\n        direction_key TEXT NOT NULL,\n        token_x_address TEXT NOT NULL,\n        token_y_address TEXT NOT NULL,\n        address_pair TEXT NOT NULL,\n        has_direct_swap_pool INTEGER NOT NULL DEFAULT 0,\n        direct_swap_pool_count INTEGER NOT NULL DEFAULT 0,\n        pool_ids_json TEXT NOT NULL DEFAULT '[]',\n        observation_empty_reason TEXT,\n        created_at TEXT NOT NULL,\n        updated_at TEXT NOT NULL, optimal_pool_id TEXT,\n        PRIMARY KEY (network, chain_id, protocol, anchor_scope, anchor_symbol, direction_key),\n        FOREIGN KEY (network, chain_id, token_x_address)\n            REFERENCES chain_tokens (network, chain_id, token_address),\n        FOREIGN KEY (network, chain_id, token_y_address)\n            REFERENCES chain_tokens (network, chain_id, token_address)\n    )"
+    }
+  ],
+  "columns": [
+    {
+      "table": "manager_v4_closed_loop_hops",
+      "optimal_pool_id": []
+    },
+    {
+      "table": "manager_dex_candidate_pools",
+      "optimal_pool_id": []
+    },
+    {
+      "table": "manager_market_observation_intermediate_pools",
+      "optimal_pool_id": []
+    }
+  ]
+}

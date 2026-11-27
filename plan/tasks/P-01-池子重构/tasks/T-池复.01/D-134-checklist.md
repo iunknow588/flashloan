@@ -95,10 +95,15 @@
       > （见下一项），原因见 §5 与 `remaining_closure_v116_20261125.json` 的
       > `reviewIntegrity.signedPnlMissing = 21` / `bestAmountMissing = 8`。
 
-- [ ] `completed` **不再恒为 0**
+- [x] `completed` **不再恒为 0**
 
-      > 判据：`/v1/reviews` 的 `completedCount > 0`
-      > （前提：存在**正利润且通过容量门禁**的路线）。
+      > **读数（2026-11-26 14:3x）**：`manager_v4_reviews` ⇒ `review_status = completed` **1** 行
+      > （`signed_pnl_raw = 0xc` ＝ **1.2e-05** USDG，`reviewed_at = 2026-11-26T05:56:17.867Z`）
+      > ⇒ 判据「`completedCount > 0`」**成立**；概览 `summary.reviewCompletedCount = 1`。
+      > **诚实边界**：这一条**正收益闭环**（`USDG -> PFE -> CRCL -> USDG`）发布于 **13:56:22**，
+      > **在 runtime 换新二进制（13:59:28）之前** ⇒ 它的广播请求**没有人读回**，且已过 **120 s** 窗口
+      > ⇒ **不会被重播**。这**不是**链路故障，是**时序**：换二进制之后要等**新一代**复核。
+      > 探针：`verify_restart_gates_20261126.py` ＋ `probe_review_generation_20261126.py`。
 
 - [x] 实盘库**零写入**
 

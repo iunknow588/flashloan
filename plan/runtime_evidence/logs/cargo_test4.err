@@ -1,0 +1,9 @@
+   Compiling closed-loop-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\closed_loop_manager)
+   Compiling review-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\review_manager)
+   Compiling broadcast-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\broadcast_manager)
+   Compiling composite-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\composite_manager)
+   Compiling manager-api v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\manager_api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 23s
+     Running unittests src\lib.rs (target\debug\deps\broadcast_manager-01f2d8ed03b9da38.exe)
+     Running unittests src\lib.rs (target\debug\deps\closed_loop_manager-55105ea2dc721e31.exe)
+error: test failed, to rerun pass `-p closed-loop-manager --lib`

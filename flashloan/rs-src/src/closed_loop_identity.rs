@@ -41,6 +41,45 @@ pub struct ClosedLoopIdentity {
     pub cross_tick_review_threshold_usdg_raw: u128,
     /// The ceiling of the cross-tick search, in anchor-token raw units.
     pub cross_tick_capacity_anchor_raw: Option<u128>,
+    /// The version of the candidate edge the loop was built against.
+    ///
+    /// The edge names the pools the loop may trade through.  A review
+    /// that was measured under one edge describes that edge, so the edge
+    /// travels with the review instead of being read again later.
+    pub candidate_edge_version: Option<i64>,
+    /// The checksum of the candidate edge the loop was built against.
+    pub candidate_edge_checksum: Option<String>,
+    /// The version of the market observation the loop was built against.
+    pub observation_version: Option<i64>,
+    /// The checksum of the market observation the loop was built against.
+    pub observation_checksum: Option<String>,
+}
+
+impl ClosedLoopIdentity {
+    /// Whether two identities name the **same** closed loop.
+    ///
+    /// Two identities name the same loop when they walk the same pools in
+    /// the same order and bound the loop with the same numbers: the
+    /// folded capacity, the hop that binds it, the value of the borrow
+    /// token and the cross-tick threshold the loop was measured with.
+    ///
+    /// The generation the loop was built against is **not** part of the
+    /// comparison.  A loop that was rebuilt from a newer observation is
+    /// still the same loop, and the review of it stays the review of that
+    /// loop: only the numbers that describe the loop decide whether it is
+    /// the same one.
+    pub fn is_same_loop(&self, other: &Self) -> bool {
+        self.loop_key.trim() == other.loop_key.trim()
+            && self.pool_ids == other.pool_ids
+            && self.single_tick_capacity_anchor_raw == other.single_tick_capacity_anchor_raw
+            && self.single_tick_capacity_binding_pool_id
+                == other.single_tick_capacity_binding_pool_id
+            && self.borrow_token_usdg_value_raw == other.borrow_token_usdg_value_raw
+            && self.borrow_token_decimals == other.borrow_token_decimals
+            && self.cross_tick_review_threshold_usdg_raw
+                == other.cross_tick_review_threshold_usdg_raw
+            && self.cross_tick_capacity_anchor_raw == other.cross_tick_capacity_anchor_raw
+    }
 }
 
 /// The closed loops of one chain, indexed by their full ordered address path.
@@ -197,6 +236,14 @@ pub fn catalog_from_rows(rows: &[serde_json::Value]) -> ClosedLoopCatalog {
             .and_then(serde_json::Value::as_str)
             .and_then(|text| serde_json::from_str::<Vec<String>>(text).ok())
             .unwrap_or_default();
+        // The closed loop publishes the **directional** pools it walks, and
+        // the base pool is inside the directional pool id.  The identity
+        // the route is matched against is still the pool identity, so the
+        // base pool of every published directional pool is resolved here.
+        let pool_ids: Vec<String> = pool_ids
+            .iter()
+            .map(|directional_pool_id| base_pool_of(directional_pool_id))
+            .collect();
         let capacity = row
             .get("single_tick_capacity_anchor_raw")
             .and_then(serde_json::Value::as_str)
@@ -206,7 +253,8 @@ pub fn catalog_from_rows(rows: &[serde_json::Value]) -> ClosedLoopCatalog {
             .get("single_tick_capacity_binding_pool_id")
             .and_then(serde_json::Value::as_str)
             .map(|value| value.trim().to_owned())
-            .filter(|value| !value.is_empty());
+            .filter(|value| !value.is_empty())
+            .map(|value| base_pool_of(&value));
         let borrow_token_usdg_value_raw = row
             .get("borrow_token_usdg_value_raw")
             .and_then(serde_json::Value::as_str)
@@ -226,6 +274,22 @@ pub fn catalog_from_rows(rows: &[serde_json::Value]) -> ClosedLoopCatalog {
             .and_then(serde_json::Value::as_str)
             .and_then(|text| text.trim().parse::<u128>().ok())
             .filter(|value| *value > 0);
+        let candidate_edge_version = row
+            .get("candidate_edge_version")
+            .and_then(serde_json::Value::as_i64);
+        let candidate_edge_checksum = row
+            .get("candidate_edge_checksum")
+            .and_then(serde_json::Value::as_str)
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
+        let observation_version = row
+            .get("observation_version")
+            .and_then(serde_json::Value::as_i64);
+        let observation_checksum = row
+            .get("observation_checksum")
+            .and_then(serde_json::Value::as_str)
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
         let identity = ClosedLoopIdentity {
                 loop_key: loop_key.clone(),
                 pool_ids,
@@ -235,6 +299,10 @@ pub fn catalog_from_rows(rows: &[serde_json::Value]) -> ClosedLoopCatalog {
                 borrow_token_decimals,
                 cross_tick_review_threshold_usdg_raw,
                 cross_tick_capacity_anchor_raw,
+                candidate_edge_version,
+                candidate_edge_checksum,
+                observation_version,
+                observation_checksum,
             };
         // The key index keeps every published loop, even one whose address
             // path cannot name it.  The publish gate compares the evidence
@@ -259,6 +327,47 @@ pub fn catalog_from_rows(rows: &[serde_json::Value]) -> ClosedLoopCatalog {
         by_loop_key,
         upstream: None,
     }
+}
+
+/// The base pool a published pool identity names.
+///
+/// The closed loop publishes the **directional** pools it walks, and a
+/// directional pool id carries its base pool inside it:
+/// `dpool:v1:{network}:{chain_id}:{scope}:{base_pool_id}:{direction}`.
+/// The identity the route is matched against is still the pool identity,
+/// so the base pool is resolved here, once, at the boundary.
+///
+/// An identity that is not a directional pool id is already a pool id and
+/// is returned unchanged: the resolution never invents a pool.
+fn base_pool_of(published_pool_id: &str) -> String {
+    let trimmed = published_pool_id.trim();
+    let Some(rest) = trimmed.strip_prefix("dpool:v1:") else {
+        return trimmed.to_owned();
+    };
+    let mut parts = rest.split(':');
+    // network, chain id, scope key, base pool, direction.
+    let (_network, _chain_id, _scope_key, base_pool_id, direction) = match (
+        parts.next(),
+        parts.next(),
+        parts.next(),
+        parts.next(),
+        parts.next(),
+    ) {
+        (Some(network), Some(chain_id), Some(scope_key), Some(base_pool_id), Some(direction)) => {
+            (network, chain_id, scope_key, base_pool_id, direction)
+        }
+        _ => return trimmed.to_owned(),
+    };
+    if parts.next().is_some() {
+        return trimmed.to_owned();
+    }
+    if direction != "0" && direction != "1" {
+        return trimmed.to_owned();
+    }
+    if base_pool_id.is_empty() {
+        return trimmed.to_owned();
+    }
+    base_pool_id.to_owned()
 }
 
 #[cfg(test)]
@@ -429,5 +538,55 @@ mod tests {
         assert_eq!(identity.borrow_token_decimals, None);
         assert_eq!(identity.cross_tick_review_threshold_usdg_raw, 0);
         assert_eq!(identity.cross_tick_capacity_anchor_raw, None);
+    }
+
+    #[test]
+    fn the_same_closed_loop_is_recognized_by_its_own_numbers() {
+        let row = serde_json::json!({
+            "loop_key": "a:b:c",
+            "path_addresses_json": "[\"A\",\"B\",\"C\",\"A\"]",
+            "pool_ids_json": "[\"dpool:v1:robinhood:4663:core4:p1:1\",\"dpool:v1:robinhood:4663:core4:p2:1\",\"dpool:v1:robinhood:4663:core4:p3:0\"]",
+            "single_tick_capacity_anchor_raw": "1000",
+            "single_tick_capacity_binding_pool_id": "dpool:v1:robinhood:4663:core4:p2:1",
+            "borrow_token_usdg_value_raw": "2500000",
+            "borrow_token_decimals": 18,
+            "cross_tick_review_threshold_usdg_raw": "10000000",
+            "cross_tick_capacity_anchor_raw": "9000000000000000000",
+            "candidate_edge_version": 7,
+            "candidate_edge_checksum": "sha256:candidate-edge",
+            "observation_version": 4,
+            "observation_checksum": "sha256:observation"
+        });
+        let catalog = catalog_from_rows(&[row.clone()]);
+        let identity = catalog
+            .identity_by_key("a:b:c")
+            .expect("the published loop is indexed by its key");
+
+        // A second read of the same row is the same closed loop.
+        let again = catalog_from_rows(&[row]);
+        let same = again
+            .identity_by_key("a:b:c")
+            .expect("the published loop is indexed by its key");
+        assert!(identity.is_same_loop(same));
+
+        // The generation the loop was built against is **not** part of the
+        // comparison: a loop that was rebuilt from a newer observation is
+        // still the same loop.
+        let mut rebuilt = identity.clone();
+        rebuilt.candidate_edge_version = Some(8);
+        rebuilt.observation_version = Some(5);
+        assert!(identity.is_same_loop(&rebuilt));
+
+        // The pools the loop walks **are** part of it: a loop that walks
+        // other pools is another closed loop.
+        let mut repathed = identity.clone();
+        repathed.pool_ids = vec!["p9".to_owned(), "p8".to_owned(), "p7".to_owned()];
+        assert!(!identity.is_same_loop(&repathed));
+
+        // The bound the loop carries is part of it as well: a loop with
+        // another capacity bounds another amount.
+        let mut recapped = identity.clone();
+        recapped.single_tick_capacity_anchor_raw = Some(2_000);
+        assert!(!identity.is_same_loop(&recapped));
     }
 }

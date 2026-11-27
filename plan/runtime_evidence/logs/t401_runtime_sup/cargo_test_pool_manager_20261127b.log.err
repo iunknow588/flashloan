@@ -1,0 +1,4 @@
+   Compiling pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\pool_manager)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.60s
+     Running unittests src\lib.rs (target\debug\deps\pool_manager-0952d3bf8cb87e43.exe)
+error: test failed, to rerun pass `-p pool-manager --lib`

@@ -71,7 +71,38 @@ pub fn load_v4_exchange_pools(
     )
 }
 
-pub fn load_v4_exchange_pool_registry_rows(
+/// Whether the directional pool layer is present in this database.
+///
+/// The kernel's in-memory pool object holds **directional** pools, so a
+/// database that was never migrated to the directional layer cannot fill
+/// that object.  The check exists so the runtime can say so instead of
+/// running with an empty pool array, which would look like a system that
+/// simply found no opportunity.
+pub fn directional_pool_table_exists(connection: &Connection) -> bool {
+    connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master \
+             WHERE type IN ('table','view') \
+             AND name='manager_v4_directional_exchange_pools'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(0)
+        > 0
+}
+
+/// The directional pools of one chain, as the Directional Pool Manager
+/// publishes them.
+///
+/// The kernel's pool array is the **directional** pool array: one row is
+/// one base pool in one swap direction, and the row carries the base
+/// pool facts as its sub-object.  The kernel therefore reads this table
+/// instead of the base pool table, and never has to join the two.
+///
+/// The rows come back ordered the way the direction layer ranks them, so
+/// the registry can pick the best ranked row of a `(base pool,
+/// direction)` pair without a second query.
+pub fn load_v4_directional_pool_registry_rows(
     connection: &Connection,
     network: &str,
     chain_id: u64,
@@ -79,10 +110,13 @@ pub fn load_v4_exchange_pool_registry_rows(
 ) -> Result<Vec<Value>, String> {
     rows(
         connection,
-        "SELECT pool_id, token0, token1, pool_manager \
-         FROM v4_exchange_pools \
+        "SELECT directional_pool_id, base_pool_id, direction, scope_key, \
+         pool_manager, pool_key_json, token0, token1, fee, tick_spacing, hooks, \
+         pair_key_id, input_token_key_id, output_token_key_id, zero_for_one, \
+         pair_direction_rank, pool_status \
+         FROM manager_v4_directional_exchange_pools \
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 \
-         ORDER BY pool_id",
+         ORDER BY scope_key, pair_key_id, direction, pair_direction_rank, base_pool_id",
         &[
             &network.to_string(),
             &(chain_id as i64),
@@ -610,10 +644,15 @@ pub fn load_manager_closed_loop_rows(
 ) -> Result<Vec<Value>, String> {
     rows(
         connection,
-        "SELECT loop_key, path_addresses_json, path_symbols_json, pool_ids_json, \
-         single_tick_capacity_anchor_raw, single_tick_capacity_binding_pool_id, \
+        "SELECT loop_key, path_addresses_json, path_symbols_json, \
+         directional_pool_ids_json AS pool_ids_json, \
+         single_tick_capacity_anchor_raw, \
+         single_tick_capacity_binding_directional_pool_id \
+           AS single_tick_capacity_binding_pool_id, \
          borrow_token_usdg_value_raw, borrow_token_decimals, \
-         cross_tick_review_threshold_usdg_raw, cross_tick_capacity_anchor_raw \
+         cross_tick_review_threshold_usdg_raw, cross_tick_capacity_anchor_raw, \
+         candidate_edge_version, candidate_edge_checksum, \
+         observation_version, observation_checksum \
          FROM manager_v4_closed_loops \
          WHERE network = ?1 AND chain_id = ?2 \
          ORDER BY loop_key",
@@ -649,7 +688,32 @@ pub fn load_manager_closed_loop_generation(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use manager_db::CLOSED_LOOP_DIRECTIONAL_ONLY_MIGRATION_ID;
     use rusqlite::params;
+
+    /// Whether the store already carries the directional closed-loop layout.
+    ///
+    /// The migration ledger is the honest place to ask: it records what was
+    /// applied to the store, not what the columns happen to look like.  A
+    /// store that is still on the pre-018 layout has no
+    /// `single_tick_capacity_binding_directional_pool_id` at all, so the
+    /// kernel cannot read it -- and that is the deployment order, not a
+    /// defect of the data.
+    fn live_store_has_directional_closed_loop_layout(connection: &Connection) -> bool {
+        for ledger in ["schema_migrations", "manager_schema_migrations"] {
+            let sql = format!("SELECT 1 FROM {ledger} WHERE migration_id = ?1 LIMIT 1");
+            let Ok(mut statement) = connection.prepare(&sql) else {
+                continue;
+            };
+            if statement
+                .query_row([CLOSED_LOOP_DIRECTIONAL_ONLY_MIGRATION_ID], |_| Ok(()))
+                .is_ok()
+            {
+                return true;
+            }
+        }
+        false
+    }
 
     fn temporary_database() -> (tempfile::TempDir, String) {
         let dir = tempfile::tempdir().expect("temporary dir");
@@ -820,23 +884,28 @@ mod tests {
                     loop_key TEXT NOT NULL,
                     path_addresses_json TEXT,
                     path_symbols_json TEXT,
-                    pool_ids_json TEXT,
+                    directional_pool_ids_json TEXT,
                     single_tick_capacity_anchor_raw TEXT,
-                    single_tick_capacity_binding_pool_id TEXT,
+                    single_tick_capacity_binding_directional_pool_id TEXT,
                     borrow_token_usdg_value_raw TEXT,
                     borrow_token_decimals INTEGER,
                     cross_tick_review_threshold_usdg_raw TEXT,
-                    cross_tick_capacity_anchor_raw TEXT
+                    cross_tick_capacity_anchor_raw TEXT,
+                    candidate_edge_version INTEGER,
+                    candidate_edge_checksum TEXT,
+                    observation_version INTEGER,
+                    observation_checksum TEXT
                 );
                 INSERT INTO manager_v4_closed_loops VALUES (
                     'robinhood', 4663,
                     '0xanchor:0xmid:0xend',
                     '[\"0xanchor\",\"0xmid\",\"0xend\",\"0xanchor\"]',
                     '[\"ETH\",\"WETH\",\"USDG\",\"ETH\"]',
-                    '[\"pool-a\",\"pool-b\",\"pool-c\"]',
-                    '10735155545429035', 'pool-b',
+                    '[\"dpool:v1:robinhood:4663:core4:pool-a:1\",\"dpool:v1:robinhood:4663:core4:pool-b:1\",\"dpool:v1:robinhood:4663:core4:pool-c:0\"]',
+                    '10735155545429035', 'dpool:v1:robinhood:4663:core4:pool-b:1',
                     '1000000', 6,
-                    '500', '999'
+                    '500', '999',
+                    7, 'sha256:candidate-edge', 4, 'sha256:observation'
                 );
                 ",
             )
@@ -868,6 +937,19 @@ mod tests {
             Some(10_735_155_545_429_035)
         );
         assert_eq!(identity.pool_ids.len(), 3);
+        // The identity carries the generation the loop was built against,
+        // so a review can be filed under the generation it was measured
+        // under and not under the one the catalog holds when it lands.
+        assert_eq!(identity.candidate_edge_version, Some(7));
+        assert_eq!(
+            identity.candidate_edge_checksum.as_deref(),
+            Some("sha256:candidate-edge")
+        );
+        assert_eq!(identity.observation_version, Some(4));
+        assert_eq!(
+            identity.observation_checksum.as_deref(),
+            Some("sha256:observation")
+        );
     }
 
     #[test]
@@ -1094,6 +1176,20 @@ mod tests {
             return;
         }
         let connection = open_readonly(&database.to_string_lossy()).expect("read-only open");
+        // The kernel reads the **post-018** closed-loop layout: the loop
+        // body carries directional pool ids only, and the capacity binding
+        // names a directional pool.  A store that has not been migrated
+        // yet cannot be read by this binary at all -- that is the
+        // deployment order, not a defect of the data -- so the check waits
+        // for the migration instead of pretending it ran.
+        if !live_store_has_directional_closed_loop_layout(&connection) {
+            eprintln!(
+                "live mainnet store is still on the pre-018 closed-loop layout; \
+                 the live pool-set check is skipped until migration \
+                 {CLOSED_LOOP_DIRECTIONAL_ONLY_MIGRATION_ID} is applied"
+            );
+            return;
+        }
         let rows = load_manager_closed_loop_rows(&connection, "robinhood", 4663)
             .expect("load closed-loop rows");
         assert!(

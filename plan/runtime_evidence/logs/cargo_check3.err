@@ -1,0 +1,19 @@
+    Checking broadcast-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\broadcast_manager)
+    Checking composite-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\composite_manager)
+    Checking manager-api v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\manager_api)
+warning: unused variable: `idempotency_key`
+    --> manager_api\src\lib.rs:1267:9
+     |
+1267 |     let idempotency_key = match required_write_header_for(&headers, "Idempotency-Key", stage) {
+     |         ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_idempotency_key`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `idempotency_key`
+    --> manager_api\src\lib.rs:1369:9
+     |
+1369 |     let idempotency_key = match required_write_header_for(&headers, "Idempotency-Key", stage) {
+     |         ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_idempotency_key`
+
+warning: `manager-api` (lib) generated 2 warnings (run `cargo fix --lib -p manager-api` to apply 2 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 10.78s

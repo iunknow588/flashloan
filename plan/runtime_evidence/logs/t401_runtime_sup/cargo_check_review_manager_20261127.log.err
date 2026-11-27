@@ -1,0 +1,144 @@
+    Checking pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\pool_manager)
+    Checking candidate-edge-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\candidate_edge_pool_manager)
+    Checking directional-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\directional_pool_manager)
+    Checking candidate-exchange-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\candidate_exchange_pool_manager)
+    Checking closed-loop-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\closed_loop_manager)
+    Checking review-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\review_manager)
+error[E0599]: no method named `hour` found for struct `DateTime<Tz>` in the current scope
+   --> review_manager\src\records.rs:630:58
+    |
+630 |         .map(|observed| (observed.date_naive(), observed.hour()))
+    |                                                          ^^^^
+    |
+   ::: C:\Users\iunkn\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\chrono-0.4.45\src\traits.rs:285:8
+    |
+285 |     fn hour(&self) -> u32;
+    |        ---- the method is available for `DateTime<Utc>` here
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `Timelike` which provides `hour` is implemented but not in scope; perhaps you want to import it
+    |
+ 34 + use chrono::Timelike;
+    |
+help: there is a method `hour12` with a similar name
+    |
+630 |         .map(|observed| (observed.date_naive(), observed.hour12()))
+    |                                                              ++
+
+error[E0599]: no method named `hour` found for struct `DateTime<Tz>` in the current scope
+   --> review_manager\src\records.rs:630:58
+    |
+630 |         .map(|observed| (observed.date_naive(), observed.hour()))
+    |                                                          ^^^^
+    |
+   ::: C:\Users\iunkn\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\chrono-0.4.45\src\traits.rs:285:8
+    |
+285 |     fn hour(&self) -> u32;
+    |        ---- the method is available for `DateTime<chrono::Utc>` here
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `Timelike` which provides `hour` is implemented but not in scope; perhaps you want to import it
+    |
+ 34 + use chrono::Timelike;
+    |
+help: there is a method `hour12` with a similar name
+    |
+630 |         .map(|observed| (observed.date_naive(), observed.hour12()))
+    |                                                              ++
+
+error[E0599]: no method named `hour` found for struct `DateTime<Tz>` in the current scope
+   --> review_manager\src\records.rs:633:36
+    |
+633 |             (now.date_naive(), now.hour())
+    |                                    ^^^^
+    |
+   ::: C:\Users\iunkn\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\chrono-0.4.45\src\traits.rs:285:8
+    |
+285 |     fn hour(&self) -> u32;
+    |        ---- the method is available for `DateTime<chrono::Utc>` here
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `Timelike` which provides `hour` is implemented but not in scope; perhaps you want to import it
+    |
+ 34 + use chrono::Timelike;
+    |
+help: there is a method `hour12` with a similar name
+    |
+633 |             (now.date_naive(), now.hour12())
+    |                                        ++
+
+error[E0599]: no method named `hour` found for struct `DateTime<Tz>` in the current scope
+   --> review_manager\src\records.rs:633:36
+    |
+633 |             (now.date_naive(), now.hour())
+    |                                    ^^^^
+    |
+   ::: C:\Users\iunkn\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\chrono-0.4.45\src\traits.rs:285:8
+    |
+285 |     fn hour(&self) -> u32;
+    |        ---- the method is available for `DateTime<Utc>` here
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `Timelike` which provides `hour` is implemented but not in scope; perhaps you want to import it
+    |
+ 34 + use chrono::Timelike;
+    |
+help: there is a method `hour12` with a similar name
+    |
+633 |             (now.date_naive(), now.hour12())
+    |                                        ++
+
+error[E0061]: this function takes 4 arguments but 3 arguments were supplied
+    --> review_manager\src\records.rs:2083:47
+     |
+2083 |         let content = std::fs::read_to_string(review_file_path(&dir, day, "loop-1")).unwrap();
+     |                                               ^^^^^^^^^^^^^^^^            -------- argument #3 of type `u32` is missing
+     |
+note: function defined here
+    --> review_manager\src\records.rs:611:8
+     |
+ 611 | pub fn review_file_path(dir: &Path, day: NaiveDate, hour: u32, loop_key: &str) -> PathBuf {
+     |        ^^^^^^^^^^^^^^^^                             ---------
+help: provide the argument
+     |
+2083 |         let content = std::fs::read_to_string(review_file_path(&dir, day, /* u32 */, "loop-1")).unwrap();
+     |                                                                           ++++++++++
+
+error[E0061]: this function takes 4 arguments but 3 arguments were supplied
+    --> review_manager\src\records.rs:2095:37
+     |
+2095 |             std::fs::read_to_string(review_file_path(&dir, day, "loop-2")).unwrap();
+     |                                     ^^^^^^^^^^^^^^^^            -------- argument #3 of type `u32` is missing
+     |
+note: function defined here
+    --> review_manager\src\records.rs:611:8
+     |
+ 611 | pub fn review_file_path(dir: &Path, day: NaiveDate, hour: u32, loop_key: &str) -> PathBuf {
+     |        ^^^^^^^^^^^^^^^^                             ---------
+help: provide the argument
+     |
+2095 |             std::fs::read_to_string(review_file_path(&dir, day, /* u32 */, "loop-2")).unwrap();
+     |                                                                 ++++++++++
+
+error[E0061]: this function takes 4 arguments but 3 arguments were supplied
+    --> review_manager\src\records.rs:2143:20
+     |
+2143 |         let path = review_file_path(&dir, NaiveDate::from_ymd_opt(2026, 11, 23).unwrap(), "loop-1");
+     |                    ^^^^^^^^^^^^^^^^                                                       -------- argument #3 of type `u32` is missing
+     |
+note: function defined here
+    --> review_manager\src\records.rs:611:8
+     |
+ 611 | pub fn review_file_path(dir: &Path, day: NaiveDate, hour: u32, loop_key: &str) -> PathBuf {
+     |        ^^^^^^^^^^^^^^^^                             ---------
+help: provide the argument
+     |
+2143 |         let path = review_file_path(&dir, NaiveDate::from_ymd_opt(2026, 11, 23).unwrap(), /* u32 */, "loop-1");
+     |                                                                                           ++++++++++
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `review-manager` (lib) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+Some errors have detailed explanations: E0061, E0599.
+For more information about an error, try `rustc --explain E0061`.
+error: could not compile `review-manager` (lib test) due to 5 previous errors

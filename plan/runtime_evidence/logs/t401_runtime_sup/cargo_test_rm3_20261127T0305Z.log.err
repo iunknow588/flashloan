@@ -1,0 +1,19 @@
+   Compiling pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\pool_manager)
+   Compiling candidate-edge-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\candidate_edge_pool_manager)
+   Compiling directional-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\directional_pool_manager)
+   Compiling candidate-exchange-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\candidate_exchange_pool_manager)
+   Compiling closed-loop-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\closed_loop_manager)
+   Compiling review-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\review_manager)
+error[E0599]: no method named `and_fixed_offset` found for struct `NaiveDateTime` in the current scope
+    --> review_manager\src\records.rs:2061:14
+     |
+2059 | /         day.and_hms_opt(hour, minute, 0)
+2060 | |             .unwrap()
+2061 | |             .and_fixed_offset(beijing_offset())
+     | |             -^^^^^^^^^^^^^^^^ method not found in `NaiveDateTime`
+     | |_____________|
+     |
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `review-manager` (lib test) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

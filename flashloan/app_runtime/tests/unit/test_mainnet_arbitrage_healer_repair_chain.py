@@ -27,6 +27,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import pathlib
+import socket
 import sqlite3
 from datetime import datetime, timezone
 import sys
@@ -297,7 +298,7 @@ def test_the_convergence_reports_a_stall_instead_of_a_success(tmp_path, monkeypa
     connection.commit()
     connection.close()
 
-    monkeypatch.setattr(HEALER, "review_rows", lambda db, hours, limit=None: [
+    monkeypatch.setattr(HEALER, "review_rows", lambda db, hours, limit=None, manager_api=None: [
         {
             "id": 1,
             "attempt_key": "key-1",
@@ -351,7 +352,8 @@ def test_the_convergence_stops_when_every_review_carries_a_value(tmp_path, monke
     connection.commit()
     connection.close()
 
-    monkeypatch.setattr(HEALER, "reviews_missing_a_value", lambda db, hours: [])
+    monkeypatch.setattr(HEALER, "reviews_missing_a_value",
+                        lambda db, hours, manager_api=None: [])
     monkeypatch.setattr(
         HEALER,
         "rereview_missing_pnl",
@@ -379,7 +381,7 @@ def test_the_convergence_is_bounded(tmp_path, monkeypatch):
 
     counter = {"calls": 0}
 
-    def fake_missing(db, hours):
+    def fake_missing(db, hours, manager_api=None):
         counter["calls"] += 1
         # Always one missing route, but the count shrinks on every round so
         # the loop keeps making "progress".
@@ -418,13 +420,46 @@ def test_a_failed_broadcast_names_the_repair_action():
             "closedLoops": {"valid": True},
             "reviews": {
                 "valid": True,
-                "legacy": {"stats": {"missingValue": 0, "positive": 2}},
+                "legacy": {
+                    # The whole window carries the reviews of the loops
+                    # that have left the catalog; the live scope is the
+                    # catalog of right now.
+                    "stats": {"missingValue": 0, "positive": 2},
+                    "currentLoopStats": {"missingValue": 0, "positive": 2},
+                },
             },
             "broadcast": {"outcomes": {"failed": 3}},
         }
     }
     actions = HEALER.healing_actions(report)
     assert "repair_broadcast_failures" in actions
+
+
+def test_a_positive_review_of_a_loop_that_left_the_catalog_does_not_open_the_broadcast():
+    """Only a **live** positive review may open the broadcast repair.
+
+    The whole window keeps the reviews of every loop that ever existed, and
+    one of them may still carry a positive profit.  That route is not traded
+    any more, so its profit is not a reason to repair a broadcast of a live
+    route that has none.
+    """
+    report = {
+        "layers": {
+            "tokens": {"valid": True},
+            "pools": {"valid": True},
+            "closedLoops": {"valid": True},
+            "reviews": {
+                "valid": True,
+                "legacy": {
+                    "stats": {"missingValue": 0, "positive": 2},
+                    "currentLoopStats": {"missingValue": 0, "positive": 0},
+                },
+            },
+            "broadcast": {"outcomes": {"failed": 3}},
+        }
+    }
+    actions = HEALER.healing_actions(report)
+    assert "repair_broadcast_failures" not in actions
 
 
 def test_a_failed_broadcast_without_a_positive_review_is_not_repaired():
@@ -436,7 +471,10 @@ def test_a_failed_broadcast_without_a_positive_review_is_not_repaired():
             "closedLoops": {"valid": True},
             "reviews": {
                 "valid": True,
-                "legacy": {"stats": {"missingValue": 0, "positive": 0}},
+                "legacy": {
+                    "stats": {"missingValue": 0, "positive": 0},
+                    "currentLoopStats": {"missingValue": 0, "positive": 0},
+                },
             },
             "broadcast": {"outcomes": {"failed": 3}},
         }
@@ -454,7 +492,10 @@ def test_a_failed_broadcast_with_an_unsound_review_layer_is_not_repaired():
             "closedLoops": {"valid": True},
             "reviews": {
                 "valid": False,
-                "legacy": {"stats": {"missingValue": 4, "positive": 2}},
+                "legacy": {
+                    "stats": {"missingValue": 4, "positive": 2},
+                    "currentLoopStats": {"missingValue": 4, "positive": 2},
+                },
             },
             "broadcast": {"outcomes": {"failed": 3}},
         }
@@ -470,7 +511,13 @@ def test_a_clean_broadcast_names_no_repair_action():
             "tokens": {"valid": True},
             "pools": {"valid": True},
             "closedLoops": {"valid": True},
-            "reviews": {"valid": True, "legacy": {"stats": {"missingValue": 0}}},
+            "reviews": {
+                "valid": True,
+                "legacy": {
+                    "stats": {"missingValue": 0},
+                    "currentLoopStats": {"missingValue": 0, "positive": 0},
+                },
+            },
             "broadcast": {"outcomes": {"failed": 0}},
         }
     }
@@ -748,6 +795,56 @@ def test_the_legacy_library_is_used_while_the_manager_library_is_empty(tmp_path)
     assert HEALER.pnl(rows[0])["amount"] == 7.0
 
 
+def test_the_legacy_table_is_not_read_when_the_manager_library_holds_rows(tmp_path):
+    """The Manager library **replaces** the legacy scan, it does not add to it.
+
+    The legacy table carries the measured payload of every review the
+    runtime ever wrote.  Reading it on a live store returns tens of
+    thousands of rows carrying more than two gigabytes of payload text,
+    and the audits parse every one of those payloads again to learn the
+    route identity.  When the Manager library already holds the published
+    reviews, that read is thrown away, so it must not happen at all.
+    """
+    database = _review_database(
+        tmp_path,
+        legacy_rows=[
+            (1, "key-1", "robinhood", 4663, "executable", "ETH/USDC", None,
+             "{}", "{}",
+             None, None, "USDG", None, "no_profit_value",
+             _fresh_timestamp(), _fresh_timestamp()),
+        ],
+    )
+    reviews, loops, broadcasts = _published_manager(
+        reviews=[_published_review("loop-a", amount=1.5)],
+    )
+    with reviews, loops, broadcasts:
+        with mock.patch.object(
+                HEALER, "legacy_review_rows",
+                side_effect=AssertionError("the legacy table was read")):
+            rows = HEALER.review_rows(database, 24)
+    assert len(rows) == 1
+    assert rows[0]["review_source"] == "manager"
+
+
+def test_the_missing_value_audit_reads_the_published_library(tmp_path):
+    """The convergence asks the published library which routes miss a value.
+
+    The audit used to be called without the manager API, so it fell back
+    to the legacy table even when the Manager library was available and
+    authoritative.  That fallback is the expensive one.
+    """
+    database = _review_database(tmp_path)
+    reviews, loops, broadcasts = _published_manager(
+        reviews=[_published_review("loop-a", amount=None, reason="no_profit_value")],
+    )
+    with reviews, loops, broadcasts:
+        with mock.patch.object(
+                HEALER, "legacy_review_rows",
+                side_effect=AssertionError("the legacy table was read")):
+            missing = HEALER.reviews_missing_a_value(database, 24, "http://manager")
+    assert [item["loopKey"] for item in missing] == ["loop-a"]
+
+
 def test_a_manager_review_without_a_value_is_reported_as_missing(tmp_path):
     """A missing value stays missing; it is never read as zero profit."""
     database = _review_database(tmp_path)
@@ -759,6 +856,56 @@ def test_a_manager_review_without_a_value_is_reported_as_missing(tmp_path):
         assert HEALER.pnl(rows[0]) is None
         assert "no_profit_value" in HEALER.review_missing_reason(rows[0])
         missing = HEALER.reviews_missing_a_value(database, 24)
+    assert [item["loopKey"] for item in missing] == ["loop-a"]
+
+
+def test_a_review_of_a_loop_that_left_the_catalog_is_not_a_live_defect(tmp_path):
+    """Only the loops of the **live** catalog are missing a value.
+
+    The store keeps the review of every loop that ever existed.  A review
+    of a loop that has left the catalog describes a route the system
+    already stopped trading: it is history, not a live defect.  Counting
+    it as a missing value kept the convergence "stalled" forever, because
+    the history outnumbered the live routes.
+
+    The history is still reported, so nothing is hidden.
+    """
+    database = _review_database(tmp_path)
+    reviews, loops, broadcasts = _published_manager(
+        reviews=[
+            _published_review("loop-live", amount=None, reason="no_profit_value"),
+            _published_review("loop-gone", amount=None, reason="no_profit_value"),
+        ],
+        loops=[{"loop_key": "loop-live"}],
+    )
+    with reviews, loops, broadcasts:
+        missing = HEALER.reviews_missing_a_value(database, 24, "http://manager")
+        outside = HEALER.reviews_outside_the_current_catalog(database, 24, "http://manager")
+    assert [item["loopKey"] for item in missing] == ["loop-live"]
+    assert [item["loopKey"] for item in outside] == ["loop-gone"]
+    assert outside[0]["missingValue"] is True
+
+
+def test_a_catalog_that_cannot_be_read_keeps_every_row_in_scope(tmp_path):
+    """A failed catalog read is not evidence that a loop is gone.
+
+    The scope may only be narrowed by a catalog that was actually read.
+    A read that failed leaves every review in scope, so a missing review
+    is never hidden behind an unreachable catalog.
+    """
+    database = _review_database(tmp_path)
+    reviews, loops, broadcasts = _published_manager(
+        reviews=[_published_review("loop-a", amount=None, reason="no_profit_value")],
+        loops=[
+            {"loop_key": "loop-a"},
+            {"loop_key": "loop-b"},
+        ],
+    )
+    with reviews, loops, broadcasts:
+        with mock.patch.object(
+                HEALER, "manager_read_closed_loops",
+                side_effect=RuntimeError("the catalog could not be read")):
+            missing = HEALER.reviews_missing_a_value(database, 24, "http://manager")
     assert [item["loopKey"] for item in missing] == ["loop-a"]
 
 
@@ -977,3 +1124,71 @@ def test_the_report_directory_is_inside_the_plan_tree():
     """New evidence has to land in the tree the plan documents point at."""
     assert "logs\\plan" not in str(HEALER.REPORT_DIR).replace("/", "\\")
     assert str(HEALER.REPORT_DIR).replace("/", "\\").endswith("plan\\runtime_evidence\\reports")
+
+
+# ------------------------------------------------ the liveness probe
+
+
+def test_the_probe_reports_a_timeout_as_a_timeout(monkeypatch):
+    """A request that ran out of time is reported as a timeout.
+
+    The kind is reported from the exception and never read out of the
+    message text, because the message is written in the language of the
+    machine that produced it.
+    """
+
+    def raise_timeout(*args, **kwargs):
+        raise socket.timeout("timed out")
+
+    monkeypatch.setattr(HEALER.urllib.request, "urlopen", raise_timeout)
+    result = HEALER.api_get("http://runtime", "/healthz", timeout=1)
+    assert result["ok"] is False
+    assert result["kind"] == "timeout"
+
+
+def test_the_probe_reports_a_refused_connection_as_a_refusal(monkeypatch):
+    """A refused connection is never reported as a timeout."""
+
+    def raise_refused(*args, **kwargs):
+        raise HEALER.urllib.error.URLError(ConnectionRefusedError("refused"))
+
+    monkeypatch.setattr(HEALER.urllib.request, "urlopen", raise_refused)
+    result = HEALER.api_get("http://runtime", "/healthz", timeout=1)
+    assert result["ok"] is False
+    assert result["kind"] == "connect"
+
+
+def test_a_busy_runtime_is_not_a_dead_runtime(monkeypatch):
+    """A late answer means the runtime is busy, not that it has died.
+
+    The orchestrator restarts a runtime it believes to be dead.  A runtime
+    that is measuring a review round answers late, and restarting it there
+    throws the whole round away, so the two cases have to be told apart.
+    """
+    calls = []
+
+    def fake_get(base, path, timeout=5):
+        calls.append((path, timeout))
+        if path == "/healthz":
+            return {"ok": False, "status": 0, "error": "timed out", "kind": "timeout"}
+        return {"ok": True, "status": 200, "payload": {"status": "ok"}}
+
+    monkeypatch.setattr(HEALER, "api_get", fake_get)
+    health = HEALER.runtime_business_health("http://runtime")
+    assert health["ok"] is True
+    assert health["stage"] == "busy"
+    assert health["busy"] is True
+    # A busy runtime is not asked for the heavy readiness snapshot either.
+    assert [path for path, _ in calls] == ["/healthz"]
+
+
+def test_a_dead_runtime_is_still_dead(monkeypatch):
+    """A refused connection is a runtime that is gone, and it is restarted."""
+
+    def fake_get(base, path, timeout=5):
+        return {"ok": False, "status": 0, "error": "connection refused", "kind": "connect"}
+
+    monkeypatch.setattr(HEALER, "api_get", fake_get)
+    health = HEALER.runtime_business_health("http://runtime")
+    assert health["ok"] is False
+    assert health["stage"] == "liveness"

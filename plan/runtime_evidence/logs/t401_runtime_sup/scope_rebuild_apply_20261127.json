@@ -1,0 +1,115 @@
+{
+  "apply": true,
+  "tokenLoadMode": "core_stocks",
+  "scopes": {
+    "core4": {
+      "status": 200,
+      "body": {
+        "ok": true,
+        "version": "manager_dto_v1",
+        "generatedAt": "2026-11-26T19:08:04.645295800+00:00",
+        "chainId": 4663,
+        "requestId": "healer-scope-core4-baaaf01b02b0",
+        "data": {
+          "network": "robinhood",
+          "chainId": 4663,
+          "scopeKey": "core4",
+          "poolTable": "v4_exchange_pools_core4",
+          "filterMode": "edge_any",
+          "tokenLoadMode": "core_stocks",
+          "libraryKeys": [
+            "core",
+            "stocks"
+          ],
+          "libraryVersions": {
+            "core": 1,
+            "stocks": 1
+          },
+          "libraryChecksums": {
+            "core": "sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452",
+            "stocks": "sha256:a7752808e288c80f4445b912f7d5883bd23577f6fa53a352d093c6683801cb2e"
+          },
+          "apply": true,
+          "dryRun": false,
+          "sourcePoolCount": 2550,
+          "eligiblePoolCount": 429,
+          "skippedPoolCount": 2121,
+          "skipReasonCounts": {
+            "depth_ineligible": 1645,
+            "no_core_anchor": 3,
+            "token_not_admitted": 473
+          },
+          "activePoolCount": 27,
+          "isolatedPoolCount": 402,
+          "statusCounts": {
+            "active": 27,
+            "blocked": 318,
+            "invalid": 84
+          },
+          "insertedRows": 0,
+          "updatedRows": 0,
+          "deletedRows": 0,
+          "changedRows": 0,
+          "materializedChecksum": "sha256:9987e6ccad5e51154749639a8999ea73a1c11dc69685326b6a0d604f538d7cf0",
+          "consumersNeedRebuild": false,
+          "idempotentReplay": true
+        },
+        "error": null
+      }
+    },
+    "candidate_exchange": {
+      "status": 200,
+      "body": {
+        "ok": true,
+        "version": "manager_dto_v1",
+        "generatedAt": "2026-11-26T19:08:04.678603+00:00",
+        "chainId": 4663,
+        "requestId": "healer-scope-candidate_exchange-308ce13e93d7",
+        "data": {
+          "network": "robinhood",
+          "chainId": 4663,
+          "scopeKey": "candidate_exchange",
+          "poolTable": "v4_exchange_pools_candidate_exchange",
+          "filterMode": "both_end",
+          "tokenLoadMode": "core_stocks",
+          "libraryKeys": [
+            "core",
+            "stocks"
+          ],
+          "libraryVersions": {
+            "core": 1,
+            "stocks": 1
+          },
+          "libraryChecksums": {
+            "core": "sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452",
+            "stocks": "sha256:a7752808e288c80f4445b912f7d5883bd23577f6fa53a352d093c6683801cb2e"
+          },
+          "apply": true,
+          "dryRun": false,
+          "sourcePoolCount": 2550,
+          "eligiblePoolCount": 429,
+          "skippedPoolCount": 2121,
+          "skipReasonCounts": {
+            "depth_ineligible": 1648,
+            "token_not_admitted": 473
+          },
+          "activePoolCount": 27,
+          "isolatedPoolCount": 402,
+          "statusCounts": {
+            "active": 27,
+            "blocked": 318,
+            "invalid": 84
+          },
+          "insertedRows": 1,
+          "updatedRows": 26,
+          "deletedRows": 66,
+          "changedRows": 93,
+          "materializedChecksum": "sha256:9987e6ccad5e51154749639a8999ea73a1c11dc69685326b6a0d604f538d7cf0",
+          "consumersNeedRebuild": true,
+          "idempotentReplay": true
+        },
+        "error": null
+      }
+    }
+  }
+}

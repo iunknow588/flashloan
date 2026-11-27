@@ -1,0 +1,131 @@
+{"candidateEdge": {"rehearsal": {"status": 200, "ok": true, "error": null, "data": {"apply": true, "dryRun": false, "changedRows": 1350, "eligiblePoolCount": 54, "materializedChecksum": "sha256:75d143b61f87a59cbbab2799aaa1b99256833d8afe10a69b1a862fa4dffd729a", "consumersNeedRebuild": true, "idempotentReplay": false, "skipReasonCounts": {}}}, "applied": {"status": 200, "ok": true, "error": null, "data": {"apply": true, "dryRun": false, "changedRows": 0, "eligiblePoolCount": 54, "materializedChecksum": "sha256:75d143b61f87a59cbbab2799aaa1b99256833d8afe10a69b1a862fa4dffd729a", "consumersNeedRebuild": false, "idempotentReplay": false, "skipReasonCounts": {}}}}}
+{"candidateExchange": {"rehearsal": {"status": 200, "ok": true, "error": null, "data": {"apply": true, "dryRun": false, "changedRows": 1214, "directionCount": 238, "materializedChecksum": "sha256:998bc931888f9e1861b4af0a4d0a12192a42b30a0e6d35ae3196203c7f833734", "consumersNeedRebuild": true, "idempotentReplay": false}}, "applied": {"status": 200, "ok": true, "error": null, "data": {"apply": true, "dryRun": false, "changedRows": 0, "directionCount": 238, "materializedChecksum": "sha256:998bc931888f9e1861b4af0a4d0a12192a42b30a0e6d35ae3196203c7f833734", "consumersNeedRebuild": false, "idempotentReplay": false}}}}
+{"directionalPools": {"rehearsal": {"status": 200, "ok": true, "error": null, "data": {"apply": true, "dryRun": false, "changedRows": 0, "materializedChecksum": "sha256:808b9c12a2b46e66f5cecfffc5bf95eaceb334ff32008415b34be57b02de4bb2", "consumersNeedRebuild": false, "idempotentReplay": false}}, "applied": {"status": 200, "ok": true, "error": null, "data": {"apply": true, "dryRun": false, "changedRows": 0, "materializedChecksum": "sha256:808b9c12a2b46e66f5cecfffc5bf95eaceb334ff32008415b34be57b02de4bb2", "consumersNeedRebuild": false, "idempotentReplay": false}}}}
+{"closedLoops": {"rehearsal": {"status": 200, "ok": true, "error": null, "data": {"apply": true, "dryRun": false, "changedRows": 398, "loopCount": 42, "hopCount": 126, "materializedChecksum": "sha256:287155775f878df0d9b3c96968ac35cf4e7445367ca67b103e54d17b03d89793", "consumersNeedRebuild": true, "idempotentReplay": false}}, "applied": {"status": 200, "ok": true, "error": null, "data": {"apply": true, "dryRun": false, "changedRows": 0, "loopCount": 42, "hopCount": 126, "materializedChecksum": "sha256:287155775f878df0d9b3c96968ac35cf4e7445367ca67b103e54d17b03d89793", "consumersNeedRebuild": false, "idempotentReplay": false}}}}
+{
+  "apply": true,
+  "steps": {
+    "candidateEdge": {
+      "rehearsal": {
+        "status": 200,
+        "ok": true,
+        "error": null,
+        "data": {
+          "apply": true,
+          "dryRun": false,
+          "changedRows": 1350,
+          "eligiblePoolCount": 54,
+          "materializedChecksum": "sha256:75d143b61f87a59cbbab2799aaa1b99256833d8afe10a69b1a862fa4dffd729a",
+          "consumersNeedRebuild": true,
+          "idempotentReplay": false,
+          "skipReasonCounts": {}
+        }
+      },
+      "applied": {
+        "status": 200,
+        "ok": true,
+        "error": null,
+        "data": {
+          "apply": true,
+          "dryRun": false,
+          "changedRows": 0,
+          "eligiblePoolCount": 54,
+          "materializedChecksum": "sha256:75d143b61f87a59cbbab2799aaa1b99256833d8afe10a69b1a862fa4dffd729a",
+          "consumersNeedRebuild": false,
+          "idempotentReplay": false,
+          "skipReasonCounts": {}
+        }
+      }
+    },
+    "candidateExchange": {
+      "rehearsal": {
+        "status": 200,
+        "ok": true,
+        "error": null,
+        "data": {
+          "apply": true,
+          "dryRun": false,
+          "changedRows": 1214,
+          "directionCount": 238,
+          "materializedChecksum": "sha256:998bc931888f9e1861b4af0a4d0a12192a42b30a0e6d35ae3196203c7f833734",
+          "consumersNeedRebuild": true,
+          "idempotentReplay": false
+        }
+      },
+      "applied": {
+        "status": 200,
+        "ok": true,
+        "error": null,
+        "data": {
+          "apply": true,
+          "dryRun": false,
+          "changedRows": 0,
+          "directionCount": 238,
+          "materializedChecksum": "sha256:998bc931888f9e1861b4af0a4d0a12192a42b30a0e6d35ae3196203c7f833734",
+          "consumersNeedRebuild": false,
+          "idempotentReplay": false
+        }
+      }
+    },
+    "directionalPools": {
+      "rehearsal": {
+        "status": 200,
+        "ok": true,
+        "error": null,
+        "data": {
+          "apply": true,
+          "dryRun": false,
+          "changedRows": 0,
+          "materializedChecksum": "sha256:808b9c12a2b46e66f5cecfffc5bf95eaceb334ff32008415b34be57b02de4bb2",
+          "consumersNeedRebuild": false,
+          "idempotentReplay": false
+        }
+      },
+      "applied": {
+        "status": 200,
+        "ok": true,
+        "error": null,
+        "data": {
+          "apply": true,
+          "dryRun": false,
+          "changedRows": 0,
+          "materializedChecksum": "sha256:808b9c12a2b46e66f5cecfffc5bf95eaceb334ff32008415b34be57b02de4bb2",
+          "consumersNeedRebuild": false,
+          "idempotentReplay": false
+        }
+      }
+    },
+    "closedLoops": {
+      "rehearsal": {
+        "status": 200,
+        "ok": true,
+        "error": null,
+        "data": {
+          "apply": true,
+          "dryRun": false,
+          "changedRows": 398,
+          "loopCount": 42,
+          "hopCount": 126,
+          "materializedChecksum": "sha256:287155775f878df0d9b3c96968ac35cf4e7445367ca67b103e54d17b03d89793",
+          "consumersNeedRebuild": true,
+          "idempotentReplay": false
+        }
+      },
+      "applied": {
+        "status": 200,
+        "ok": true,
+        "error": null,
+        "data": {
+          "apply": true,
+          "dryRun": false,
+          "changedRows": 0,
+          "loopCount": 42,
+          "hopCount": 126,
+          "materializedChecksum": "sha256:287155775f878df0d9b3c96968ac35cf4e7445367ca67b103e54d17b03d89793",
+          "consumersNeedRebuild": false,
+          "idempotentReplay": false
+        }
+      }
+    }
+  }
+}

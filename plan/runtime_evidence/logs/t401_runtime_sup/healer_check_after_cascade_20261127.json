@@ -1,0 +1,19 @@
+=== robinhood (chain 4663) healer 2026-11-26T19:17:50Z ===
+L1 tokens    valid=True admitted=201 missing=0
+L2 pools     valid=True eligible=54 observation=81
+     poolDepth valid=True uniquePools=27 candidateRows=74 adequate=27 insufficient=0 thin=0 unpriced=0 badReadingRows=0 badReadingPools=0 unmeasuredPools=0 minTvlUsd=100000.0 maxTvlUsd=1000000000.0 code=None
+     poolDepth repairPath=None classification=None
+     poolBestAmount valid=True confirmed=0 belowGas=0 tooSmall=0 insufficient=0 gasEth=6.2e-06 code=None
+L3 loops     valid=True loops=42 rebuild=0
+L4 reviews   valid=True total=176 valued=157 missing=19 positive=0 positiveAmount=7 nonPositive=150 sum=-9.226694210312283
+     pnl positiveEstimateOnly=0 estimatedProfitOnlyCount=0 confirmedSum=0.0
+     bestAmount total=176 confirmed=164 missing=12 ladderIncomplete=12 code=None failClosed=True
+     currentLoops total=42 valued=42 missingPnl=0 bestAmountConfirmed=42 bestAmountMissing=0 positive=0 sum=-0.05828341348359603
+L5 broadcast valid=False manager=0 epochLegacy=0 historicalPositiveInEpoch=0
+PnL expected={} gasEth=0.0 ethNetAfterGas=0.0
+outcomes={'success': 0, 'failed': 0, 'pending': 0, 'other': 0} realizedPnlAvailable=False
+productionState=review_best_amount_missing healthy=False reason=review_without_concrete_best_trade_amount reviewAgeSeconds=None
+MATRIX funding valid=5/5 counterfeit=0 | candidateTokens admitted=201 symbols=201 | pools distinct=27 | loops total=42 threeHops=0 hopsInScope=0/0
+blockers=broadcast
+safeToAutoBroadcast=False
+report=E:\2026OPC大赛\flashLoan\plan\runtime_evidence\reports\mainnet_arbitrage_healer_check_chain4663_20261126T191750Z.json

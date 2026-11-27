@@ -1,0 +1,12 @@
+did not find executable at 'C:\Program Files\Python313\python.exe': ???????????
+
+
+馃挜 maturin failed
+  Caused by: Trying to get metadata from the python interpreter 'E:\2026OPC澶ц禌\.venv\Scripts\python.exe' failed
+flashloan_rs build failed
+所在位置 E:\2026OPC大赛\flashLoan\flashloan\rs-src\scripts\build_release.ps1:37 字符: 9
++         throw "flashloan_rs build failed"
++         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (flashloan_rs build failed:String) [], RuntimeException
+    + FullyQualifiedErrorId : flashloan_rs build failed
+ 

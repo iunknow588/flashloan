@@ -430,11 +430,14 @@ fn build_manager_overview_snapshot(
     let mut paths = Vec::with_capacity(closed_loop.loops.len());
     for loop_row in &closed_loop.loops {
         let review_row = review_by_loop.get(&loop_row.loop_key).copied();
+        // The closed loop publishes the **directional** pools it walks, and
+        // the overview is a dashboard over the **pool** catalog, so the base
+        // pool of every published pool is resolved here.
         let execution_pools = loop_row
-            .pool_ids
+            .directional_pool_ids
             .iter()
             .filter_map(|pool_id| {
-                let pool = pool_by_id.get(pool_id).cloned();
+                let pool = pool_by_id.get(base_pool_of(pool_id)).cloned();
                 if pool.is_none() {
                     missing_pool_reference_count += 1;
                 }
@@ -741,6 +744,30 @@ fn build_hop_candidates(
         .collect()
 }
 
+/// The base pool a published pool identity names.
+///
+/// The closed loop publishes the **directional** pools it walks, and a
+/// directional pool id carries its base pool inside it:
+/// `dpool:v1:{network}:{chain_id}:{scope}:{base_pool_id}:{direction}`.
+/// The overview is a dashboard over the **pool** catalog, so the base pool
+/// is resolved here, once, at the boundary.
+///
+/// An identity that is not a directional pool id is already a pool id and
+/// is returned unchanged: the resolution never invents a pool.
+fn base_pool_of(published_pool_id: &str) -> &str {
+    let trimmed = published_pool_id.trim();
+    if !trimmed.starts_with("dpool:v1:") {
+        return trimmed;
+    }
+    let mut parts = trimmed.rsplit(':');
+    let direction = parts.next();
+    let base_pool_id = parts.next();
+    match (direction, base_pool_id) {
+        (Some("0"), Some(base_pool_id)) | (Some("1"), Some(base_pool_id)) => base_pool_id,
+        _ => trimmed,
+    }
+}
+
 fn build_hop_candidate(hop: &ClosedLoopHopRow, pools: Vec<OverviewPool>) -> OverviewHopCandidate {
     let usable_pool_count = pools
         .iter()
@@ -767,7 +794,9 @@ fn build_hop_candidate(hop: &ClosedLoopHopRow, pools: Vec<OverviewPool>) -> Over
         symbol_pair,
         pool_count: pools.len(),
         usable_pool_count,
-        preferred_pool_id: Some(hop.pool_id.clone()),
+        // The hop names the pool it walks by its **directional** identity;
+        // the dashboard shows the pool catalog, so the base pool is shown.
+        preferred_pool_id: Some(base_pool_of(&hop.directional_pool_id).to_owned()),
         pools,
     }
 }
@@ -807,7 +836,7 @@ fn build_overview_path(
             .iter()
             .all(|pool| pool.has_liquidity == Some(true));
     let route_usable_for_observation = !execution_pools.is_empty()
-        && execution_pools.len() == loop_row.pool_ids.len()
+        && execution_pools.len() == loop_row.directional_pool_ids.len()
         && execution_pools
             .iter()
             .all(|pool| pool.usable_for_observation);
@@ -815,9 +844,9 @@ fn build_overview_path(
     let candidate_pair_symbols = windows_symbols(&route_symbols);
     let execution_pools = if execution_pools.is_empty() {
         loop_row
-            .pool_ids
+            .directional_pool_ids
             .iter()
-            .filter_map(|pool_id| pool_by_id.get(pool_id).cloned())
+            .filter_map(|pool_id| pool_by_id.get(base_pool_of(pool_id)).cloned())
             .collect()
     } else {
         execution_pools

@@ -1,0 +1,18 @@
+    Checking review-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\review_manager)
+error[E0593]: closure is expected to take 0 arguments, but it takes 1 argument
+   --> review_manager\src\records.rs:667:10
+    |
+667 |         .unwrap_or_else(|_| {
+    |          ^^^^^^^^^^^^^^ --- takes 1 argument
+    |          |
+    |          expected closure that takes 0 arguments
+
+error[E0063]: missing field `reviewed_at` in initializer of `records::ReviewRowSnapshot`
+    --> review_manager\src\records.rs:2012:9
+     |
+2012 |         ReviewRowSnapshot {
+     |         ^^^^^^^^^^^^^^^^^ missing `reviewed_at`
+
+Some errors have detailed explanations: E0063, E0593.
+For more information about an error, try `rustc --explain E0063`.
+error: could not compile `review-manager` (lib test) due to 2 previous errors

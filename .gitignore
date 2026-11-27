@@ -94,6 +94,7 @@ logs/*.log
 logs/**/*.log
 plan/runtime_evidence/history/*.jsonl
 pytest_tmp_*/
+.pytest_cache/
 flashloan/.pytest_tmp/
 /screenshots/
 flashloan/src/runtime/evidence/chain_archive/

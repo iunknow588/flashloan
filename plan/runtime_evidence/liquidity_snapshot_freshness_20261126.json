@@ -1,0 +1,177 @@
+{
+ "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+ "readOnly": true,
+ "queryOnly": true,
+ "snapshots": {
+  "v4ExchangePool": {
+   "table": "v4_exchange_pool_liquidity_snapshots",
+   "exists": true,
+   "rowCount": 2486,
+   "distinctPoolCount": 2486,
+   "oldestLiquidityReadAt": "2026-10-16T00:56:56.848618Z",
+   "newestLiquidityReadAt": "2026-11-25T00:44:27.222895100+00:00",
+   "rowsPerDay": {
+    "2026-10-16": 776,
+    "2026-11-17": 1244,
+    "2026-11-18": 1,
+    "2026-11-19": 1,
+    "2026-11-21": 10,
+    "2026-11-22": 358,
+    "2026-11-25": 96
+   },
+   "oldestLiquidityBlockNumber": 89668143,
+   "newestLiquidityBlockNumber": 120653940,
+   "newest_observed_at": "2026-11-22T13:21:12.065080Z",
+   "newest_refreshed_at": "2026-11-25T00:44:27.222895100+00:00",
+   "newest_materialization_batch": "pool-manager-000000000000000018eb230dce637ab0"
+  },
+  "managerMarketObservation": {
+   "table": "manager_market_observation_liquidity_snapshots",
+   "exists": true,
+   "rowCount": 2710,
+   "distinctPoolCount": 429,
+   "oldestLiquidityReadAt": "2026-10-16T00:56:56.848618Z",
+   "newestLiquidityReadAt": "2026-11-19T11:30:22.579462Z",
+   "rowsPerDay": {
+    "2026-10-16": 2263,
+    "2026-11-17": 44,
+    "2026-11-19": 348
+   },
+   "oldestLiquidityBlockNumber": 89668143,
+   "newestLiquidityBlockNumber": 118183971,
+   "newest_observed_at": "source_timestamp_unavailable",
+   "newest_updated_at": "2026-11-25T10:14:47.131101800+00:00"
+  }
+ },
+ "poolIndex": {
+  "table": "v4_exchange_pools",
+  "exists": true,
+  "rowCount": 2550,
+  "distinctPoolCount": 2550,
+  "newest_updated_at": "2026-11-25T18:36:57Z"
+ },
+ "workerCursors": {
+  "v4_pool_liquidity_worker": {
+   "network": "robinhood",
+   "chain_id": 4663,
+   "protocol": "uniswap_v4",
+   "domain": "v4_pool_liquidity_worker",
+   "status": "ok",
+   "completeness_json": "{\"cursor\":0,\"cursor_pool_id\":\"\",\"pool_count\":363,\"scanned_pool_count\":363,\"remaining_pool_count\":363,\"batch_size\":512,\"last_scanned_at\":\"2026-11-25T18:36:58.002229Z\",\"last_block_number\":123234506,\"mode\":\"complete\",\"error\":null}",
+   "error_json": null,
+   "initialized_at": "2026-10-30T10:59:47.724816Z",
+   "refreshed_at": "2026-11-25T18:36:58.002229Z",
+   "completeness": {
+    "cursor": 0,
+    "cursor_pool_id": "",
+    "pool_count": 363,
+    "scanned_pool_count": 363,
+    "remaining_pool_count": 363,
+    "batch_size": 512,
+    "last_scanned_at": "2026-11-25T18:36:58.002229Z",
+    "last_block_number": 123234506,
+    "mode": "complete",
+    "error": null
+   }
+  },
+  "v4_live_refresh": {
+   "network": "robinhood",
+   "chain_id": 4663,
+   "protocol": "uniswap_v4",
+   "domain": "v4_live_refresh",
+   "status": "ok",
+   "completeness_json": "{\"confirmed_liquidity_pool_count\":247,\"direction_candidate_limit\":5,\"explicit_zero_liquidity_pool_count\":365,\"index_from_block\":0,\"index_to_block\":109733549,\"last_scanned_block\":109733549,\"liquidity_scan_block\":109733549,\"pool_count\":612,\"scan_mode\":\"incremental\",\"scanned_pool_count\":612,\"unscanned_pool_count\":0}",
+   "error_json": null,
+   "initialized_at": "2026-10-17T00:46:39.622881300Z",
+   "refreshed_at": "2026-11-09T03:09:15.429306900Z",
+   "completeness": {
+    "confirmed_liquidity_pool_count": 247,
+    "direction_candidate_limit": 5,
+    "explicit_zero_liquidity_pool_count": 365,
+    "index_from_block": 0,
+    "index_to_block": 109733549,
+    "last_scanned_block": 109733549,
+    "liquidity_scan_block": 109733549,
+    "pool_count": 612,
+    "scan_mode": "incremental",
+    "scanned_pool_count": 612,
+    "unscanned_pool_count": 0
+   }
+  },
+  "v4_candidate_yc_zc_worker": {
+   "network": "robinhood",
+   "chain_id": 4663,
+   "protocol": "uniswap_v4",
+   "domain": "v4_candidate_yc_zc_worker",
+   "status": "ok",
+   "completeness_json": "{\"cursor\":0,\"cursor_pool_id\":\"\",\"pool_count\":199,\"scanned_pool_count\":199,\"remaining_pool_count\":0,\"batch_size\":512,\"last_scanned_at\":\"2026-11-25T18:35:04.135215Z\",\"last_block_number\":0,\"mode\":\"complete\",\"error\":null}",
+   "error_json": null,
+   "initialized_at": "2026-10-31T09:46:54.199287Z",
+   "refreshed_at": "2026-11-25T18:35:04.135215Z",
+   "completeness": {
+    "cursor": 0,
+    "cursor_pool_id": "",
+    "pool_count": 199,
+    "scanned_pool_count": 199,
+    "remaining_pool_count": 0,
+    "batch_size": 512,
+    "last_scanned_at": "2026-11-25T18:35:04.135215Z",
+    "last_block_number": 0,
+    "mode": "complete",
+    "error": null
+   }
+  },
+  "v4_market_observation_worker": {
+   "network": "robinhood",
+   "chain_id": 4663,
+   "protocol": "uniswap_v4",
+   "domain": "v4_market_observation_worker",
+   "status": "ok",
+   "completeness_json": "{\"cursor\":0,\"cursor_pool_id\":\"\",\"pool_count\":199,\"scanned_pool_count\":199,\"remaining_pool_count\":0,\"batch_size\":512,\"last_scanned_at\":\"2026-11-25T18:30:53.156739Z\",\"last_block_number\":0,\"mode\":\"complete\",\"error\":null}",
+   "error_json": null,
+   "initialized_at": "2026-10-31T09:59:02.279445Z",
+   "refreshed_at": "2026-11-25T18:30:53.156739Z",
+   "completeness": {
+    "cursor": 0,
+    "cursor_pool_id": "",
+    "pool_count": 199,
+    "scanned_pool_count": 199,
+    "remaining_pool_count": 0,
+    "batch_size": 512,
+    "last_scanned_at": "2026-11-25T18:30:53.156739Z",
+    "last_block_number": 0,
+    "mode": "complete",
+    "error": null
+   }
+  },
+  "v4_directional_pool_worker": null,
+  "v4_closed_loop_worker": {
+   "network": "robinhood",
+   "chain_id": 4663,
+   "protocol": "uniswap_v4",
+   "domain": "v4_closed_loop_worker",
+   "status": "ok",
+   "completeness_json": "{\"cursor\":0,\"cursor_pool_id\":\"\",\"pool_count\":199,\"scanned_pool_count\":199,\"remaining_pool_count\":0,\"batch_size\":512,\"last_scanned_at\":\"2026-11-25T18:32:38.395161Z\",\"last_block_number\":0,\"mode\":\"complete\",\"error\":null}",
+   "error_json": null,
+   "initialized_at": "2026-10-31T09:59:46.599949Z",
+   "refreshed_at": "2026-11-25T18:32:38.395161Z",
+   "completeness": {
+    "cursor": 0,
+    "cursor_pool_id": "",
+    "pool_count": 199,
+    "scanned_pool_count": 199,
+    "remaining_pool_count": 0,
+    "batch_size": 512,
+    "last_scanned_at": "2026-11-25T18:32:38.395161Z",
+    "last_block_number": 0,
+    "mode": "complete",
+    "error": null
+   }
+  }
+ },
+ "semantics": {
+  "missingAfter": "counts pools WITHOUT a snapshot row, not stale rows; a stopped writer leaves the rows in place, so the count stays 0 and the worker keeps reporting mode=complete",
+  "modeRule": "robinhood_v4_idle_maintenance.py:1491 -- mode = 'complete' if missing_after == 0 and wrapped",
+  "workerCompleteRule": "v4_maintenance_workers.py:196-212 -- mode in {complete, ...} AND refreshed_at present AND no error"
+ }
+}

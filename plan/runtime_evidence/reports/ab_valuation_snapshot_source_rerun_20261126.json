@@ -1,0 +1,711 @@
+{
+  "generatedAt": "2026-11-25",
+  "store": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "network": "robinhood",
+  "chainId": 4663,
+  "usdgTokenKeyId": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+  "poolState": {
+    "basePoolRows": 496,
+    "snapshotMarketRows": 2486,
+    "statesA_base_tables": 432,
+    "statesB_snapshot_tables": 428,
+    "onlyInA": 4,
+    "onlyInB": 0,
+    "changedPrice": 82,
+    "onlyInA_sample": [
+      "0x21e190d0a42ad1b36f957bf2490eef78825d13a579d3a326bf10aadc1d634f4f",
+      "0x22f0fef26dfe059f1bc407e4166baf60dccba732349412b2d64bb7e65eb8d8d4",
+      "0xaee7f2e61946d4e2a096f44dc686c5b6ba8b2ce0857fa167f2e95c3d2eeb62b8",
+      "0xfa29c8b263aee15ed167cbe5e90ea9d89e6eec484f7de64a3465ad6b1ac1a7f6"
+    ],
+    "onlyInB_sample": [],
+    "changedPrice_sample": [
+      {
+        "pool_id": "0x007a13fa152f6dc383cad20a8eaab4e1e2538b606936eae2a424f8aa47d6db31",
+        "a_sqrt_price_x96": 7428640878882093918988645121942071,
+        "b_sqrt_price_x96": 7677766317484731615270539476847615
+      },
+      {
+        "pool_id": "0x056dbf9e55b6480a8b8134a318c96e59424a6533c935e36ee04d8a6a751a91c1",
+        "a_sqrt_price_x96": 1151445056877237927577032,
+        "b_sqrt_price_x96": 1191764084653133335713267
+      },
+      {
+        "pool_id": "0x08683360c101b897136892e5e8e560bee6af7d74685ae86cc31c131b10f604c9",
+        "a_sqrt_price_x96": 905104386838683740789869427574,
+        "b_sqrt_price_x96": 934897867734152687627046018330
+      },
+      {
+        "pool_id": "0x0927698e8716bbb958a2cde0fc4f31d7a2b9a5b0ee1e501dc15e29788277dfa2",
+        "a_sqrt_price_x96": 129080196899176285122051441369,
+        "b_sqrt_price_x96": 136758876533079701563703582869
+      },
+      {
+        "pool_id": "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237",
+        "a_sqrt_price_x96": 123508646845541792391924302137,
+        "b_sqrt_price_x96": 131789454348266345836362959183
+      },
+      {
+        "pool_id": "0x106af997d180cf37a574c42c04179f267b9245cf221b1c57fb3e491137915de6",
+        "a_sqrt_price_x96": 1011570010006987232945823,
+        "b_sqrt_price_x96": 1031775319253406929249985
+      },
+      {
+        "pool_id": "0x10906975ba92bce9209431984d3e3e4b0eac706db274e8d1a29358331a555987",
+        "a_sqrt_price_x96": 452094259657235100708088415326,
+        "b_sqrt_price_x96": 465558706655229879463805681762
+      },
+      {
+        "pool_id": "0x1dae69f15c48eef452c79360cc8df58f5d5c3c1e6324ff8777d58c1feb053cdc",
+        "a_sqrt_price_x96": 346240973686898162782151811559,
+        "b_sqrt_price_x96": 359661820182228949617893382209
+      },
+      {
+        "pool_id": "0x1f2ad5a274a776d8e1408292bde1d92d8fa7b6444acf14ad60b9c3e4e5b66420",
+        "a_sqrt_price_x96": 6779987516876785271789991221121919,
+        "b_sqrt_price_x96": 6691848677223459869727695236798501
+      },
+      {
+        "pool_id": "0x207783b44fcb4359b281e8040bf476b69cfebf1c93021a11923277ced238d1bc",
+        "a_sqrt_price_x96": 79226543939951544724246720997,
+        "b_sqrt_price_x96": 79218857416928086015429629043
+      }
+    ],
+    "lostDetail": [
+      {
+        "pool_id": "0x21e190d0a42ad1b36f957bf2490eef78825d13a579d3a326bf10aadc1d634f4f",
+        "base_sqrt_price_x96": "4865763079587636364196460725123242",
+        "base_tick": 220519,
+        "base_liquidity": "2363735323400965",
+        "snapshot_row": {
+          "snapshot_sqrt_price_x96": "4865763079587636364196460725123242",
+          "snapshot_tick": 220519,
+          "snapshot_liquidity": ""
+        },
+        "reason": "snapshot row has no usable price or liquidity"
+      },
+      {
+        "pool_id": "0x22f0fef26dfe059f1bc407e4166baf60dccba732349412b2d64bb7e65eb8d8d4",
+        "base_sqrt_price_x96": "197647953989950207744097",
+        "base_tick": -258040,
+        "base_liquidity": "53187213918749",
+        "snapshot_row": {
+          "snapshot_sqrt_price_x96": "197647953989950207744097",
+          "snapshot_tick": -258040,
+          "snapshot_liquidity": ""
+        },
+        "reason": "snapshot row has no usable price or liquidity"
+      },
+      {
+        "pool_id": "0xaee7f2e61946d4e2a096f44dc686c5b6ba8b2ce0857fa167f2e95c3d2eeb62b8",
+        "base_sqrt_price_x96": "333213820095990819847796",
+        "base_tick": -247594,
+        "base_liquidity": "1338768890823391",
+        "snapshot_row": {
+          "snapshot_sqrt_price_x96": "333213820095990819847796",
+          "snapshot_tick": -247594,
+          "snapshot_liquidity": ""
+        },
+        "reason": "snapshot row has no usable price or liquidity"
+      },
+      {
+        "pool_id": "0xfa29c8b263aee15ed167cbe5e90ea9d89e6eec484f7de64a3465ad6b1ac1a7f6",
+        "base_sqrt_price_x96": "1371130179184553961568618",
+        "base_tick": -219300,
+        "base_liquidity": "2872458400419469",
+        "snapshot_row": {
+          "snapshot_sqrt_price_x96": "1371130179184553961568618",
+          "snapshot_tick": -219300,
+          "snapshot_liquidity": ""
+        },
+        "reason": "snapshot row has no usable price or liquidity"
+      }
+    ]
+  },
+  "valuation": {
+    "valuedTokensA": 41,
+    "valuedTokensB": 39,
+    "changed": 28,
+    "detail": [
+      {
+        "token_key_id": "robinhood:4663:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "value_usdg_raw": 1804537685,
+          "pool_id": "0x6ba18d461bfe3df70a80b50a4700e330e49efdaf597901b931f210554a5035d2"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "value_usdg_raw": 1685930185,
+          "pool_id": "0x6ba18d461bfe3df70a80b50a4700e330e49efdaf597901b931f210554a5035d2"
+        },
+        "ratio": 0.9342726389224728
+      },
+      {
+        "token_key_id": "robinhood:4663:0x0f17206447090e464c277571124dd2688e48aea9",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0x0f17206447090e464c277571124dd2688e48aea9",
+          "value_usdg_raw": 163016934,
+          "pool_id": "0x106af997d180cf37a574c42c04179f267b9245cf221b1c57fb3e491137915de6"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0x0f17206447090e464c277571124dd2688e48aea9",
+          "value_usdg_raw": 169594241,
+          "pool_id": "0x106af997d180cf37a574c42c04179f267b9245cf221b1c57fb3e491137915de6"
+        },
+        "ratio": 1.0403473850146145
+      },
+      {
+        "token_key_id": "robinhood:4663:0x116f00968269b7bfbad4109ce591d6e74c0601d4",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0x116f00968269b7bfbad4109ce591d6e74c0601d4",
+          "value_usdg_raw": 314747677,
+          "pool_id": "0xd10f11e907c3322a26afda82b07ca7dee68697261f79fa3d28863f628efcf107"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0x116f00968269b7bfbad4109ce591d6e74c0601d4",
+          "value_usdg_raw": 285827910,
+          "pool_id": "0xd10f11e907c3322a26afda82b07ca7dee68697261f79fa3d28863f628efcf107"
+        },
+        "ratio": 0.9081176157497105
+      },
+      {
+        "token_key_id": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "value_usdg_raw": 740758294,
+          "pool_id": "0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "value_usdg_raw": 720588039,
+          "pool_id": "0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288"
+        },
+        "ratio": 0.9727708009976058
+      },
+      {
+        "token_key_id": "robinhood:4663:0x1b0e319c6a659f002271b69db8a7df2f911c153e",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0x1b0e319c6a659f002271b69db8a7df2f911c153e",
+          "value_usdg_raw": 26294222,
+          "pool_id": "0x3d436b4fdc532c61a0bf15d6cae80a66eb8f28ee9daec34dbec4b5bc9964063b"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0x1b0e319c6a659f002271b69db8a7df2f911c153e",
+          "value_usdg_raw": 26696415,
+          "pool_id": "0x3d436b4fdc532c61a0bf15d6cae80a66eb8f28ee9daec34dbec4b5bc9964063b"
+        },
+        "ratio": 1.015295869944355
+      },
+      {
+        "token_key_id": "robinhood:4663:0x1d11f0496982706c5e14a514d4e79f2e6bde4516",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0x1d11f0496982706c5e14a514d4e79f2e6bde4516",
+          "value_usdg_raw": 6223367,
+          "pool_id": "0x22f0fef26dfe059f1bc407e4166baf60dccba732349412b2d64bb7e65eb8d8d4"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0x1d11f0496982706c5e14a514d4e79f2e6bde4516",
+          "value_usdg_raw": 3686129,
+          "pool_id": "0x55f2df399bf61fd758b99848452eaf217ee9d2f98fb9c79deb23fe9a2652bc5a"
+        },
+        "ratio": 0.5923046158132728
+      },
+      {
+        "token_key_id": "robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+          "value_usdg_raw": 293809739,
+          "pool_id": "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+          "value_usdg_raw": 275337665,
+          "pool_id": "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e"
+        },
+        "ratio": 0.9371291296780329
+      },
+      {
+        "token_key_id": "robinhood:4663:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+          "value_usdg_raw": 389150133,
+          "pool_id": "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+          "value_usdg_raw": 382304814,
+          "pool_id": "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e"
+        },
+        "ratio": 0.9824095678774958
+      },
+      {
+        "token_key_id": "robinhood:4663:0x41f4267525a8aff329540ef24fd83d9044758b33",
+        "kind": "removed",
+        "before": {
+          "token_key_id": "robinhood:4663:0x41f4267525a8aff329540ef24fd83d9044758b33",
+          "value_usdg_raw": 17688330,
+          "pool_id": "0xaee7f2e61946d4e2a096f44dc686c5b6ba8b2ce0857fa167f2e95c3d2eeb62b8"
+        }
+      },
+      {
+        "token_key_id": "robinhood:4663:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+          "value_usdg_raw": 146790376,
+          "pool_id": "0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+          "value_usdg_raw": 128433979,
+          "pool_id": "0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448"
+        },
+        "ratio": 0.8749482254885702
+      },
+      {
+        "token_key_id": "robinhood:4663:0x4e62068525ab11fe768e29dfd00ef909b9803016",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0x4e62068525ab11fe768e29dfd00ef909b9803016",
+          "value_usdg_raw": 110064242,
+          "pool_id": "0x5d3fdc1880b35f9fe20f98bff4e47db44e48f2c293985feea658563fd83b9831"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0x4e62068525ab11fe768e29dfd00ef909b9803016",
+          "value_usdg_raw": 107512500,
+          "pool_id": "0x5d3fdc1880b35f9fe20f98bff4e47db44e48f2c293985feea658563fd83b9831"
+        },
+        "ratio": 0.9768158853990018
+      },
+      {
+        "token_key_id": "robinhood:4663:0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "value_usdg_raw": 1000019,
+          "pool_id": "0x85e97c42570003d5746ad75cb61f0f3c544c2938215a741b6b364e518eadf1d5"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "value_usdg_raw": 999487,
+          "pool_id": "0x85e97c42570003d5746ad75cb61f0f3c544c2938215a741b6b364e518eadf1d5"
+        },
+        "ratio": 0.999468010107808
+      },
+      {
+        "token_key_id": "robinhood:4663:0x5e81213613b6b86eab4c6c50d718d34359459786",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0x5e81213613b6b86eab4c6c50d718d34359459786",
+          "value_usdg_raw": 211216222,
+          "pool_id": "0x056dbf9e55b6480a8b8134a318c96e59424a6533c935e36ee04d8a6a751a91c1"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0x5e81213613b6b86eab4c6c50d718d34359459786",
+          "value_usdg_raw": 226267104,
+          "pool_id": "0x056dbf9e55b6480a8b8134a318c96e59424a6533c935e36ee04d8a6a751a91c1"
+        },
+        "ratio": 1.0712581725848689
+      },
+      {
+        "token_key_id": "robinhood:4663:0x5f10a1c971b69e47e059e1dc91901b59b3fb49c3",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0x5f10a1c971b69e47e059e1dc91901b59b3fb49c3",
+          "value_usdg_raw": 49994768,
+          "pool_id": "0x237014478f7ef98afbe7412ac35b6a3f96b8fb111de48b7c4dbf49dba4bd9c4b"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0x5f10a1c971b69e47e059e1dc91901b59b3fb49c3",
+          "value_usdg_raw": 43227450,
+          "pool_id": "0x237014478f7ef98afbe7412ac35b6a3f96b8fb111de48b7c4dbf49dba4bd9c4b"
+        },
+        "ratio": 0.8646394758747555
+      },
+      {
+        "token_key_id": "robinhood:4663:0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+          "value_usdg_raw": 113747127,
+          "pool_id": "0x007a13fa152f6dc383cad20a8eaab4e1e2538b606936eae2a424f8aa47d6db31"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+          "value_usdg_raw": 106485233,
+          "pool_id": "0x007a13fa152f6dc383cad20a8eaab4e1e2538b606936eae2a424f8aa47d6db31"
+        },
+        "ratio": 0.9361575611487752
+      },
+      {
+        "token_key_id": "robinhood:4663:0x63b814ddbd6bf339f25fed8c36158a008d5b373e",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0x63b814ddbd6bf339f25fed8c36158a008d5b373e",
+          "value_usdg_raw": 325543354,
+          "pool_id": "0x4669f93ee59066abfe3a5234ed5d33f967ebd23d3f72ceb88fd6fbc99f16becc"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0x63b814ddbd6bf339f25fed8c36158a008d5b373e",
+          "value_usdg_raw": 310759654,
+          "pool_id": "0x4669f93ee59066abfe3a5234ed5d33f967ebd23d3f72ceb88fd6fbc99f16becc"
+        },
+        "ratio": 0.954587615387166
+      },
+      {
+        "token_key_id": "robinhood:4663:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+          "value_usdg_raw": 28303664,
+          "pool_id": "0x632d9bdccf26e13dbf23b185f29cba47e237371010e1abf7aceaeff653f66be4"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+          "value_usdg_raw": 28795496,
+          "pool_id": "0x632d9bdccf26e13dbf23b185f29cba47e237371010e1abf7aceaeff653f66be4"
+        },
+        "ratio": 1.0173769728187843
+      },
+      {
+        "token_key_id": "robinhood:4663:0x84cab63bc87912e71ad199ff14a0ba45de68fef8",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0x84cab63bc87912e71ad199ff14a0ba45de68fef8",
+          "value_usdg_raw": 128324549,
+          "pool_id": "0x994db79a9e80b73d726171d0e834dfe6fdce7987539dcf5cceef7b2b95c5fd95"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0x84cab63bc87912e71ad199ff14a0ba45de68fef8",
+          "value_usdg_raw": 112182252,
+          "pool_id": "0x994db79a9e80b73d726171d0e834dfe6fdce7987539dcf5cceef7b2b95c5fd95"
+        },
+        "ratio": 0.8742072571008996
+      },
+      {
+        "token_key_id": "robinhood:4663:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "value_usdg_raw": 542550726,
+          "pool_id": "0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+          "value_usdg_raw": 412902896,
+          "pool_id": "0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274"
+        },
+        "ratio": 0.7610401686201043
+      },
+      {
+        "token_key_id": "robinhood:4663:0x980dcf6766fa79f5cf0c4aadb3ab477ff15a9619",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0x980dcf6766fa79f5cf0c4aadb3ab477ff15a9619",
+          "value_usdg_raw": 231284243,
+          "pool_id": "0x2e6acf0380143b920c5ce7cf90da73e01d6bb70be9c09004fdd34e713f4a3b7f"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0x980dcf6766fa79f5cf0c4aadb3ab477ff15a9619",
+          "value_usdg_raw": 245144256,
+          "pool_id": "0x2e6acf0380143b920c5ce7cf90da73e01d6bb70be9c09004fdd34e713f4a3b7f"
+        },
+        "ratio": 1.0599263175918128
+      },
+      {
+        "token_key_id": "robinhood:4663:0xa30fa36db767ad9ed3f7a60fc79526fb4d56d344",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0xa30fa36db767ad9ed3f7a60fc79526fb4d56d344",
+          "value_usdg_raw": 136553041,
+          "pool_id": "0x1f2ad5a274a776d8e1408292bde1d92d8fa7b6444acf14ad60b9c3e4e5b66420"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0xa30fa36db767ad9ed3f7a60fc79526fb4d56d344",
+          "value_usdg_raw": 140173831,
+          "pool_id": "0x1f2ad5a274a776d8e1408292bde1d92d8fa7b6444acf14ad60b9c3e4e5b66420"
+        },
+        "ratio": 1.0265156306551972
+      },
+      {
+        "token_key_id": "robinhood:4663:0xae517a2903e68bd929dfd15be875f8369d53e94a",
+        "kind": "removed",
+        "before": {
+          "token_key_id": "robinhood:4663:0xae517a2903e68bd929dfd15be875f8369d53e94a",
+          "value_usdg_raw": 265129009,
+          "pool_id": "0x21e190d0a42ad1b36f957bf2490eef78825d13a579d3a326bf10aadc1d634f4f"
+        }
+      },
+      {
+        "token_key_id": "robinhood:4663:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+          "value_usdg_raw": 354732328,
+          "pool_id": "0xc748f4671a867db48b552f6b7650bf3255e05f80f00e3f7aad1b17ccb7898fdb"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+          "value_usdg_raw": 355798706,
+          "pool_id": "0xc748f4671a867db48b552f6b7650bf3255e05f80f00e3f7aad1b17ccb7898fdb"
+        },
+        "ratio": 1.0030061483429276
+      },
+      {
+        "token_key_id": "robinhood:4663:0xb90a19ff0af67f7779aff50a882a9cff42446400",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0xb90a19ff0af67f7779aff50a882a9cff42446400",
+          "value_usdg_raw": 810016874,
+          "pool_id": "0x2707cb88a6a40fa0f948f58958051ba097d6f6a3cf7f87929bd68ccc5becea24"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0xb90a19ff0af67f7779aff50a882a9cff42446400",
+          "value_usdg_raw": 602280147,
+          "pool_id": "0x2707cb88a6a40fa0f948f58958051ba097d6f6a3cf7f87929bd68ccc5becea24"
+        },
+        "ratio": 0.7435402475331644
+      },
+      {
+        "token_key_id": "robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+          "value_usdg_raw": 624825758,
+          "pool_id": "0x5875d407a42965b0e768c8925cea290e06fa50603ef34fc99eb92a1050e6ae36"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+          "value_usdg_raw": 614770635,
+          "pool_id": "0x5875d407a42965b0e768c8925cea290e06fa50603ef34fc99eb92a1050e6ae36"
+        },
+        "ratio": 0.9839073167659007
+      },
+      {
+        "token_key_id": "robinhood:4663:0xccee82fe024c36fa15e1005ede3e9e4787e23d09",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0xccee82fe024c36fa15e1005ede3e9e4787e23d09",
+          "value_usdg_raw": 17267143,
+          "pool_id": "0x68d4f28f1432e0ad714658853edb2e6b0b1ac4060355ff3d169fea656b1d1c52"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0xccee82fe024c36fa15e1005ede3e9e4787e23d09",
+          "value_usdg_raw": 14834667,
+          "pool_id": "0x68d4f28f1432e0ad714658853edb2e6b0b1ac4060355ff3d169fea656b1d1c52"
+        },
+        "ratio": 0.859126897831332
+      },
+      {
+        "token_key_id": "robinhood:4663:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "value_usdg_raw": 78821389,
+          "pool_id": "0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "value_usdg_raw": 78821382,
+          "pool_id": "0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00"
+        },
+        "ratio": 0.9999999111916184
+      },
+      {
+        "token_key_id": "robinhood:4663:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "kind": "value_changed",
+        "before": {
+          "token_key_id": "robinhood:4663:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "value_usdg_raw": 735947907,
+          "pool_id": "0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659"
+        },
+        "after": {
+          "token_key_id": "robinhood:4663:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "value_usdg_raw": 614080219,
+          "pool_id": "0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659"
+        },
+        "ratio": 0.8344071817572273
+      }
+    ]
+  },
+  "replicationCheck": {
+    "publishedAnchors": 15,
+    "matched": 4,
+    "mismatched": 11,
+    "mismatchSample": [
+      {
+        "token_key_id": "robinhood:4663:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "published": 1687042248,
+        "replicated": 1804537685,
+        "replicated_pool_id": "0x6ba18d461bfe3df70a80b50a4700e330e49efdaf597901b931f210554a5035d2"
+      },
+      {
+        "token_key_id": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "published": 721432586,
+        "replicated": 740758294,
+        "replicated_pool_id": "0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288"
+      },
+      {
+        "token_key_id": "robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+        "published": 276519457,
+        "replicated": 293809739,
+        "replicated_pool_id": "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e"
+      },
+      {
+        "token_key_id": "robinhood:4663:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "published": 383757498,
+        "replicated": 389150133,
+        "replicated_pool_id": "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e"
+      },
+      {
+        "token_key_id": "robinhood:4663:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+        "published": 128620442,
+        "replicated": 146790376,
+        "replicated_pool_id": "0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448"
+      },
+      {
+        "token_key_id": "robinhood:4663:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+        "published": 28795496,
+        "replicated": 28303664,
+        "replicated_pool_id": "0x632d9bdccf26e13dbf23b185f29cba47e237371010e1abf7aceaeff653f66be4"
+      },
+      {
+        "token_key_id": "robinhood:4663:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+        "published": 412902896,
+        "replicated": 542550726,
+        "replicated_pool_id": "0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274"
+      },
+      {
+        "token_key_id": "robinhood:4663:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+        "published": 355797124,
+        "replicated": 354732328,
+        "replicated_pool_id": "0xc748f4671a867db48b552f6b7650bf3255e05f80f00e3f7aad1b17ccb7898fdb"
+      },
+      {
+        "token_key_id": "robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+        "published": 615520455,
+        "replicated": 624825758,
+        "replicated_pool_id": "0x5875d407a42965b0e768c8925cea290e06fa50603ef34fc99eb92a1050e6ae36"
+      },
+      {
+        "token_key_id": "robinhood:4663:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+        "published": 78821382,
+        "replicated": 78821389,
+        "replicated_pool_id": "0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00"
+      }
+    ]
+  },
+  "publishedLoopImpact": {
+    "rows": 15,
+    "valueChanged": 8,
+    "valueLost": 0,
+    "detail": [
+      {
+        "anchor_token_key_id": "robinhood:4663:0x0000000000000000000000000000000000000000",
+        "published_value_usdg_raw": 2461669444,
+        "after_value_usdg_raw": 2461669444,
+        "after_pool_id": "0x0115a48c046e8776f95f9d52fddc85d8d88f7ddc73ea65015a465ae04977077d"
+      },
+      {
+        "anchor_token_key_id": "robinhood:4663:0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "published_value_usdg_raw": 1687042248,
+        "after_value_usdg_raw": 1685930185,
+        "after_pool_id": "0x6ba18d461bfe3df70a80b50a4700e330e49efdaf597901b931f210554a5035d2"
+      },
+      {
+        "anchor_token_key_id": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "published_value_usdg_raw": 721432586,
+        "after_value_usdg_raw": 720588039,
+        "after_pool_id": "0xe1ae6a4c6ccc9f037389a8d50a4f577bde1a9fe01d85d88ecbbd39955ce53288"
+      },
+      {
+        "anchor_token_key_id": "robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+        "published_value_usdg_raw": 276519457,
+        "after_value_usdg_raw": 275337665,
+        "after_pool_id": "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e"
+      },
+      {
+        "anchor_token_key_id": "robinhood:4663:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+        "published_value_usdg_raw": 383757498,
+        "after_value_usdg_raw": 382304814,
+        "after_pool_id": "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e"
+      },
+      {
+        "anchor_token_key_id": "robinhood:4663:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+        "published_value_usdg_raw": 128620442,
+        "after_value_usdg_raw": 128433979,
+        "after_pool_id": "0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448"
+      },
+      {
+        "anchor_token_key_id": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "published_value_usdg_raw": 1000000,
+        "after_value_usdg_raw": 1000000,
+        "after_pool_id": "stablecoin_unit_identity"
+      },
+      {
+        "anchor_token_key_id": "robinhood:4663:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+        "published_value_usdg_raw": 28795496,
+        "after_value_usdg_raw": 28795496,
+        "after_pool_id": "0x632d9bdccf26e13dbf23b185f29cba47e237371010e1abf7aceaeff653f66be4"
+      },
+      {
+        "anchor_token_key_id": "robinhood:4663:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+        "published_value_usdg_raw": 412902896,
+        "after_value_usdg_raw": 412902896,
+        "after_pool_id": "0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274"
+      },
+      {
+        "anchor_token_key_id": "robinhood:4663:0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+        "published_value_usdg_raw": 355797124,
+        "after_value_usdg_raw": 355798706,
+        "after_pool_id": "0xc748f4671a867db48b552f6b7650bf3255e05f80f00e3f7aad1b17ccb7898fdb"
+      },
+      {
+        "anchor_token_key_id": "robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+        "published_value_usdg_raw": 615520455,
+        "after_value_usdg_raw": 614770635,
+        "after_pool_id": "0x5875d407a42965b0e768c8925cea290e06fa50603ef34fc99eb92a1050e6ae36"
+      },
+      {
+        "anchor_token_key_id": "robinhood:4663:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "published_value_usdg_raw": 206879405,
+        "after_value_usdg_raw": 206879405,
+        "after_pool_id": "0x2cb09b07ab4dc0e59b2b0be91e6d40e11338ecd6307f6e221808a36e7987c3a4"
+      },
+      {
+        "anchor_token_key_id": "robinhood:4663:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+        "published_value_usdg_raw": 78821382,
+        "after_value_usdg_raw": 78821382,
+        "after_pool_id": "0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00"
+      },
+      {
+        "anchor_token_key_id": "robinhood:4663:0xec262a75e413fafd0df80480274532c79d42da09",
+        "published_value_usdg_raw": 114911864,
+        "after_value_usdg_raw": 114911864,
+        "after_pool_id": "0x0b7651084eb6758980efbccf73d95c680dd26e80800fbc91927d94a7f804d8bf"
+      },
+      {
+        "anchor_token_key_id": "robinhood:4663:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "published_value_usdg_raw": 616703064,
+        "after_value_usdg_raw": 614080219,
+        "after_pool_id": "0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659"
+      }
+    ]
+  },
+  "freshness": {
+    "v4_exchange_pools_candidate_exchange": "2026-11-19T11:38:09.154316600+00:00",
+    "v4_exchange_pools_core4": "2026-11-22T06:21:33.593279200+00:00",
+    "v4_exchange_pool_liquidity_snapshots.refreshed_at": "2026-11-26T06:29:53.936111600+00:00",
+    "v4_exchange_pool_liquidity_snapshots.liquidity_read_at": "2026-11-26T06:29:53.936111600+00:00",
+    "v4_exchange_pool_liquidity_snapshots.observed_at": "2026-11-22T13:21:12.065080Z"
+  }
+}

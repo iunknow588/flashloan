@@ -13,13 +13,13 @@ use review_manager::{ReviewRuntime, ReviewSupervisor, ReviewSupervisorCommand};
 use serde_json::{json, Value};
 
 use crate::closed_loop_identity::{closed_loop_upstream, ClosedLoopCatalog};
+use crate::config::canonical_address;
 use crate::execution;
 use crate::json_result_to_py;
 use crate::pool_index::{self, V4PoolKey};
 use crate::review_publish::{
     build_route_evidence, is_unsigned_zero_placeholder, measured_signed_profit_raw,
-    publish_review_generation, signed_raw_to_amount, ReviewEvidenceAccumulator,
-    ReviewPublishError,
+    signed_raw_to_amount, ReviewEvidenceAccumulator,
 };
 use crate::sqlite_read;
 
@@ -215,6 +215,13 @@ struct ContextCacheData {
     token_decimals: TokenDecimalsRegistry,
     registry_scope: Option<String>,
     loaded_at: Option<String>,
+    /// Whether the database carries the directional pool layer.
+    ///
+    /// The pool array of the in-memory object **is** the directional pool
+    /// array, so a database without the directional layer cannot fill it.
+    /// The flag says so out loud instead of letting the runtime look like
+    /// a system that simply found no opportunity.
+    directional_layer_present: bool,
 }
 
 #[derive(Debug)]
@@ -229,13 +236,77 @@ struct ContextCache {
     /// refresher waited for the write lock while every worker held a read
     /// lock, and the write-preferring `RwLock` blocked every new reader.
     data: RwLock<Arc<ContextCacheData>>,
+    /// The single-flight gate of the refresh.
+    ///
+    /// Only one worker refreshes a scope at a time.  A refresh reads the
+    /// whole chain database, so a refresh that **every** worker runs at
+    /// the same moment is a stampede: they all read the same large file
+    /// at the same time and the round stops producing results while they
+    /// do.  The gate makes the first worker do the work and lets the
+    /// others find the refreshed snapshot when they wake up.
+    refresh_gate: Mutex<()>,
+    /// What the snapshot knows about the closed-loop directory it was
+    /// built from.
+    generation: Mutex<ContextCacheGeneration>,
 }
 
+/// The closed-loop directory generation a snapshot was built from.
+///
+/// The generation is the directory's own version, so it changes exactly
+/// when the directory changes.  The TTL says how old a snapshot may grow;
+/// the generation says whether the snapshot still **describes** the
+/// directory.  A generation that cannot be read is never guessed: the
+/// snapshot keeps the TTL rule until the generation becomes readable.
 #[derive(Clone, Debug, Default)]
-struct PoolRegistryEntry {
+struct ContextCacheGeneration {
+    /// The generation the snapshot was built from.
+    current: Option<String>,
+    /// When the directory's generation was last compared with it.
+    checked_at: Option<String>,
+    /// When the last rebuild of the snapshot failed.
+    failed_at: Option<String>,
+}
+
+/// The base pool facts a directional pool carries.
+///
+/// The base pool is a **sub-object** of the directional pool: the
+/// directional layer is a projection of the base pools, and every base
+/// fact the kernel needs travels with the direction row.  The kernel
+/// therefore keeps **one** pool array — the directional pools — and
+/// derives the base view from it, instead of reading the base pool table
+/// a second time and keeping two arrays that can disagree.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct BasePoolFacts {
+    base_pool_id: String,
     token0: String,
     token1: String,
     pool_manager: String,
+    fee: i64,
+    tick_spacing: i64,
+    hooks: String,
+    pool_key_json: String,
+}
+
+/// One directional pool of the in-memory object.
+///
+/// A directional pool is a base pool **plus** a direction:
+/// `directional pool = V4 base pool + direction`.
+/// Direction `0` swaps the high address into the low address, direction
+/// `1` swaps the low address into the high address.  The same base pool
+/// appears in both directions, and each row keeps the direction facts of
+/// its own direction: the input token, the output token, the swap flag
+/// and the rank the direction layer gave it.
+#[derive(Clone, Debug, Default)]
+struct DirectionalPool {
+    directional_pool_id: String,
+    direction: i64,
+    scope_key: String,
+    base: BasePoolFacts,
+    input_token_key_id: String,
+    output_token_key_id: String,
+    zero_for_one: bool,
+    pair_direction_rank: Option<i64>,
+    pool_status: String,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -292,55 +363,158 @@ impl TokenDecimalsRegistry {
 
 #[derive(Clone, Debug, Default)]
 struct V4PoolRegistry {
-    pool_by_id: HashMap<String, PoolRegistryEntry>,
+    /// The pool array of the in-memory object: **directional pools**.
+    ///
+    /// The key is the `directional_pool_id` the Directional Pool Manager
+    /// published, so a pool in the memory object is addressable by its
+    /// direction and not only by its base pool.
+    directional_by_id: HashMap<String, DirectionalPool>,
+    /// The base view, derived from the directional rows.
+    ///
+    /// The base facts live **inside** the directional rows; this index
+    /// only exists so a base level question (which pool manager does
+    /// this base pool live in) does not have to walk the whole array.
+    base_by_id: HashMap<String, BasePoolFacts>,
+    /// `(base pool id, direction)` → the directional pool id of the row
+    /// the system would pick for that hop.
+    ///
+    /// A base pool can live in more than one scope, and the scopes rank
+    /// their rows independently, so the seat goes to the best ranked row
+    /// and to a row without a rank only when no ranked row exists.
+    directional_id_by_base_direction: HashMap<(String, i64), String>,
     liquidity_by_id: HashMap<String, LiquidityRegistryEntry>,
     token_index_count: usize,
     pool_ids_by_token: HashMap<String, HashSet<String>>,
+    directional_ids_by_token: HashMap<String, HashSet<String>>,
 }
 
 impl V4PoolRegistry {
     #[cfg(test)]
-    fn from_rows(pool_rows: &[Value], liquidity_rows: &[Value], token_rows: &[Value]) -> Self {
+    fn from_rows(
+        directional_rows: &[Value],
+        liquidity_rows: &[Value],
+        token_rows: &[Value],
+    ) -> Self {
         let mut registry = Self::default();
-        registry.replace_from_rows(pool_rows, liquidity_rows, token_rows);
+        registry.replace_from_rows(directional_rows, liquidity_rows, token_rows);
         registry
     }
 
     fn replace_from_rows(
         &mut self,
-        pool_rows: &[Value],
+        directional_rows: &[Value],
         liquidity_rows: &[Value],
         token_rows: &[Value],
     ) {
-        self.pool_by_id.clear();
-        for row in pool_rows {
-            if let Some(pool_id) = row
-                .get("pool_id")
+        self.directional_by_id.clear();
+        self.base_by_id.clear();
+        self.directional_id_by_base_direction.clear();
+        for row in directional_rows {
+            let Some(directional_pool_id) = row
+                .get("directional_pool_id")
+                .and_then(Value::as_str)
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+            else {
+                continue;
+            };
+            let base_pool_id = row
+                .get("base_pool_id")
                 .and_then(Value::as_str)
                 .map(|value| value.trim().to_lowercase())
-            {
-                if !pool_id.is_empty() {
-                    self.pool_by_id.insert(
-                        pool_id,
-                        PoolRegistryEntry {
-                            token0: row
-                                .get("token0")
-                                .and_then(Value::as_str)
-                                .map(|value| value.trim().to_lowercase())
-                                .unwrap_or_default(),
-                            token1: row
-                                .get("token1")
-                                .and_then(Value::as_str)
-                                .map(|value| value.trim().to_lowercase())
-                                .unwrap_or_default(),
-                            pool_manager: row
-                                .get("pool_manager")
-                                .and_then(Value::as_str)
-                                .map(|value| value.trim().to_lowercase())
-                                .unwrap_or_default(),
-                        },
-                    );
+                .unwrap_or_default();
+            let base = BasePoolFacts {
+                base_pool_id: base_pool_id.clone(),
+                token0: row
+                    .get("token0")
+                    .and_then(Value::as_str)
+                    .map(|value| value.trim().to_lowercase())
+                    .unwrap_or_default(),
+                token1: row
+                    .get("token1")
+                    .and_then(Value::as_str)
+                    .map(|value| value.trim().to_lowercase())
+                    .unwrap_or_default(),
+                pool_manager: row
+                    .get("pool_manager")
+                    .and_then(Value::as_str)
+                    .map(|value| value.trim().to_lowercase())
+                    .unwrap_or_default(),
+                fee: row.get("fee").and_then(Value::as_i64).unwrap_or_default(),
+                tick_spacing: row
+                    .get("tick_spacing")
+                    .and_then(Value::as_i64)
+                    .unwrap_or_default(),
+                hooks: row
+                    .get("hooks")
+                    .and_then(Value::as_str)
+                    .map(|value| value.trim().to_lowercase())
+                    .unwrap_or_default(),
+                pool_key_json: row
+                    .get("pool_key_json")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+            };
+            let pool = DirectionalPool {
+                directional_pool_id: directional_pool_id.clone(),
+                direction: row.get("direction").and_then(Value::as_i64).unwrap_or_default(),
+                scope_key: row
+                    .get("scope_key")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+                base: base.clone(),
+                input_token_key_id: row
+                    .get("input_token_key_id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+                output_token_key_id: row
+                    .get("output_token_key_id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+                zero_for_one: row
+                    .get("zero_for_one")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
+                pair_direction_rank: row.get("pair_direction_rank").and_then(Value::as_i64),
+                pool_status: row
+                    .get("pool_status")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+            };
+            // The base view is the sub-object every direction row carries.
+            // The first row of a base pool writes it; the other direction
+            // of the same base pool carries the very same facts, so the
+            // view cannot disagree with the rows it is derived from.
+            self.base_by_id.entry(base_pool_id).or_insert(base);
+            self.directional_by_id.insert(directional_pool_id, pool);
+        }
+        // The seat of a `(base pool, direction)` pair goes to the best
+        // ranked row.  Rank `1` is the best; a row without a rank never
+        // wins a seat against a ranked row.
+        for (directional_pool_id, pool) in &self.directional_by_id {
+            let seat_key = (pool.base.base_pool_id.clone(), pool.direction);
+            let better = match self.directional_id_by_base_direction.get(&seat_key) {
+                None => true,
+                Some(current_id) => {
+                    let current_rank = self
+                        .directional_by_id
+                        .get(current_id)
+                        .and_then(|current| current.pair_direction_rank);
+                    match (current_rank, pool.pair_direction_rank) {
+                        (Some(current_rank), Some(rank)) => rank < current_rank,
+                        (None, Some(_)) => true,
+                        _ => false,
+                    }
                 }
+            };
+            if better {
+                self.directional_id_by_base_direction
+                    .insert(seat_key, directional_pool_id.clone());
             }
         }
         self.liquidity_by_id.clear();
@@ -374,25 +548,51 @@ impl V4PoolRegistry {
         }
         self.token_index_count = token_addresses.len();
         self.pool_ids_by_token.clear();
-        for (pool_id, pool) in &self.pool_by_id {
-            for token in [&pool.token0, &pool.token1] {
+        self.directional_ids_by_token.clear();
+        for (directional_pool_id, pool) in &self.directional_by_id {
+            for token in [&pool.base.token0, &pool.base.token1] {
                 if token.is_empty() {
                     continue;
                 }
                 self.pool_ids_by_token
                     .entry(token.clone())
                     .or_default()
-                    .insert(pool_id.clone());
+                    .insert(pool.base.base_pool_id.clone());
+                self.directional_ids_by_token
+                    .entry(token.clone())
+                    .or_default()
+                    .insert(directional_pool_id.clone());
             }
         }
     }
 
-    fn pool_manager_for_selected_keys(&self, keys: &[Value]) -> Option<String> {
+    /// The pool manager of the selected pools, resolved through the
+    /// directional layer.
+    ///
+    /// Every selected key is turned into its pool id and resolved in the
+    /// direction layer.  When the route also names the direction of each
+    /// hop, the resolution is **directional**: the row of that direction
+    /// has to exist and has to describe the very pair the key names.  A
+    /// route over a pair the direction layer does not hold, or over a
+    /// direction it does not hold, has no pool — and the review refuses
+    /// to price it instead of guessing.
+    ///
+    /// The pool manager has to be the one the selected pools actually
+    /// live in.  A mixed route has no single manager and is skipped.  The
+    /// manager is never guessed: without it the state could not be read
+    /// from the right contract, and a wrong contract would produce a
+    /// wrong price.
+    fn pool_manager_for_selected_directions(
+        &self,
+        keys: &[Value],
+        directions: Option<&[Value]>,
+    ) -> Option<String> {
         if keys.len() != 3 {
             return None;
         }
+        let directions = directions.filter(|list| list.len() == keys.len());
         let mut selected_manager: Option<String> = None;
-        for key in keys {
+        for (index, key) in keys.iter().enumerate() {
             let pool_key = V4PoolKey {
                 currency0: key.get("currency0")?.as_str()?.to_owned(),
                 currency1: key.get("currency1")?.as_str()?.to_owned(),
@@ -405,12 +605,19 @@ impl V4PoolRegistry {
                     .to_owned(),
             };
             let pool_id = pool_index::pool_id(&pool_key).ok()?.to_ascii_lowercase();
-            let manager = self
-                .pool_by_id
-                .get(&pool_id)?
-                .pool_manager
-                .trim()
-                .to_ascii_lowercase();
+            let manager = match directions {
+                Some(directions) => {
+                    let zero_for_one = directions.get(index)?.as_bool()?;
+                    let pool = self.directional_pool_for_key(&pool_key, zero_for_one)?;
+                    pool.base.pool_manager.trim().to_ascii_lowercase()
+                }
+                None => self
+                    .base_by_id
+                    .get(&pool_id)?
+                    .pool_manager
+                    .trim()
+                    .to_ascii_lowercase(),
+            };
             if manager.is_empty() {
                 return None;
             }
@@ -425,8 +632,65 @@ impl V4PoolRegistry {
         selected_manager
     }
 
-    fn get_pool_info(&self, pool_id: &str) -> Option<&PoolRegistryEntry> {
-        self.pool_by_id.get(&pool_id.trim().to_lowercase())
+    /// The directional pool of one `(base pool, direction)` pair.
+    fn directional_pool(&self, base_pool_id: &str, direction: i64) -> Option<&DirectionalPool> {
+        let seat_key = (base_pool_id.trim().to_lowercase(), direction);
+        let directional_pool_id = self.directional_id_by_base_direction.get(&seat_key)?;
+        self.directional_by_id.get(directional_pool_id)
+    }
+
+    /// The directional pool of one pool key **and** one swap direction.
+    ///
+    /// The direction the route selected is the `zeroForOne` flag of the
+    /// swap, and the direction layer stores the very same fact as its
+    /// `direction` column: `0` is high → low, `1` is low → high.  The
+    /// row that answers the question must also describe the pair the key
+    /// names, so a key that points at another pair is refused.
+    fn directional_pool_for_key(
+        &self,
+        pool_key: &V4PoolKey,
+        zero_for_one: bool,
+    ) -> Option<&DirectionalPool> {
+        let pool_id = pool_index::pool_id(pool_key).ok()?.to_ascii_lowercase();
+        let direction = if zero_for_one { 1 } else { 0 };
+        let pool = self.directional_pool(&pool_id, direction)?;
+        let currency0 = canonical_address(&pool_key.currency0);
+        let currency1 = canonical_address(&pool_key.currency1);
+        let token0 = canonical_address(&pool.base.token0);
+        let token1 = canonical_address(&pool.base.token1);
+        if token0.is_empty() || token1.is_empty() {
+            // The row carries no pair to compare against, so the row's
+            // own direction is the only evidence there is.
+            return Some(pool);
+        }
+        if token0 != currency0 || token1 != currency1 {
+            return None;
+        }
+        // The row's own direction facts have to agree with the direction
+        // the route selected.  The row says which token it spends and
+        // which token it receives, so a row whose input token is the
+        // high address while it claims the low-to-high direction is a
+        // row that contradicts itself — and a review priced on it would
+        // be priced in the wrong direction.
+        let (expected_input, expected_output) = if direction == 1 {
+            (&currency0, &currency1)
+        } else {
+            (&currency1, &currency0)
+        };
+        if let (Some(input), Some(output)) = (
+            token_address_of_key_id(&pool.input_token_key_id),
+            token_address_of_key_id(&pool.output_token_key_id),
+        ) {
+            if &input != expected_input || &output != expected_output {
+                return None;
+            }
+        }
+        Some(pool)
+    }
+
+    /// The base facts of one base pool, taken from the directional rows.
+    fn base_pool_facts(&self, base_pool_id: &str) -> Option<&BasePoolFacts> {
+        self.base_by_id.get(&base_pool_id.trim().to_lowercase())
     }
 
     fn get_liquidity(&self, pool_id: &str) -> Option<&LiquidityRegistryEntry> {
@@ -446,14 +710,107 @@ impl V4PoolRegistry {
         }
         let mut ids: Vec<String> = candidate_ids.into_iter().collect();
         ids.retain(|pool_id| {
-            self.get_pool_info(pool_id)
-                .map(|pool| route_set.contains(&pool.token0) && route_set.contains(&pool.token1))
+            self.base_pool_facts(pool_id)
+                .map(|pool| {
+                    route_set.contains(&pool.token0) && route_set.contains(&pool.token1)
+                })
                 .unwrap_or(false)
         });
         ids.sort();
         ids.dedup();
         ids
     }
+
+    /// The directional pools of one route, as the direction layer holds
+    /// them.
+    ///
+    /// The base pool ids say **which** pools the route may use; the
+    /// directional pool ids say **in which direction** each of them is
+    /// used.  Both halves belong to the identity of the route.
+    fn route_directional_pool_ids(&self, route_addresses: &[String]) -> Vec<String> {
+        let route_set: HashSet<String> = route_addresses
+            .iter()
+            .map(|address| address.trim().to_lowercase())
+            .collect();
+        let mut candidate_ids: HashSet<String> = HashSet::new();
+        for token in &route_set {
+            if let Some(ids) = self.directional_ids_by_token.get(token) {
+                candidate_ids.extend(ids.iter().cloned());
+            }
+        }
+        let mut ids: Vec<String> = candidate_ids.into_iter().collect();
+        ids.retain(|directional_pool_id| {
+            self.directional_by_id
+                .get(directional_pool_id)
+                .map(|pool| {
+                    route_set.contains(&pool.base.token0)
+                        && route_set.contains(&pool.base.token1)
+                })
+                .unwrap_or(false)
+        });
+        ids.sort();
+        ids.dedup();
+        ids
+    }
+
+    /// The directional facts of the pools a route may use.
+    ///
+    /// The base pool id says **which** pool; the direction, the rank and
+    /// the scope say **how** the route uses it and where the direction
+    /// layer ranked it.  This is the diagnosis a reviewer needs when a
+    /// route was priced from a pool the direction layer had ranked
+    /// lower than another one.
+    fn route_directional_pool_facts(&self, route_addresses: &[String]) -> Vec<Value> {
+        let mut facts: Vec<Value> = self
+            .route_directional_pool_ids(route_addresses)
+            .into_iter()
+            .filter_map(|directional_pool_id| {
+                self.directional_by_id.get(&directional_pool_id).map(|pool| {
+                    json!({
+                        "directionalPoolId": pool.directional_pool_id,
+                        "basePoolId": pool.base.base_pool_id,
+                        "direction": pool.direction,
+                        "zeroForOne": pool.zero_for_one,
+                        "scopeKey": pool.scope_key,
+                        "pairDirectionRank": pool.pair_direction_rank,
+                        "poolStatus": pool.pool_status,
+                        "inputTokenKeyId": pool.input_token_key_id,
+                        "outputTokenKeyId": pool.output_token_key_id,
+                    })
+                })
+            })
+            .collect();
+        facts.sort_by(|left, right| {
+            let left_id = left
+                .get("directionalPoolId")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let right_id = right
+                .get("directionalPoolId")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            left_id.cmp(right_id)
+        });
+        facts
+    }
+}
+
+/// The token address a token key id names.
+///
+/// A token key id is `<network>:<chain id>:<address>`, so the address is
+/// the part after the last colon.  A key id that carries no address
+/// yields `None` — the caller then treats the fact as **not published**
+/// instead of as a mismatch.
+fn token_address_of_key_id(key_id: &str) -> Option<String> {
+    let text = key_id.trim();
+    if text.is_empty() {
+        return None;
+    }
+    let address = text.rsplit(':').next()?.trim();
+    if address.is_empty() {
+        return None;
+    }
+    Some(canonical_address(address))
 }
 
 struct PoolInner {
@@ -492,6 +849,12 @@ struct PoolInner {
     worker_created_total: AtomicU64,
     worker_completed_total: AtomicU64,
     worker_idle_exits: AtomicU64,
+    /// How often the in-memory snapshot was refreshed from the database.
+    ///
+    /// The counter is the read of how much of a round was spent rebuilding
+    /// the snapshot: every refresh reads the whole chain database, so the
+    /// count is what a reader needs to judge the round.
+    context_reloads: AtomicU64,
     database_path: Option<String>,
 }
 
@@ -506,6 +869,22 @@ fn now_iso() -> String {
 }
 
 const CONTEXT_CACHE_TTL_SECONDS: i64 = 300;
+
+/// How often the snapshot is compared with the closed-loop directory's
+/// generation.
+///
+/// The comparison reads one row of the library state.  The directory
+/// changes every few minutes at most, so the comparison does not have to
+/// happen on every single review; the interval is the bound on how long
+/// the snapshot may describe a directory that has already moved on.
+const CONTEXT_GENERATION_CHECK_INTERVAL_SECONDS: i64 = 10;
+
+/// How long a failed rebuild is not retried.
+///
+/// The last good snapshot stays in place while the backoff runs, so a
+/// database that cannot be read does not put every worker in front of the
+/// same failing read in turn.
+const CONTEXT_REFRESH_FAILURE_BACKOFF_SECONDS: i64 = 30;
 
 /// The hard ceiling on resident closed-loop workers.
 ///
@@ -1052,16 +1431,16 @@ fn active_runtime_database_path(chain_id: Option<i64>) -> Option<String> {
 impl ContextCacheData {
     fn replace_from_rows(
         &mut self,
-        pool_rows: &[Value],
+        directional_pool_rows: &[Value],
         liquidity_rows: &[Value],
         token_rows: &[Value],
         registry_scope: &str,
     ) {
-        self.pool_count = pool_rows.len();
+        self.pool_count = directional_pool_rows.len();
         self.liquidity_count = liquidity_rows.len();
         self.token_count = token_rows.len();
         self.registry
-            .replace_from_rows(pool_rows, liquidity_rows, token_rows);
+            .replace_from_rows(directional_pool_rows, liquidity_rows, token_rows);
         self.registry_scope = Some(registry_scope.to_string());
         self.loaded_at = Some(now_iso());
     }
@@ -1078,14 +1457,48 @@ fn load_context_registry_rows(
     Vec<Value>,
     Vec<Value>,
     ClosedLoopCatalog,
+    bool,
 )> {
     let connection = match sqlite_read::open_readonly(database_path) {
         Ok(connection) => connection,
-        Err(_) => return None,
+        Err(error) => {
+            eprintln!(
+                "context registry: cannot open {database_path} read-only: {error}"
+            );
+            return None;
+        }
     };
-    let pool_rows =
-        sqlite_read::load_v4_exchange_pool_registry_rows(&connection, network, chain_id, protocol)
-            .unwrap_or_default();
+    // Whether the directional layer exists is a fact about the database,
+    // and it is read **before** the rows, so a database that was never
+    // migrated says so instead of looking like an empty market.
+    let directional_layer_present = sqlite_read::directional_pool_table_exists(&connection);
+    // The pool array of the in-memory object is the **directional** pool
+    // array.  The base pool facts travel inside the direction rows, so
+    // the base pool table is not read a second time, and the two arrays
+    // can never drift apart.
+    //
+    // This read is **all or nothing**.  A read that fails is not a market
+    // without pools: the object would come back with an empty pool array,
+    // and the runtime would look like a system that simply found no
+    // opportunity.  The store that cannot be read fails the whole
+    // snapshot instead.
+    let directional_pool_rows = match sqlite_read::load_v4_directional_pool_registry_rows(
+        &connection,
+        network,
+        chain_id,
+        protocol,
+    ) {
+        Ok(rows) => rows,
+        Err(error) => {
+            eprintln!(
+                "context registry: the directional pool read failed for \
+                 {network}/{chain_id}/{protocol}: {error}; the in-memory pool \
+                 array is the directional pool array, so the snapshot is \
+                 refused instead of being published empty"
+            );
+            return None;
+        }
+    };
     let liquidity_rows =
         sqlite_read::load_v4_pool_liquidity_registry_rows(&connection, network, chain_id, protocol)
             .unwrap_or_default();
@@ -1103,8 +1516,24 @@ fn load_context_registry_rows(
     // The read is chain-scoped: the network and the chain id both take
     // part in the query, so the catalog of one chain can never be applied
     // to another chain.
+    //
+    // This read is **all or nothing** as well.  The closed-loop catalog
+    // is the object the review works on: a catalog that failed to load
+    // would be an empty catalog, and an empty catalog is indistinguishable
+    // from a market that found no opportunity.  The store that cannot be
+    // read fails the whole snapshot.
     let closed_loop_rows =
-        sqlite_read::load_manager_closed_loop_rows(&connection, network, chain_id).unwrap_or_default();
+        match sqlite_read::load_manager_closed_loop_rows(&connection, network, chain_id) {
+            Ok(rows) => rows,
+            Err(error) => {
+                eprintln!(
+                    "context registry: the closed-loop catalog read failed for \
+                     {network}/{chain_id}: {error}; the catalog is refused \
+                     instead of being published empty"
+                );
+                return None;
+            }
+        };
     // The generation the catalog belongs to is read **with** the rows, so
     // the runtime always knows which generation its measurements were
     // taken under.  A library that holds no closed-loop state yields no
@@ -1117,11 +1546,12 @@ fn load_context_registry_rows(
     let closed_loops = crate::closed_loop_identity::catalog_from_rows(&closed_loop_rows)
         .with_upstream(closed_loop_generation.and_then(closed_loop_upstream));
     Some((
-        pool_rows,
+        directional_pool_rows,
         liquidity_rows,
         token_rows,
         token_decimals_rows,
         closed_loops,
+        directional_layer_present,
     ))
 }
 
@@ -1134,6 +1564,134 @@ fn context_cache_is_stale(data: &ContextCacheData) -> bool {
                 > chrono::Duration::seconds(CONTEXT_CACHE_TTL_SECONDS)
         })
         .unwrap_or(true)
+}
+
+/// The generation of the closed-loop directory, as a comparable string.
+///
+/// The library state carries the directory's version and the checksum of
+/// its rows, so the pair changes exactly when the directory changes.  A
+/// generation that cannot be read is `None`: the caller must not guess
+/// that the directory still matches the snapshot.
+fn closed_loop_generation_fingerprint(
+    database_path: &str,
+    network: &str,
+    chain_id: u64,
+) -> Option<String> {
+    let connection = sqlite_read::open_readonly(database_path).ok()?;
+    let found =
+        match sqlite_read::load_manager_closed_loop_generation(&connection, network, chain_id) {
+            Ok(found) => found,
+            Err(_) => return None,
+        };
+    let row = found?;
+    let version = row.get("closed_loop_version")?;
+    let checksum = row
+        .get("materialized_checksum")
+        .and_then(|value| value.as_str())
+        .unwrap_or_default();
+    Some(format!("{version}:{checksum}"))
+}
+
+/// Whether the snapshot has to be compared with the directory again.
+///
+/// The comparison reads the database, so it is not done on every review.
+/// The interval is the bound on how long the snapshot may keep describing
+/// a directory that has already moved on.
+fn context_generation_check_is_due(generation: &ContextCacheGeneration) -> bool {
+    generation
+        .checked_at
+        .as_deref()
+        .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+        .map(|checked_at| {
+            chrono::Utc::now() - checked_at.with_timezone(&chrono::Utc)
+                > chrono::Duration::seconds(CONTEXT_GENERATION_CHECK_INTERVAL_SECONDS)
+        })
+        .unwrap_or(true)
+}
+
+/// Whether the snapshot still describes the closed-loop directory.
+enum ContextCacheFreshness {
+    /// The snapshot is the directory: use it.
+    Current,
+    /// The snapshot does not describe the directory any more: rebuild it.
+    Stale,
+}
+
+/// What the rebuild of a snapshot produced.
+enum ContextCacheRebuild {
+    /// The snapshot was rebuilt from the database.
+    Rebuilt,
+    /// The snapshot was already current when the gate was taken.
+    Current,
+    /// The read failed; the last good snapshot is kept.
+    Failed,
+}
+
+/// Decide whether the snapshot still describes the directory.
+///
+/// * `ttl_stale` — the snapshot is older than the TTL.
+/// * `check_due` — the generation was compared recently enough that a new
+///   comparison cannot change the answer.
+/// * `observed` — the directory generation read just now.  `None` means
+///   the generation could not be read, which is **not** a verdict.
+/// * `cached` — the generation the snapshot was built from.
+fn context_cache_freshness(
+    ttl_stale: bool,
+    check_due: bool,
+    observed: Option<&str>,
+    cached: Option<&str>,
+) -> ContextCacheFreshness {
+    if ttl_stale {
+        return ContextCacheFreshness::Stale;
+    }
+    if !check_due {
+        return ContextCacheFreshness::Current;
+    }
+    match observed {
+        // The generation cannot be read: the snapshot keeps the TTL rule.
+        // Guessing that the directory still matches would make a broken
+        // read look like a fresh snapshot.
+        None => ContextCacheFreshness::Current,
+        Some(observed) if cached == Some(observed) => ContextCacheFreshness::Current,
+        Some(_) => ContextCacheFreshness::Stale,
+    }
+}
+
+/// Rebuild the snapshot of one scope, under its single-flight gate.
+///
+/// The rebuild is **single-flight**: the first worker does the work and the
+/// others find the rebuilt snapshot when they wake up.  A rebuild reads the
+/// whole chain database, so a rebuild that every worker runs at the same
+/// moment is a stampede on one large file, and the round stops producing
+/// results while it runs.
+///
+/// The rebuild itself is the closure, so it runs **under the gate**: the
+/// snapshot a worker installs is the one the next worker finds.
+fn refresh_context_cache<F>(cached: &Arc<ContextCache>, rebuild: F) -> ContextCacheRebuild
+where
+    F: FnOnce() -> ContextCacheRebuild,
+{
+    let gate = Arc::clone(cached);
+    let _refresh = gate.refresh_gate.lock().unwrap();
+    rebuild()
+}
+
+/// Whether a rebuild failed recently enough that it must not be retried.
+///
+/// A rebuild that fails leaves the last good snapshot in place, and the
+/// failure is loud.  Without a backoff every worker would retry the same
+/// failing read in turn, and the workers would queue behind reads that
+/// cannot succeed.
+fn context_refresh_failure_is_recent(generation: &ContextCacheGeneration) -> bool {
+    generation
+        .failed_at
+        .as_deref()
+        .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+        .map(|failed_at| {
+            chrono::Utc::now() - failed_at.with_timezone(&chrono::Utc)
+                < chrono::Duration::seconds(CONTEXT_REFRESH_FAILURE_BACKOFF_SECONDS)
+        })
+        .unwrap_or(false)
 }
 
 fn load_context_cache(
@@ -1160,42 +1718,148 @@ fn load_context_cache(
         contexts.get(&registry_scope).cloned()
     };
     if let Some(cached) = cached {
-        let stale = {
-            let data = cached.data.read().unwrap();
-            context_cache_is_stale(&data)
-        };
-        if !stale {
-            return Some((cached, true));
-        }
-        if let Some((pool_rows, liquidity_rows, token_rows, token_decimals_rows, closed_loops)) =
-            load_context_registry_rows(&database_path, &network, chain_id, &protocol)
-        {
+        // The rebuild is **single-flight**: one worker rebuilds the scope
+        // and the others wait for it.  A rebuild reads the whole chain
+        // database, so a rebuild that every worker runs at the same moment
+        // is a stampede on one large file, and the round stops producing
+        // results while it runs.
+        let outcome = refresh_context_cache(&cached, || {
+            // The verdict is taken **under the gate**: another worker may
+            // have rebuilt the snapshot while this one waited for the gate.
+            let ttl_stale = {
+                let data = cached.data.read().unwrap();
+                context_cache_is_stale(&data)
+            };
+            let (check_due, cached_generation) = {
+                let generation = cached.generation.lock().unwrap();
+                (
+                    context_generation_check_is_due(&generation),
+                    generation.current.clone(),
+                )
+            };
+            // A rebuild that just failed is not retried by every worker in
+            // turn: the last good snapshot stays in place for the backoff
+            // window, and the failure stays loud.
+            let backing_off = {
+                let generation = cached.generation.lock().unwrap();
+                context_refresh_failure_is_recent(&generation)
+            };
+            if backing_off {
+                return ContextCacheRebuild::Current;
+            }
+            // The generation is read only when it can change the answer.
+            let compared = !ttl_stale && check_due;
+            let observed = if compared {
+                closed_loop_generation_fingerprint(&database_path, &network, chain_id)
+            } else {
+                None
+            };
+            if compared {
+                let mut generation = cached.generation.lock().unwrap();
+                generation.checked_at = Some(now_iso());
+            }
+            match context_cache_freshness(
+                ttl_stale,
+                check_due,
+                observed.as_deref(),
+                cached_generation.as_deref(),
+            ) {
+                ContextCacheFreshness::Current => return ContextCacheRebuild::Current,
+                ContextCacheFreshness::Stale => {}
+            }
+            let Some((
+                directional_pool_rows,
+                liquidity_rows,
+                token_rows,
+                token_decimals_rows,
+                closed_loops,
+                directional_layer_present,
+            )) = load_context_registry_rows(&database_path, &network, chain_id, &protocol)
+            else {
+                // The rebuild failed.  The snapshot that is already in the
+                // cache is still the last good one, so it is kept -- but the
+                // failure is loud, because a silent keep would hide a store
+                // that no longer matches the binary that reads it.
+                eprintln!(
+                    "context registry: the refresh of {registry_scope} failed; the last \
+                     snapshot is kept"
+                );
+                let mut generation = cached.generation.lock().unwrap();
+                generation.failed_at = Some(now_iso());
+                return ContextCacheRebuild::Failed;
+            };
             // The refresh **replaces** the snapshot in one write. The workers
             // that already hold the old `Arc` keep reading it until they are
             // done, so a refresh never invalidates a running review.
             let mut data = ContextCacheData::default();
             data.replace_from_rows(
-                &pool_rows,
+                &directional_pool_rows,
                 &liquidity_rows,
                 &token_rows,
                 &registry_scope,
             );
             data.token_decimals.replace_from_rows(&token_decimals_rows);
             data.closed_loops = closed_loops;
+            data.directional_layer_present = directional_layer_present;
             *cached.data.write().unwrap() = Arc::new(data);
-            return Some((cached, false));
+            ContextCacheRebuild::Rebuilt
+        });
+        match outcome {
+            ContextCacheRebuild::Rebuilt => {
+                // The fingerprint is read **before** the generation lock is
+                // taken: the read opens the database, and the lock must not
+                // be held across it.
+                let fingerprint =
+                    closed_loop_generation_fingerprint(&database_path, &network, chain_id);
+                let mut generation = cached.generation.lock().unwrap();
+                // The generation is read **after** the rebuild, so the
+                // snapshot describes the directory as it is now.  A
+                // generation that cannot be read keeps the previous one:
+                // the TTL rule then governs the snapshot.
+                if let Some(current) = fingerprint {
+                    generation.current = Some(current);
+                }
+                generation.checked_at = Some(now_iso());
+                generation.failed_at = None;
+                drop(generation);
+                inner.context_reloads.fetch_add(1, Ordering::SeqCst);
+                return Some((cached, false));
+            }
+            // The snapshot is the one the workers use, and it was read from
+            // the cache rather than built.
+            ContextCacheRebuild::Current | ContextCacheRebuild::Failed => {
+                return Some((cached, true));
+            }
         }
-        return Some((cached, true));
     }
-    let (pool_rows, liquidity_rows, token_rows, token_decimals_rows, closed_loops) =
-        load_context_registry_rows(&database_path, &network, chain_id, &protocol)?;
+    let (
+        directional_pool_rows,
+        liquidity_rows,
+        token_rows,
+        token_decimals_rows,
+        closed_loops,
+        directional_layer_present,
+    ) = load_context_registry_rows(&database_path, &network, chain_id, &protocol)?;
     let mut data = ContextCacheData::default();
-    data.replace_from_rows(&pool_rows, &liquidity_rows, &token_rows, &registry_scope);
+    data.replace_from_rows(
+        &directional_pool_rows,
+        &liquidity_rows,
+        &token_rows,
+        &registry_scope,
+    );
     data.token_decimals.replace_from_rows(&token_decimals_rows);
     data.closed_loops = closed_loops;
+    data.directional_layer_present = directional_layer_present;
     let cache = Arc::new(ContextCache {
         data: RwLock::new(Arc::new(data)),
+        refresh_gate: Mutex::new(()),
+        generation: Mutex::new(ContextCacheGeneration {
+            current: closed_loop_generation_fingerprint(&database_path, &network, chain_id),
+            checked_at: Some(now_iso()),
+            failed_at: None,
+        }),
     });
+    inner.context_reloads.fetch_add(1, Ordering::SeqCst);
     inner
         .contexts
         .lock()
@@ -1709,11 +2373,13 @@ fn route_pool_states(
         pool_ids.push(pool_index::pool_id(&pool_key).ok()?.to_ascii_lowercase());
     }
     // The pool manager has to be the one the selected pools actually live
-    // in. A mixed route has no single manager and is skipped. The manager is
-    // never guessed: without it the state could not be read from the right
-    // contract, and a wrong contract would produce a wrong price.
+    // in, and the resolution goes through the **directional** layer: each
+    // hop is resolved in the direction the route selected. A mixed route
+    // has no single manager and is skipped. The manager is never guessed:
+    // without it the state could not be read from the right contract, and
+    // a wrong contract would produce a wrong price.
     let pool_manager = pool_registry?
-        .pool_manager_for_selected_keys(selected_keys)?
+        .pool_manager_for_selected_directions(selected_keys, Some(selected_directions))?
         .to_owned();
     if pool_manager.is_empty() {
         return None;
@@ -1892,40 +2558,38 @@ fn review_publish_block(
             "measuredAt": measured_at,
         });
     }
+    // The publication is **per closed loop**.  The group publishes the
+    // loops it measured and touches nothing else, so one closed loop that
+    // cannot be published never keeps the other loops of the chain from
+    // being published, and the reviews that are already in the store stay
+    // there.
+    //
+    // The round bookkeeping of the scope lives in the accumulator: every
+    // publication is a round of its own, because the content of a review
+    // changes with every measurement and two rounds may never share an
+    // idempotency key.
     let scope = maintenance_scope(Some(&network), Some(chain_id), command.protocol.as_deref());
     let catalog_keys = catalog.loop_keys();
-    let mut accumulators = inner.review_evidence.lock().unwrap();
-    let accumulator = accumulators
-        .entry(scope)
-        .or_insert_with(ReviewEvidenceAccumulator::new);
-    accumulator.absorb(&catalog_keys, catalog.upstream(), evidence, &measured_at);
-    let evidence_count = accumulator.len();
+    let round_id = {
+        let mut accumulators = inner.review_evidence.lock().unwrap();
+        let accumulator = accumulators
+            .entry(scope)
+            .or_insert_with(ReviewEvidenceAccumulator::new);
+        accumulator.absorb(&catalog_keys, catalog.upstream(), Vec::new(), &measured_at);
+        accumulator.rotate_round();
+        accumulator.round_id()
+    };
+    let evidence_count = evidence.len();
     let catalog_count = catalog_keys.len();
-    let missing_count = accumulator.missing().len();
-    if !accumulator.covers_catalog() {
-        return json!({
-            "published": false,
-            "reason": "coverage_incomplete",
-            "evidenceCount": evidence_count,
-            "catalogCount": catalog_count,
-            "missingCount": missing_count,
-            "accumulatorEmpty": accumulator.is_empty(),
-            "accumulatorUpdatedAt": accumulator.updated_at(),
-            "measuredAt": measured_at,
-        });
-    }
-    let round_id = accumulator.round_id();
-    let evidence = accumulator.evidence();
-    match publish_review_generation(
+    match crate::review_publish::publish_review_loops(
         &database_path,
         &network,
         chain_id,
         evidence,
+        catalog,
         &round_id,
-        accumulator.upstream(),
     ) {
         Ok(outcome) => {
-            accumulator.clear();
             json!({
                 "published": true,
                 "loopCount": outcome.loop_count,
@@ -1936,21 +2600,12 @@ fn review_publish_block(
                 "broadcastRequestCount": outcome.broadcast_request_count,
                 "reviewVersion": outcome.review_version,
                 "idempotencyKey": outcome.idempotency_key,
-                "accumulatorUpdatedAt": accumulator.updated_at(),
+                "droppedLoopKeys": outcome.dropped_loop_keys,
                 "publishedAt": outcome.published_at,
                 "measuredAt": measured_at,
             })
         }
         Err(error) => {
-            // The failed publication wrote nothing, so the next attempt may
-            // use a fresh idempotency key.  A moved upstream is the one
-            // failure that keeps its evidence: the evidence is still
-            // valid, it was only measured under a generation that the
-            // Manager has replaced, and the sweep restarts on its own
-            // once the runtime reads the new catalog.
-            if !matches!(error, ReviewPublishError::UpstreamMoved { .. }) {
-                accumulator.rotate_round();
-            }
             json!({
                 "published": false,
                 "reason": error.to_string(),
@@ -1959,6 +2614,97 @@ fn review_publish_block(
                 "measuredAt": measured_at,
             })
         }
+    }
+}
+
+/// The interval the stale sweep runs at, in seconds.
+///
+/// The sweep is a watchdog: it has to notice a closed loop that went
+/// quiet, so it runs on its own clock and not with the review cycle.
+const STALE_SWEEP_INTERVAL_SECONDS: u64 = 60;
+
+/// When the stale sweep last ran, per scope.
+///
+/// Every worker of a chain would otherwise sweep the same catalog, and
+/// the sweep writes to the store, so only one worker of a scope sweeps.
+static STALE_SWEEP_AT: Mutex<Option<(String, std::time::Instant)>> = Mutex::new(None);
+
+/// Mark the closed loops that have not been reviewed for too long.
+///
+/// A closed loop that goes quiet must not go **silent**.  The sweep writes
+/// the missing statement into the store: the review row of the loop says
+/// that no fresh review arrived, a diagnostic names the reason, and the
+/// broadcast request of the loop is withdrawn, so a stale opportunity can
+/// never be broadcast.
+///
+/// The sweep runs on its own clock, before the review, so the store keeps
+/// telling the truth even while the review path is unable to publish.
+fn stale_review_sweep_block(
+    inner: &PoolInner,
+    command: &SubmitCommand,
+    scope: &str,
+) -> Value {
+    {
+        let mut last = STALE_SWEEP_AT.lock().unwrap();
+        if let Some((last_scope, at)) = last.as_ref() {
+            if last_scope == scope
+                && at.elapsed() < Duration::from_secs(STALE_SWEEP_INTERVAL_SECONDS)
+            {
+                return json!({
+                    "swept": false,
+                    "reason": "not_due",
+                });
+            }
+        }
+        *last = Some((scope.to_owned(), std::time::Instant::now()));
+    }
+    let Some(database_path) = command
+        .database_path
+        .clone()
+        .or_else(|| inner.database_path.clone())
+    else {
+        return json!({
+            "swept": false,
+            "reason": "database_path_unavailable",
+        });
+    };
+    let Some(network) = command.network.clone() else {
+        return json!({
+            "swept": false,
+            "reason": "network_unavailable",
+        });
+    };
+    let Some(chain_id) = command.chain_id.filter(|value| *value > 0) else {
+        return json!({
+            "swept": false,
+            "reason": "chain_id_unavailable",
+        });
+    };
+    match review_manager::mark_stale_reviews(&database_path, &network, chain_id, None, true) {
+        Ok(outcome) => {
+            if outcome.marked_count > 0 {
+                eprintln!(
+                    "[review-stale] {} chain {}: {} of {} closed loops went quiet, {} broadcast requests withdrawn",
+                    network,
+                    chain_id,
+                    outcome.marked_count,
+                    outcome.scanned_count,
+                    outcome.withdrawn_request_count
+                );
+            }
+            json!({
+                "swept": true,
+                "markedCount": outcome.marked_count,
+                "scannedCount": outcome.scanned_count,
+                "withdrawnRequestCount": outcome.withdrawn_request_count,
+                "staleAfterSeconds": outcome.stale_after_seconds,
+                "observedAt": outcome.observed_at,
+            })
+        }
+        Err(error) => json!({
+            "swept": false,
+            "reason": error.to_string(),
+        }),
     }
 }
 
@@ -2059,12 +2805,26 @@ fn eligible_executor_batch_request(
             .get("selectedKeys")
             .and_then(Value::as_array)
             .ok_or_else(|| "executor_request_missing_selected_keys".to_string())?;
+        // The broadcast request names the direction of each hop too, so
+        // the pool manager is resolved in the directional layer: the
+        // direction the request will actually swap in is the direction
+        // the direction layer has to hold.
+        let selected_directions = route_payload
+            .get("selectedDirections")
+            .and_then(Value::as_array)
+            .filter(|directions| directions.len() == selected_keys.len());
         let pool_manager = route_config
             .get("poolManager")
             .or_else(|| route_config.get("poolManagerAddress"))
             .and_then(Value::as_str)
             .map(str::to_owned)
-            .or_else(|| pool_registry?.pool_manager_for_selected_keys(selected_keys.as_slice()))
+            .or_else(|| {
+                pool_registry?
+                    .pool_manager_for_selected_directions(
+                        selected_keys.as_slice(),
+                        selected_directions.map(|directions| directions.as_slice()),
+                    )
+            })
             .ok_or_else(|| "executor_request_pool_manager_unavailable".to_string())?;
         let mut request_config = route_config.clone();
         for field in ["token", "minProfitRaw", "hopSqrtPriceLimits"] {
@@ -2203,6 +2963,118 @@ fn hop_price_limit_gate_blocks_broadcast(payload: &Value) -> Option<String> {
         return None;
     }
     Some(format!("hop_price_limits_incomplete:{}/3", limits.min(3)))
+}
+
+/// Whether the **review** authorized this broadcast.
+///
+/// The operator has ruled that a positive profit found by the review is
+/// enough to send the transaction: the mainnet system does not ask for a
+/// second authorization, because a trading opportunity is a live
+/// phenomenon and a historical record of it does not reproduce.  An
+/// operator who wants the broadcasts to stop closes the chain-scoped
+/// switch; nothing else stands in the way.
+///
+/// The proof travels with the payload — the review writes its verdict
+/// into the admission facts — so the runtime reads it here instead of
+/// measuring the route a second time.  The runtime never derives the
+/// proof itself.
+///
+/// The **correctness** requirements are not bypassed: the review has to
+/// have measured the route as `ok` and `executable`, the profit has to be
+/// positive, and the three per-hop price limits have to be there.  Only
+/// the runtime's own *economic* thresholds — gas, capacity, economic
+/// floor — give way, and they are recorded rather than dropped.
+fn review_authorized_broadcast(payload: &Value) -> bool {
+    let Some(admission) = payload.get("reviewAdmission").and_then(Value::as_object) else {
+        return false;
+    };
+    if admission.get("runOk").and_then(Value::as_bool) != Some(true) {
+        return false;
+    }
+    if admission.get("runExecutable").and_then(Value::as_bool) != Some(true) {
+        return false;
+    }
+    if admission
+        .get("reviewStatus")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        != Some("completed")
+    {
+        return false;
+    }
+    if !positive_reviewed_pnl(payload) {
+        return false;
+    }
+    hop_price_limit_gate_blocks_broadcast(payload).is_none()
+}
+
+/// Whether the profit the review published is positive.
+///
+/// The raw value is the profit in the loop's own units and it is exact,
+/// so it decides whenever it is there.  The decimal amount is the
+/// fallback for a row that carries no raw value at all.
+fn positive_reviewed_pnl(payload: &Value) -> bool {
+    let Some(pnl) = payload.get("signedPnl").and_then(Value::as_object) else {
+        return false;
+    };
+    if let Some(raw) = pnl.get("raw").and_then(Value::as_str) {
+        if let Some(positive) = raw_profit_is_positive(raw) {
+            return positive;
+        }
+    }
+    pnl.get("amount")
+        .and_then(Value::as_f64)
+        .map(|amount| amount > 0.0)
+        .unwrap_or(false)
+}
+
+/// Whether a raw profit is positive.
+///
+/// The value is published in the loop's own units as a hexadecimal or a
+/// decimal integer, and a loss is published as a negative number, so the
+/// sign is read before the magnitude.  `None` means the text is not a
+/// number at all — the caller then falls back to the decimal amount.
+fn raw_profit_is_positive(raw: &str) -> Option<bool> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let (negative, digits) = match trimmed.strip_prefix('-') {
+        Some(rest) => (true, rest.trim()),
+        None => (false, trimmed.strip_prefix('+').unwrap_or(trimmed).trim()),
+    };
+    if digits.is_empty() {
+        return None;
+    }
+    let magnitude = execution::parse_big_uint(&json!(digits)).ok()?;
+    Some(!negative && magnitude != BigUint::from(0u8))
+}
+
+/// Whether the profit the review published is positive.
+///
+/// The raw value is the profit in the loop's own units and it is exact,
+/// so it decides whenever it is there.  The decimal amount is the
+/// fallback for a row that carries no usable raw value at all.
+fn signed_pnl_is_positive(pnl: &review_manager::SignedPnl) -> bool {
+    match raw_profit_is_positive(&pnl.raw) {
+        Some(positive) => positive,
+        None => pnl.amount > 0.0,
+    }
+}
+
+/// Whether the economic gates allow this route to be broadcast.
+///
+/// A route the review proved executable and profitable is allowed: the
+/// operator has ruled that a positive profit is enough to send the
+/// transaction.  Every other route has to pass the runtime's own
+/// thresholds — gas, capacity, economic floor — exactly as before.
+fn economic_gates_allow(payload: &Value, config: &Value) -> bool {
+    if review_authorized_broadcast(payload) {
+        return true;
+    }
+    offchain_broadcast_gate_allows(payload, config)
+        && capacity_gate_blocks_broadcast(payload).is_none()
+        && economic_floor_gate_blocks_broadcast(payload).is_none()
 }
 
 fn offchain_broadcast_gate_allows(payload: &Value, config: &Value) -> bool {
@@ -2375,8 +3247,22 @@ fn preview_adaptive_official_v4_with_rpc_failover(
     })
 }
 
-fn config_rpc_urls(config: &Value, fallback_url: &str) -> Vec<String> {
-    config
+/// The RPC endpoints the pricing path and the broadcast path may use.
+///
+/// The task configuration names **one** endpoint, but an endpoint that is
+/// down, DNS-dead or rate-limited must not decide the review: the chain
+/// publishes several, and both paths already fail over between the
+/// endpoints they are given.  A list of one therefore has no failover at
+/// all, and a route that was measurable would be filed as "the route was
+/// not priced" because a single node was down.
+///
+/// The configuration keeps the authority it has: an explicit ``rpcUrls``
+/// list is the operator's own order and is used as it is.  A configuration
+/// that names **one** endpoint is extended with the endpoints the chain
+/// publishes, and the endpoint it names stays first -- the extension only
+/// adds the alternatives, it never reorders what the operator asked for.
+fn config_rpc_urls(config: &Value, fallback_url: &str, chain_urls: &[String]) -> Vec<String> {
+    let configured = config
         .get("rpcUrls")
         .and_then(Value::as_array)
         .map(|urls| {
@@ -2385,8 +3271,36 @@ fn config_rpc_urls(config: &Value, fallback_url: &str) -> Vec<String> {
                 .filter(|value| !value.is_empty())
                 .collect::<Vec<_>>()
         })
-        .filter(|urls| !urls.is_empty())
-        .unwrap_or_else(|| vec![fallback_url.to_string()])
+        .filter(|urls| !urls.is_empty());
+    if let Some(configured) = configured {
+        return configured;
+    }
+    let mut urls: Vec<String> = Vec::new();
+    let mut push = |value: &str| {
+        let trimmed = value.trim();
+        if !trimmed.is_empty() && !urls.iter().any(|existing| existing == trimmed) {
+            urls.push(trimmed.to_owned());
+        }
+    };
+    push(fallback_url);
+    for url in chain_urls {
+        push(url);
+    }
+    urls
+}
+
+/// The RPC endpoints the chain publishes, for the chain the task names.
+///
+/// The chain the task names selects both the environment variables and the
+/// chain configuration the endpoints are read from, so the endpoints of one
+/// chain never answer for another chain.
+fn chain_rpc_urls(config: &Value) -> Vec<String> {
+    let chain_id = config
+        .get("chainId")
+        .and_then(Value::as_u64)
+        .map(|value| value as i64)
+        .unwrap_or(pool_manager::chain::ROBINHOOD_CHAIN_ID);
+    pool_manager::chain::rpc_urls_for_chain(chain_id)
 }
 
 fn backoff_seconds(consecutive_errors: u64) -> u64 {
@@ -2607,20 +3521,50 @@ fn maybe_broadcast(
         payload["stopRequested"] = json!(true);
         return Ok(());
     }
-    if !offchain_broadcast_gate_allows(payload, config) {
-        payload["broadcastSkipped"] = json!("expected_loss_after_gas_before_broadcast");
-        payload["offchainGasGateBlocked"] = json!(true);
-        return Ok(());
-    }
-    if let Some(capacity_reason) = capacity_gate_blocks_broadcast(payload) {
-        payload["broadcastSkipped"] = json!(capacity_reason);
-        payload["capacityGateBlocked"] = json!(true);
-        return Ok(());
-    }
-    if let Some(economic_reason) = economic_floor_gate_blocks_broadcast(payload) {
-        payload["broadcastSkipped"] = json!(economic_reason);
-        payload["economicFloorGateBlocked"] = json!(true);
-        return Ok(());
+    // The **economic** gates — gas, capacity, economic floor — are the
+    // runtime's own opinion about whether the route is worth sending.
+    // They block a route the runtime measured by itself.
+    //
+    // A route the **review** proved executable and profitable is
+    // authorized to broadcast anyway: the operator has ruled that a
+    // positive profit is enough to send the transaction, and the whole
+    // point of the review is that it is the layer that judges the route.
+    // For that route the verdicts are **recorded** instead of enforced.
+    //
+    // The **correctness** gate — the three per-hop price limits — is
+    // never bypassed: without them the transaction cannot be encoded
+    // inside one tick range per hop, which is what version 1 requires.
+    let offchain_blocked = !offchain_broadcast_gate_allows(payload, config);
+    let capacity_reason = capacity_gate_blocks_broadcast(payload);
+    let economic_floor_reason = economic_floor_gate_blocks_broadcast(payload);
+    if offchain_blocked || capacity_reason.is_some() || economic_floor_reason.is_some() {
+        if !review_authorized_broadcast(payload) {
+            if offchain_blocked {
+                payload["broadcastSkipped"] = json!("expected_loss_after_gas_before_broadcast");
+                payload["offchainGasGateBlocked"] = json!(true);
+            } else if let Some(reason) = capacity_reason {
+                payload["broadcastSkipped"] = json!(reason);
+                payload["capacityGateBlocked"] = json!(true);
+            } else if let Some(reason) = economic_floor_reason {
+                payload["broadcastSkipped"] = json!(reason);
+                payload["economicFloorGateBlocked"] = json!(true);
+            }
+            return Ok(());
+        }
+        let mut overridden = Vec::new();
+        if offchain_blocked {
+            overridden.push(json!("expected_loss_after_gas_before_broadcast"));
+        }
+        if let Some(reason) = &capacity_reason {
+            overridden.push(json!(reason));
+        }
+        if let Some(reason) = &economic_floor_reason {
+            overridden.push(json!(reason));
+        }
+        payload["broadcastEconomicOverride"] = json!({
+            "decidedBy": "review_authorization",
+            "reasons": overridden,
+        });
     }
     if let Some(limit_reason) = hop_price_limit_gate_blocks_broadcast(payload) {
         payload["broadcastSkipped"] = json!(limit_reason);
@@ -2843,7 +3787,7 @@ fn maybe_broadcast_with_rpc_failover(
     } else {
         preferred_rpc_url.to_string()
     };
-    let mut rpc_urls = config_rpc_urls(config, &primary_rpc_url);
+    let mut rpc_urls = config_rpc_urls(config, &primary_rpc_url, &chain_rpc_urls(config));
     if let Some(index) = rpc_urls.iter().position(|url| url == &primary_rpc_url) {
         if index != 0 {
             let selected = rpc_urls.remove(index);
@@ -3297,34 +4241,58 @@ fn apply_closed_loop_identity(route_config: &mut Value, catalog: &ClosedLoopCata
     }
 }
 
+/// The configuration a worker needs before it may review anything.
+///
+/// The check runs **before** the in-memory object is loaded, because a
+/// command without an RPC endpoint or an arbiter address cannot be
+/// reviewed by anything: that is the first thing the operator has to know
+/// about, and it must not be hidden behind a report about the store.
+fn missing_command_config(config: &Value) -> Option<&'static str> {
+    let rpc_url = config
+        .get("rpcUrl")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim();
+    let arb_address = config
+        .get("arbAddress")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim();
+    if rpc_url.is_empty() || arb_address.is_empty() {
+        return Some("closed-loop config is missing rpcUrl or arbAddress");
+    }
+    None
+}
+
 fn run_native_review(
     config_json: &str,
-    pool_registry: Option<&V4PoolRegistry>,
+    pool_registry: &V4PoolRegistry,
     stop_requested: &dyn Fn() -> bool,
     on_phase: &dyn Fn(&str) -> (),
-    closed_loops: Option<&ClosedLoopCatalog>,
+    closed_loops: &ClosedLoopCatalog,
     token_decimals: Option<&TokenDecimalsRegistry>,
 ) -> Result<Value, String> {
     let mut config: Value = serde_json::from_str(config_json)
         .map_err(|error| format!("closed-loop config JSON is invalid: {error}"))?;
-    let mut prefilter_counts = (0usize, 0usize, 0usize);
-    if let Some(registry) = pool_registry {
-        prefilter_counts = prefilter_config_pool_keys(&mut config, registry);
-    }
+    // The pool array and the closed-loop catalog are **not** optional: the
+    // review prices a route against the pools the Manager published and
+    // against the loop identity the Manager published.  A review without
+    // them would be a degraded review, and the type says so.
+    let mut prefilter_counts = prefilter_config_pool_keys(&mut config, pool_registry);
     let rpc_url = config
         .get("rpcUrl")
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_string();
-    let rpc_urls = config_rpc_urls(&config, &rpc_url);
+    let rpc_urls = config_rpc_urls(&config, &rpc_url, &chain_rpc_urls(&config));
     let mut selected_rpc_url = rpc_url.clone();
     let arb_address = config
         .get("arbAddress")
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_string();
-    if rpc_url.trim().is_empty() || arb_address.trim().is_empty() {
-        return Err("closed-loop config is missing rpcUrl or arbAddress".to_string());
+    if let Some(error) = missing_command_config(&config) {
+        return Err(error.to_owned());
     }
     let call_from = config
         .get("callFrom")
@@ -3378,13 +4346,11 @@ fn run_native_review(
                     route_config[field] = value.clone();
                 }
             }
-            if let Some(registry) = pool_registry {
-                let (entry_dropped, bridge_dropped, exit_dropped) =
-                    prefilter_config_pool_keys(&mut route_config, registry);
-                prefilter_counts.0 += entry_dropped;
-                prefilter_counts.1 += bridge_dropped;
-                prefilter_counts.2 += exit_dropped;
-            }
+            let (entry_dropped, bridge_dropped, exit_dropped) =
+                prefilter_config_pool_keys(&mut route_config, pool_registry);
+            prefilter_counts.0 += entry_dropped;
+            prefilter_counts.1 += bridge_dropped;
+            prefilter_counts.2 += exit_dropped;
             // The route's own ordered pool set is published by the kernel,
             // from the pool keys the route actually prices, after the
             // prefilter dropped the pools that are not usable. It is the
@@ -3399,9 +4365,7 @@ fn run_native_review(
             // capacity belong together, so a capacity that was rebuilt
             // somewhere else could bound the amount with a number that was
             // never proved for this route.
-            if let Some(catalog) = closed_loops {
-                apply_closed_loop_identity(&mut route_config, catalog);
-            }
+            apply_closed_loop_identity(&mut route_config, closed_loops);
             let original_search_mode = route_config
                 .get("searchMode")
                 .and_then(Value::as_str)
@@ -3599,7 +4563,7 @@ fn run_native_review(
             let profitable =
                 result.get("status").and_then(Value::as_str) == Some("profitable_amount_found");
             if profitable {
-                match eligible_executor_batch_request(&result, &route_config, pool_registry) {
+                match eligible_executor_batch_request(&result, &route_config, Some(pool_registry)) {
                     Ok(Some(request)) => {
                         executor_batch_gated_route_count += 1;
                         executor_batch_requests.push(request);
@@ -3697,8 +4661,8 @@ fn run_native_review(
         // how many loops the catalog held and how many of the group's
         // routes matched one.
         payload["closedLoopIdentitySummary"] = json!({
-            "catalogSize": closed_loops.map(|catalog| catalog.len()).unwrap_or(0),
-            "catalogLoaded": closed_loops.is_some(),
+            "catalogSize": closed_loops.len(),
+            "catalogLoaded": true,
             "routeCount": payload
                 .get("routes")
                 .and_then(Value::as_array)
@@ -3847,24 +4811,37 @@ fn run_native_review(
         .get("deferBroadcast")
         .and_then(Value::as_bool)
         .unwrap_or(false);
-    if defer_broadcast {
-        payload["broadcastDeferred"] = json!(true);
-        payload["executionQueueRequested"] = json!(config
-            .get("broadcastEnabled")
-            .and_then(Value::as_bool)
-            .unwrap_or(false));
-    } else {
-        on_phase("broadcasting");
-        if let Err(broadcast_error) = maybe_broadcast_with_rpc_failover(
-            &mut payload,
-            &config,
-            &selected_rpc_url,
-            &arb_address,
-            timeout_seconds,
-            stop_requested,
-        ) {
-            record_broadcast_failure(&mut payload, broadcast_error);
-        }
+    // The review worker thread does **not** broadcast.  The broadcast worker
+    // thread owns the broadcast: the review hands its verdict to the
+    // execution queue, the queue wakes the broadcast worker, and the worker
+    // signs and sends the transaction and files the record.
+    //
+    // The review used to broadcast by itself whenever the task was not
+    // deferred.  That path bypassed the queue, so it also bypassed the
+    // broadcast record: a transaction the runtime sent left no trace in the
+    // monthly trade store.  There is one broadcast path now, and it is
+    // recorded.
+    let stopped = stop_requested();
+    payload["broadcastDeferred"] = json!(defer_broadcast);
+    payload["executionQueueRequested"] = json!(config
+        .get("broadcastEnabled")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        && !stopped);
+    payload["selectedRpcUrl"] = json!(selected_rpc_url);
+    if stopped {
+        // A stopped group does not hand its verdict to the broadcast queue:
+        // the stop flag is the operator's word that this group is done.  The
+        // broadcast worker checks the same flag before it signs, so a task
+        // that was stopped in between is not sent either.
+        payload["stopRequested"] = json!(true);
+    }
+    if !defer_broadcast {
+        // The execution queue is the only broadcast path.  A task that
+        // cannot reach it is not broadcast, and it says so: a named failure
+        // is worth more than a broadcast nobody can account for.
+        payload["broadcastSkipped"] = json!("the_broadcast_worker_thread_owns_the_broadcast");
+        payload["broadcastQueueUnavailable"] = json!(true);
     }
     on_phase("confirming");
     Ok(payload)
@@ -3935,11 +4912,837 @@ fn should_route_to_execution_queue(payload: &Value, command: &SubmitCommand) -> 
     config.get("deferBroadcast").and_then(Value::as_bool) == Some(true)
         && config.get("broadcastEnabled").and_then(Value::as_bool) == Some(true)
         && batch_ready
-        && payload.get("status").and_then(Value::as_str) == Some("profitable_amount_found")
-        && offchain_broadcast_gate_allows(payload, &config)
-        && capacity_gate_blocks_broadcast(payload).is_none()
-        && economic_floor_gate_blocks_broadcast(payload).is_none()
+        && route_reaches_the_execution_queue(payload)
+        && economic_gates_allow(payload, &config)
         && hop_price_limit_gate_blocks_broadcast(payload).is_none()
+}
+
+/// Whether the route may enter the execution queue.
+///
+/// The kernel labels a **group** by what the **kernel's own** ladder
+/// measured: the label reads `profitable_amount_found` only when one of
+/// the group's routes found a profitable amount in the kernel's own
+/// estimate.  A group holds many routes and the review judges **one**
+/// closed loop, so the group's label is not an answer about the reviewed
+/// route: a group whose other routes lose money carries
+/// `not_profitable_after_costs` even when the reviewed route pays, and a
+/// route whose ladder never probed (`single_tick_capacity_below_min_probe`)
+/// carries the same label.
+///
+/// The **review** is the authority on the reviewed route.  It measured the
+/// route against the chain (`runArbitrage` ok **and** executable), it
+/// proved the route stays inside one tick range per hop, it proved the
+/// market has not moved against it, it priced the profit and it published
+/// the three per-hop price limits.  A route the review cleared therefore
+/// reaches the queue even when the kernel's own label says otherwise -
+/// otherwise the group's label would silently overrule the chain and the
+/// review's verdict could never turn into a transaction.
+///
+/// The correctness gates are **not** relaxed by this.  A route nobody
+/// reviewed still has to carry the kernel's own label and still has to
+/// pass the runtime's economic gates; a route the review cleared still
+/// needs its proof (`review_authorized_broadcast`) and its three price
+/// limits, both of which the caller checks in their own right.
+fn route_reaches_the_execution_queue(payload: &Value) -> bool {
+    payload.get("status").and_then(Value::as_str) == Some("profitable_amount_found")
+        || review_authorized_broadcast(payload)
+}
+
+/// The maximum age a published broadcast request may have and still be
+/// broadcast.
+///
+/// The window is the one the Review Manager itself used when it decided
+/// that the request may be generated at all: a request that is older than
+/// that names an opportunity the market does not hold any more.  The
+/// runtime reads the same number, so the reviewer and the runtime agree
+/// on what "now" means.
+const MAX_BROADCAST_REQUEST_AGE_SECONDS: i64 = 120;
+
+/// The clock skew the runtime tolerates on a published request.
+const MAX_BROADCAST_REQUEST_FUTURE_SKEW_SECONDS: i64 = 30;
+
+/// The maximum number of broadcast requests one chain may hold.
+const MAX_BROADCAST_REQUESTS: usize = 1_000;
+
+/// Wake the broadcast worker with the proof the review published.
+///
+/// The kernel measures a route; the **review** judges it, and the
+/// judgement is what carries the three per-hop price limits.  The
+/// executor needs them: version 1 may only trade inside one tick range
+/// per hop, so a payload that does not carry all three limits falls back
+/// to the global V4 price bound, which is exactly what version 1
+/// forbids.
+///
+/// The limits are therefore taken from the request the review published
+/// and are never derived a second time here.  The kernel payload does not
+/// carry them at all, so before this the price-limit gate read an empty
+/// list on every route and refused every broadcast — no matter how
+/// profitable the review had measured it to be.
+///
+/// The request must also be **fresh**.  The request table is a snapshot
+/// that carries the previous generation's requests forward, and a carried
+/// request names an opportunity the market does not hold any more: it may
+/// not be broadcast a second time.
+fn wake_broadcast_with_review_proof(
+    inner: &PoolInner,
+    command: &SubmitCommand,
+    payload: &mut Value,
+) -> Value {
+    let Some(loop_key) = payload
+        .get("closedLoopKey")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+    else {
+        return json!({
+            "enqueued": false,
+            "reason": "the reviewed payload names no closed loop",
+        });
+    };
+    let Some(database_path) = command
+        .database_path
+        .clone()
+        .or_else(|| inner.database_path.clone())
+    else {
+        return json!({"enqueued": false, "reason": "database_path_unavailable"});
+    };
+    let Some(network) = command.network.clone() else {
+        return json!({"enqueued": false, "reason": "network_unavailable"});
+    };
+    let Some(chain_id) = command.chain_id.filter(|value| *value > 0) else {
+        return json!({"enqueued": false, "reason": "chain_id_unavailable"});
+    };
+    let requests = match review_manager::read_broadcast_requests_for_chain(
+        &database_path,
+        &network,
+        chain_id,
+        MAX_BROADCAST_REQUESTS,
+    ) {
+        Ok(requests) => requests,
+        Err(error) => {
+            return json!({
+                "enqueued": false,
+                "reason": "the published broadcast requests could not be read",
+                "error": error.to_string(),
+            });
+        }
+    };
+    let Some(request) = requests
+        .iter()
+        .find(|row| row.loop_key.trim().eq_ignore_ascii_case(loop_key.trim()))
+    else {
+        return json!({
+            "enqueued": false,
+            "reason": "the review published no broadcast request for this closed loop",
+        });
+    };
+    if request.request_status.trim() != "generated" {
+        return json!({
+            "enqueued": false,
+            "reason": format!(
+                "the published request is not generated: {}",
+                request.request_status.trim()
+            ),
+        });
+    }
+    if request.admission.run_ok != Some(true) {
+        return json!({"enqueued": false, "reason": "runArbitrage did not report ok"});
+    }
+    if request.admission.run_executable != Some(true) {
+        return json!({"enqueued": false, "reason": "the reviewed route is not executable"});
+    }
+    if request.admission.review_status.trim() != "completed" {
+        return json!({
+            "enqueued": false,
+            "reason": format!(
+                "the published request was not raised by a completed review: {}",
+                request.admission.review_status.trim()
+            ),
+        });
+    }
+    if !signed_pnl_is_positive(&request.signed_pnl) {
+        return json!({"enqueued": false, "reason": "the reviewed route did not pay"});
+    }
+    if request.hop_sqrt_price_limits.len() != 3 {
+        return json!({
+            "enqueued": false,
+            "reason": format!(
+                "the review proved {}/3 per-hop price limits",
+                request.hop_sqrt_price_limits.len().min(3)
+            ),
+        });
+    }
+    let Some(reviewed_at) = chrono::DateTime::parse_from_rfc3339(
+        request.admission.reviewed_at.trim(),
+    )
+    .ok()
+    .map(|value| value.with_timezone(&chrono::Utc))
+    else {
+        return json!({
+            "enqueued": false,
+            "reason": "the published request carries no review time",
+        });
+    };
+    let age = (chrono::Utc::now() - reviewed_at).num_seconds();
+    if age > MAX_BROADCAST_REQUEST_AGE_SECONDS {
+        return json!({
+            "enqueued": false,
+            "reason": format!(
+                "the published request is {age}s old, past the \
+                 {MAX_BROADCAST_REQUEST_AGE_SECONDS}s window"
+            ),
+        });
+    }
+    if age < -MAX_BROADCAST_REQUEST_FUTURE_SKEW_SECONDS {
+        return json!({
+            "enqueued": false,
+            "reason": format!(
+                "the published request is {}s in the future, past the \
+                 {MAX_BROADCAST_REQUEST_FUTURE_SKEW_SECONDS}s skew allowance",
+                -age
+            ),
+        });
+    }
+    // The proof travels with the payload: the three limits the review
+    // proved, the facts the reviewer judged the route by, and the key of
+    // the closed loop the broadcast belongs to.
+    // The broadcast trades the pools the **review** confirmed.  The
+    // request carries the confirmed pools and the route carries its own
+    // selection, and the two have to be the same pools: a request that is
+    // carried forward while the route picks a different pool names an
+    // opportunity the review never measured, and trading it would trade
+    // something nobody proved.
+    let Some(route_pools) = route_selected_pools(payload) else {
+        return json!({
+            "enqueued": false,
+            "reason": "the reviewed route names no selected pools",
+        });
+    };
+    if !route_trades_the_confirmed_pools(&request.pool_ids, &route_pools) {
+        return json!({
+            "enqueued": false,
+            "reason": "the route no longer trades the pools the review confirmed",
+        });
+    }
+    payload["hopSqrtPriceLimits"] = json!(request.hop_sqrt_price_limits);
+    payload["signedPnl"] = serde_json::to_value(&request.signed_pnl).unwrap_or(Value::Null);
+    payload["reviewAdmission"] = serde_json::to_value(&request.admission).unwrap_or(Value::Null);
+    payload["closedLoopKey"] = json!(request.loop_key);
+    // The review is the layer that judged the route, so the review thread
+    // is the thread that sends.  A profitable opportunity is a live
+    // phenomenon, and every second between the measurement and the send is
+    // a second in which the market may move away from the price the
+    // transaction is built from.  The state machine therefore switches
+    // from "reviewed" to "broadcast" and the transaction goes out right
+    // here: there is no second review and no audit in between.
+    //
+    // The chain's answer is **not** read here.  The send is the fact, the
+    // receipt is the answer, and the answer is collected by the broadcast
+    // confirmation thread.
+    let mut outcome = broadcast_from_review(inner, command, payload);
+    outcome["closedLoopKey"] = json!(request.loop_key);
+    outcome["hopSqrtPriceLimits"] = json!(request.hop_sqrt_price_limits);
+    outcome["reviewAgeSeconds"] = json!(age);
+    outcome
+}
+
+/// Send the transaction the review proved, right here.
+///
+/// The review thread measured the profit, so the review thread sends the
+/// transaction.  The send costs one `eth_sendRawTransaction` and nothing
+/// else: the chain's answer is read later, by the broadcast confirmation
+/// thread, and the answer is what decides whether the arbitrage paid.
+///
+/// The record is written **before** the answer arrives, because the send
+/// is the fact: the attempt is recorded as pending, and the confirmation
+/// thread turns it into a success or a failure once the chain answers.
+fn broadcast_from_review(
+    inner: &PoolInner,
+    command: &SubmitCommand,
+    payload: &mut Value,
+) -> Value {
+    let mut config: Value =
+        serde_json::from_str(&command.config_json).unwrap_or_else(|_| Value::Null);
+    let arb_address = config
+        .get("arbAddress")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if arb_address.is_empty() {
+        return json!({
+            "broadcasted": false,
+            "reason": "the broadcast config names no arbiter address",
+        });
+    }
+    let timeout_seconds = config
+        .get("timeoutSeconds")
+        .and_then(Value::as_u64)
+        .unwrap_or(20);
+    // The RPC the review priced the route on is the RPC the transaction
+    // is sent to: the calldata is built from the price that was measured
+    // there, and a transaction built for another price is a different
+    // transaction.
+    let mut preferred_rpc_url = config
+        .get("rpcUrl")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if let Some(selected) = payload
+        .get("rpcMetadata")
+        .and_then(|metadata| metadata.get("selectedRpcUrl"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        preferred_rpc_url = selected.to_string();
+        config["rpcUrl"] = json!(selected);
+    }
+    if preferred_rpc_url.is_empty() {
+        return json!({
+            "broadcasted": false,
+            "reason": "the broadcast config names no rpc endpoint",
+        });
+    }
+    // A **manual** broadcast is the operator's decision: the task waits
+    // in the queue until the operator releases it, and the confirmation
+    // thread sends it then.  The automatic path does not wait for
+    // anybody.
+    if config.get("manualBroadcast").and_then(Value::as_bool) == Some(true) {
+        let enqueued = enqueue_execution_from_review(inner, command, payload);
+        return json!({
+            "broadcasted": false,
+            "manualBroadcast": true,
+            "enqueued": enqueued,
+            "reason": "the broadcast waits for the operator to release it",
+        });
+    }
+    let group_key = command.group_key.clone();
+    let stop_requested = || inner.stop_flags.lock().unwrap().contains(&group_key);
+    let sent = maybe_broadcast_with_rpc_failover(
+        payload,
+        &config,
+        &preferred_rpc_url,
+        &arb_address,
+        timeout_seconds,
+        &stop_requested,
+    );
+    if let Err(error) = sent {
+        record_broadcast_failure(payload, error);
+    }
+    // The send is the fact, so the record is written now — as pending,
+    // because the chain has not answered yet.
+    let record = file_broadcast_record_for(
+        inner,
+        command.chain_id,
+        command.network.as_deref(),
+        &command.config_json,
+        payload,
+    );
+    payload["broadcastRecord"] = record;
+    // The answer is left to the broadcast confirmation thread — and so
+    // is the retry, when the chain refused the transaction: a send that
+    // never reached the chain is a transport failure, not a verdict, and
+    // the confirmation thread sends it again with a new signature.
+    // A send the runtime's own gates refused never reached the chain, so
+    // there is nothing to confirm and nothing to send again.
+    let attempted = payload.get("broadcast").and_then(Value::as_object).is_some();
+    let confirmation = if attempted {
+        enqueue_broadcast_confirmation(
+            inner,
+            &command.group_key,
+            command.chain_id,
+            command.network.as_deref(),
+            &command.config_json,
+            payload,
+        )
+    } else {
+        json!({"queued": false, "reason": "no transaction was sent"})
+    };
+    payload["broadcastConfirmation"] = confirmation.clone();
+    if !broadcast_accepted(payload) {
+        let reason: String = if attempted {
+            "the chain did not accept the transaction; the confirmation thread sends it again"
+                .to_string()
+        } else {
+            payload
+                .get("broadcastSkipped")
+                .and_then(Value::as_str)
+                .unwrap_or("no transaction was sent")
+                .to_string()
+        };
+        return json!({
+            "broadcasted": false,
+            "reason": reason,
+            "broadcastError": payload.get("broadcastError").cloned().unwrap_or(Value::Null),
+            "confirmation": confirmation,
+        });
+    }
+    json!({
+        "broadcasted": true,
+        "txHash": payload
+            .get("broadcast")
+            .and_then(|broadcast| broadcast.get("txHash"))
+            .cloned()
+            .unwrap_or(Value::Null),
+        "confirmation": confirmation,
+    })
+}
+
+/// Hand the sent transaction to the broadcast confirmation thread.
+///
+/// The confirmation thread is the thread that reads the chain's answer: it
+/// waits for the receipt of the transaction that was sent and writes the
+/// terminal record when the chain answers.
+///
+/// The item is keyed by the **transaction**, not by the group: a second
+/// review of the same closed loop must not drop the confirmation of the
+/// transaction that is already on its way, and every transaction has to
+/// be confirmed on its own.
+fn enqueue_broadcast_confirmation(
+    inner: &PoolInner,
+    group_key: &str,
+    chain_id: Option<i64>,
+    network: Option<&str>,
+    config_json: &str,
+    payload: &Value,
+) -> Value {
+    // The transaction names the item when the chain accepted it.  A send
+    // the chain refused has no transaction yet, and the confirmation
+    // thread sends it again — so the item is keyed by the attempt
+    // instead.
+    let tx_hash = payload
+        .get("broadcast")
+        .and_then(|broadcast| broadcast.get("txHash"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned);
+    let Some(chain_id) = chain_id.filter(|value| *value > 0) else {
+        return json!({"queued": false, "reason": "chain_id_unavailable"});
+    };
+    let Some(network) = network
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return json!({"queued": false, "reason": "network_unavailable"});
+    };
+    let supervisor_guard = inner.broadcast_supervisor.lock().unwrap();
+    let Some(supervisor) = supervisor_guard.as_ref() else {
+        return json!({
+            "queued": false,
+            "reason": "the broadcast confirmation thread is not running",
+        });
+    };
+    let observed_at = now_iso();
+    let task_key = match &tx_hash {
+        Some(hash) => format!("confirm|{network}|{chain_id}|{}", hash.to_lowercase()),
+        None => format!(
+            "confirm|{network}|{chain_id}|{}|{}",
+            group_key.trim().to_lowercase(),
+            observed_at,
+        ),
+    };
+    let task = ExecutionTask {
+        task_key,
+        group_key: group_key.to_string(),
+        chain_id: Some(chain_id),
+        network: Some(network.to_string()),
+        protocol: None,
+        protocols: Vec::new(),
+        config_json: config_json.to_string(),
+        // The item carries the marker that tells the confirmation thread
+        // what it is: the answer to a transaction, not a transaction.
+        review_payload: {
+            let mut task_payload = payload.clone();
+            task_payload["broadcastConfirmation"] = json!({
+                "queued": true,
+                "confirmed": false,
+                "thread": "broadcast-confirmation",
+            });
+            task_payload
+        },
+        verified_at: observed_at.clone(),
+        priority: 1,
+        state: "queued".to_string(),
+        attempts: 0,
+        last_error: None,
+        created_at: observed_at.clone(),
+        updated_at: observed_at.clone(),
+        available_at: Some(observed_at),
+    };
+    supervisor.enqueue(task);
+    json!({
+        "queued": true,
+        "txHash": tx_hash,
+        "confirmed": false,
+        "thread": "broadcast-confirmation",
+    })
+}
+
+/// Read the chain's answer for a transaction that was already sent.
+///
+/// The transaction is on its way; what is left is the answer.  The
+/// confirmation thread asks the chain for the receipt and writes the
+/// terminal record as soon as the chain answers.  A receipt that does not
+/// come yet is not a failure: the attempt stays pending, because the send
+/// is a fact and the chain's silence is not a verdict.
+///
+/// A transaction the chain **refused** is a different case: it never
+/// reached the chain, so there is nothing to confirm.  That is a
+/// transport failure and not a verdict, so the confirmation thread sends
+/// the transaction again — a new signature, a new transaction — and
+/// confirms that one.  A transaction the chain **mined and reverted** is a
+/// verdict, and it is not sent again.
+fn run_confirmation_task(inner: &PoolInner, task: &ExecutionTask) -> Result<Value, String> {
+    let mut payload = task.review_payload.clone();
+    let mut sends = 0u32;
+    while !broadcast_accepted(&payload) && sends < BROADCAST_CONFIRMATION_MAX_SENDS {
+        sends += 1;
+        match resend_broadcast(inner, task, &mut payload) {
+            Ok(()) => {}
+            Err(error) => {
+                payload["broadcastConfirmation"] = json!({
+                    "confirmed": false,
+                    "sends": sends,
+                    "reason": "the chain did not accept the transaction",
+                    "error": error,
+                });
+                let record = file_broadcast_record_for(
+                    inner,
+                    task.chain_id,
+                    task.network.as_deref(),
+                    &task.config_json,
+                    &payload,
+                );
+                payload["broadcastRecord"] = record;
+                return Ok(payload);
+            }
+        }
+    }
+    let Some(tx_hash) = payload
+        .get("broadcast")
+        .and_then(|broadcast| broadcast.get("txHash"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+    else {
+        payload["broadcastConfirmation"] = json!({
+            "confirmed": false,
+            "sends": sends,
+            "reason": "the chain did not accept the transaction",
+        });
+        return Ok(payload);
+    };
+    let rpc_urls = confirmation_rpc_urls(task, &payload);
+    let receipt = wait_for_broadcast_receipt(&rpc_urls, &tx_hash);
+    if receipt_is_confirmed(&receipt) {
+        apply_broadcast_receipt(inner, task, &mut payload, &receipt);
+        payload["broadcastConfirmation"] = json!({
+            "confirmed": true,
+            "txHash": tx_hash,
+            "receipt": receipt,
+            "sends": sends,
+        });
+        return Ok(payload);
+    }
+    payload["broadcastConfirmation"] = json!({
+        "confirmed": false,
+        "txHash": tx_hash,
+        "reason": "the chain has not answered yet",
+        "sends": sends,
+    });
+    Ok(payload)
+}
+
+/// Write the answer of the chain into the record of the attempt.
+///
+/// The attempt id names the transaction, so the row that was written as
+/// pending is updated in place and becomes terminal: the send was a fact
+/// and the receipt is the answer, and the answer ends the attempt.
+fn apply_broadcast_receipt(
+    inner: &PoolInner,
+    task: &ExecutionTask,
+    payload: &mut Value,
+    receipt: &Value,
+) {
+    if let Some(broadcast) = payload.get_mut("broadcast").and_then(Value::as_object_mut) {
+        broadcast.insert("receipt".to_string(), receipt.clone());
+    }
+    let record = file_broadcast_record_for(
+        inner,
+        task.chain_id,
+        task.network.as_deref(),
+        &task.config_json,
+        payload,
+    );
+    payload["broadcastRecord"] = record;
+}
+
+/// Whether the chain accepted the transaction.
+fn broadcast_accepted(payload: &Value) -> bool {
+    payload
+        .get("broadcast")
+        .and_then(|broadcast| broadcast.get("ok"))
+        .and_then(Value::as_bool)
+        == Some(true)
+}
+
+/// Send the transaction again.
+///
+/// The chain refused the transaction, so there is no transaction on the
+/// chain and nothing to confirm.  The send is repeated with a new
+/// signature: the calldata is the one the review proved and the nonce
+/// is the one the chain reports, so the repeated transaction is the same
+/// trade, not a new one.
+fn resend_broadcast(
+    inner: &PoolInner,
+    task: &ExecutionTask,
+    payload: &mut Value,
+) -> Result<(), String> {
+    let mut config: Value = serde_json::from_str(&task.config_json).unwrap_or(Value::Null);
+    let arb_address = config
+        .get("arbAddress")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if arb_address.is_empty() {
+        return Err("the broadcast config names no arbiter address".to_string());
+    }
+    let timeout_seconds = config
+        .get("timeoutSeconds")
+        .and_then(Value::as_u64)
+        .unwrap_or(20);
+    let mut preferred_rpc_url = config
+        .get("rpcUrl")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if let Some(selected) = payload
+        .get("broadcastRpcMetadata")
+        .and_then(|metadata| metadata.get("selectedRpcUrl"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        preferred_rpc_url = selected.to_string();
+        config["rpcUrl"] = json!(selected);
+    }
+    if preferred_rpc_url.is_empty() {
+        return Err("the broadcast config names no rpc endpoint".to_string());
+    }
+    let group_key = task.group_key.clone();
+    let stop_requested = || inner.stop_flags.lock().unwrap().contains(&group_key);
+    match maybe_broadcast_with_rpc_failover(
+        payload,
+        &config,
+        &preferred_rpc_url,
+        &arb_address,
+        timeout_seconds,
+        &stop_requested,
+    ) {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            record_broadcast_failure(payload, error.clone());
+            Err(error)
+        }
+    }
+}
+
+/// Whether a payload is the answer to a broadcast rather than the
+/// broadcast itself.
+fn is_confirmation_payload(payload: &Value) -> bool {
+    payload
+        .get("broadcastConfirmation")
+        .and_then(Value::as_object)
+        .is_some()
+}
+
+/// Whether a task in the queue is the answer to a broadcast rather than a
+/// broadcast itself.
+fn is_confirmation_task(task: &ExecutionTask) -> bool {
+    is_confirmation_payload(&task.review_payload)
+}
+
+/// Ask the chain for the receipt of a transaction until it answers.
+///
+/// The lookup does not wait inside the node: the thread asks, and the
+/// answer arrives when the chain mines the transaction.  The thread asks
+/// again after a short gap, and it stops after the window is over.
+fn wait_for_broadcast_receipt(rpc_urls: &[String], tx_hash: &str) -> Value {
+    let deadline =
+        std::time::Instant::now() + Duration::from_secs(BROADCAST_CONFIRMATION_TIMEOUT_SECONDS);
+    let mut last = Value::Null;
+    loop {
+        for url in rpc_urls {
+            let candidate = execution::receipt_without_waiting(url, tx_hash, 5);
+            if receipt_is_confirmed(&candidate) {
+                return candidate;
+            }
+            if !candidate.is_null() {
+                last = candidate;
+            }
+        }
+        if std::time::Instant::now() >= deadline {
+            return last;
+        }
+        std::thread::sleep(Duration::from_secs(BROADCAST_CONFIRMATION_INTERVAL_SECONDS));
+    }
+}
+
+/// Whether the chain answered with a receipt.
+fn receipt_is_confirmed(receipt: &Value) -> bool {
+    receipt
+        .get("status")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .is_some_and(|value| value.eq_ignore_ascii_case("confirmed"))
+}
+
+/// The endpoints the confirmation thread asks for the receipt.
+fn confirmation_rpc_urls(task: &ExecutionTask, payload: &Value) -> Vec<String> {
+    let config: Value = serde_json::from_str(&task.config_json).unwrap_or(Value::Null);
+    let mut urls: Vec<String> = Vec::new();
+    let mut push = |url: &str| {
+        let trimmed = url.trim();
+        if !trimmed.is_empty() && !urls.iter().any(|known| known == trimmed) {
+            urls.push(trimmed.to_string());
+        }
+    };
+    if let Some(selected) = payload
+        .get("broadcastRpcMetadata")
+        .and_then(|metadata| metadata.get("selectedRpcUrl"))
+        .and_then(Value::as_str)
+    {
+        push(selected);
+    }
+    if let Some(primary) = config.get("rpcUrl").and_then(Value::as_str) {
+        push(primary);
+    }
+    if let Some(list) = config.get("rpcUrls").and_then(Value::as_array) {
+        for value in list {
+            if let Some(url) = value.as_str() {
+                push(url);
+            }
+        }
+    }
+    urls
+}
+
+/// How long the confirmation thread asks for the receipt of one
+/// transaction.
+///
+/// The chain of the deployment mines in seconds, so a transaction that has
+/// not answered within a couple of minutes is not going to answer in this
+/// session.  The attempt then stays pending: the send is a fact and the
+/// chain's silence is not a failure.
+const BROADCAST_CONFIRMATION_TIMEOUT_SECONDS: u64 = 120;
+
+/// The gap between two asks for the receipt.
+const BROADCAST_CONFIRMATION_INTERVAL_SECONDS: u64 = 2;
+
+/// How many times the confirmation thread sends a transaction the chain
+/// refused.
+///
+/// The first send belongs to the review thread, so the retry is the one
+/// that belongs to the confirmation thread.  The bound keeps a chain that
+/// refuses every transaction from holding the confirmation thread.
+const BROADCAST_CONFIRMATION_MAX_SENDS: u32 = 3;
+
+/// The base pool and the direction a **directional** pool id names.
+///
+/// The id ends with the direction it was published for, and the base pool
+/// is the segment in front of it: the id reads
+/// `dpool:v1:<network>:<chain>:<scope>:<base pool>:<direction>`, so both
+/// are read from the id itself and never guessed.
+fn directional_pool_identity(directional_pool_id: &str) -> Option<(String, bool)> {
+    let trimmed = directional_pool_id.trim();
+    let (prefix, direction) = trimmed.rsplit_once(':')?;
+    let base_pool_id = prefix.rsplit(':').next()?.trim().to_ascii_lowercase();
+    if base_pool_id.is_empty() {
+        return None;
+    }
+    match direction.trim() {
+        "0" => Some((base_pool_id, false)),
+        "1" => Some((base_pool_id, true)),
+        _ => None,
+    }
+}
+
+/// The pools the route is about to trade, in hop order.
+///
+/// The route's own selection is the truth about what it trades, so the
+/// pool and the direction of every hop are read from the selected keys of
+/// the route payload.  `None` means the route names no selection, and the
+/// caller then has nothing to compare the confirmed pools against.
+fn route_selected_pools(payload: &Value) -> Option<Vec<(String, bool)>> {
+    let route = payload.get("selectedRoutePayload")?;
+    let keys = route.get("selectedKeys").and_then(Value::as_array)?;
+    let directions = route.get("selectedDirections").and_then(Value::as_array)?;
+    if keys.is_empty() || keys.len() != directions.len() {
+        return None;
+    }
+    let mut pools = Vec::with_capacity(keys.len());
+    for (key, direction) in keys.iter().zip(directions.iter()) {
+        pools.push(selected_pool_identity(key, Some(direction))?);
+    }
+    Some(pools)
+}
+
+/// The pool identity of one selected pool key.
+///
+/// The pool id is derived from the pool key exactly like the pricing path
+/// derives it, so the id the route trades under is the same id the review
+/// confirmed.
+fn selected_pool_identity(key: &Value, direction: Option<&Value>) -> Option<(String, bool)> {
+    let pool_key = V4PoolKey {
+        currency0: key.get("currency0")?.as_str()?.to_owned(),
+        currency1: key.get("currency1")?.as_str()?.to_owned(),
+        fee: key.get("fee")?.as_u64()?,
+        tick_spacing: i32::try_from(key.get("tickSpacing")?.as_i64()?).ok()?,
+        hooks: key
+            .get("hooks")
+            .and_then(Value::as_str)
+            .unwrap_or("0x0000000000000000000000000000000000000000")
+            .to_owned(),
+    };
+    let pool_id = pool_index::pool_id(&pool_key).ok()?.to_ascii_lowercase();
+    let zero_for_one = direction
+        .and_then(|value| value.get("zeroForOne"))
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    Some((pool_id, zero_for_one))
+}
+
+/// Whether the route still trades the pools the review confirmed.
+///
+/// The confirmed pool of a hop is a **directional** pool: the base pool
+/// the review priced together with the direction it walked in.  The route
+/// has to trade the same base pool in the same direction, hop by hop, or
+/// the proof the request carries does not belong to the route.
+fn route_trades_the_confirmed_pools(
+    confirmed_pool_ids: &[String],
+    route_pools: &[(String, bool)],
+) -> bool {
+    if confirmed_pool_ids.is_empty() || confirmed_pool_ids.len() != route_pools.len() {
+        return false;
+    }
+    confirmed_pool_ids
+        .iter()
+        .zip(route_pools.iter())
+        .all(|(directional_pool_id, (pool_id, zero_for_one))| {
+            directional_pool_identity(directional_pool_id)
+                .map(|(base_pool_id, confirmed_zero_for_one)| {
+                    base_pool_id == pool_id.trim().to_ascii_lowercase()
+                        && confirmed_zero_for_one == *zero_for_one
+                })
+                .unwrap_or(false)
+        })
 }
 
 fn enqueue_execution_from_review(
@@ -3959,6 +5762,7 @@ fn enqueue_execution_from_review(
         .and_then(Value::as_bool)
         .unwrap_or(false);
     let task = ExecutionTask {
+        task_key: String::new(),
         group_key: command.group_key.clone(),
         chain_id: command.chain_id,
         network: command.network.clone(),
@@ -4036,14 +5840,100 @@ fn run_execution_task(inner: &PoolInner, task: &ExecutionTask) -> Result<Value, 
     ) {
         record_broadcast_failure(&mut payload, broadcast_error);
     }
+    // The broadcast that just happened is filed as a record.
+    //
+    // The record is the fact that the transaction was sent.  Without it
+    // the monthly trade store stays empty and nobody can tell what the
+    // deployment did.  A failure to file does not undo the broadcast:
+    // the transaction is already on its way, so the failure travels with
+    // the payload instead of being swallowed.
+    payload["broadcastRecord"] = file_broadcast_record(inner, task, &payload);
+    // The manual path sends the transaction here as well, so the answer
+    // is left to the confirmation thread in exactly the same way.
+    if payload.get("broadcast").and_then(Value::as_object).is_some() {
+        let confirmation = enqueue_broadcast_confirmation(
+            inner,
+            &task.group_key,
+            task.chain_id,
+            task.network.as_deref(),
+            &task.config_json,
+            &payload,
+        );
+        payload["broadcastConfirmation"] = confirmation;
+    }
     payload["executedBy"] = json!(now_iso());
     Ok(payload)
+}
+
+/// File the broadcast the runtime just performed.
+///
+/// The function never fails: what it returns says whether the record was
+/// written and, when it was not, why.  A record that could not be written
+/// is a fact the operator has to see, so it travels with the payload.
+fn file_broadcast_record(inner: &PoolInner, task: &ExecutionTask, payload: &Value) -> Value {
+    file_broadcast_record_for(
+        inner,
+        task.chain_id,
+        task.network.as_deref(),
+        &task.config_json,
+        payload,
+    )
+}
+
+/// File the broadcast the runtime just performed.
+///
+/// The parts are given one by one because the broadcast is filed from two
+/// places: the review thread, which sends the transaction itself, and the
+/// execution queue, which sends it on request.
+fn file_broadcast_record_for(
+    inner: &PoolInner,
+    chain_id: Option<i64>,
+    network: Option<&str>,
+    config_json: &str,
+    payload: &Value,
+) -> Value {
+    let chain_id = chain_id.filter(|value| *value > 0);
+    let Some(database_path) = inner
+        .database_path
+        .clone()
+        .or_else(|| active_runtime_database_path(chain_id))
+    else {
+        return json!({"recorded": false, "reason": "database_path_unavailable"});
+    };
+    let Some(chain_id) = chain_id else {
+        return json!({"recorded": false, "reason": "chain_id_unavailable"});
+    };
+    let Some(network) = network
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return json!({"recorded": false, "reason": "network_unavailable"});
+    };
+    let config: Value = serde_json::from_str(config_json).unwrap_or_else(|_| Value::Null);
+    match crate::broadcast_record::record_broadcast_outcome(
+        &database_path,
+        &network,
+        chain_id,
+        payload,
+        &config,
+    ) {
+        Ok(summary) => summary,
+        Err(error) => json!({
+            "recorded": false,
+            "reason": "record_failed",
+            "error": error,
+        }),
+    }
 }
 
 fn record_broadcast_into_state(inner: &PoolInner, group_key: &str, payload: &Value) {
     let mut states = inner.states.lock().unwrap();
     let state = states.entry(group_key.to_string()).or_default();
-    state.broadcast_count += broadcast_count_from_result(payload);
+    // A confirmation is the answer to a broadcast that was already
+    // counted, so the answer does not count the broadcast a second time.
+    if !is_confirmation_payload(payload) {
+        state.broadcast_count += broadcast_count_from_result(payload);
+    }
     if let Some(broadcast) = payload.get("broadcast").and_then(Value::as_object) {
         let tx_hash = broadcast
             .get("txHash")
@@ -4051,15 +5941,19 @@ fn record_broadcast_into_state(inner: &PoolInner, group_key: &str, payload: &Val
             .map(|value| value.trim().to_string())
             .unwrap_or_default();
         if !tx_hash.is_empty() {
-            let mut history_item = payload.clone();
-            history_item["observedAt"] = json!(now_iso());
-            state.broadcast_history.push(history_item);
-            const BROADCAST_HISTORY_LIMIT: usize = 64;
-            if state.broadcast_history.len() > BROADCAST_HISTORY_LIMIT {
-                let overflow = state.broadcast_history.len() - BROADCAST_HISTORY_LIMIT;
-                state.broadcast_history.drain(..overflow);
+            // The history holds the broadcasts, and the confirmation is
+            // the answer to a broadcast that is already in it.
+            if !is_confirmation_payload(payload) {
+                let mut history_item = payload.clone();
+                history_item["observedAt"] = json!(now_iso());
+                state.broadcast_history.push(history_item);
+                const BROADCAST_HISTORY_LIMIT: usize = 64;
+                if state.broadcast_history.len() > BROADCAST_HISTORY_LIMIT {
+                    let overflow = state.broadcast_history.len() - BROADCAST_HISTORY_LIMIT;
+                    state.broadcast_history.drain(..overflow);
+                }
+                state.last_broadcast_at = Some(now_iso());
             }
-            state.last_broadcast_at = Some(now_iso());
             let receipt_status = broadcast
                 .get("receipt")
                 .and_then(Value::as_object)
@@ -4231,6 +6125,19 @@ fn worker_loop(
         {
             continue;
         }
+        // The stale sweep runs before the review and on its own clock: a
+        // closed loop that goes quiet must be **said** to be quiet, even
+        // while the review path is unable to publish.  The sweep marks
+        // only the loops it finds quiet, so it never touches the review
+        // of a loop that is alive.
+        {
+            let scope = maintenance_scope(
+                command.network.as_deref(),
+                command.chain_id,
+                command.protocol.as_deref(),
+            );
+            let _sweep = stale_review_sweep_block(&inner, &command, &scope);
+        }
         // The closed-loop catalog is part of the **in-memory object**, so
         // the review never reads the Manager library. The SQLite read
         // happens once, when the context object is built or refreshed.
@@ -4245,21 +6152,35 @@ fn worker_loop(
                 let data = Arc::clone(&cache.data.read().unwrap());
                 run_native_review(
                     &command.config_json,
-                    Some(&data.registry),
+                    &data.registry,
                     &stop_requested,
                     &mark_phase,
-                    Some(&data.closed_loops),
+                    &data.closed_loops,
                     Some(&data.token_decimals),
                 )
             }
-            None => run_native_review(
-                &command.config_json,
-                None,
-                &stop_requested,
-                &mark_phase,
-                None,
-                None,
-            ),
+            // No in-memory object means the review would run without the
+            // closed-loop identity the Manager published: the route would
+            // be priced without the loop it belongs to and without the
+            // capacity that bounds it.  That is a degraded review, so the
+            // worker fails instead of producing one.
+            //
+            // The configuration is judged **first**: a command without an
+            // RPC endpoint or an arbiter address cannot be reviewed by
+            // anything, and that is the first thing the operator has to
+            // know about.
+            None => Err(match serde_json::from_str::<Value>(&command.config_json)
+                .ok()
+                .as_ref()
+                .and_then(missing_command_config)
+            {
+                Some(error) => error.to_owned(),
+                None => "the in-memory object could not be built: the directional \
+                        pool array and the closed-loop catalog could not be read \
+                        from the Manager library, so the worker refuses to review \
+                        without them"
+                    .to_string(),
+            }),
         };
         let result = result.map(|payload| {
             let direction_results = per_direction_results(&payload);
@@ -4267,16 +6188,17 @@ fn worker_loop(
         });
         drop(_permit);
         let result = result.map(|(mut payload, direction_results)| {
-            if enqueue_execution_from_review(&inner, &command, &payload) {
-                payload["executionQueued"] = json!(true);
-                payload["executionQueueAt"] = json!(now_iso());
-            }
             if let Some((cache, _)) = &context_cache {
                 let data = Arc::clone(&cache.data.read().unwrap());
+                let generation = cache.generation.lock().unwrap();
                 let config_value: Value =
                     serde_json::from_str(&command.config_json).unwrap_or(Value::Null);
                 let route_addresses = config_route_addresses(&config_value);
                 let group_pool_ids = data.registry.route_pool_ids(&route_addresses);
+                let group_directional_pool_ids =
+                    data.registry.route_directional_pool_ids(&route_addresses);
+                let group_directional_pool_facts =
+                    data.registry.route_directional_pool_facts(&route_addresses);
                 let pool_group_key = config_value
                     .get("poolGroupKey")
                     .and_then(Value::as_str)
@@ -4286,16 +6208,23 @@ fn worker_loop(
                     "poolCount": data.pool_count,
                     "liquidityCount": data.liquidity_count,
                     "tokenCount": data.token_count,
-                    "poolIndexCount": data.registry.pool_by_id.len(),
+                    "poolIndexCount": data.registry.directional_by_id.len(),
+                    "directionalPoolIndexCount": data.registry.directional_by_id.len(),
+                    "basePoolIndexCount": data.registry.base_by_id.len(),
+                    "directionalLayerPresent": data.directional_layer_present,
                     "liquidityIndexCount": data.registry.liquidity_by_id.len(),
                     "tokenIndexCount": data.registry.token_index_count,
                     "poolGroupKey": pool_group_key,
                     "groupPoolIds": group_pool_ids,
+                    "groupDirectionalPoolIds": group_directional_pool_ids,
+                    "groupDirectionalPools": group_directional_pool_facts,
                     "routeAddressCount": route_addresses.len(),
                     "loadedAt": data.loaded_at.clone(),
                     "cacheHit": context_cache.as_ref().is_some_and(|(_, hit)| *hit),
                     "registryScope": data.registry_scope.clone(),
                     "cacheTtlSeconds": CONTEXT_CACHE_TTL_SECONDS,
+                    "closedLoopGeneration": generation.current.clone(),
+                    "generationCheckedAt": generation.checked_at.clone(),
                     "databasePath": command.database_path.clone(),
                     "network": command.network.clone(),
                     "protocol": command.protocol.clone(),
@@ -4314,6 +6243,28 @@ fn worker_loop(
                     Some(&data.registry),
                 );
                 payload["reviewPublish"] = publish_block;
+                // The broadcast is woken **after** the review published.
+                //
+                // The review is the layer that proves a route executable,
+                // and the proof carries the three per-hop price limits the
+                // executor needs.  The kernel payload does not carry them,
+                // so the broadcast task has to be built from the request
+                // the review published.  The order was the other way round
+                // before, and the price-limit gate therefore read an empty
+                // list on every route and refused every broadcast.
+                let wake =
+                    wake_broadcast_with_review_proof(&inner, &command, &mut payload);
+                if wake.get("enqueued").and_then(Value::as_bool) == Some(true) {
+                    payload["executionQueued"] = json!(true);
+                    payload["executionQueueAt"] = json!(now_iso());
+                }
+                // The review thread sends the transaction itself, so the
+                // payload says when it was sent and that the answer is
+                // with the broadcast confirmation thread.
+                if wake.get("broadcasted").and_then(Value::as_bool) == Some(true) {
+                    payload["broadcastSentAt"] = json!(now_iso());
+                }
+                payload["broadcastWake"] = wake;
             }
             (payload, direction_results)
         });
@@ -4794,6 +6745,7 @@ impl ClosedLoopWorkerPool {
             worker_created_total: AtomicU64::new(0),
             worker_completed_total: AtomicU64::new(0),
             worker_idle_exits: AtomicU64::new(0),
+            context_reloads: AtomicU64::new(0),
             database_path,
         });
         if inner.maintenance_handler.is_some() {
@@ -4821,12 +6773,20 @@ impl ClosedLoopWorkerPool {
             let skip_inner = Arc::downgrade(&inner);
             let supervisor = BroadcastSupervisor::start(
                 execution_worker_count,
-                "rust-broadcast-manager-exec",
+                "rust-broadcast-confirmation",
                 move |task| {
                     let inner = handler_inner
                         .upgrade()
                         .ok_or_else(|| "closed-loop worker pool was dropped".to_string())?;
-                    let result = run_execution_task(&inner, task);
+                    // The thread reads the chain's answer for a
+                    // transaction that was already sent.  A request
+                    // that still has to be sent is the manual path, and
+                    // it keeps its own send.
+                    let result = if is_confirmation_task(task) {
+                        run_confirmation_task(&inner, task)
+                    } else {
+                        run_execution_task(&inner, task)
+                    };
                     if let Ok(payload) = &result {
                         record_broadcast_into_state(&inner, &task.group_key, payload);
                     }
@@ -4898,6 +6858,21 @@ impl ClosedLoopWorkerPool {
             "deep" => "deep".to_string(),
             _ => "scan".to_string(),
         };
+        // The runtime decides the broadcast admission **once**, here, where
+        // a task enters the system.
+        //
+        // Python is legacy code: it described the route and it carried two
+        // authorization fields that the runtime used to obey.  The runtime
+        // does not obey them any more — it reads the signer and the switch
+        // itself and writes its own decision back — so that the review
+        // worker, the routing decision, the broadcast worker and the record
+        // writer cannot disagree about whether this task may broadcast.
+        let (normalized_config_json, admission) =
+            crate::broadcast_policy::normalize_config(
+                config_json,
+                chain_id,
+                self.inner.execution_queue_enabled,
+            );
         let command = SubmitCommand {
             group_key: normalized_key.clone(),
             chain_id,
@@ -4905,7 +6880,7 @@ impl ClosedLoopWorkerPool {
             protocol,
             protocols: normalized_protocols,
             mode: normalized_mode,
-            config_json: config_json.to_string(),
+            config_json: normalized_config_json,
             database_path,
         };
         {
@@ -4924,6 +6899,7 @@ impl ClosedLoopWorkerPool {
             "accepted": true,
             "group_key": normalized_key,
             "engine": "rust_native_closed_loop",
+            "broadcastAdmission": admission.to_json(chain_id),
         }))
     }
 
@@ -5053,12 +7029,15 @@ impl ClosedLoopWorkerPool {
             .values()
             .map(|cache| {
                 let data = Arc::clone(&cache.data.read().unwrap());
+                let generation = cache.generation.lock().unwrap();
                 json!({
                     "registryScope": data.registry_scope.clone(),
                     "poolCount": data.pool_count,
                     "liquidityCount": data.liquidity_count,
                     "tokenCount": data.token_count,
                     "loadedAt": data.loaded_at.clone(),
+                    "closedLoopGeneration": generation.current.clone(),
+                    "generationCheckedAt": generation.checked_at.clone(),
                 })
             })
             .collect();
@@ -5095,6 +7074,8 @@ impl ClosedLoopWorkerPool {
             "contextCache": {
                 "scopeCount": context_cache_scopes.len(),
                 "scopeTtlSeconds": CONTEXT_CACHE_TTL_SECONDS,
+                "generationCheckIntervalSeconds": CONTEXT_GENERATION_CHECK_INTERVAL_SECONDS,
+                "reloads": self.inner.context_reloads.load(Ordering::SeqCst),
                 "scopes": context_cache_scopes,
             },
             "binanceCollector": binance_status,
@@ -5537,6 +7518,809 @@ impl Drop for ClosedLoopWorkerPool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ---- the broadcast path, end to end ---------------------------------
+    //
+    // The chain below is the one the whole broadcast path is made of:
+    //
+    //   the review publishes a positive-profit request that carries the
+    //   three per-hop price limits it proved
+    //     -> the runtime completes the payload with that proof
+    //     -> the broadcast worker thread takes the task
+    //     -> the broadcast is filed
+    //     -> the monthly trade store holds the first row.
+    //
+    // The signer and the chain are the only parts that are stood in for:
+    // a test may not send a transaction, and the record is about what the
+    // runtime did.
+
+    const BROADCAST_NETWORK: &str = "robinhood";
+    const BROADCAST_CHAIN_ID: i64 = 4663;
+    const BROADCAST_LOOP_KEY: &str = "0x1111111111111111111111111111111111111111:0x2222222222222222222222222222222222222222:0x3333333333333333333333333333333333333333";
+    const BROADCAST_TX_HASH: &str =
+        "0x4444444444444444444444444444444444444444444444444444444444444444";
+    const BROADCAST_SIGNER: &str = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    /// The three pool keys the fixture's route trades.
+    ///
+    /// The broadcast compares the route's own selection with the pools the
+    /// review confirmed, and the pool id of a key is derived from the key
+    /// itself, so the fixture has to trade **real** pool keys: a made-up
+    /// pool id could never match the id the route derives.
+    fn broadcast_pool_keys() -> [Value; 3] {
+        [
+            json!({
+                "currency0": "0x1111111111111111111111111111111111111111",
+                "currency1": "0x2222222222222222222222222222222222222222",
+                "fee": 3000,
+                "tickSpacing": 60,
+                "hooks": "0x0000000000000000000000000000000000000000"
+            }),
+            json!({
+                "currency0": "0x2222222222222222222222222222222222222222",
+                "currency1": "0x3333333333333333333333333333333333333333",
+                "fee": 3000,
+                "tickSpacing": 60,
+                "hooks": "0x0000000000000000000000000000000000000000"
+            }),
+            json!({
+                // The last hop trades TA into USDG, and a V4 pool key
+                // always names the lower address first, so the key of the
+                // third pool is the one that starts at the anchor.
+                "currency0": "0x1111111111111111111111111111111111111111",
+                "currency1": "0x3333333333333333333333333333333333333333",
+                "fee": 3000,
+                "tickSpacing": 60,
+                "hooks": "0x0000000000000000000000000000000000000000"
+            }),
+        ]
+    }
+
+    /// The directional pools the review confirmed for the fixture's route.
+    ///
+    /// The first two hops spend the lower address into the higher one, so
+    /// they walk the direction 1 of their pool; the last hop spends the
+    /// higher address into the lower one, so it walks the direction 0.
+    fn broadcast_confirmed_pool_ids() -> Vec<String> {
+        broadcast_pool_keys()
+            .iter()
+            .enumerate()
+            .map(|(index, key)| {
+                let (pool_id, _) = selected_pool_identity(key, None).expect("the pool id resolves");
+                let direction = if index < 2 { 1 } else { 0 };
+                format!(
+                    "dpool:v1:{BROADCAST_NETWORK}:{BROADCAST_CHAIN_ID}:core4:{pool_id}:{direction}"
+                )
+            })
+            .collect()
+    }
+
+    /// The three price limits the review proved.
+    fn broadcast_price_limits() -> String {
+        serde_json::to_string(&json!(["100", "200", "300"])).expect("the limits serialize")
+    }
+
+    /// A store that holds one published broadcast request together with the
+    /// review it was published from.
+    fn store_with_published_request(directory: &std::path::Path, reviewed_at: &str) -> String {
+        let path = directory.join("local_store.sqlite3");
+        manager_db::migrate(&path).expect("the manager store migrates");
+        let connection = rusqlite::Connection::open(&path).expect("the store opens");
+        connection
+            .execute(
+                "INSERT INTO manager_review_library_state (
+                    network, chain_id, protocol, scope_key, review_version,
+                    materialized_checksum, closed_loop_version,
+                    closed_loop_checksum, candidate_edge_version,
+                    candidate_edge_checksum, observation_version,
+                    observation_checksum, pool_scope_checksum,
+                    library_versions_json, library_checksums_json, loop_count,
+                    reviewed_count, completed_count, data_incomplete_count,
+                    not_executable_count, failed_count, broadcast_request_count,
+                    generated_at, updated_at
+                 ) VALUES (?1, ?2, 'uniswap_v4', 'core4', 9, 'sha256:review',
+                           7, 'sha256:closed-loop', 5, 'sha256:candidate-edge',
+                           3, 'sha256:observation', 'sha256:pool-scope',
+                           ?3, ?4, 1, 1, 1, 0, 0, 0, 1, 'fixture', 'fixture')",
+                rusqlite::params![
+                    BROADCAST_NETWORK,
+                    BROADCAST_CHAIN_ID,
+                    serde_json::to_string(&json!({"core": 3})).expect("the versions serialize"),
+                    serde_json::to_string(&json!({"core": "sha256:core"}))
+                        .expect("the checksums serialize"),
+                ],
+            )
+            .expect("the review library state is seeded");
+        let path_addresses = serde_json::to_string(&json!([
+            "0x1111111111111111111111111111111111111111",
+            "0x2222222222222222222222222222222222222222",
+            "0x3333333333333333333333333333333333333333",
+            "0x1111111111111111111111111111111111111111"
+        ]))
+        .expect("the path serializes");
+        let path_symbols = serde_json::to_string(&json!(["USDG", "AMZN", "TA", "USDG"]))
+            .expect("the symbols serialize");
+        // The request carries the pools the **review** confirmed, and the
+        // broadcast compares them with the pools the route trades.
+        let pool_ids = serde_json::to_string(&json!(broadcast_confirmed_pool_ids()))
+            .expect("the pool ids serialize");
+        connection
+            .execute(
+                "INSERT INTO manager_v4_review_broadcast_requests (
+                    network, chain_id, protocol, scope_key, loop_key,
+                    closed_loop_version, closed_loop_checksum,
+                    anchor_token_key_id, path_text, path_addresses_json,
+                    path_symbols_json, pool_path_key, pool_ids_json,
+                    signed_pnl_raw, signed_pnl_amount, signed_pnl_currency,
+                    signed_pnl_address, signed_pnl_unit, signed_pnl_source,
+                    request_status, request_reason,
+                    hop_sqrt_price_limits_json, created_at, updated_at
+                 ) VALUES (?1, ?2, 'uniswap_v4', 'core4', ?3, 7,
+                           'sha256:closed-loop',
+                           'robinhood:4663:0x1111111111111111111111111111111111111111',
+                           'USDG -> AMZN -> TA -> USDG', ?4, ?5, 'pool-path:1', ?6,
+                           '1250000000000000', 12.5, 'USDG',
+                           '0x1111111111111111111111111111111111111111',
+                           'raw', 'native_rust_ladder', 'generated',
+                           'completed review with positive executable signed PnL',
+                           ?7, 'fixture', 'fixture')",
+                rusqlite::params![
+                    BROADCAST_NETWORK,
+                    BROADCAST_CHAIN_ID,
+                    BROADCAST_LOOP_KEY,
+                    path_addresses,
+                    path_symbols,
+                    pool_ids,
+                    broadcast_price_limits(),
+                ],
+            )
+            .expect("the broadcast request is seeded");
+        connection
+            .execute(
+                "INSERT INTO manager_v4_reviews (
+                    network, chain_id, protocol, scope_key, loop_key,
+                    closed_loop_version, closed_loop_checksum,
+                    candidate_edge_version, candidate_edge_checksum,
+                    observation_version, observation_checksum,
+                    pool_scope_checksum, anchor_token_key_id, anchor_address,
+                    anchor_symbol, path_text, path_addresses_json,
+                    path_symbols_json, pool_path_key, pool_ids_json,
+                    review_status, review_reason, static_preview_json,
+                    run_arbitrage_json, signed_pnl_raw, signed_pnl_amount,
+                    signed_pnl_currency, signed_pnl_address, signed_pnl_unit,
+                    signed_pnl_source, reviewed_at, created_at, updated_at
+                 ) VALUES (?1, ?2, 'uniswap_v4', 'core4', ?3, 7,
+                           'sha256:closed-loop', 5, 'sha256:candidate-edge',
+                           3, 'sha256:observation', 'sha256:pool-scope',
+                           'robinhood:4663:0x1111111111111111111111111111111111111111',
+                           '0x1111111111111111111111111111111111111111', 'USDG',
+                           'USDG -> AMZN -> TA -> USDG', ?4, ?5, 'pool-path:1', ?6,
+                           'completed', 'fixture', '{}',
+                           '{\"ok\":true,\"executable\":true}',
+                           '1250000000000000', 12.5, 'USDG',
+                           '0x1111111111111111111111111111111111111111',
+                           'raw', 'native_rust_ladder', ?7, 'fixture', 'fixture')",
+                rusqlite::params![
+                    BROADCAST_NETWORK,
+                    BROADCAST_CHAIN_ID,
+                    BROADCAST_LOOP_KEY,
+                    path_addresses,
+                    path_symbols,
+                    pool_ids,
+                    reviewed_at,
+                ],
+            )
+            .expect("the review is seeded");
+        drop(connection);
+        path.to_string_lossy().to_string()
+    }
+
+    /// The pool the broadcast test drives.
+    fn broadcast_test_pool(database_path: &str) -> Arc<PoolInner> {
+        Arc::new(PoolInner {
+            review_supervisor: Mutex::new(None),
+            states: Mutex::new(HashMap::new()),
+            review_runtime: ReviewRuntime::new(16),
+            broadcast_supervisor: Mutex::new(None),
+            execution_workers: 1,
+            execution_queue_enabled: true,
+            stop_flags: Mutex::new(HashSet::new()),
+            running: Mutex::new(HashSet::new()),
+            group_senders: Mutex::new(HashMap::new()),
+            last_commands: Mutex::new(HashMap::new()),
+            contexts: Mutex::new(HashMap::new()),
+            maintenance_handler: None,
+            maintenance_interval_seconds: 600,
+            maintenance_tx: Mutex::new(None),
+            maintenance_join: Mutex::new(None),
+            maintenance_state: Mutex::new(MaintenanceState::default()),
+            maintenance_scopes: Mutex::new(HashSet::new()),
+            binance_interval_seconds: 300,
+            binance_tx: Mutex::new(None),
+            binance_join: Mutex::new(None),
+            binance_state: Mutex::new(BinanceCollectorState::default()),
+            shutdown: AtomicBool::new(false),
+            worker_seq: AtomicU64::new(0),
+            worker_created_total: AtomicU64::new(0),
+            worker_completed_total: AtomicU64::new(0),
+            worker_idle_exits: AtomicU64::new(0),
+            context_reloads: AtomicU64::new(0),
+            database_path: Some(database_path.to_owned()),
+            review_evidence: Mutex::new(HashMap::new()),
+        })
+    }
+
+    /// The command the broadcast test drives.
+    fn broadcast_test_command(database_path: &str) -> SubmitCommand {
+        SubmitCommand {
+            group_key: "anchor|a|b".to_string(),
+            chain_id: Some(BROADCAST_CHAIN_ID),
+            network: Some(BROADCAST_NETWORK.to_string()),
+            protocol: Some("uniswap_v4".to_string()),
+            protocols: vec!["uniswap_v4".to_string()],
+            mode: "deep".to_string(),
+            // The runtime normalized the configuration at the boundary:
+            // the queue is on and the broadcast switch is open.
+            //
+            // The review thread sends the transaction itself, so the
+            // configuration names everything the send needs: the arbiter
+            // that receives it, the account that signs it and the
+            // endpoint it is sent to.  The endpoint is the unreachable
+            // one of the fixture, so the send fails and the answer is
+            // left to the confirmation thread.
+            config_json: json!({
+                "deferBroadcast": true,
+                "broadcastEnabled": true,
+                "arbAddress": "0x2222222222222222222222222222222222222222",
+                "broadcastPrivateKey":
+                    "0x0000000000000000000000000000000000000000000000000000000000000001",
+                "rpcUrl": "https://rpc.example.invalid",
+                "rpcUrls": ["https://rpc.example.invalid"],
+                "chainId": BROADCAST_CHAIN_ID,
+                "timeoutSeconds": 1
+            })
+            .to_string(),
+            database_path: Some(database_path.to_owned()),
+        }
+    }
+
+    /// A confirmation task for a transaction that was already sent.
+    fn confirmation_task(inner: &PoolInner, payload: &Value) -> ExecutionTask {
+        ExecutionTask {
+            task_key: format!(
+                "confirm|{}|{}|{}",
+                BROADCAST_NETWORK,
+                BROADCAST_CHAIN_ID,
+                BROADCAST_TX_HASH.to_lowercase()
+            ),
+            group_key: "anchor|a|b".to_string(),
+            chain_id: Some(BROADCAST_CHAIN_ID),
+            network: Some(BROADCAST_NETWORK.to_string()),
+            protocol: Some("uniswap_v4".to_string()),
+            protocols: vec!["uniswap_v4".to_string()],
+            config_json: broadcast_test_command(inner.database_path.as_deref().unwrap_or("")).config_json,
+            review_payload: payload.clone(),
+            verified_at: chrono::Utc::now().to_rfc3339(),
+            priority: 1,
+            state: "queued".to_string(),
+            attempts: 0,
+            last_error: None,
+            created_at: chrono::Utc::now().to_rfc3339(),
+            updated_at: chrono::Utc::now().to_rfc3339(),
+            available_at: None,
+        }
+    }
+
+    /// The payload of a review the kernel measured as profitable.
+    ///
+    /// The kernel publishes **no** per-hop price limit: only the review
+    /// proves them, and the proof is what the broadcast gate reads.
+    fn broadcast_test_payload() -> Value {
+        json!({
+            "status": "profitable_amount_found",
+            "closedLoopKey": BROADCAST_LOOP_KEY,
+            "token": "0x1111111111111111111111111111111111111111",
+            "selectedAmountRaw": "0x20",
+            "selectedProfitRaw": "0x30",
+            "minProfitRaw": "0x10",
+            "offchainGasGate": {"conversionAvailable": true, "minProfitRaw": "0x10"},
+            "rpcMetadata": {"selectedRpcUrl": "https://rpc.example.invalid"},
+            // The route's own selection.  The broadcast compares it with
+            // the pools the review confirmed, so the fixture has to carry
+            // the three keys the request was published for.
+            "selectedRoutePayload": {
+                "selectedKeys": broadcast_pool_keys(),
+                "selectedDirections": [
+                    {"zeroForOne": true},
+                    {"zeroForOne": true},
+                    // The last hop spends the higher address into the
+                    // lower one, so it walks the other direction.
+                    {"zeroForOne": false}
+                ]
+            }
+        })
+    }
+
+    /// Wait for the monthly trade store of the fixture to appear.
+    fn wait_for_month_file(directory: &std::path::Path) -> std::path::PathBuf {
+        let chain_directory = directory
+            .join("broadcast_transaction_db")
+            .join(BROADCAST_NETWORK)
+            .join(BROADCAST_CHAIN_ID.to_string());
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        loop {
+            if let Ok(entries) = std::fs::read_dir(&chain_directory) {
+                for entry in entries.flatten() {
+                    let candidate = entry.path().join("trades.sqlite3");
+                    if candidate.exists() {
+                        return candidate;
+                    }
+                }
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the monthly trade store was not written"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    }
+
+    /// Wait for the broadcast attempt to land in the main store.
+    ///
+    /// The attempt is written by the broadcast worker thread, so the
+    /// test waits for the row before it asks the archiver to move it.
+    fn wait_for_main_attempt(database_path: &str) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        loop {
+            if let Ok(connection) = rusqlite::Connection::open(database_path) {
+                let count = connection
+                    .query_row(
+                        "SELECT COUNT(*) FROM manager_cow_execution_attempts
+                          WHERE loop_key = ?1",
+                        rusqlite::params![BROADCAST_LOOP_KEY],
+                        |row| row.get::<_, i64>(0),
+                    )
+                    .unwrap_or(0);
+                if count > 0 {
+                    return;
+                }
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the broadcast attempt was never written to the main store"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    }
+
+    #[test]
+    fn a_positive_review_sends_the_transaction_and_leaves_the_answer_to_the_confirmation_thread() {
+        let directory = tempfile::tempdir().expect("the fixture directory is created");
+        let reviewed_at = chrono::Utc::now().to_rfc3339();
+        let database_path = store_with_published_request(directory.path(), &reviewed_at);
+        let inner = broadcast_test_pool(&database_path);
+        // The broadcast confirmation thread.  It is the thread that reads
+        // the chain's answer, so the test collects what it is asked to
+        // confirm.
+        let seen = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let seen_by_thread = Arc::clone(&seen);
+        let supervisor = BroadcastSupervisor::start(
+            1,
+            "test-broadcast-confirmation",
+            move |task| {
+                seen_by_thread
+                    .lock()
+                    .unwrap()
+                    .push(task.review_payload.clone());
+                let mut payload = task.review_payload.clone();
+                payload["broadcastConfirmation"] = json!({"confirmed": false});
+                Ok(payload)
+            },
+            |_task| None,
+        );
+        inner
+            .broadcast_supervisor
+            .lock()
+            .unwrap()
+            .replace(supervisor);
+
+        let command = broadcast_test_command(&database_path);
+        let mut payload = broadcast_test_payload();
+        let wake = wake_broadcast_with_review_proof(&inner, &command, &mut payload);
+        // The proof the review published travels with the payload: the
+        // kernel published no price limit at all.
+        assert_eq!(payload["hopSqrtPriceLimits"], json!(["100", "200", "300"]));
+        assert_eq!(payload["closedLoopKey"], json!(BROADCAST_LOOP_KEY));
+        // The review thread sends the transaction itself, so the wake
+        // reports the send and never a hand-off to the broadcast queue.
+        assert!(wake.get("enqueued").is_none(), "{wake}");
+        assert_eq!(wake["broadcasted"], json!(false), "{wake}");
+
+        // The answer is left to the broadcast confirmation thread: the
+        // item it received names the transaction the review sent.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        loop {
+            let items = seen.lock().unwrap().clone();
+            if !items.is_empty() {
+                let item = items.last().expect("the item was collected");
+                assert_eq!(
+                    item["broadcastConfirmation"]["thread"],
+                    json!("broadcast-confirmation"),
+                    "{item}"
+                );
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the confirmation thread was never asked to confirm the transaction"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    }
+
+    #[test]
+    fn the_confirmation_thread_turns_a_pending_attempt_into_a_terminal_one() {
+        let directory = tempfile::tempdir().expect("the fixture directory is created");
+        let reviewed_at = chrono::Utc::now().to_rfc3339();
+        let database_path = store_with_published_request(directory.path(), &reviewed_at);
+        let inner = broadcast_test_pool(&database_path);
+        // The attempt the review thread wrote when it sent the
+        // transaction: the chain had not answered yet.
+        let mut payload = broadcast_test_payload();
+        payload["closedLoopKey"] = json!(BROADCAST_LOOP_KEY);
+        payload["signedPnl"] = json!({
+            "raw": "1250000000000000",
+            "amount": 12.5,
+            "currency": "USDG",
+            "unit": "raw",
+            "source": "native_rust_ladder"
+        });
+        payload["broadcast"] = json!({
+            "ok": true,
+            "txHash": BROADCAST_TX_HASH,
+            "nonce": 42,
+            "signer": BROADCAST_SIGNER,
+            "receipt": {"status": "pending"}
+        });
+        let task = confirmation_task(&inner, &payload);
+        let pending = file_broadcast_record_for(
+            &inner,
+            task.chain_id,
+            task.network.as_deref(),
+            &task.config_json,
+            &payload,
+        );
+        assert_eq!(pending["status"], json!("pending"), "{pending}");
+
+        // The chain answers: the same attempt id updates the row in place
+        // and the attempt becomes terminal.
+        let mut answered = payload.clone();
+        apply_broadcast_receipt(
+            &inner,
+            &task,
+            &mut answered,
+            &json!({"status": "confirmed", "receipt": {"status": 1}}),
+        );
+        let terminal = answered["broadcastRecord"].clone();
+        assert_eq!(terminal["status"], json!("success"), "{terminal}");
+
+        // The attempt is in the main store; the trade archiver moves it
+        // into the monthly trade store on its own thread, and the test
+        // asks it to reconcile the way the runtime does on its schedule.
+        wait_for_main_attempt(&database_path);
+        let report = review_manager::records::reconcile_archive_backlog(
+            std::path::Path::new(&database_path),
+            BROADCAST_NETWORK,
+            BROADCAST_CHAIN_ID,
+        )
+        .expect("the trade archive reconciles");
+        assert_eq!(report.failed, 0, "the archive reported a failure");
+
+        // The monthly trade store holds the first row.
+        let month = wait_for_month_file(directory.path());
+        let connection = rusqlite::Connection::open(&month).expect("the month store opens");
+        let (count, status): (i64, String) = connection
+            .query_row(
+                "SELECT COUNT(*), MAX(status) FROM manager_cow_execution_attempts
+                 WHERE loop_key = ?1",
+                rusqlite::params![BROADCAST_LOOP_KEY],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("the attempt is archived");
+        assert_eq!(count, 1, "the monthly trade store holds the broadcast");
+        assert_eq!(status, "success");
+    }
+
+    #[test]
+    fn a_review_without_the_proved_price_limits_is_not_broadcast() {
+        let directory = tempfile::tempdir().expect("the fixture directory is created");
+        let reviewed_at = chrono::Utc::now().to_rfc3339();
+        let database_path = store_with_published_request(directory.path(), &reviewed_at);
+        // The review published no limit: the route was never proven to stay
+        // inside one tick range per hop, so it may not be broadcast.
+        let connection = rusqlite::Connection::open(&database_path).expect("the store opens");
+        connection
+            .execute(
+                "UPDATE manager_v4_review_broadcast_requests
+                    SET hop_sqrt_price_limits_json = '[]'
+                  WHERE loop_key = ?1",
+                rusqlite::params![BROADCAST_LOOP_KEY],
+            )
+            .expect("the request loses its limits");
+        drop(connection);
+
+        let inner = broadcast_test_pool(&database_path);
+        let command = broadcast_test_command(&database_path);
+        let mut payload = broadcast_test_payload();
+        let wake = wake_broadcast_with_review_proof(&inner, &command, &mut payload);
+        assert_eq!(wake["enqueued"], json!(false), "{wake}");
+        assert!(
+            wake["reason"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("0/3"),
+            "{wake}"
+        );
+    }
+
+    #[test]
+    fn a_stale_published_request_is_not_broadcast_again() {
+        let directory = tempfile::tempdir().expect("the fixture directory is created");
+        // The request was published long ago: it names an opportunity the
+        // market does not hold any more.
+        let reviewed_at = (chrono::Utc::now() - chrono::Duration::seconds(600)).to_rfc3339();
+        let database_path = store_with_published_request(directory.path(), &reviewed_at);
+        let inner = broadcast_test_pool(&database_path);
+        let command = broadcast_test_command(&database_path);
+        let mut payload = broadcast_test_payload();
+        let wake = wake_broadcast_with_review_proof(&inner, &command, &mut payload);
+        assert_eq!(wake["enqueued"], json!(false), "{wake}");
+        assert!(
+            wake["reason"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("past the"),
+            "{wake}"
+        );
+    }
+
+    /// The route the broadcast is about to trade must be the route the
+    /// review measured.  A route that names another pool is an
+    /// opportunity nobody proved, so it is not broadcast.
+    #[test]
+    fn a_route_that_trades_other_pools_is_not_broadcast() {
+        let directory = tempfile::tempdir().expect("the fixture directory is created");
+        let reviewed_at = chrono::Utc::now().to_rfc3339();
+        let database_path = store_with_published_request(directory.path(), &reviewed_at);
+        let inner = broadcast_test_pool(&database_path);
+        let command = broadcast_test_command(&database_path);
+        let mut payload = broadcast_test_payload();
+        // The first hop now trades a pool the review never confirmed.
+        payload["selectedRoutePayload"]["selectedKeys"][0] = json!({
+            "currency0": "0x4444444444444444444444444444444444444444",
+            "currency1": "0x5555555555555555555555555555555555555555",
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": "0x0000000000000000000000000000000000000000"
+        });
+        let wake = wake_broadcast_with_review_proof(&inner, &command, &mut payload);
+        assert_eq!(wake["enqueued"], json!(false), "{wake}");
+        assert!(
+            wake["reason"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("no longer trades the pools the review confirmed"),
+            "{wake}"
+        );
+    }
+
+    /// A route that names no pool at all cannot be compared with the
+    /// confirmed pools, so it is not broadcast.
+    #[test]
+    fn a_route_without_a_selected_pool_is_not_broadcast() {
+        let directory = tempfile::tempdir().expect("the fixture directory is created");
+        let reviewed_at = chrono::Utc::now().to_rfc3339();
+        let database_path = store_with_published_request(directory.path(), &reviewed_at);
+        let inner = broadcast_test_pool(&database_path);
+        let command = broadcast_test_command(&database_path);
+        let mut payload = broadcast_test_payload();
+        payload["selectedRoutePayload"] = json!({});
+        let wake = wake_broadcast_with_review_proof(&inner, &command, &mut payload);
+        assert_eq!(wake["enqueued"], json!(false), "{wake}");
+        assert!(
+            wake["reason"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("names no selected pools"),
+            "{wake}"
+        );
+    }
+
+    /// The payload of a route the **review** approved and priced.
+    ///
+    /// The review wrote the admission facts and the profit, and the
+    /// three price limits it proved.  The runtime's own economic verdict
+    /// is a gas threshold the route does not reach: a profit of 48 raw
+    /// units against a threshold of 4096.
+    fn review_authorized_payload() -> Value {
+        let mut payload = broadcast_test_payload();
+        payload["offchainGasGate"] =
+            json!({"conversionAvailable": true, "minProfitRaw": "0x1000"});
+        payload["hopSqrtPriceLimits"] = json!(["100", "200", "300"]);
+        payload["signedPnl"] = json!({
+            "raw": "1250000000000000",
+            "amount": 12.5,
+            "currency": "USDG",
+            "unit": "raw",
+            "source": "native_rust_ladder"
+        });
+        payload["reviewAdmission"] = json!({
+            "reviewStatus": "completed",
+            "runOk": true,
+            "runExecutable": true,
+            "reviewedAt": chrono::Utc::now().to_rfc3339()
+        });
+        payload
+    }
+
+    #[test]
+    fn a_review_authorized_route_is_broadcast_even_when_the_gas_gate_would_block() {
+        let payload = review_authorized_payload();
+        assert!(
+            review_authorized_broadcast(&payload),
+            "the review authorized the route"
+        );
+        let command = broadcast_test_command("fixture");
+        assert!(
+            should_route_to_execution_queue(&payload, &command),
+            "a positive review reaches the queue"
+        );
+        // The broadcast itself is stood in for by an unreachable chain:
+        // what matters here is that the economic gate did not veto the
+        // route and that the verdict was recorded instead.
+        let mut payload = payload;
+        let config = json!({
+            "broadcastEnabled": true,
+            "deferBroadcast": true,
+            "rpcUrl": "http://127.0.0.1:1",
+            "arbAddress": "0x5555555555555555555555555555555555555555",
+            "broadcastPrivateKey": BROADCAST_SIGNER,
+            "minProfitRaw": "0x10",
+            "chainId": BROADCAST_CHAIN_ID,
+            "timeoutSeconds": 1
+        });
+        let _ = maybe_broadcast(
+            &mut payload,
+            &config,
+            "http://127.0.0.1:1",
+            "0x5555555555555555555555555555555555555555",
+            1,
+            &|| false,
+        );
+        assert_eq!(
+            payload["broadcastEconomicOverride"]["decidedBy"],
+            json!("review_authorization"),
+            "{payload}"
+        );
+        assert!(
+            payload.get("broadcastSkipped").is_none(),
+            "the economic gate did not skip the broadcast: {payload}"
+        );
+    }
+
+    /// A route the **review** cleared reaches the queue even when the
+    /// kernel's own group label says the group does not pay.
+    ///
+    /// The group label is the kernel's own estimate over **all** the
+    /// routes of the group; the review judges the **one** route the
+    /// broadcast trades.  When the review says that route pays, the
+    /// group's label must not overrule the chain - otherwise a group that
+    /// holds one paying route among losing ones could never be
+    /// broadcast, and the review's verdict would never become a
+    /// transaction.
+    #[test]
+    fn a_review_authorized_route_reaches_the_queue_beneath_an_unprofitable_group_label() {
+        let mut payload = review_authorized_payload();
+        payload["status"] = json!("not_profitable_after_costs");
+        assert!(
+            review_authorized_broadcast(&payload),
+            "the review authorized the route: {payload}"
+        );
+        let command = broadcast_test_command("fixture");
+        assert!(
+            should_route_to_execution_queue(&payload, &command),
+            "the review's proof carries the route into the queue: {payload}"
+        );
+    }
+
+    /// A route **nobody** reviewed is still bound by the kernel's own
+    /// label.
+    ///
+    /// The review's proof may only *add* a route to the queue; it may
+    /// never carry a route the kernel never found profitable and no
+    /// review cleared.
+    #[test]
+    fn a_route_without_the_review_proof_still_needs_the_kernel_label() {
+        let mut payload = broadcast_test_payload();
+        payload["status"] = json!("not_profitable_after_costs");
+        payload["hopSqrtPriceLimits"] = json!(["100", "200", "300"]);
+        assert!(
+            !review_authorized_broadcast(&payload),
+            "nothing authorized this route: {payload}"
+        );
+        let command = broadcast_test_command("fixture");
+        assert!(
+            !should_route_to_execution_queue(&payload, &command),
+            "an unreviewed route never enters the queue on its own: {payload}"
+        );
+    }
+
+    #[test]
+    fn a_route_without_the_review_proof_still_obeys_the_economic_gates() {
+        let mut payload = broadcast_test_payload();
+        payload["offchainGasGate"] =
+            json!({"conversionAvailable": true, "minProfitRaw": "0x1000"});
+        payload["hopSqrtPriceLimits"] = json!(["100", "200", "300"]);
+        assert!(
+            !review_authorized_broadcast(&payload),
+            "nothing authorized this route"
+        );
+        let command = broadcast_test_command("fixture");
+        assert!(
+            !should_route_to_execution_queue(&payload, &command),
+            "the gas gate still holds a route nobody reviewed"
+        );
+        let config = json!({
+            "broadcastEnabled": true,
+            "deferBroadcast": true,
+            "rpcUrl": "http://127.0.0.1:1",
+            "arbAddress": "0x5555555555555555555555555555555555555555",
+            "broadcastPrivateKey": BROADCAST_SIGNER,
+            "minProfitRaw": "0x10",
+            "chainId": BROADCAST_CHAIN_ID,
+            "timeoutSeconds": 1
+        });
+        maybe_broadcast(
+            &mut payload,
+            &config,
+            "http://127.0.0.1:1",
+            "0x5555555555555555555555555555555555555555",
+            1,
+            &|| false,
+        )
+        .expect("the gas gate refuses before anything is sent");
+        assert_eq!(
+            payload["broadcastSkipped"],
+            json!("expected_loss_after_gas_before_broadcast"),
+            "{payload}"
+        );
+    }
+
+    #[test]
+    fn a_review_authorized_route_without_the_price_limits_is_refused() {
+        let mut payload = review_authorized_payload();
+        payload["hopSqrtPriceLimits"] = json!(["100", "200"]);
+        assert!(
+            !review_authorized_broadcast(&payload),
+            "a route without the proved limits is not authorized"
+        );
+        let command = broadcast_test_command("fixture");
+        assert!(
+            !should_route_to_execution_queue(&payload, &command),
+            "the correctness gate is never bypassed"
+        );
+    }
+
+    #[test]
+    fn the_raw_profit_decides_the_sign() {
+        assert_eq!(raw_profit_is_positive("0x10"), Some(true));
+        assert_eq!(raw_profit_is_positive("42"), Some(true));
+        assert_eq!(raw_profit_is_positive("-0x10"), Some(false));
+        assert_eq!(raw_profit_is_positive("-42"), Some(false));
+        assert_eq!(raw_profit_is_positive("0"), Some(false));
+        assert_eq!(raw_profit_is_positive(""), None);
+        assert_eq!(raw_profit_is_positive("not a number"), None);
+    }
 
     /// The production identity must apply to a real Manager loop.
     ///
@@ -6091,27 +8875,50 @@ mod tests {
 
     #[test]
     fn v4_pool_registry_indexes_by_id_and_token() {
-        let pool_rows = json!([
+        // The registry holds **directional** pools: one row is one base
+        // pool in one direction, and the base facts travel inside it.
+        let directional_rows = json!([
             {
-                "pool_id": "0xAAA",
+                "directional_pool_id": "dpool:0xAAA:0",
+                "base_pool_id": "0xAAA",
+                "direction": 0,
+                "scope_key": "core4",
                 "token0": "0xaaa",
                 "token1": "0xbbb",
                 "fee": 3000,
             },
             {
-                "pool_id": "0xBBB",
+                "directional_pool_id": "dpool:0xAAA:1",
+                "base_pool_id": "0xAAA",
+                "direction": 1,
+                "scope_key": "core4",
+                "token0": "0xaaa",
+                "token1": "0xbbb",
+                "fee": 3000,
+            },
+            {
+                "directional_pool_id": "dpool:0xBBB:0",
+                "base_pool_id": "0xBBB",
+                "direction": 0,
+                "scope_key": "core4",
                 "token0": "0xbbb",
                 "token1": "0xccc",
                 "fee": 3000,
             },
             {
-                "pool_id": "0xCCC",
+                "directional_pool_id": "dpool:0xCCC:0",
+                "base_pool_id": "0xCCC",
+                "direction": 0,
+                "scope_key": "core4",
                 "token0": "0xaaa",
                 "token1": "0xccc",
                 "fee": 3000,
             },
             {
-                "pool_id": "0xDDD",
+                "directional_pool_id": "dpool:0xDDD:0",
+                "base_pool_id": "0xDDD",
+                "direction": 0,
+                "scope_key": "core4",
                 "token0": "0xddd",
                 "token1": "0xeee",
                 "fee": 3000,
@@ -6129,22 +8936,23 @@ mod tests {
         ]);
         let rows = |value: &Value| value.as_array().cloned().unwrap_or_default();
         let registry = V4PoolRegistry::from_rows(
-            &rows(&pool_rows),
+            &rows(&directional_rows),
             &rows(&liquidity_rows),
             &rows(&token_rows),
         );
 
-        assert_eq!(registry.pool_by_id.len(), 4);
+        assert_eq!(registry.directional_by_id.len(), 5);
+        assert_eq!(registry.base_by_id.len(), 4);
         assert_eq!(
             registry.pool_ids_by_token.get("0xaaa").map(|ids| ids.len()),
             Some(2)
         );
         assert_eq!(
-            registry.get_pool_info("0xAAA").map(|pool| &pool.token0),
+            registry.base_pool_facts("0xAAA").map(|pool| &pool.token0),
             Some(&"0xaaa".to_string())
         );
         assert_eq!(
-            registry.get_pool_info("0xAAA").map(|pool| &pool.token1),
+            registry.base_pool_facts("0xAAA").map(|pool| &pool.token1),
             Some(&"0xbbb".to_string())
         );
         assert_eq!(
@@ -6152,7 +8960,18 @@ mod tests {
             Some(Some(1))
         );
         assert_eq!(registry.token_index_count, 3);
-        assert!(registry.get_pool_info("0xmissing").is_none());
+        assert!(registry.base_pool_facts("0xmissing").is_none());
+        assert_eq!(
+            registry
+                .directional_pool("0xAAA", 1)
+                .map(|pool| pool.directional_pool_id.as_str()),
+            Some("dpool:0xAAA:1"),
+            "a base pool is addressable in both directions"
+        );
+        assert!(
+            registry.directional_pool("0xAAA", 2).is_none(),
+            "the direction layer holds no third direction"
+        );
 
         let route = vec![
             "0xaaa".to_string(),
@@ -6165,6 +8984,138 @@ mod tests {
         assert_eq!(
             registry.route_pool_ids(&["0xddd".to_string(), "0xccc".to_string()]),
             Vec::<String>::new()
+        );
+        assert_eq!(
+            registry.route_directional_pool_ids(&route),
+            vec![
+                "dpool:0xAAA:0",
+                "dpool:0xAAA:1",
+                "dpool:0xBBB:0",
+                "dpool:0xCCC:0"
+            ],
+            "the route's directional identity names both directions of a base pool"
+        );
+    }
+
+    #[test]
+    fn the_selected_pool_manager_is_resolved_in_the_chosen_direction() {
+        let token_a = "0x0000000000000000000000000000000000000001";
+        let token_b = "0x0000000000000000000000000000000000000002";
+        let zero_hooks = "0x0000000000000000000000000000000000000000";
+        let key = json!({
+            "currency0": token_a,
+            "currency1": token_b,
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": zero_hooks,
+        });
+        let parsed = pool_key_from_value(&key).unwrap();
+        let base_pool_id = pool_index::pool_id(&parsed).unwrap();
+        let manager = "0x9999999999999999999999999999999999999999";
+
+        // The direction layer holds the base pool in **both** directions.
+        let directional_rows = json!([
+            {
+                "directional_pool_id": format!("dpool:{base_pool_id}:0"),
+                "base_pool_id": base_pool_id,
+                "direction": 0,
+                "token0": token_a,
+                "token1": token_b,
+                "pool_manager": manager,
+            },
+            {
+                "directional_pool_id": format!("dpool:{base_pool_id}:1"),
+                "base_pool_id": base_pool_id,
+                "direction": 1,
+                "token0": token_a,
+                "token1": token_b,
+                "pool_manager": manager,
+            },
+        ]);
+        let rows = |value: &Value| value.as_array().cloned().unwrap_or_default();
+        let registry = V4PoolRegistry::from_rows(&rows(&directional_rows), &[], &[]);
+
+        let keys = vec![key.clone(), key.clone(), key.clone()];
+        let low_to_high: Vec<Value> = vec![json!(true), json!(true), json!(true)];
+        let high_to_low: Vec<Value> = vec![json!(false), json!(false), json!(false)];
+        assert_eq!(
+            registry
+                .pool_manager_for_selected_directions(&keys, Some(low_to_high.as_slice()))
+                .as_deref(),
+            Some(manager),
+            "the low-to-high direction resolves to its own row"
+        );
+        assert_eq!(
+            registry
+                .pool_manager_for_selected_directions(&keys, Some(high_to_low.as_slice()))
+                .as_deref(),
+            Some(manager),
+            "the high-to-low direction resolves to its own row"
+        );
+        assert!(
+            registry.pool_manager_for_selected_directions(&keys, None).is_some(),
+            "without a direction the base pool still names its manager"
+        );
+
+        // A key that names a pair the direction layer does not hold has no
+        // pool at all: the review refuses to price it instead of guessing.
+        let unknown_key = json!({
+            "currency0": token_b,
+            "currency1": "0x0000000000000000000000000000000000000009",
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": zero_hooks,
+        });
+        assert!(
+            registry
+                .pool_manager_for_selected_directions(
+                    &[unknown_key, key.clone(), key.clone()],
+                    Some(low_to_high.as_slice()),
+                )
+                .is_none(),
+            "a pool the direction layer does not hold is refused"
+        );
+
+        // A row whose own direction facts contradict its direction column
+        // is a row that would be priced in the wrong direction.  It is
+        // refused rather than believed.
+        let contradicting_rows = json!([
+            {
+                "directional_pool_id": format!("dpool:{base_pool_id}:0"),
+                "base_pool_id": base_pool_id,
+                "direction": 0,
+                "token0": token_a,
+                "token1": token_b,
+                "pool_manager": manager,
+                // Direction 0 is high → low, so the row has to spend
+                // token1.  This row claims it spends token0 instead.
+                "input_token_key_id": format!("robinhood:4663:{token_a}"),
+                "output_token_key_id": format!("robinhood:4663:{token_b}"),
+            },
+            {
+                "directional_pool_id": format!("dpool:{base_pool_id}:1"),
+                "base_pool_id": base_pool_id,
+                "direction": 1,
+                "token0": token_a,
+                "token1": token_b,
+                "pool_manager": manager,
+                "input_token_key_id": format!("robinhood:4663:{token_a}"),
+                "output_token_key_id": format!("robinhood:4663:{token_b}"),
+            },
+        ]);
+        let contradicting = V4PoolRegistry::from_rows(&rows(&contradicting_rows), &[], &[]);
+        assert!(
+            contradicting
+                .pool_manager_for_selected_directions(&keys, Some(high_to_low.as_slice()))
+                .is_none(),
+            "a row that contradicts its own direction is refused"
+        );
+        assert_eq!(
+            contradicting
+                .pool_manager_for_selected_directions(&keys, Some(low_to_high.as_slice()))
+                .as_deref(),
+            Some(manager),
+            "the consistent direction of the same rows still resolves"
         );
     }
 
@@ -6203,21 +9154,27 @@ mod tests {
         let bridge_pool_id = pool_id_from(&bridge_key);
         let exit_pool_id = pool_id_from(&exit_key);
 
-        let pool_rows = json!([
+        let directional_rows = json!([
             {
-                "pool_id": entry_pool_id,
+                "directional_pool_id": format!("dpool:{entry_pool_id}:0"),
+                "base_pool_id": entry_pool_id,
+                "direction": 0,
                 "token0": token_a,
                 "token1": token_b,
                 "fee": 3000,
             },
             {
-                "pool_id": bridge_pool_id,
+                "directional_pool_id": format!("dpool:{bridge_pool_id}:0"),
+                "base_pool_id": bridge_pool_id,
+                "direction": 0,
                 "token0": token_a,
                 "token1": token_b,
                 "fee": 500,
             },
             {
-                "pool_id": exit_pool_id,
+                "directional_pool_id": format!("dpool:{exit_pool_id}:0"),
+                "base_pool_id": exit_pool_id,
+                "direction": 0,
                 "token0": token_b,
                 "token1": token_c,
                 "fee": 3000,
@@ -6229,7 +9186,8 @@ mod tests {
             {"pool_id": exit_pool_id, "has_liquidity": 1, "liquidity": "200"},
         ]);
         let rows = |value: &Value| value.as_array().cloned().unwrap_or_default();
-        let registry = V4PoolRegistry::from_rows(&rows(&pool_rows), &rows(&liquidity_rows), &[]);
+        let registry =
+            V4PoolRegistry::from_rows(&rows(&directional_rows), &rows(&liquidity_rows), &[]);
         let mut config = json!({
             "entryKeys": [entry_key],
             "entryDirections": [true],
@@ -7053,10 +10011,14 @@ mod tests {
     fn context_cache_refresh_keeps_stable_scope_object() {
         let cache = Arc::new(ContextCache {
             data: RwLock::new(Arc::new(ContextCacheData::default())),
+            refresh_gate: Mutex::new(()),
+            generation: Mutex::new(ContextCacheGeneration::default()),
         });
         let cache_identity = Arc::as_ptr(&cache);
         let first_pool = json!({
-            "pool_id": "0x01",
+            "directional_pool_id": "dpool:0x01:0",
+            "base_pool_id": "0x01",
+            "direction": 0,
             "token0": "0xaaa",
             "token1": "0xbbb",
         });
@@ -7078,13 +10040,15 @@ mod tests {
                 .read()
                 .unwrap()
                 .registry
-                .get_pool_info("0x01")
+                .base_pool_facts("0x01")
                 .map(|pool| pool.token1.as_str()),
             Some("0xbbb")
         );
 
         let replacement_pool = json!({
-            "pool_id": "0x02",
+            "directional_pool_id": "dpool:0x02:0",
+            "base_pool_id": "0x02",
+            "direction": 0,
             "token0": "0xccc",
             "token1": "0xddd",
         });
@@ -7101,9 +10065,256 @@ mod tests {
 
         let data = cache.data.read().unwrap();
         assert_eq!(data.pool_count, 1);
-        assert_eq!(data.registry.pool_by_id.len(), 1);
-        assert!(data.registry.get_pool_info("0x01").is_none());
-        assert!(data.registry.get_pool_info("0x02").is_some());
+        assert_eq!(data.registry.directional_by_id.len(), 1);
+        assert!(data.registry.base_pool_facts("0x01").is_none());
+        assert!(data.registry.base_pool_facts("0x02").is_some());
+    }
+
+    // ---- the context snapshot: the single flight and the generation ----
+    //
+    // The snapshot is the in-memory object every review of a scope reads.
+    // It is refreshed when it grows old (the TTL) and when the closed
+    // loop directory it was built from has moved on (the generation).
+    // Two rules make that refresh safe:
+    //
+    //   the refresh is **single flight**: the workers that arrive
+    //     together share one rebuild, because a rebuild reads the whole
+    //     chain database and a stampede on that file stops the round;
+    //   the refresh is **generation aware**: a snapshot that describes
+    //     an older directory is stale even when it is young.
+
+    /// The freshness table of the context snapshot.
+    ///
+    /// The table is the rule the runtime applies to decide whether the
+    /// snapshot still describes the closed loop directory, so every
+    /// branch of it is written down here.
+    #[test]
+    fn the_snapshot_freshness_table_is_pinned() {
+        // An expired TTL is stale, whatever the generation says.
+        assert!(matches!(
+            context_cache_freshness(true, true, Some("2:b"), Some("1:a")),
+            ContextCacheFreshness::Stale
+        ));
+        assert!(matches!(
+            context_cache_freshness(true, false, None, None),
+            ContextCacheFreshness::Stale
+        ));
+        // A comparison that is not due cannot change the answer.
+        assert!(matches!(
+            context_cache_freshness(false, false, Some("2:b"), Some("1:a")),
+            ContextCacheFreshness::Current
+        ));
+        // A generation that cannot be read is not a verdict: the TTL rule
+        // stands, and the snapshot is not rebuilt on a guess.
+        assert!(matches!(
+            context_cache_freshness(false, true, None, Some("1:a")),
+            ContextCacheFreshness::Current
+        ));
+        // The same generation means the snapshot still describes the
+        // directory.
+        assert!(matches!(
+            context_cache_freshness(false, true, Some("1:a"), Some("1:a")),
+            ContextCacheFreshness::Current
+        ));
+        // A different generation means the directory has moved on.
+        assert!(matches!(
+            context_cache_freshness(false, true, Some("2:b"), Some("1:a")),
+            ContextCacheFreshness::Stale
+        ));
+        // A snapshot that was built without a generation is rebuilt as
+        // soon as one can be read: it never proved what it describes.
+        assert!(matches!(
+            context_cache_freshness(false, true, Some("1:a"), None),
+            ContextCacheFreshness::Stale
+        ));
+    }
+
+    #[test]
+    fn one_rebuild_serves_every_worker_that_arrives_together() {
+        // The rebuild reads the whole chain database, so a rebuild that
+        // every worker runs at the same moment is a stampede on one large
+        // file: the round stops producing results while it runs.
+        let cached = Arc::new(ContextCache {
+            data: RwLock::new(Arc::new(ContextCacheData::default())),
+            refresh_gate: Mutex::new(()),
+            generation: Mutex::new(ContextCacheGeneration::default()),
+        });
+        let rebuilds = Arc::new(AtomicU64::new(0));
+        let workers = 8;
+        let barrier = Arc::new(std::sync::Barrier::new(workers));
+        let mut handles = Vec::new();
+        for _ in 0..workers {
+            let cached = Arc::clone(&cached);
+            let rebuilds = Arc::clone(&rebuilds);
+            let barrier = Arc::clone(&barrier);
+            handles.push(std::thread::spawn(move || {
+                let rebuilds = Arc::clone(&rebuilds);
+                let scope = Arc::clone(&cached);
+                // Every worker arrives at the same moment.
+                barrier.wait();
+                refresh_context_cache(&cached, move || {
+                    // The verdict is taken under the gate, the way the
+                    // runtime takes it.
+                    let stale = {
+                        let data = scope.data.read().unwrap();
+                        context_cache_is_stale(&data)
+                    };
+                    if !stale {
+                        return ContextCacheRebuild::Current;
+                    }
+                    // The read of the chain database is the expensive
+                    // part, and it is what must happen only once.
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                    rebuilds.fetch_add(1, Ordering::SeqCst);
+                    let mut data = ContextCacheData::default();
+                    data.loaded_at = Some(now_iso());
+                    *scope.data.write().unwrap() = Arc::new(data);
+                    ContextCacheRebuild::Rebuilt
+                })
+            }));
+        }
+        let mut rebuilt = 0;
+        for handle in handles {
+            match handle.join().expect("the worker finishes") {
+                ContextCacheRebuild::Rebuilt => rebuilt += 1,
+                ContextCacheRebuild::Current => {}
+                ContextCacheRebuild::Failed => panic!("the rebuild did not fail"),
+            }
+        }
+        assert_eq!(
+            rebuilds.load(Ordering::SeqCst),
+            1,
+            "one rebuild serves every worker that arrives together"
+        );
+        assert_eq!(rebuilt, 1, "only the worker that rebuilt says so");
+    }
+
+    /// The generation row of the closed loop directory.
+    ///
+    /// The pair the runtime compares is the directory's own version and
+    /// the checksum of its rows, so the fixture writes those two.
+    fn seed_closed_loop_generation(database_path: &str, version: i64, checksum: &str) {
+        let connection = rusqlite::Connection::open(database_path).expect("the store opens");
+        connection
+            .execute(
+                "DELETE FROM manager_v4_closed_loop_library_state
+                 WHERE network = ?1 AND chain_id = ?2 AND protocol = 'uniswap_v4'
+                   AND scope_key = 'core4'",
+                rusqlite::params![BROADCAST_NETWORK, BROADCAST_CHAIN_ID],
+            )
+            .expect("the previous generation is cleared");
+        connection
+            .execute(
+                "INSERT INTO manager_v4_closed_loop_library_state (
+                    network, chain_id, protocol, scope_key,
+                    closed_loop_version, materialized_checksum,
+                    candidate_edge_version, candidate_edge_checksum,
+                    observation_version, observation_checksum,
+                    pool_scope_checksum, library_versions_json,
+                    library_checksums_json, anchor_count, loop_count,
+                    hop_count, optimization_count, skipped_token_count,
+                    consumers_need_rebuild, generated_at, updated_at
+                 ) VALUES (?1, ?2, 'uniswap_v4', 'core4', ?3, ?4,
+                           1, 'sha256:candidate-edge', 1, 'sha256:observation',
+                           'sha256:pool-scope', '{}', '{}', 0, 0, 0, 0, 0, 0,
+                           'fixture', 'fixture')",
+                rusqlite::params![BROADCAST_NETWORK, BROADCAST_CHAIN_ID, version, checksum],
+            )
+            .expect("the generation row is seeded");
+    }
+
+    /// The moment the generation comparison last ran.
+    ///
+    /// The comparison reads the database, so it runs on its own clock.
+    /// A test that wants the comparison to happen puts it far enough in
+    /// the past.
+    fn generation_check_overdue() -> String {
+        (chrono::Utc::now()
+            - chrono::Duration::seconds(CONTEXT_GENERATION_CHECK_INTERVAL_SECONDS + 5))
+        .to_rfc3339()
+    }
+
+    #[test]
+    fn a_directory_that_moved_on_rebuilds_the_snapshot() {
+        let directory = tempfile::tempdir().expect("the fixture directory is created");
+        let store = directory.path().join("local_store.sqlite3");
+        manager_db::migrate(&store).expect("the manager store migrates");
+        let database_path = store.to_string_lossy().to_string();
+        seed_closed_loop_generation(&database_path, 7, "sha256:aa");
+        let inner = broadcast_test_pool(&database_path);
+        let command = broadcast_test_command(&database_path);
+        let (cached, cache_hit) =
+            load_context_cache(&inner, &command).expect("the snapshot is built");
+        assert!(
+            !cache_hit,
+            "the first snapshot is built, not read from the cache"
+        );
+        assert_eq!(
+            cached.generation.lock().unwrap().current.as_deref(),
+            Some("7:sha256:aa"),
+            "the snapshot knows the directory it was built from"
+        );
+        // The manager publishes a new version of the directory.
+        seed_closed_loop_generation(&database_path, 8, "sha256:bb");
+        // The comparison runs on its own clock, so the check is due.
+        {
+            let mut generation = cached.generation.lock().unwrap();
+            generation.checked_at = Some(generation_check_overdue());
+        }
+        let reloads_before = inner.context_reloads.load(Ordering::SeqCst);
+        let (_, cache_hit) =
+            load_context_cache(&inner, &command).expect("the snapshot is refreshed");
+        assert!(
+            !cache_hit,
+            "the snapshot was rebuilt, not served from the cache"
+        );
+        assert_eq!(
+            inner.context_reloads.load(Ordering::SeqCst),
+            reloads_before + 1,
+            "the reload counter counts the rebuild"
+        );
+        assert_eq!(
+            cached.generation.lock().unwrap().current.as_deref(),
+            Some("8:sha256:bb"),
+            "the snapshot describes the directory as it is now"
+        );
+    }
+
+    #[test]
+    fn a_generation_that_cannot_be_read_keeps_the_ttl_rule() {
+        let directory = tempfile::tempdir().expect("the fixture directory is created");
+        let store = directory.path().join("local_store.sqlite3");
+        manager_db::migrate(&store).expect("the manager store migrates");
+        let database_path = store.to_string_lossy().to_string();
+        // The store carries no generation row: the generation cannot be
+        // read, and a generation that cannot be read is not a verdict.
+        let inner = broadcast_test_pool(&database_path);
+        let command = broadcast_test_command(&database_path);
+        let (cached, cache_hit) =
+            load_context_cache(&inner, &command).expect("the snapshot is built");
+        assert!(
+            !cache_hit,
+            "the first snapshot is built, not read from the cache"
+        );
+        assert_eq!(
+            cached.generation.lock().unwrap().current.as_deref(),
+            None,
+            "the snapshot has no generation to compare with"
+        );
+        // The comparison is due, but there is nothing to compare with.
+        {
+            let mut generation = cached.generation.lock().unwrap();
+            generation.checked_at = Some(generation_check_overdue());
+        }
+        let reloads_before = inner.context_reloads.load(Ordering::SeqCst);
+        let (_, cache_hit) =
+            load_context_cache(&inner, &command).expect("the snapshot is served");
+        assert!(cache_hit, "the snapshot is served from the cache");
+        assert_eq!(
+            inner.context_reloads.load(Ordering::SeqCst),
+            reloads_before,
+            "a generation that cannot be read does not rebuild the snapshot"
+        );
     }
 
     #[test]
@@ -7116,6 +10327,8 @@ mod tests {
         // snapshot is still in use.
         let cache = Arc::new(ContextCache {
             data: RwLock::new(Arc::new(ContextCacheData::default())),
+            refresh_gate: Mutex::new(()),
+            generation: Mutex::new(ContextCacheGeneration::default()),
         });
         let snapshot = Arc::clone(&cache.data.read().unwrap());
         // The snapshot outlives the guard, so the guard is already gone.
@@ -7124,7 +10337,13 @@ mod tests {
         // A writer acquires the lock without waiting for the snapshot.
         let mut next = ContextCacheData::default();
         next.replace_from_rows(
-            &[json!({"pool_id": "0x09", "token0": "0x1", "token1": "0x2"})],
+            &[json!({
+                "directional_pool_id": "dpool:0x09:0",
+                "base_pool_id": "0x09",
+                "direction": 0,
+                "token0": "0x1",
+                "token1": "0x2"
+            })],
             &[json!({"pool_id": "0x09", "has_liquidity": 1})],
             &[json!({"token_address": "0x1"})],
             "robinhood|4663|uniswap_v4",
@@ -7132,9 +10351,9 @@ mod tests {
         *cache.data.write().unwrap() = Arc::new(next);
         // The old snapshot still describes the old world, and the new one
         // describes the new world. Neither is torn.
-        assert!(snapshot.registry.get_pool_info("0x09").is_none());
+        assert!(snapshot.registry.base_pool_facts("0x09").is_none());
         let current = cache.data.read().unwrap();
-        assert!(current.registry.get_pool_info("0x09").is_some());
+        assert!(current.registry.base_pool_facts("0x09").is_some());
     }
 
     #[test]
@@ -7323,6 +10542,93 @@ mod tests {
     }
 
     #[test]
+    fn the_runtime_decides_the_broadcast_admission_at_the_boundary() {
+        // Python is legacy code: it hands the runtime a configuration that
+        // says the broadcast is not allowed.  The runtime decides for
+        // itself, and it writes its decision back so that every later stage
+        // — the review worker, the routing decision, the broadcast worker
+        // and the record writer — reads the same one.
+        let legacy = json!({
+            "rpcUrl": "http://127.0.0.1:1",
+            "broadcastEnabled": false,
+            "broadcastPrivateKey": null,
+            "chainId": 4663,
+        });
+        let (normalized, policy) = crate::broadcast_policy::normalize_config(
+            &serde_json::to_string(&legacy).expect("the legacy configuration serializes"),
+            Some(4663),
+            true,
+        );
+        let config: Value =
+            serde_json::from_str(&normalized).expect("the normalization is valid JSON");
+        assert_eq!(config["deferBroadcast"], json!(true));
+        assert_eq!(
+            config["broadcastAdmission"]["decidedBy"],
+            json!("rust_runtime")
+        );
+        assert_eq!(
+            config["broadcastAdmission"]["legacyBroadcastEnabled"],
+            json!(false)
+        );
+        assert!(!policy.legacy_broadcast_enabled);
+        assert_eq!(config["broadcastEnabled"], json!(policy.broadcast_enabled));
+
+        // The task configuration still supplies the signer, and the runtime
+        // reads it from there before it looks at the environment.
+        let with_signer = json!({
+            "broadcastEnabled": false,
+            "broadcastPrivateKey": "0x".to_owned() + &"1".repeat(64),
+        });
+        let (normalized, policy) = crate::broadcast_policy::normalize_config(
+            &serde_json::to_string(&with_signer).expect("the configuration serializes"),
+            Some(4663),
+            true,
+        );
+        let config: Value =
+            serde_json::from_str(&normalized).expect("the normalization is valid JSON");
+        assert_eq!(policy.signer_source.as_deref(), Some("task_config"));
+        assert_eq!(config["broadcastEnabled"], json!(policy.broadcast_enabled));
+    }
+
+    #[test]
+    fn the_runtime_normalized_task_reaches_the_broadcast_queue() {
+        let legacy = json!({
+            "broadcastEnabled": false,
+            "broadcastPrivateKey": "0x".to_owned() + &"1".repeat(64),
+        });
+        let (normalized, policy) = crate::broadcast_policy::normalize_config(
+            &serde_json::to_string(&legacy).expect("the configuration serializes"),
+            Some(4663),
+            true,
+        );
+        if !policy.broadcast_enabled {
+            // An operator closed the broadcast switch on this machine.  The
+            // routing decision has to honour that, so there is nothing to
+            // assert here.
+            return;
+        }
+        let command = SubmitCommand {
+            group_key: "anchor|a|b".to_string(),
+            chain_id: Some(4663),
+            network: None,
+            protocol: None,
+            protocols: Vec::new(),
+            mode: "deep".to_string(),
+            config_json: normalized,
+            database_path: None,
+        };
+        assert!(should_route_to_execution_queue(
+            &json!({
+                "status": "profitable_amount_found",
+                "selectedProfitRaw": "0x20",
+                "offchainGasGate": {"conversionAvailable": true, "minProfitRaw": "0x10"},
+                "hopSqrtPriceLimits": ["0x01", "0x02", "0x03"]
+            }),
+            &command,
+        ));
+    }
+
+    #[test]
     fn executor_batch_queue_requires_nonempty_matching_eligible_requests() {
         let command = SubmitCommand {
             group_key: "anchor|batch".to_string(),
@@ -7474,9 +10780,12 @@ mod tests {
                 "hooks": "0x0000000000000000000000000000000000000000",
             }),
         ];
-        let pool_rows = keys
+        // The registry holds directional pools, so every pool of the route
+        // appears in **both** directions.  The route selects one
+        // direction per hop, and the resolution has to find that row.
+        let directional_rows = keys
             .iter()
-            .map(|key| {
+            .flat_map(|key| {
                 let pool_key = V4PoolKey {
                     currency0: key["currency0"].as_str().unwrap().to_owned(),
                     currency1: key["currency1"].as_str().unwrap().to_owned(),
@@ -7484,15 +10793,21 @@ mod tests {
                     tick_spacing: key["tickSpacing"].as_i64().unwrap() as i32,
                     hooks: key["hooks"].as_str().unwrap().to_owned(),
                 };
-                json!({
-                    "pool_id": pool_index::pool_id(&pool_key).unwrap(),
-                    "token0": key["currency0"],
-                    "token1": key["currency1"],
-                    "pool_manager": pool_manager,
+                let base_pool_id = pool_index::pool_id(&pool_key).unwrap();
+                [0i64, 1i64].map(move |direction| {
+                    json!({
+                        "directional_pool_id": format!("dpool:{base_pool_id}:{direction}"),
+                        "base_pool_id": base_pool_id,
+                        "direction": direction,
+                        "scope_key": "core4",
+                        "token0": key["currency0"],
+                        "token1": key["currency1"],
+                        "pool_manager": pool_manager,
+                    })
                 })
             })
             .collect::<Vec<_>>();
-        let registry = V4PoolRegistry::from_rows(&pool_rows, &[], &[]);
+        let registry = V4PoolRegistry::from_rows(&directional_rows, &[], &[]);
         let route_payload = json!({
             "status": "profitable_amount_found",
             "selectedAmountRaw": "0x64",
@@ -7664,6 +10979,7 @@ mod tests {
             worker_created_total: AtomicU64::new(0),
             worker_completed_total: AtomicU64::new(0),
             worker_idle_exits: AtomicU64::new(0),
+            context_reloads: AtomicU64::new(0),
             database_path: Some("db.sqlite3".to_string()),
             review_evidence: Mutex::new(HashMap::new()),
         });
@@ -7711,6 +11027,7 @@ mod tests {
             worker_created_total: AtomicU64::new(0),
             worker_completed_total: AtomicU64::new(0),
             worker_idle_exits: AtomicU64::new(0),
+            context_reloads: AtomicU64::new(0),
             database_path: None,
             review_evidence: Mutex::new(HashMap::new()),
         });
@@ -8228,19 +11545,88 @@ mod tests {
     #[test]
     fn config_rpc_urls_falls_back_to_single_url() {
         assert_eq!(
-            config_rpc_urls(&json!({}), "http://primary"),
+            config_rpc_urls(&json!({}), "http://primary", &[]),
             vec!["http://primary"]
         );
         assert_eq!(
-            config_rpc_urls(&json!({"rpcUrls": []}), "http://primary"),
+            config_rpc_urls(&json!({"rpcUrls": []}), "http://primary", &[]),
             vec!["http://primary"]
         );
         assert_eq!(
             config_rpc_urls(
                 &json!({"rpcUrls": ["http://a", "  ", "http://b"]}),
-                "http://primary"
+                "http://primary",
+                &[]
             ),
             vec!["http://a", "http://b"]
+        );
+    }
+
+    #[test]
+    fn config_rpc_urls_keeps_the_configured_order() {
+        // An explicit list is the operator's own order.  The chain's own
+        // endpoints are not appended to it, because the operator has
+        // already said which endpoints the task may use.
+        assert_eq!(
+            config_rpc_urls(
+                &json!({"rpcUrls": ["http://a", "http://b"]}),
+                "http://primary",
+                &["http://c".to_string()]
+            ),
+            vec!["http://a", "http://b"]
+        );
+    }
+
+    #[test]
+    fn config_rpc_urls_extends_a_single_endpoint_with_the_chain_endpoints() {
+        // The endpoint the task names stays first, and the chain's own
+        // endpoints follow it.  A node that is down therefore costs one
+        // attempt instead of the whole review.
+        assert_eq!(
+            config_rpc_urls(
+                &json!({}),
+                "http://primary",
+                &["http://backup".to_string(), "http://third".to_string()]
+            ),
+            vec!["http://primary", "http://backup", "http://third"]
+        );
+    }
+
+    #[test]
+    fn config_rpc_urls_never_repeats_an_endpoint() {
+        assert_eq!(
+            config_rpc_urls(
+                &json!({}),
+                "http://primary",
+                &["http://primary".to_string(), "http://backup".to_string()]
+            ),
+            vec!["http://primary", "http://backup"]
+        );
+    }
+
+    #[test]
+    fn chain_rpc_urls_follows_the_chain_the_task_names() {
+        // The chain of the task decides which endpoints are read, so the
+        // endpoints of one chain never answer for another chain.
+        let mainnet = chain_rpc_urls(&json!({"chainId": 4663}));
+        let testnet = chain_rpc_urls(&json!({"chainId": 46630}));
+        for url in &mainnet {
+            assert!(
+                !url.contains("testnet") && !url.contains("sepolia"),
+                "the mainnet endpoint list must not name the testnet: {url}"
+            );
+        }
+        for url in &testnet {
+            assert!(
+                !url.contains("mainnet.chain.robinhood.com"),
+                "the testnet endpoint list must not name the mainnet: {url}"
+            );
+        }
+        // A task that names no chain is served by the mainnet, which is the
+        // chain the runtime serves by default.
+        assert_eq!(
+            chain_rpc_urls(&json!({})),
+            chain_rpc_urls(&json!({"chainId": pool_manager::chain::ROBINHOOD_CHAIN_ID}))
         );
     }
 

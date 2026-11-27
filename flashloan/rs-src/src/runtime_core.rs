@@ -17,13 +17,19 @@ use candidate_exchange_pool_manager::{
     read_candidate_exchange_status, CandidateExchangeError, CandidateExchangeStatus,
     CandidateExchangeWriteRequest, ExpectedUpstream as CandidateExchangeExpectedUpstream,
 };
-use closed_loop_manager::{read_closed_loop_snapshot, read_closed_loop_status, ClosedLoopStatus};
+use closed_loop_manager::{
+    materialize_closed_loops, read_closed_loop_snapshot, read_closed_loop_status, ClosedLoopError,
+    ClosedLoopStatus,
+};
 use composite_manager::{
     read_manager_overview_snapshot, read_pipeline_status, BroadcastRef, CandidateEdgeRef,
     CandidateExchangeRef, ClosedLoopRef, ConsistencyIssue, DirectionalPoolRef,
     PipelineSnapshot, PoolScopeRef, ReviewRef, TokenLibraryRef, UpstreamSnapshot,
 };
-use directional_pool_manager::{read_directional_pool_status, DirectionalPoolStatus};
+use directional_pool_manager::{
+    materialize_directional_pools_for_chain, read_directional_pool_status, DirectionalPoolError,
+    DirectionalPoolStatus,
+};
 use manager_contracts::TokenAuthorityMode;
 use pool_manager::{read_scope_status, resolve_pool_ids_by_key, PoolKeyIdentity, ScopeStatus};
 use review_manager::{
@@ -2886,6 +2892,7 @@ fn map_broadcast_command_error(error: BroadcastError) -> RuntimeCoreError {
         | BroadcastError::BroadcastRequestNotEligible { .. }
         | BroadcastError::BroadcastRequestNotAdmitted { .. }
         | BroadcastError::AttemptNotFound(_)
+        | BroadcastError::ReviewRowMissing { .. }
         | BroadcastError::AttemptAlreadyTerminal { .. } => ("BROADCAST_REQUEST_NOT_ELIGIBLE", 409),
         BroadcastError::MissingReviewState | BroadcastError::ReviewSnapshotTruncated { .. } => {
             ("TOKEN_NOT_ADMITTED", 409)
@@ -2896,6 +2903,115 @@ fn map_broadcast_command_error(error: BroadcastError) -> RuntimeCoreError {
     RuntimeCoreError::ManagerCommand {
         manager: "broadcast_manager",
         command: "clear_broadcasts",
+        code,
+        http_status,
+        message: error.to_string(),
+    }
+}
+
+/// The runtime maintenance entries.
+///
+/// The maintenance chain owns **when** a layer is rebuilt; it does not own
+/// **how**.  Both rebuilds therefore live in the manager that owns the
+/// layer, and the runtime reaches them through these two functions.  A
+/// caller that rebuilt the layer itself would own a second copy of the
+/// admission, ranking and folding rules, and the two copies would drift
+/// the first time a rule changed.
+///
+/// Both entries return the manager's own receipt.  The receipt is the
+/// contract: the caller reads the numbers the manager published, stores
+/// them and reports them, and it never recomputes them.
+pub fn rebuild_directional_pools(
+    database_path: &str,
+    network: &str,
+    chain_id: i64,
+    apply: bool,
+) -> Result<Value, RuntimeCoreError> {
+    let receipt = materialize_directional_pools_for_chain(
+        database_path,
+        network,
+        chain_id,
+        apply,
+    )
+    .map_err(map_directional_command_error)?;
+    let mut value =
+        serde_json::to_value(receipt).map_err(|error| RuntimeCoreError::Serialization(error.to_string()))?;
+    if let Some(object) = value.as_object_mut() {
+        object.insert("ok".to_owned(), Value::Bool(true));
+        object.insert(
+            "manager".to_owned(),
+            Value::String("directional_pool_manager".to_owned()),
+        );
+    }
+    Ok(value)
+}
+
+/// Rebuild the closed loop layer of one chain.
+///
+/// The closed loop layer is built from the candidate edge, the
+/// observation and the **directional** pool layers, so this entry is only
+/// meaningful once the directional layer has been materialized.
+pub fn rebuild_closed_loops(
+    database_path: &str,
+    network: &str,
+    chain_id: i64,
+    apply: bool,
+) -> Result<Value, RuntimeCoreError> {
+    let receipt = materialize_closed_loops(database_path, network, chain_id, apply)
+        .map_err(map_closed_loop_command_error)?;
+    let mut value =
+        serde_json::to_value(receipt).map_err(|error| RuntimeCoreError::Serialization(error.to_string()))?;
+    if let Some(object) = value.as_object_mut() {
+        object.insert("ok".to_owned(), Value::Bool(true));
+        object.insert(
+            "manager".to_owned(),
+            Value::String("closed_loop_manager".to_owned()),
+        );
+    }
+    Ok(value)
+}
+
+fn map_directional_command_error(error: DirectionalPoolError) -> RuntimeCoreError {
+    let (code, http_status) = match &error {
+        DirectionalPoolError::InvalidRequest(_) => ("INVALID_REQUEST", 400),
+        DirectionalPoolError::MissingPoolScope(_)
+        | DirectionalPoolError::UnsupportedPoolTable(_) => ("POOL_SCOPE_UNAVAILABLE", 409),
+        DirectionalPoolError::MissingSnapshotTable => ("SNAPSHOT_TABLE_MISSING", 409),
+        DirectionalPoolError::IdempotencyKeyReused { .. } => ("IDEMPOTENCY_KEY_REUSED", 409),
+        DirectionalPoolError::Sqlite(_) => ("UPSTREAM_UNAVAILABLE", 503),
+        DirectionalPoolError::Json(_) => ("INTERNAL_ERROR", 500),
+    };
+    RuntimeCoreError::ManagerCommand {
+        manager: "directional_pool_manager",
+        command: "rebuild_directional_pools",
+        code,
+        http_status,
+        message: error.to_string(),
+    }
+}
+
+fn map_closed_loop_command_error(error: ClosedLoopError) -> RuntimeCoreError {
+    let (code, http_status) = match &error {
+        ClosedLoopError::InvalidRequest(_) => ("INVALID_REQUEST", 400),
+        // The store has no manager-side upstream at all.  That is a
+        // different fact from "the rebuild broke": the closed loop layer
+        // simply is not part of this store, and the caller falls back to
+        // the legacy path instead of treating it as a failure.
+        ClosedLoopError::MissingCandidateEdgeState | ClosedLoopError::MissingObservationState => {
+            ("UPSTREAM_NOT_MATERIALIZED", 409)
+        }
+        ClosedLoopError::InvalidStoredTopology(_)
+        | ClosedLoopError::UpstreamInconsistent { .. }
+        | ClosedLoopError::ExpectedUpstreamMismatch { .. } => ("UPSTREAM_VERSION_CHANGED", 409),
+        ClosedLoopError::IdempotencyKeyReused { .. } => ("IDEMPOTENCY_KEY_REUSED", 409),
+        ClosedLoopError::ComparisonRead { .. } | ClosedLoopError::Sqlite(_) => {
+            ("UPSTREAM_UNAVAILABLE", 503)
+        }
+        ClosedLoopError::Json(_) => ("INTERNAL_ERROR", 500),
+    };
+    RuntimeCoreError::ManagerCommand {
+        manager: "closed_loop_manager",
+        command: "rebuild_closed_loops",
         code,
         http_status,
         message: error.to_string(),

@@ -7,10 +7,11 @@ the fixed pipeline can run as separate, mostly-idle threads:
 1. ``v4_pool_liquidity_worker`` - incremental fixed-fee/no-hook pool refreshes
 2. ``v4_candidate_yc_zc_worker`` - candidate YC/ZC anchor rebuilds
 3. ``v4_market_observation_worker`` - market-observation anchor rebuilds
-4. ``v4_dex_overview_worker`` - compact Dex overview snapshot refresh
-5. ``v4_closed_loop_worker`` - closed-loop SQLite rebuild
-6. ``v4_onchain_review_worker`` - light reviewer watchdog slot
-7. ``v4_broadcast_execution_worker`` - light execution-queue watchdog slot
+4. ``v4_directional_pool_worker`` - directional pool layer refresh
+5. ``v4_dex_overview_worker`` - compact Dex overview snapshot refresh
+6. ``v4_closed_loop_worker`` - closed-loop SQLite rebuild
+7. ``v4_onchain_review_worker`` - light reviewer watchdog slot
+8. ``v4_broadcast_execution_worker`` - light execution-queue watchdog slot
 
 Every worker keeps a persisted cursor in
 ``chain_business_initialization``.  Later stages only run when their upstream
@@ -46,6 +47,7 @@ from dex.intent_trade.chains.robinhood_common.chain_config import (
 WORKER_POOL_LIQUIDITY = "v4_pool_liquidity_worker"
 WORKER_CANDIDATE_YC_ZC = "v4_candidate_yc_zc_worker"
 WORKER_MARKET_OBSERVATION = "v4_market_observation_worker"
+WORKER_DIRECTIONAL_POOL = "v4_directional_pool_worker"
 WORKER_DEX_OVERVIEW = "v4_dex_overview_worker"
 WORKER_CLOSED_LOOP = "v4_closed_loop_worker"
 WORKER_ONCHAIN_REVIEW = "v4_onchain_review_worker"
@@ -90,6 +92,9 @@ def maintenance_intervals() -> dict[str, int]:
         "v4_market_observation_worker": _env_int(
             "V4_MARKET_OBSERVATION_WORKER_INTERVAL_SECONDS", 300
         ),
+        "v4_directional_pool_worker": _env_int(
+            "V4_DIRECTIONAL_POOL_WORKER_INTERVAL_SECONDS", 300
+        ),
         "v4_dex_overview_worker": _env_int(
             "V4_DEX_OVERVIEW_WORKER_INTERVAL_SECONDS", 300
         ),
@@ -110,11 +115,15 @@ def worker_dependencies() -> dict[str, tuple[str, ...]]:
         "v4_pool_liquidity_worker": (),
         "v4_candidate_yc_zc_worker": ("v4_pool_liquidity_worker",),
         "v4_market_observation_worker": ("v4_candidate_yc_zc_worker",),
+        "v4_directional_pool_worker": ("v4_pool_liquidity_worker",),
         "v4_dex_overview_worker": (
             "v4_market_observation_worker",
             "v4_closed_loop_worker",
         ),
-        "v4_closed_loop_worker": ("v4_market_observation_worker",),
+        "v4_closed_loop_worker": (
+            "v4_market_observation_worker",
+            "v4_directional_pool_worker",
+        ),
         "v4_onchain_review_worker": ("v4_market_observation_worker",),
         "v4_broadcast_execution_worker": ("v4_onchain_review_worker",),
     }
@@ -467,6 +476,110 @@ def run_market_observation_build(
     }
 
 
+def run_directional_pool_build(
+    *,
+    database_url: str,
+    network: str,
+    chain_id: int,
+    apply: bool = True,
+    check_upstream: bool = True,
+) -> dict[str, Any]:
+    """Refresh the directional pool layer through the Rust manager.
+
+    Which base pools are admissible, which direction a row carries and
+    how the seats are ranked are the directional pool manager's rules.
+    This slot only asks for the refresh and reads the receipt back, so
+    the runtime never owns a second copy of them.
+    """
+    database = str(absolute_database_path(database_url))
+    if check_upstream:
+        readiness = upstream_ready(
+            database_url=database,
+            network=network,
+            chain_id=chain_id,
+            worker=WORKER_DIRECTIONAL_POOL,
+        )
+        if not readiness["ready"]:
+            return {
+                "ok": False,
+                "worker": WORKER_DIRECTIONAL_POOL,
+                "phase": "blocked_upstream",
+                "blockedBy": [row.get("worker") for row in readiness["blocking"]],
+                "error": "upstream_pool_liquidity_not_complete",
+                "generatedAt": _stamp(),
+            }
+    from core.rs_bridge import rebuild_directional_pools
+
+    receipt: dict[str, Any] = {}
+    try:
+        receipt = rebuild_directional_pools(
+            network,
+            chain_id,
+            apply=apply,
+            database_url=database,
+        )
+    except AttributeError:
+        # The running extension does not carry the manager entry, so this
+        # runtime cannot refresh the direction layer at all.  There is no
+        # fallback: the direction layer is the Rust manager's output, and a
+        # slot that cannot reach it **fails**.  A half refreshed direction
+        # layer is the exact defect this layer exists to remove, and the
+        # closed loop slot folds on it -- so a partial result would be
+        # worse than no result.
+        receipt = {
+            "ok": False,
+            "error": "directional_pool_entry_unavailable",
+            "errorCode": "ENTRY_UNAVAILABLE",
+        }
+    except Exception as exc:
+        receipt = {"ok": False, "error": str(exc), "errorCode": "BRIDGE_UNAVAILABLE"}
+    # The entry answers with a receipt either way, so the caller reads one
+    # field instead of telling a refusal apart from an exception.
+    ok = bool(receipt.get("ok"))
+    error = None if ok else str(receipt.get("error") or "directional_pool_rebuild_failed")
+    scopes = list(receipt.get("scopes") or [])
+    failed_scopes = list(receipt.get("failedScopes") or [])
+    published = sum(int(scope.get("directionalPoolCount") or 0) for scope in scopes)
+    changed = sum(int(scope.get("changedRows") or 0) for scope in scopes)
+    versions = [int(scope.get("directionalPoolVersion") or 0) for scope in scopes]
+    # A scope that failed leaves its part of the direction layer stale, and
+    # a closed loop folded on a stale direction layer is the defect this
+    # layer exists to remove.  The failure is therefore recorded and the
+    # downstream slot waits, instead of publishing a loop that mixes two
+    # direction-layer generations.
+    scope_error = None
+    if failed_scopes:
+        scope_error = "directional_scope_failed: " + ", ".join(
+            f"{item.get('scopeKey') or item.get('scope_key')}"
+            for item in failed_scopes
+        )
+    ok = bool(ok) and not failed_scopes
+    _save_worker_result(
+        database=database,
+        network=network,
+        chain_id=chain_id,
+        worker=WORKER_DIRECTIONAL_POOL,
+        ok=ok,
+        mode=error or scope_error or "directional_pools_rebuilt",
+        pool_count=published,
+        scanned_pool_count=len(scopes),
+        remaining_pool_count=len(failed_scopes),
+        error=error or scope_error,
+    )
+    return {
+        "ok": ok,
+        "worker": WORKER_DIRECTIONAL_POOL,
+        "scopeKeys": list(receipt.get("scopeKeys") or []),
+        "scopes": scopes,
+        "failedScopes": failed_scopes,
+        "directionalPoolCount": published,
+        "changedRows": changed,
+        "directionalPoolVersion": max(versions) if versions else 0,
+        "error": error or scope_error,
+        "generatedAt": _stamp(),
+    }
+
+
 def run_closed_loop_build(
     *,
     database_url: str,
@@ -501,6 +614,76 @@ def run_closed_loop_build(
     )
     from core.db import builders
     market_id = canonical_market_id("dex_arbitrage", chain_id, "uniswap_v4", network=network)
+
+    # The manager path is the one the system consumes: the runtime kernel,
+    # the review layer and the broadcast layer all read the ``manager_v4_*``
+    # tables.  The legacy builder below is still run because the legacy
+    # tables are still read elsewhere (the direction integrity audit, the
+    # legacy closed loop view), and it is labelled as the legacy path in the
+    # receipt so nobody mistakes its rows for the manager's rows.
+    #
+    # The manager rebuild runs first: the direction layer it reads has to be
+    # the current one, and the closed loop is the consumer of that layer.
+    manager_receipt: dict[str, Any] = {}
+    try:
+        from core.rs_bridge import rebuild_closed_loops
+
+        manager_receipt = rebuild_closed_loops(
+            network,
+            chain_id,
+            apply=True,
+            database_url=database,
+        )
+    except AttributeError:
+        # The running extension does not carry the manager entry.  There is
+        # no fallback: the manager layer is the closed loop the system
+        # consumes, and a slot that cannot refresh it fails.
+        manager_receipt = {
+            "ok": False,
+            "error": "closed_loop_entry_unavailable",
+            "errorCode": "ENTRY_UNAVAILABLE",
+        }
+    except Exception as exc:
+        manager_receipt = {"ok": False, "error": str(exc), "errorCode": "BRIDGE_UNAVAILABLE"}
+    manager_ok = bool(manager_receipt.get("ok"))
+    manager_error_code = str(manager_receipt.get("errorCode") or "") or None
+    manager_error = (
+        None
+        if manager_ok
+        else str(manager_receipt.get("error") or "closed_loop_rebuild_failed")
+    )
+    # The manager layer is the closed loop the system consumes, so the slot
+    # is **all or nothing**: when the manager rebuild did not happen, the
+    # slot fails and the legacy path below is not run at all.  Running the
+    # legacy path anyway would leave two closed loop layers at two different
+    # generations -- a half updated state, which is exactly what this slot
+    # must never publish.
+    if not manager_ok:
+        _save_worker_result(
+            database=database,
+            network=network,
+            chain_id=chain_id,
+            worker=WORKER_CLOSED_LOOP,
+            ok=False,
+            mode=manager_error or "closed_loop_rebuild_failed",
+            pool_count=0,
+            scanned_pool_count=0,
+            remaining_pool_count=len(anchors),
+            error=manager_error,
+        )
+        return {
+            "ok": False,
+            "worker": WORKER_CLOSED_LOOP,
+            "anchors": [],
+            "reports": [],
+            "managerClosedLoop": manager_receipt,
+            "managerSource": "unavailable",
+            "managerError": manager_error,
+            "managerErrorCode": manager_error_code,
+            "legacySource": None,
+            "error": manager_error,
+            "generatedAt": _stamp(),
+        }
 
     reports = []
     canonicalize_result: dict[str, Any] = {"ok": True, "updated": 0, "conflicts": 0}
@@ -566,11 +749,13 @@ def run_closed_loop_build(
             market_id=market_id,
         )
         conflicts = int(canonicalize_result.get("conflicts") or 0)
-        ok = conflicts == 0
+        ok = conflicts == 0 and manager_ok
         error = "runtime_market_id_conflicts" if conflicts else None
     except Exception as exc:
         ok = False
         error = str(exc)
+        if not manager_ok:
+            error = manager_error or error
     _save_worker_result(
         database=database,
         network=network,
@@ -588,6 +773,11 @@ def run_closed_loop_build(
         "worker": WORKER_CLOSED_LOOP,
         "anchors": list(anchors),
         "reports": reports,
+        "managerClosedLoop": manager_receipt,
+        "managerSource": "rust_manager" if manager_ok else "unavailable",
+        "managerError": manager_error,
+        "managerErrorCode": manager_error_code,
+        "legacySource": "legacy_python_builder",
         "runtimeMarketIdCanonicalize": canonicalize_result,
         "legacyUnresolvedPrune": prune_result,
         "testResiduePrune": residue_prune_result,
@@ -891,6 +1081,13 @@ def run_sequential_pipeline(
                     chain_id=chain_id,
                     check_upstream=False,
                 )
+            elif worker == WORKER_DIRECTIONAL_POOL:
+                results[worker] = run_directional_pool_build(
+                    database_url=database,
+                    network=network,
+                    chain_id=chain_id,
+                    check_upstream=False,
+                )
             elif worker == WORKER_CLOSED_LOOP:
                 results[worker] = run_closed_loop_build(
                     database_url=database,
@@ -1064,6 +1261,13 @@ class V4MaintenanceWorkerManager:
             )
         if worker == WORKER_MARKET_OBSERVATION:
             return run_market_observation_build(
+                database_url=self.database_url,
+                network=self.network,
+                chain_id=self.chain_id,
+                check_upstream=False,
+            )
+        if worker == WORKER_DIRECTIONAL_POOL:
+            return run_directional_pool_build(
                 database_url=self.database_url,
                 network=self.network,
                 chain_id=self.chain_id,

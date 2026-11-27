@@ -34,6 +34,9 @@ from web.data_routes.manager_page_compare import (
     submission_overview_manager_payload,
     review_manager_page_payload,
 )
+from web.data_routes.manager_closed_loop_payload import (
+    closed_loop_review_request_payload,
+)
 
 def _summarize_rust_workers(payload):
     workers = payload.get("workers") if isinstance(payload.get("workers"), list) else []
@@ -1273,6 +1276,19 @@ def register_dex_scanner_routes(app) -> None:
             or native_result.get("code")
             or "runtime_core_command_failed"
         )
+        # The closed loop owns a **review clock**, and a manual review asks
+        # for a wait of zero: the loop waits for nothing, so the next round
+        # of the review starts at once.  The clock lives in the closed-loop
+        # Manager, so the wait is set there.
+        review_clock: dict[str, object] = {"ok": False, "reason": "manual_review_not_accepted"}
+        if native_result.get("ok"):
+            review_clock = closed_loop_review_request_payload(
+                chain_id=int(selected_chain_id),
+                route_symbols=route_symbols,
+                wait_seconds=0,
+                dry_run=bool(body["dryRun"]),
+                request_id=str(request.headers.get("X-Request-Id") or "").strip() or None,
+            )
         response_status = 200 if native_result.get("ok") else (
             native_result.get("upstreamStatus")
             if isinstance(native_result.get("upstreamStatus"), int)
@@ -1291,6 +1307,7 @@ def register_dex_scanner_routes(app) -> None:
                 "group_key": native_result.get("groupKey") or group_key,
                 "routeSymbols": route_symbols,
                 "routeAddresses": route_addresses,
+                "reviewClock": review_clock,
                 "chain_selection": chain_selection,
             }
         ), response_status

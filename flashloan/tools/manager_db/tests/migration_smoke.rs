@@ -1,9 +1,9 @@
 use manager_db::{
     migrate, migration_checksum, preflight_read_only, schema_checksum, MigrationError,
     BROADCAST_MIGRATION_ID, CANDIDATE_EDGE_MIGRATION_ID, CANDIDATE_EXCHANGE_MIGRATION_ID,
-    CLOSED_LOOP_MIGRATION_ID, COMPOSITE_MIGRATION_ID, LATEST_MIGRATION_ID, MIGRATION_ID,
-    MIGRATION_IDS, OBSERVATION_OPTIMAL_POOL_VIEW_MIGRATION_ID, REVIEW_MIGRATION_ID,
-    USDG_VALUATION_MIGRATION_ID,
+    CLOSED_LOOP_DIRECTIONAL_ONLY_MIGRATION_ID, CLOSED_LOOP_MIGRATION_ID, COMPOSITE_MIGRATION_ID,
+    LATEST_MIGRATION_ID, MIGRATION_ID, MIGRATION_IDS, OBSERVATION_OPTIMAL_POOL_VIEW_MIGRATION_ID,
+    REVIEW_MIGRATION_ID, USDG_VALUATION_MIGRATION_ID,
 };
 use rusqlite::Connection;
 use std::path::Path;
@@ -489,4 +489,98 @@ fn the_observation_primary_pool_becomes_a_view_over_the_direction_layer() {
     assert!(report
         .migration_ids
         .contains(&OBSERVATION_OPTIMAL_POOL_VIEW_MIGRATION_ID.to_owned()));
+}
+
+/// The closed-loop tables carry **directional** pools and nothing else.
+///
+/// The direction layer made the base pool a sub-object of the directional
+/// pool, so a hop that names a base pool is a hop that has lost its
+/// direction.  The migration is what enforces it, and this test reads the
+/// **resulting** table shape rather than the migration text: a text
+/// assertion could be satisfied by a comment.
+///
+/// The same rule applies to the loop body: the base pool list is gone and
+/// the directional one stays.
+#[test]
+fn the_closed_loop_tables_carry_no_base_pool_column() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("directional-only.sqlite3");
+    migrate(&path).unwrap();
+
+    let connection = Connection::open(&path).unwrap();
+
+    let columns = |table: &str| -> Vec<(String, String, i64)> {
+        let mut statement = connection
+            .prepare(&format!("PRAGMA table_info({table})"))
+            .unwrap();
+        statement
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)?,
+                ))
+            })
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+    };
+
+    // The hop table names the directional pool it walks, and the
+    // direction it walks it in.
+    let hops = columns("manager_v4_closed_loop_hops");
+    let hop_names: Vec<&str> = hops.iter().map(|(name, _, _)| name.as_str()).collect();
+    assert!(
+        !hop_names.contains(&"pool_id"),
+        "a hop must not name a base pool: {hop_names:?}"
+    );
+    assert!(
+        !hop_names.contains(&"base_pool_id"),
+        "a hop must not name a base pool: {hop_names:?}"
+    );
+    for required in ["directional_pool_id", "hop_direction", "directional_scope_key"] {
+        assert!(
+            hop_names.contains(&required),
+            "a hop must name {required}: {hop_names:?}"
+        );
+    }
+    // A hop that does not name a directional pool cannot be traded, so the
+    // columns that carry the direction are NOT NULL.
+    for (name, _, not_null) in &hops {
+        if matches!(
+            name.as_str(),
+            "directional_pool_id" | "hop_direction" | "directional_scope_key"
+        ) {
+            assert_eq!(*not_null, 1, "{name} must be NOT NULL");
+        }
+    }
+
+    // The loop body publishes the directional pools and no base pool list.
+    let loops = columns("manager_v4_closed_loops");
+    let loop_names: Vec<&str> = loops.iter().map(|(name, _, _)| name.as_str()).collect();
+    assert!(
+        !loop_names.contains(&"pool_ids_json"),
+        "the loop body must not publish a base pool list: {loop_names:?}"
+    );
+    assert!(
+        loop_names.contains(&"directional_pool_ids_json"),
+        "the loop body must publish the directional pool list: {loop_names:?}"
+    );
+    assert!(
+        loop_names.contains(&"single_tick_capacity_binding_directional_pool_id"),
+        "the capacity binding must name a directional pool: {loop_names:?}"
+    );
+
+    // The migration is recorded under its own id.
+    let applied: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE migration_id = ?1",
+            [CLOSED_LOOP_DIRECTIONAL_ONLY_MIGRATION_ID],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        applied, 1,
+        "the directional-only migration must be recorded under its own id"
+    );
 }

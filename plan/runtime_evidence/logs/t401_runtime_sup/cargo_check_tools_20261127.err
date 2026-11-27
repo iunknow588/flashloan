@@ -1,0 +1,96 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Checking serde_core v1.0.229
+    Checking tracing v0.1.44
+    Checking httpdate v1.0.3
+    Checking mime v0.3.17
+    Checking matchit v0.8.4
+    Checking serde v1.0.229
+    Checking hashbrown v0.17.1
+    Checking const-hex v1.19.3
+    Checking serde_json v1.0.154
+    Checking serde_with v3.24.0
+    Checking serde_path_to_error v0.1.20
+    Checking bytes v1.12.1
+    Checking smallvec v1.16.4
+    Checking alloy-sol-type-parser v1.7.3
+    Checking either v1.18.0
+    Checking serde_urlencoded v0.7.1
+    Checking lru v0.18.5
+    Checking icu_normalizer v2.4.0
+    Checking parking_lot_core v0.9.12
+    Checking itertools v0.13.0
+    Checking rusqlite v0.31.0
+    Checking manager-contracts v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\manager_contracts)
+    Checking parking_lot v0.12.5
+    Checking dashmap v6.2.1
+    Checking alloy-rlp v0.3.17
+    Checking http v1.5.0
+    Checking tokio v1.54.1
+    Checking idna_adapter v1.2.2
+    Checking ruint v1.21.1
+    Checking idna v1.1.0
+    Checking url v2.5.8
+    Checking manager-db v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\manager_db)
+    Checking http-body v1.1.0
+    Checking tungstenite v0.24.0
+    Checking http-body-util v0.1.5
+    Checking axum-core v0.5.6
+    Checking alloy-primitives v1.7.3
+    Checking nybbles v0.4.9
+    Checking alloy-json-abi v1.7.3
+    Checking alloy-eip2124 v0.2.0
+    Checking alloy-eip7702 v0.6.4
+    Checking alloy-eip2930 v0.2.4
+    Checking alloy-serde v2.5.0
+    Checking alloy-eip7928 v0.4.12
+    Checking alloy-eip8141 v0.1.1
+    Checking alloy-trie v0.9.9
+    Checking alloy-signer v2.5.0
+    Checking alloy-chains v0.2.39
+    Checking uniswap-sdk-core v7.0.0
+    Checking alloy-sol-types v1.7.3
+    Checking alloy-eips v2.5.0
+    Checking alloy-consensus v2.5.0
+    Checking hyper v1.12.0
+    Checking tower v0.5.3
+    Checking tokio-rustls v0.26.6
+    Checking tokio-util v0.7.20
+    Checking tokio-tungstenite v0.24.0
+    Checking tokio-stream v0.1.19
+    Checking alloy-json-rpc v2.5.0
+    Checking alloy-dyn-abi v1.7.3
+    Checking tower-http v0.6.11
+    Checking alloy-transport v2.5.0
+    Checking hyper-util v0.1.21
+    Checking alloy-core v1.7.3
+    Checking alloy-consensus-any v2.5.0
+    Checking alloy-network-primitives v2.5.0
+    Checking alloy-rpc-types-eth v2.5.0
+    Checking hyper-rustls v0.27.10
+    Checking axum v0.8.9
+    Checking reqwest v0.13.5
+    Checking reqwest v0.12.28
+    Checking token-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\token_manager)
+    Checking alloy-transport-http v2.5.0
+    Checking alloy-rpc-client v2.5.0
+    Checking alloy-rpc-types-any v2.5.0
+    Checking alloy-rpc-types v2.5.0
+    Checking alloy-network v2.5.0
+    Checking alloy-provider v2.5.0
+    Checking alloy-contract v2.5.0
+    Checking alloy v2.5.0
+    Checking uniswap-lens v2.0.0
+    Checking uniswap-v3-sdk v7.0.0
+    Checking uniswap-v4-sdk v2.0.0
+    Checking pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\pool_manager)
+    Checking candidate-edge-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\candidate_edge_pool_manager)
+    Checking directional-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\directional_pool_manager)
+    Checking candidate-exchange-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\candidate_exchange_pool_manager)
+    Checking closed-loop-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\closed_loop_manager)
+    Checking review-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\review_manager)
+    Checking broadcast-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\broadcast_manager)
+    Checking composite-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\composite_manager)
+    Checking manager-api v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\manager_api)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1m 39s

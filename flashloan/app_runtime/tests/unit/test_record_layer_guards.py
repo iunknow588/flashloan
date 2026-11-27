@@ -166,18 +166,42 @@ def test_every_closed_loop_writes_into_a_file_of_its_own():
     """
     source = _source(RECORDS_SOURCE)
     assert "pub fn loop_file_stem(loop_key: &str) -> String" in source
-    assert "pub fn review_file_path(dir: &Path, day: NaiveDate, loop_key: &str)" in source
+    assert "pub fn review_file_path(dir: &Path, day: NaiveDate, hour: u32, loop_key: &str)" in source
     assert "dir.join(review_day_folder(day))" in source
     assert "let month_dir = self.dir.join(key);" in source
     assert "month_dir.join(TRADE_FILE_NAME)" in source
 
 
 def test_the_review_files_are_split_by_day_and_closed_loop():
-    """The day is a folder and the closed loop is the file inside it."""
+    """The day is a folder and the closed loop and the hour are the file.
+
+    One file holds one closed loop in one hour, so a file never grows past
+    the lines of that hour.  The **day folder is unchanged**: the retention
+    pass removes whole day folders and never has to know about the hour.
+    """
     source = _source(RECORDS_SOURCE)
     assert 'pub fn review_day_folder(day: NaiveDate) -> String' in source
     assert 'pub fn review_day_from_folder(name: &str) -> Option<NaiveDate>' in source
     assert 'format!("{:04}-{:02}-{:02}", day.year(), day.month(), day.day())' in source
+    assert 'pub fn review_hour_stem(day: NaiveDate, hour: u32) -> String' in source
+    assert 'format!("{:04}{:02}{:02}-{:02}", day.year(), day.month(), day.day(), hour)' in source
+
+
+def test_the_hour_never_enters_the_folder_name():
+    """The retention pass reads a folder name, so the hour stays in the file.
+
+    The retention pass removes a folder when its name parses as a day.  A
+    folder that carried the hour would not parse, and the pass would then
+    remove nothing at all, so the hour lives in the file name and never in
+    the folder name.
+    """
+    source = _source(RECORDS_SOURCE)
+    removable = _function_body(source, "fn review_day_is_removable(")
+    assert "review_day_from_folder(name)" in removable
+    # The folder name is still exactly the day, and the hour is appended to
+    # the file name inside it.
+    assert 'format!("{:04}-{:02}-{:02}", day.year(), day.month(), day.day())' in source
+    assert 'dir.join(review_day_folder(day))' in source
 
 
 def test_the_retention_pass_removes_whole_day_folders():

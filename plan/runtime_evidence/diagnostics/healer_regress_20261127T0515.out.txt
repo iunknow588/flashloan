@@ -1,0 +1,32 @@
+...............................................F........................ [ 84%]
+...........F.                                                            [100%]
+================================== FAILURES ===================================
+____ MainnetArbitrageHealerTests.test_one_healthy_window_is_not_stability _____
+
+self = <scripts.tests.test_mainnet_arbitrage_healer.MainnetArbitrageHealerTests testMethod=test_one_healthy_window_is_not_stability>
+
+    def test_one_healthy_window_is_not_stability(self):
+        tracker = HEALER.StabilityTracker()
+        verdict = tracker.observe(self.healthy_report())
+        self.assertFalse(verdict["stable"])
+>       self.assertEqual(verdict["consecutiveWindows"], 1)
+E       AssertionError: 0 != 1
+
+scripts\tests\test_mainnet_arbitrage_healer.py:1042: AssertionError
+_ MainnetArbitrageHealerTests.test_three_consecutive_healthy_windows_are_stable _
+
+self = <scripts.tests.test_mainnet_arbitrage_healer.MainnetArbitrageHealerTests testMethod=test_three_consecutive_healthy_windows_are_stable>
+
+    def test_three_consecutive_healthy_windows_are_stable(self):
+        tracker = HEALER.StabilityTracker()
+        for minute in (0, 31, 62):
+            verdict = tracker.observe(self.healthy_report(
+                f"2026-11-17T00:{minute:02d}:00Z"))
+>       self.assertTrue(verdict["stable"])
+E       AssertionError: False is not true
+
+scripts\tests\test_mainnet_arbitrage_healer.py:1049: AssertionError
+=========================== short test summary info ===========================
+FAILED scripts/tests/test_mainnet_arbitrage_healer.py::MainnetArbitrageHealerTests::test_one_healthy_window_is_not_stability
+FAILED scripts/tests/test_mainnet_arbitrage_healer.py::MainnetArbitrageHealerTests::test_three_consecutive_healthy_windows_are_stable
+2 failed, 83 passed in 69.28s (0:01:09)

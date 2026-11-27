@@ -11,12 +11,14 @@ use std::fmt;
 use std::path::Path;
 
 pub mod admission;
+pub mod execution_record;
 pub mod runtime;
 
 pub use admission::{
     decide as decide_admission, AdmissionCandidate, AdmissionCheck, AdmissionDecision,
     AdmissionRule, BroadcastAdmissionContext, BroadcastGuardPolicy,
 };
+pub use execution_record::{record_runtime_attempt, RuntimeAttempt, RuntimeAttemptOutcome};
 pub use runtime::{BroadcastRuntimeStatus, BroadcastSupervisor, ExecutionQueue, ExecutionTask};
 
 const NETWORK_PROTOCOL: &str = "uniswap_v4";
@@ -149,7 +151,22 @@ pub enum BroadcastError {
     Json(serde_json::Error),
     InvalidRequest(String),
     ReviewRead(String),
+    /// The closed loop a broadcast belongs to could not be read.
+    ///
+    /// The review clock belongs to the closed loop, so a broadcast that
+    /// cannot start the clock of its loop cannot be recorded either: the
+    /// error names the loop whose state could not be reached.
+    ClosedLoopRead(String),
     MissingReviewState,
+    /// The loop a runtime attempt belongs to has no review row.
+    ///
+    /// The attempt row carries the closed-loop identity, and the review
+    /// layer owns that identity.  A loop without a review row therefore
+    /// has no identity to file the attempt under, and the attempt is
+    /// refused instead of being filed against a guess.
+    ReviewRowMissing {
+        loop_key: String,
+    },
     ReviewSnapshotTruncated {
         expected: usize,
         actual: usize,
@@ -203,9 +220,16 @@ impl fmt::Display for BroadcastError {
             Self::ReviewRead(message) => {
                 write!(formatter, "review manager upstream read failed: {message}")
             }
+            Self::ClosedLoopRead(message) => {
+                write!(formatter, "closed loop upstream read failed: {message}")
+            }
             Self::MissingReviewState => {
                 formatter.write_str("review scope core4 has not been materialized")
             }
+            Self::ReviewRowMissing { loop_key } => write!(
+                formatter,
+                "loop {loop_key} has no review row, so the attempt has no identity to file under"
+            ),
             Self::ReviewSnapshotTruncated { expected, actual } => write!(
                 formatter,
                 "review broadcast requests are truncated: expected {expected}, read {actual}"
@@ -374,6 +398,15 @@ pub struct BroadcastSubmitRequest {
 pub enum BroadcastTerminalStatus {
     Success,
     Failed,
+    /// The transaction was sent and the chain has not answered yet.
+    ///
+    /// The send is the fact; the receipt is the answer, and the answer
+    /// arrives when the chain mines the transaction. A record that waits
+    /// for the answer before it is written holds the thread that sent the
+    /// transaction, and a held thread cannot send the next opportunity.
+    /// The attempt is therefore recorded as pending, and the broadcast
+    /// confirmation thread completes it when the answer arrives.
+    Pending,
 }
 
 impl BroadcastTerminalStatus {
@@ -381,6 +414,7 @@ impl BroadcastTerminalStatus {
         match self {
             Self::Success => "success",
             Self::Failed => "failed",
+            Self::Pending => "pending",
         }
     }
 }
@@ -1140,6 +1174,7 @@ fn submit_on_connection(
         guard_policy,
         &attempt_amounts_raw,
         admission_now.as_deref(),
+        review_manager::automatic_review_interval_seconds_on_connection(connection),
         prepared_write.as_ref().map(|(request, _)| *request),
         prepared_write
             .as_ref()
@@ -1754,6 +1789,7 @@ fn build_attempt_rows(
     guard_policy: Option<&BroadcastGuardPolicy>,
     attempt_amounts_raw: &BTreeMap<String, u128>,
     admission_now: Option<&str>,
+    review_freshness_window_seconds: i64,
     submit_request: Option<&BroadcastSubmitRequest>,
     idempotency_key: &str,
 ) -> Result<Vec<AttemptRow>, BroadcastError> {
@@ -1803,6 +1839,7 @@ fn build_attempt_rows(
             policy: guard_policy.cloned().unwrap_or_default(),
             amount_raw: attempt_amounts_raw.get(&attempt.loop_key).copied(),
             now: admission_now.map(str::to_owned),
+            review_freshness_window_seconds: Some(review_freshness_window_seconds),
         };
         let candidate = AdmissionCandidate {
             loop_key: request.loop_key.clone(),
@@ -1971,6 +2008,12 @@ fn validate_finalization_input(finalization: &AttemptFinalizeInput) -> Result<()
             }
         }
         BroadcastTerminalStatus::Failed => {}
+        BroadcastTerminalStatus::Pending => {
+            return Err(BroadcastError::InvalidRequest(
+                "a pending attempt cannot be finalized: the chain has not answered yet"
+                    .to_owned(),
+            ));
+        }
     }
     if let Some(tx_hash) = finalization.tx_hash.as_deref() {
         if tx_hash.trim().is_empty() {
@@ -3053,10 +3096,11 @@ mod tests {
     /// The instant the fixture decision is made at.
     const FIXTURE_NOW: &str = "2026-11-04T01:00:00Z";
     /// The review stamp the fixture seeds. It is 60 seconds before
-    /// `FIXTURE_NOW`, so it is inside the 120 s freshness window.
+    /// `FIXTURE_NOW`, so it is inside the freshness window of the automatic
+    /// review interval.
     const REVIEWED_AT: &str = "2026-11-04T00:59:00Z";
 
-    fn database() -> (tempfile::TempDir, std::path::PathBuf) {
+    pub(crate) fn database() -> (tempfile::TempDir, std::path::PathBuf) {
         let directory = tempfile::tempdir().unwrap();
         let path = seed_store(&directory.path().join("manager.sqlite3"));
         (directory, path)
@@ -3068,7 +3112,7 @@ mod tests {
     /// in, so the fixture has to use the layout of the running system: the
     /// record root then stays inside the fixture instead of next to the
     /// temporary root.
-    fn database_with_record_root() -> (tempfile::TempDir, std::path::PathBuf) {
+    pub(crate) fn database_with_record_root() -> (tempfile::TempDir, std::path::PathBuf) {
         let directory = tempfile::tempdir().unwrap();
         let db_directory = directory.path().join("db");
         std::fs::create_dir_all(&db_directory).unwrap();
@@ -3076,7 +3120,7 @@ mod tests {
         (directory, path)
     }
 
-    fn seed_store(path: &std::path::Path) -> std::path::PathBuf {
+    pub(crate) fn seed_store(path: &std::path::Path) -> std::path::PathBuf {
         manager_db::migrate(path).unwrap();
         let connection = Connection::open(path).unwrap();
         connection
@@ -3857,17 +3901,17 @@ mod tests {
     }
 
     /// N-6: a review older than the freshness window refuses the
-    /// broadcast. The window is 120 s, not the 600 s observation
-    /// threshold.
+    /// broadcast. The window is the automatic review interval of the
+    /// closed loop, not the 600 s observation threshold.
     #[test]
     fn n6_stale_review_refuses_the_broadcast() {
         let (_directory, path) = database();
-        // 121 seconds before `FIXTURE_NOW` — one second past the window.
+        // 61 seconds before `FIXTURE_NOW` — one second past the window.
         set_review_facts(
             &path,
             "completed",
             "{\"ok\":true,\"executable\":true}",
-            "2026-11-04T00:57:59Z",
+            "2026-11-04T00:58:59Z",
         );
         let error = submit_attempts(&path, vec![attempt(None, 42)], true)
             .expect_err("a stale review must be refused");
@@ -3880,7 +3924,7 @@ mod tests {
     #[test]
     fn a_review_just_inside_the_window_is_admitted() {
         let (_directory, path) = database();
-        // 119 seconds before `FIXTURE_NOW`.
+        // 59 seconds before `FIXTURE_NOW`.
         set_review_facts(
             &path,
             "completed",

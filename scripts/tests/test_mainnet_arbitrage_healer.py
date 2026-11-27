@@ -1032,8 +1032,42 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
                     "positive": 3, "missingValue": 0, "sum": 1.0}}},
                 "broadcast": {"outcomes": {"success": 2, "failed": 0}},
             },
-            "transactionProduction": {"state": "healthy"},
+            # The production verdict publishes a **state** and a
+            # **boolean**.  The state is one of ``market_no_executable_profit``
+            # / ``transaction_records_present`` / ``review_stalled`` / ... and
+            # is never the literal string ``healthy``.
+            "transactionProduction": {
+                "state": "transaction_records_present",
+                "healthy": True,
+                "reason": "profitable_reviews_and_transaction_records_exist",
+            },
         }
+
+    def test_a_production_state_that_never_occurs_cannot_satisfy_the_window(self):
+        # The state string ``healthy`` is not a state the production verdict
+        # ever publishes.  A window that compared the state to that string
+        # could therefore never be satisfied, no matter what the chain did.
+        report = self.healthy_report()
+        report["transactionProduction"] = {"state": "healthy"}
+        verdict = HEALER.StabilityTracker().observe(report)
+        self.assertFalse(verdict["satisfied"])
+        self.assertIn("productionHealthy", verdict["failedConditions"])
+
+    def test_an_unhealthy_production_verdict_breaks_the_stability_window(self):
+        report = self.healthy_report()
+        report["transactionProduction"] = {"state": "market_no_executable_profit",
+                                            "healthy": False}
+        verdict = HEALER.StabilityTracker().observe(report)
+        self.assertFalse(verdict["satisfied"])
+        self.assertIn("productionHealthy", verdict["failedConditions"])
+
+    def test_the_production_verdict_is_read_from_its_published_boolean(self):
+        report = self.healthy_report()
+        report["transactionProduction"] = {"state": "market_no_executable_profit",
+                                            "healthy": True}
+        verdict = HEALER.StabilityTracker().observe(report)
+        self.assertTrue(verdict["satisfied"])
+        self.assertEqual(verdict["consecutiveWindows"], 1)
 
     def test_one_healthy_window_is_not_stability(self):
         tracker = HEALER.StabilityTracker()
@@ -1470,6 +1504,75 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
             self.assertTrue(any("evidence_missing" != reason for reason in reasons),
                             f"the manager reason was lost: {reasons}")
 
+    def test_the_review_freshness_is_read_from_the_published_measurement_moment(self):
+        """The Review Manager publishes ``reviewedAt`` and no ``createdAt``.
+
+        Reading ``created_at`` alone made every Manager review look
+        infinitely old, so the production verdict reported
+        ``review_stalled`` while the runtime was writing a fresh review
+        every few seconds, and the operator was sent to repair a review
+        layer that was already green.
+        """
+        published = [
+            {"loopKey": "loop-1", "reviewedAt": "2026-11-10T12:00:00Z",
+             "signedPnl": {"amount": "1.0", "currency": "ETH"}},
+            {"loopKey": "loop-2", "reviewedAt": "2026-11-10T06:00:00Z",
+             "signedPnl": {"amount": "2.0", "currency": "ETH"}},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "reviews.sqlite3"
+            connection = sqlite3.connect(database)
+            connection.execute("CREATE TABLE manager_v4_reviews (loop_key TEXT)")
+            connection.execute("CREATE TABLE cow_execution_reviews (id INTEGER, "
+                               "network TEXT, chain_id INTEGER, created_at TEXT, "
+                               "payload_json TEXT, selected_profit_raw TEXT, "
+                               "selected_profit_amount TEXT, "
+                               "selected_profit_missing_reason TEXT)")
+            connection.commit()
+            connection.close()
+            with mock.patch.object(HEALER.manager_record_reader, "read_reviews",
+                                   return_value=published), \
+                    mock.patch.object(HEALER, "manager_read_closed_loops",
+                                      return_value={"loops": [{"loopKey": "loop-1"},
+                                                               {"loopKey": "loop-2"}]}):
+                report = HEALER.audit_reviews(database, 24,
+                                             "http://127.0.0.1:8091")
+        self.assertEqual(report["legacy"]["latestReviewAt"], "2026-11-10T12:00:00Z")
+        self.assertEqual(report["legacy"]["currentLoopLatestReviewAt"],
+                         "2026-11-10T12:00:00Z")
+
+    def test_a_review_without_any_published_moment_stays_without_one(self):
+        self.assertIsNone(HEALER.newest_review_stamp([{"loop_key": "loop-1"}]))
+        self.assertIsNone(HEALER.newest_review_stamp([]))
+
+    def test_the_cascade_judges_the_review_layer_by_the_current_catalog(self):
+        """The layer verdict must agree with the review audit.
+
+        The audit judges the live scope (every current loop carries a
+        value).  The cascade used to read the whole window, so a route
+        that left the catalog kept the layer red forever and the two
+        verdicts contradicted each other.
+        """
+        report = {
+            "layers": {
+                "tokens": {"valid": True},
+                "pools": {"valid": True},
+                "closedLoops": {"valid": True},
+                "reviews": {"valid": True,
+                            "legacy": {"stats": {"missingValue": 19, "positive": 0},
+                                       "currentLoopStats": {"missingValue": 0,
+                                                            "positive": 0,
+                                                            "total": 10}}},
+                "broadcast": {"valid": False,
+                              "outcomes": {"success": 0, "failed": 0}},
+            },
+            "blockers": ["broadcast"],
+        }
+        status = HEALER.cascade_layer_status(report)
+        self.assertTrue(status["layers"]["reviews"])
+        self.assertEqual(status["missingReviewValue"], 0)
+        self.assertFalse(status["layers"]["broadcast"])
+
     def test_review_evidence_resolves_the_route_of_a_manager_review(self):
         """A Manager row stores the route in ``path_addresses_json``."""
         row = {"loop_key": "loop-1",
@@ -1822,6 +1925,383 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
             self.assertNotIn(f"JOIN {table}", source, table)
             self.assertNotIn(f"INTO {table}", source, table)
             self.assertNotIn(f"UPDATE {table}", source, table)
+
+    def test_a_readiness_timeout_means_busy_and_not_dead(self):
+        # The runtime answered the liveness probe and did not answer the
+        # heavier readiness probe in time.  That is a runtime that is busy
+        # measuring a review round, and restarting it would throw the
+        # round away -- which is what used to happen, so no review ever
+        # landed and the self-healing never converged.
+        with mock.patch.object(
+            HEALER,
+            "api_get",
+            side_effect=[
+                {"ok": True, "status": 200, "payload": {"status": "ok"}},
+                {"ok": False, "status": 0, "error": "timed out", "kind": "timeout"},
+            ],
+        ):
+            health = HEALER.runtime_business_health("http://127.0.0.1:5000")
+        self.assertTrue(health["ok"], health)
+        self.assertTrue(health["busy"], health)
+        self.assertEqual(health["stage"], "busy")
+
+    def test_a_readiness_failure_that_is_not_a_timeout_stays_unhealthy(self):
+        # A busy runtime answers late; a broken one answers with an error.
+        # Only the second one may be restarted.
+        with mock.patch.object(
+            HEALER,
+            "api_get",
+            side_effect=[
+                {"ok": True, "status": 200, "payload": {"status": "ok"}},
+                {"ok": False, "status": 500, "error": "boom", "kind": "http"},
+            ],
+        ):
+            health = HEALER.runtime_business_health("http://127.0.0.1:5000")
+        self.assertFalse(health["ok"], health)
+        self.assertNotIn("busy", health)
+
+    def test_the_historical_positives_come_from_the_manager_library(self):
+        # The record table is append only and carries the payload text of
+        # every row; a scan of it costs minutes and the runtime never
+        # decides on it.  The Manager library publishes the same reviews as
+        # in-memory objects, so the candidates are read from there and the
+        # record table is not opened at all.
+        loops = [{"loop_key": "loop-a", "path_text": "ETH -> A -> ETH",
+                  "path_symbols_json": json.dumps(["ETH", "A", "ETH"]),
+                  "path_addresses_json": json.dumps(["0x0", "0xa", "0x0"])}]
+        reviews = [
+            {"loop_key": "loop-a", "reviewed_at": "2026-11-26T10:00:00Z",
+             "signed_pnl_amount": 1.25, "signed_pnl_currency": "ETH",
+             "signed_pnl_raw": "0x1", "review_status": "completed"},
+            # A loop that is not in the current catalog is not a candidate.
+            {"loop_key": "loop-b", "reviewed_at": "2026-11-26T11:00:00Z",
+             "signed_pnl_amount": 9.0, "signed_pnl_currency": "ETH",
+             "signed_pnl_raw": "0x9", "review_status": "completed"},
+            # The newest review of the loop is a loss, so the newest
+            # **positive** review is the one that ranks the candidate.
+            {"loop_key": "loop-a", "reviewed_at": "2026-11-26T12:00:00Z",
+             "signed_pnl_amount": -3.0, "signed_pnl_currency": "ETH",
+             "signed_pnl_raw": "-0x3", "review_status": "not_executable"},
+        ]
+
+        def forbidden(*args, **kwargs):
+            raise AssertionError("the legacy record table was read")
+
+        with mock.patch.object(HEALER, "manager_loop_rows", return_value=loops), \
+                mock.patch.object(HEALER, "manager_review_rows", return_value=reviews), \
+                mock.patch.object(HEALER, "connect", side_effect=forbidden):
+            candidates = HEALER.historical_positive_candidates(
+                Path("unused.sqlite3"), 5, None, "http://127.0.0.1:8091")
+        self.assertEqual([item["loopKey"] for item in candidates], ["loop-a"])
+        self.assertEqual(candidates[0]["historicalProfit"], 1.25)
+        self.assertEqual(candidates[0]["historicalCurrency"], "ETH")
+        self.assertEqual(candidates[0]["historicalReviewedAt"], "2026-11-26T10:00:00Z")
+        self.assertEqual(candidates[0]["historicalReviewSource"], "manager_library")
+
+    def test_the_record_table_is_the_fallback_when_no_manager_library_exists(self):
+        # A store that has not materialized its reviews yet is still audited
+        # from the record table, so the fallback has to keep working.
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "legacy.sqlite3"
+            connection = sqlite3.connect(database)
+            connection.execute(
+                "CREATE TABLE cow_execution_reviews (id INTEGER,attempt_key TEXT,"
+                "network TEXT,chain_id INTEGER,market_id TEXT,pair TEXT,tx_hash TEXT,"
+                "created_at TEXT,category TEXT,payload_json TEXT,summary_json TEXT,"
+                "updated_at TEXT,selected_profit_raw TEXT,selected_profit_amount REAL,"
+                "selected_profit_amount_symbol TEXT,selected_profit_source TEXT,"
+                "selected_profit_missing_reason TEXT)"
+            )
+            connection.execute(
+                "INSERT INTO cow_execution_reviews (network,chain_id,created_at,category,"
+                "payload_json,selected_profit_amount,selected_profit_amount_symbol) "
+                "VALUES ('robinhood',4663,'2026-11-26 10:00:00','closed_loop',?,2.5,'ETH')",
+                (json.dumps({"loopKey": "loop-a"}),),
+            )
+            connection.execute(
+                "INSERT INTO cow_execution_reviews (network,chain_id,created_at,category,"
+                "payload_json,selected_profit_amount,selected_profit_amount_symbol) "
+                "VALUES ('robinhood',4663,'2026-11-26 11:00:00','closed_loop',?,-1.0,'ETH')",
+                (json.dumps({"loopKey": "loop-a"}),),
+            )
+            connection.commit()
+            connection.close()
+            loops = [{"loop_key": "loop-a", "path_text": "ETH -> A -> ETH",
+                      "path_symbols_json": json.dumps(["ETH", "A", "ETH"]),
+                      "path_addresses_json": json.dumps(["0x0", "0xa", "0x0"])}]
+            with mock.patch.object(HEALER, "manager_loop_rows", return_value=loops), \
+                    mock.patch.object(HEALER, "manager_review_rows", return_value=[]), \
+                    mock.patch.object(HEALER, "observation_started_at",
+                                      return_value="2000-01-01 00:00:00"):
+                candidates = HEALER.historical_positive_candidates(
+                    database, 5, None, None)
+        self.assertEqual([item["loopKey"] for item in candidates], ["loop-a"])
+        self.assertEqual(candidates[0]["historicalProfit"], 2.5)
+        self.assertEqual(candidates[0]["historicalReviewSource"], "legacy_record_table")
+
+    def test_a_stock_token_is_not_compared_against_the_funding_allowlist(self):
+        # The chain's funding allowlist and its stock registry are two
+        # different token universes.  NET and DJT live in both, and the two
+        # registries name two different contracts for each of them -- the
+        # allowlist's NET is a nine decimal token named "NetNet", the
+        # registry's NET is Cloudflare's eighteen decimal stock token, and
+        # both are real contracts.  The stock registry is the authority for
+        # the stock library, so comparing a stock row against the funding
+        # allowlist would report a mismatch that does not exist, and the
+        # batch repair would swap a working equity token of the core
+        # library for a different token that merely shares its ticker.
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "tokens.sqlite3"
+            connection = sqlite3.connect(database)
+            for table in ("token_core", "token_stocks", "token_test"):
+                connection.execute(
+                    f"CREATE TABLE {table} (network TEXT,chain_id INTEGER,token_symbol TEXT,"
+                    "token_address TEXT,token_decimals INTEGER,admission_status TEXT,"
+                    "metadata_source TEXT,admission_source TEXT,source_json TEXT)"
+                )
+            official = HEALER.official_funding_token_addresses(4663)
+            registry = HEALER.stock_registry_provenance(4663)
+            # A ticker that both registries carry, with two addresses.
+            shared = sorted(set(official) & set(registry))
+            self.assertTrue(shared, "the fixtures need a ticker in both registries")
+            symbol = shared[0]
+            stock_entry = registry[symbol]
+            connection.execute(
+                "INSERT INTO token_stocks VALUES (?,?,?,?,?,'admitted',?,?,?)",
+                ("robinhood", 4663, symbol, stock_entry["address"], 18,
+                 stock_entry["metadataSource"], "bootstrap:stock_registry",
+                 json.dumps({"seed": HEALER.STOCK_REGISTRY_SEED})),
+            )
+            connection.commit()
+            connection.close()
+            defects = HEALER.token_defects(database)
+            kinds = {(item["kind"], item.get("symbol")) for item in defects}
+            self.assertNotIn(("funding_address_mismatch", symbol), kinds, defects)
+
+    def test_a_funding_token_under_a_wrong_address_is_still_a_defect(self):
+        # Scoping the comparison must not soften the funding libraries: a
+        # funding token that is admitted under the wrong address is still a
+        # defect that the healer has to repair.
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "tokens.sqlite3"
+            connection = sqlite3.connect(database)
+            for table in ("token_core", "token_stocks", "token_test"):
+                connection.execute(
+                    f"CREATE TABLE {table} (network TEXT,chain_id INTEGER,token_symbol TEXT,"
+                    "token_address TEXT,token_decimals INTEGER,admission_status TEXT,"
+                    "metadata_source TEXT,admission_source TEXT,source_json TEXT)"
+                )
+            official = HEALER.official_funding_token_addresses(4663)
+            symbol = "USDG"
+            self.assertIn(symbol, official)
+            connection.execute(
+                "INSERT INTO token_core VALUES (?,?,?,?,?,'admitted','x','y','{}')",
+                ("robinhood", 4663, symbol, "0x00000000000000000000000000000000000000ff", 18),
+            )
+            connection.commit()
+            connection.close()
+            defects = HEALER.token_defects(database)
+            mismatches = [item for item in defects
+                          if item["kind"] == "funding_address_mismatch"]
+            self.assertEqual(len(mismatches), 1, defects)
+            self.assertEqual(mismatches[0]["symbol"], symbol)
+            self.assertEqual(mismatches[0]["expectedAddress"], official[symbol])
+
+    def test_a_profitable_review_counts_as_executable_by_its_own_verdict(self):
+        # The count of the profitable routes that may be broadcast used to
+        # be taken from the ``category`` column, and that column holds
+        # nothing but ``not_executable`` in the current library.  The count
+        # was therefore structurally zero, the production state could never
+        # leave ``market_no_executable_profit``, and the broadcast gate
+        # could never open -- whatever the market did.  The verdict belongs
+        # to the reviewed row: a Manager row carries the kernel's own
+        # ``runArbitrage.executable`` flag.
+        profitable = {
+            "loop_key": "loop-a",
+            "review_status": "completed",
+            "signed_pnl_amount": 2.5,
+            "signed_pnl_currency": "ETH",
+            "signed_pnl_raw": "0x1",
+            "signed_pnl_source": "native_rust_ladder",
+            "runArbitrage": {"ok": True, "executable": True,
+                             "signedPnl": {"amount": 2.5, "raw": "0x1",
+                                           "currency": "ETH"}},
+        }
+        not_executable = {
+            "loop_key": "loop-b",
+            "review_status": "not_executable",
+            "signed_pnl_amount": 1.5,
+            "signed_pnl_currency": "ETH",
+            "signed_pnl_raw": "0x1",
+            "signed_pnl_source": "native_rust_ladder",
+            "runArbitrage": {"ok": False, "executable": False,
+                             "signedPnl": {"amount": 1.5, "raw": "0x1",
+                                           "currency": "ETH"}},
+        }
+        stats = HEALER.pnl_stats([profitable, not_executable])
+        self.assertEqual(stats["positiveAmount"], 2, stats)
+        self.assertEqual(stats["positive"], 1, stats)
+        self.assertEqual(stats["confirmedSum"], 2.5, stats)
+        # The row that says the route was not executable is not a candidate
+        # for the broadcast, even when its number is positive.
+        self.assertFalse(HEALER.review_row_execution_verdict(not_executable))
+        self.assertTrue(HEALER.review_row_execution_verdict(profitable))
+
+    def test_a_legacy_row_without_the_executable_category_is_not_positive(self):
+        # The legacy table kept its own convention, and a row that says
+        # nothing but ``not_executable`` is not a candidate either.
+        row = {"category": "not_executable", "selected_profit_amount": 4.0,
+               "selected_profit_amount_symbol": "ETH",
+               "selected_profit_raw": "0x1"}
+        self.assertFalse(HEALER.review_row_execution_verdict(row))
+        stats = HEALER.pnl_stats([row])
+        self.assertEqual(stats["positiveAmount"], 1, stats)
+        self.assertEqual(stats["positive"], 0, stats)
+
+
+    def test_the_schedule_of_a_loop_decides_when_it_is_measured_again(self):
+        now = dt.datetime(2026, 11, 27, 9, 0, tzinfo=dt.timezone.utc)
+        future = (now + dt.timedelta(minutes=10)).isoformat()
+        past = (now - dt.timedelta(minutes=10)).isoformat()
+
+        # A loop that waits for a review is due, whatever its clock says.
+        self.assertTrue(HEALER.review_is_due(
+            {"reviewRequired": True, "nextReviewAt": future}, now))
+        # A loop that was never measured publishes no moment: it is due.
+        self.assertTrue(HEALER.review_is_due(
+            {"reviewRequired": False, "nextReviewAt": None}, now))
+        # A loop whose moment is in the future waits for it.
+        self.assertFalse(HEALER.review_is_due(
+            {"reviewRequired": False, "nextReviewAt": future}, now))
+        # A loop whose moment has passed is due again.
+        self.assertTrue(HEALER.review_is_due(
+            {"reviewRequired": False, "nextReviewAt": past}, now))
+
+    def test_the_review_clock_of_a_loop_decides_when_it_is_due(self):
+        now = dt.datetime(2026, 11, 27, 9, 0, tzinfo=dt.timezone.utc)
+        future = (now + dt.timedelta(seconds=60)).isoformat()
+
+        # A loop whose clock is running waits for it: the loop is not due
+        # while the clock still has seconds left.
+        self.assertFalse(HEALER.review_is_due(
+            {"reviewRequired": False, "runtimeStatus": "cooldown",
+             "reviewWaitSeconds": 42, "nextReviewAt": future}, now))
+        # A clock that ran out leaves nothing to wait for: the loop is due.
+        self.assertTrue(HEALER.review_is_due(
+            {"reviewRequired": False, "runtimeStatus": "cooldown",
+             "reviewWaitSeconds": 0, "nextReviewAt": future}, now))
+        # A loop in the review state waits for its next measurement.
+        self.assertTrue(HEALER.review_is_due(
+            {"reviewRequired": False, "runtimeStatus": "ready_for_review",
+             "reviewWaitSeconds": 0, "nextReviewAt": None}, now))
+
+    def test_a_loop_whose_round_is_running_is_not_due(self):
+        # The round of the review is running right now: the loop is being
+        # measured, so it is not due and it is not measured twice.
+        now = dt.datetime(2026, 11, 27, 9, 0, tzinfo=dt.timezone.utc)
+        past = (now - dt.timedelta(seconds=30)).isoformat()
+        self.assertFalse(HEALER.review_is_due(
+            {"reviewRequired": False, "runtimeStatus": "review_pending",
+             "reviewWaitSeconds": 0, "nextReviewAt": past}, now))
+
+    def test_the_review_cycle_is_started_through_the_manager(self):
+        posted: dict[str, object] = {}
+
+        def fake_post(base, path, body):
+            posted.update({"base": base, "path": path, "body": body})
+            return {"ok": True, "status": 200, "body": json.dumps(
+                {"ok": True, "data": {"claimed": True,
+                                       "reviewCycleStartedAt": "2026-11-27T01:00:00+00:00"}})}
+
+        with mock.patch.object(HEALER, "api_post", side_effect=fake_post):
+            result = HEALER.begin_review_cycle("http://manager", "loop-a")
+        self.assertTrue(result["claimed"])
+        self.assertEqual(posted["path"], "/v1/closed-loops/review-cycle")
+        self.assertEqual(posted["body"]["loopKey"], "loop-a")
+
+    def test_the_due_loops_are_read_from_the_manager(self):
+        def fake_get(base, path, timeout=5):
+            self.assertIn("chainId=4663", path)
+            return {"ok": True, "status": 200, "payload": {"ok": True, "data": {
+                "dueCount": 2,
+                "loops": [{"loopKey": "loop-a", "runtimeStatus": "ready_for_review",
+                            "nextReviewAt": "2026-11-27T01:00:00+00:00",
+                            "reviewWaitedSeconds": 12},
+                           {"loopKey": "loop-b", "runtimeStatus": "cooldown",
+                            "nextReviewAt": "2026-11-27T00:59:00+00:00",
+                            "reviewWaitedSeconds": 73}]}}}
+
+        with mock.patch.object(HEALER, "api_get", side_effect=fake_get):
+            loops = HEALER.due_review_loops("http://manager")
+        self.assertEqual([row["loopKey"] for row in loops], ["loop-a", "loop-b"])
+        self.assertEqual(loops[1]["reviewWaitedSeconds"], 73)
+
+    def test_the_review_round_claims_the_cycle_of_the_loop(self):
+        # The round of the review starts with the request, so the cycle of
+        # the loop starts with it as well.
+        claimed: list[str] = []
+        with mock.patch.object(HEALER, "begin_review_cycle",
+                               side_effect=lambda api, key, chain_id=None:
+                               claimed.append(key) or {"ok": True, "claimed": True}), \
+                mock.patch.object(HEALER, "api_post", return_value={"ok": True, "status": 200,
+                                                                  "body": "{}"}), \
+                mock.patch.object(HEALER, "collect_completed_review", return_value=None):
+            HEALER.request_live_review(
+                Path("unused.sqlite3"), "http://runtime",
+                {"loopKey": "loop-a", "routeSymbols": [], "routeAddresses": []},
+                True, True, "http://manager")
+        self.assertEqual(claimed, ["loop-a"])
+
+    def test_the_review_interval_is_read_from_the_configuration_parameters(self):
+        import sqlite3
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = Path(directory) / "store.sqlite3"
+            con = sqlite3.connect(store)
+            con.execute(
+                "CREATE TABLE kv_entries (collection TEXT NOT NULL, key TEXT NOT NULL,"
+                " value_json TEXT NOT NULL, updated_at TEXT NOT NULL,"
+                " PRIMARY KEY (collection, key))")
+            con.execute(
+                "INSERT INTO kv_entries (collection, key, value_json, updated_at)"
+                " VALUES ('parameters', 'strategy_config|CLOSED_LOOP_REVIEW_INTERVAL_SECONDS',"
+                " '{\"namespace\":\"strategy_config\","
+                "\"parameter_key\":\"CLOSED_LOOP_REVIEW_INTERVAL_SECONDS\","
+                "\"value_json\":\"30\"}', 'fixture')")
+            con.commit()
+            con.close()
+            self.assertEqual(HEALER.review_interval_seconds(store), 30)
+
+        # A store that carries no parameter falls back to the environment.
+        self.assertEqual(
+            HEALER.review_interval_seconds(Path("unused.sqlite3")),
+            HEALER.REVIEW_FRESHNESS_SECONDS)
+
+    def test_the_missing_review_candidates_follow_the_published_schedule(self):
+        loop = {"loop_key": "loop-a", "path_text": "ETH -> SPY -> ETH",
+                "path_symbols_json": json.dumps(["ETH", "SPY", "ETH"]),
+                "path_addresses_json": json.dumps(["0x1", "0x2", "0x1"])}
+        now = dt.datetime.now(dt.timezone.utc)
+        future = (now + dt.timedelta(minutes=10)).isoformat()
+        past = (now - dt.timedelta(minutes=10)).isoformat()
+
+        with mock.patch.object(HEALER, "review_rows", return_value=[]), \
+                mock.patch.object(HEALER, "manager_loop_rows", return_value=[loop]), \
+                mock.patch.object(HEALER, "manager_review_schedules",
+                                  return_value={"loop-a": {"reviewRequired": False,
+                                                 "nextReviewAt": future}}):
+            self.assertEqual(HEALER.missing_review_candidates(
+                Path("unused.sqlite3"), 10, None, "http://127.0.0.1:8091"), [])
+
+        with mock.patch.object(HEALER, "review_rows", return_value=[]), \
+                mock.patch.object(HEALER, "manager_loop_rows", return_value=[loop]), \
+                mock.patch.object(HEALER, "manager_review_schedules",
+                                  return_value={"loop-a": {"reviewRequired": False,
+                                                 "nextReviewAt": past}}):
+            candidates = HEALER.missing_review_candidates(
+                Path("unused.sqlite3"), 10, None, "http://127.0.0.1:8091")
+            self.assertEqual([row["loopKey"] for row in candidates], ["loop-a"])
 
 
 if __name__ == "__main__":

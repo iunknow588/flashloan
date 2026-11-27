@@ -182,6 +182,7 @@ fn audit_lines(loop_key: &str, count: usize) -> Vec<review_manager::records::Rev
     };
     let snapshot = ReviewRowSnapshot {
         loop_key: loop_key.to_owned(),
+        reviewed_at: Some(OBSERVED_AT.to_owned()),
         closed_loop_version: Some(7),
         review_status: Some("completed".to_owned()),
         review_reason: None,
@@ -324,6 +325,7 @@ fn scenario_f1() -> Scenario {
         CHAIN_ID,
         vec![review_manager::ReviewEvidenceInput {
             loop_key: LOOP_KEY.to_owned(),
+            closed_loop_generation: None,
             static_preview: serde_json::json!({"ok": false, "executable": false}),
             run_arbitrage: None,
             diagnostics: Vec::new(),

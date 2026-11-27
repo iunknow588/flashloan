@@ -1,0 +1,71 @@
+   Compiling manager-db v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\manager_db)
+   Compiling pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\pool_manager)
+   Compiling token-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\token_manager)
+   Compiling candidate-edge-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\candidate_edge_pool_manager)
+   Compiling directional-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\directional_pool_manager)
+   Compiling candidate-exchange-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\candidate_exchange_pool_manager)
+   Compiling closed-loop-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\closed_loop_manager)
+   Compiling review-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\review_manager)
+error[E0061]: this function takes 6 arguments but 5 arguments were supplied
+    --> closed_loop_manager\src\lib.rs:7205:21
+     |
+7205 |               assert!(record_review_schedule_on_connection(
+     |  _____________________^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^-
+7206 | |                 &connection,
+7207 | |                 NETWORK,
+7208 | |                 CHAIN_ID,
+7209 | |                 &loop_key,
+7210 | |                 measured_at,
+7211 | |             )
+     | |_____________- argument #6 of type `&str` is missing
+     |
+note: function defined here
+    --> closed_loop_manager\src\lib.rs:4404:8
+     |
+4404 | pub fn record_review_schedule_on_connection(
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+4410 |     reason: &str,
+     |     ------------
+help: provide the argument
+     |
+7205 |             assert!(record_review_schedule_on_connection(
+ ...
+7210 |                 measured_at,
+7211 ~                 /* &str */,
+7212 ~             )
+     |
+
+error[E0061]: this function takes 6 arguments but 5 arguments were supplied
+    --> closed_loop_manager\src\lib.rs:7251:13
+     |
+7251 |               record_review_schedule_on_connection(
+     |  _____________^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^-
+7252 | |                 &connection,
+7253 | |                 NETWORK,
+7254 | |                 CHAIN_ID,
+7255 | |                 &loop_key,
+7256 | |                 "2026-11-27T01:00:00+00:00",
+7257 | |             )
+     | |_____________- argument #6 of type `&str` is missing
+     |
+note: function defined here
+    --> closed_loop_manager\src\lib.rs:4404:8
+     |
+4404 | pub fn record_review_schedule_on_connection(
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+4410 |     reason: &str,
+     |     ------------
+help: provide the argument
+     |
+7251 |             record_review_schedule_on_connection(
+ ...
+7256 |                 "2026-11-27T01:00:00+00:00",
+7257 ~                 /* &str */,
+7258 ~             )
+     |
+
+For more information about this error, try `rustc --explain E0061`.
+error: could not compile `closed-loop-manager` (lib test) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...

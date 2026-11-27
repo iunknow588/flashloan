@@ -1,8 +1,10 @@
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
-use serde_json::Value;
+use serde_json::{json, Value};
 
 mod binance_market;
+mod broadcast_policy;
+mod broadcast_record;
 mod business_builder;
 mod closed_loop_identity;
 mod config;
@@ -16,6 +18,7 @@ mod liquidity;
 mod live_refresh;
 mod migration;
 mod native_pool_registry;
+mod pool_depth;
 mod pool_index;
 mod review_publish;
 mod runtime_config;
@@ -712,6 +715,117 @@ fn build_v4_anchor_data(
     Ok(json_result_to_py(py, payload))
 }
 
+/// Materialize the directional pool layer of one chain.
+///
+/// This is the runtime's entry into the directional pool manager.  The
+/// caller asks for the layer to be refreshed and reads the manager's own
+/// receipt back; it never projects the layer itself.
+#[pyfunction]
+#[pyo3(signature = (network, chain_id, apply=false, database_path=None))]
+fn rebuild_directional_pools(
+    py: Python<'_>,
+    network: String,
+    chain_id: i64,
+    apply: bool,
+    database_path: Option<String>,
+) -> PyResult<PyObject> {
+    let path = database_path.unwrap_or_else(default_database_path);
+    match runtime_core::rebuild_directional_pools(&path, &network, chain_id, apply) {
+        Ok(result) => Ok(json_result_to_py(py, result)),
+        // The receipt shape is the same whether the layer was rebuilt or
+        // not: the caller reads ``ok`` and the error code, and it never
+        // has to tell a refusal apart from an exception.
+        Err(error) => Ok(json_result_to_py(
+            py,
+            json!({
+                "ok": false,
+                "apply": apply,
+                "errorCode": error.code(),
+                "error": error.to_string(),
+            }),
+        )),
+    }
+}
+
+/// Rebuild the closed loop layer of one chain.
+///
+/// The closed loop layer is built from the candidate edge, the observation
+/// and the directional pool layers, so the directional layer has to be
+/// materialized first.
+#[pyfunction]
+#[pyo3(signature = (network, chain_id, apply=false, database_path=None))]
+fn rebuild_closed_loops(
+    py: Python<'_>,
+    network: String,
+    chain_id: i64,
+    apply: bool,
+    database_path: Option<String>,
+) -> PyResult<PyObject> {
+    let path = database_path.unwrap_or_else(default_database_path);
+    match runtime_core::rebuild_closed_loops(&path, &network, chain_id, apply) {
+        Ok(result) => Ok(json_result_to_py(py, result)),
+        // The receipt shape is the same whether the layer was rebuilt or
+        // not: the caller reads ``ok`` and the error code, and it never
+        // has to tell a refusal apart from an exception.
+        Err(error) => Ok(json_result_to_py(
+            py,
+            json!({
+                "ok": false,
+                "apply": apply,
+                "errorCode": error.code(),
+                "error": error.to_string(),
+            }),
+        )),
+    }
+}
+
+/// Materialise the liquidity snapshot rows of the given pools.
+///
+/// The depth snapshot table has exactly one writer: the Rust pool manager.
+/// The evidence channel deliberately does not write it, so the runtime has
+/// to reach the pool manager itself.  The caller names the pools and reads
+/// the manager's receipt back; it never measures a pool itself.
+#[pyfunction]
+#[pyo3(signature = (network, chain_id, pool_ids_json, rpc_url=None, batch_size=10, timeout_seconds=20, apply=false, database_path=None))]
+fn refresh_v4_pool_liquidity(
+    py: Python<'_>,
+    network: String,
+    chain_id: i64,
+    pool_ids_json: String,
+    rpc_url: Option<String>,
+    batch_size: usize,
+    timeout_seconds: u64,
+    apply: bool,
+    database_path: Option<String>,
+) -> PyResult<PyObject> {
+    let pool_ids: Vec<String> = serde_json::from_str(&pool_ids_json)
+        .map_err(|error| as_py_error(format!("pool_ids must be a JSON array: {error}")))?;
+    let path = database_path.unwrap_or_else(default_database_path);
+    match pool_depth::refresh_pool_liquidity(
+        &path,
+        &network,
+        chain_id,
+        &pool_ids,
+        rpc_url,
+        batch_size,
+        timeout_seconds,
+        apply,
+    ) {
+        Ok(result) => Ok(json_result_to_py(py, result)),
+        // The receipt shape is the same whether the rows were written or
+        // not: the caller reads ``ok`` and the error, and it never has to
+        // tell a refusal apart from an exception.
+        Err(error) => Ok(json_result_to_py(
+            py,
+            json!({
+                "ok": false,
+                "apply": apply,
+                "error": error,
+            }),
+        )),
+    }
+}
+
 #[pyfunction]
 #[pyo3(signature = (database_path, network, chain_id, protocol, token_rows_json, market_rows_json, pool_rows_json, liquidity_rows_json, index_liquidity_rows_json, replace, initialize_log_count))]
 fn import_v4_evidence(
@@ -1233,6 +1347,8 @@ fn flashloan_rs(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(update_v4_scan_state, module)?)?;
     module.add_function(wrap_pyfunction!(merge_v4_pool_index, module)?)?;
     module.add_function(wrap_pyfunction!(build_v4_anchor_data, module)?)?;
+    module.add_function(wrap_pyfunction!(rebuild_directional_pools, module)?)?;
+    module.add_function(wrap_pyfunction!(rebuild_closed_loops, module)?)?;
     module.add_function(wrap_pyfunction!(candidate_admission_verdicts, module)?)?;
     module.add_function(wrap_pyfunction!(import_v4_evidence, module)?)?;
     module.add_function(wrap_pyfunction!(prune_v4_evidence, module)?)?;
@@ -1308,6 +1424,10 @@ fn flashloan_rs(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(execution::submit_v4_route, module)?)?;
     module.add_function(wrap_pyfunction!(execution::load_v4_receipt, module)?)?;
     module.add_function(wrap_pyfunction!(execution::get_v4_pending_nonce, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        refresh_v4_pool_liquidity,
+        module
+    )?)?;
     module.add_class::<worker_pool::ClosedLoopWorkerPool>()?;
     Ok(())
 }

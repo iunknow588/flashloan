@@ -1,0 +1,166 @@
+{
+  "appliedAt": "2026-11-25T17:45:38.404Z",
+  "appliedNow": true,
+  "checksum": "sha256:d9345f87d6a02b215749f051b4deaa6bd2b58146f0d8d96e458b3b20c9b00f06",
+  "migrationChecksums": {
+    "20261103_001_manager_schema": "sha256:58ab42b79ddda14f887398cf19968a002df036cadd816ababc4661096d9a0feb",
+    "20261104_001_candidate_edge_schema": "sha256:f9deabc3fde812a98a65397316b2e7159becfd4d8eed8ad6ecc45d118e196c81",
+    "20261104_002_candidate_exchange_schema": "sha256:1349a2eb5e98a97bb1d2de893e1c598002762545e23e35685b5de7c78f1ea112",
+    "20261104_003_closed_loop_schema": "sha256:7d90df9d428228b2125a819ab69ef883a54e1a6e89fe1fc462f026a8d4904325",
+    "20261104_004_review_schema": "sha256:9fd93a7568fadea5d691fbed0997de509aa82905b37a2c84c65beff6ca94d6d8",
+    "20261104_005_broadcast_schema": "sha256:2fd966028dfc99e0dd6f364b16f173e66db46341b107ada666f8cc42f0e6d057",
+    "20261104_006_composite_schema": "sha256:e8c60e468810b6c3a656a071d3635e6d160e36994e8b63b20a420f8032e7ee69",
+    "20261112_007_usdg_valuation_schema": "sha256:e9bf58df5cb611afb8648aa43a067d232302605a11d3a1add3ea439a981275f6",
+    "20261114_008_single_tick_capacity_schema": "sha256:80eb1896d83678254ff13d76608591b5b317a552dd9bd44a56269dadff3fb4c9",
+    "20261114_009_hop_price_limit_schema": "sha256:3266c5c3afc5e7f7dd26bc932ebe19afbc4b5ff322ef39f75cdf02bb52393ce3",
+    "20261118_010_cross_tick_seed_schema": "sha256:e88fa2cd6e7dbee2e3a5c295382acee4094660b179187337d590c04b6499f09f",
+    "20261119_011_skipped_token_reason_schema": "sha256:00bca5b77c2813c04bf25211052999f90d928effab0936f6bfdef5060705e55e",
+    "20261119_012_skipped_token_pool_localization": "sha256:875800f83d01b91f63e8645966fb24458102c2c9e51d187254ad4d176c034b7e",
+    "20261119_013_pool_status_reason": "sha256:2a18d18eec119d582fca38ec7b36bf1aa9aa1df3ed78ea3bc81f2afbfa300eb8",
+    "20261121_014_review_closed_loop_identity_schema": "sha256:85b0039054e4b4162090df704dc98f517796f04ddc5f2efc8991198fc20ab817",
+    "20261123_015_directional_pool_schema": "sha256:505b6cf9a2e0ce1b9b676b0358f163bb29d5068f199a6ae11ed5f596285acb18",
+    "20261124_016_closed_loop_directional_wiring": "sha256:ff22181b4910b819cc674553e803f6f7ea6021b58b5a1e84593c9681603b1f0a",
+    "20261125_017_observation_optimal_pool_view": "sha256:745eb4aedf670904dcea3de0d6eba167e6be24da714b1f6eba95ba9a0080da8d",
+    "20261125_018_closed_loop_directional_only": "sha256:d9345f87d6a02b215749f051b4deaa6bd2b58146f0d8d96e458b3b20c9b00f06"
+  },
+  "migrationId": "20261125_018_closed_loop_directional_only",
+  "migrationIds": [
+    "20261103_001_manager_schema",
+    "20261104_001_candidate_edge_schema",
+    "20261104_002_candidate_exchange_schema",
+    "20261104_003_closed_loop_schema",
+    "20261104_004_review_schema",
+    "20261104_005_broadcast_schema",
+    "20261104_006_composite_schema",
+    "20261112_007_usdg_valuation_schema",
+    "20261114_008_single_tick_capacity_schema",
+    "20261114_009_hop_price_limit_schema",
+    "20261118_010_cross_tick_seed_schema",
+    "20261119_011_skipped_token_reason_schema",
+    "20261119_012_skipped_token_pool_localization",
+    "20261119_013_pool_status_reason",
+    "20261121_014_review_closed_loop_identity_schema",
+    "20261123_015_directional_pool_schema",
+    "20261124_016_closed_loop_directional_wiring",
+    "20261125_017_observation_optimal_pool_view",
+    "20261125_018_closed_loop_directional_only"
+  ],
+  "migrationTable": "schema_migrations",
+  "migrations": [
+    {
+      "appliedAt": "2026-11-07T13:11:41.118Z",
+      "appliedNow": false,
+      "checksum": "sha256:58ab42b79ddda14f887398cf19968a002df036cadd816ababc4661096d9a0feb",
+      "migrationId": "20261103_001_manager_schema"
+    },
+    {
+      "appliedAt": "2026-11-07T13:11:41.161Z",
+      "appliedNow": false,
+      "checksum": "sha256:f9deabc3fde812a98a65397316b2e7159becfd4d8eed8ad6ecc45d118e196c81",
+      "migrationId": "20261104_001_candidate_edge_schema"
+    },
+    {
+      "appliedAt": "2026-11-07T13:11:41.166Z",
+      "appliedNow": false,
+      "checksum": "sha256:1349a2eb5e98a97bb1d2de893e1c598002762545e23e35685b5de7c78f1ea112",
+      "migrationId": "20261104_002_candidate_exchange_schema"
+    },
+    {
+      "appliedAt": "2026-11-07T13:11:41.170Z",
+      "appliedNow": false,
+      "checksum": "sha256:7d90df9d428228b2125a819ab69ef883a54e1a6e89fe1fc462f026a8d4904325",
+      "migrationId": "20261104_003_closed_loop_schema"
+    },
+    {
+      "appliedAt": "2026-11-07T13:11:41.174Z",
+      "appliedNow": false,
+      "checksum": "sha256:9fd93a7568fadea5d691fbed0997de509aa82905b37a2c84c65beff6ca94d6d8",
+      "migrationId": "20261104_004_review_schema"
+    },
+    {
+      "appliedAt": "2026-11-07T13:11:41.177Z",
+      "appliedNow": false,
+      "checksum": "sha256:2fd966028dfc99e0dd6f364b16f173e66db46341b107ada666f8cc42f0e6d057",
+      "migrationId": "20261104_005_broadcast_schema"
+    },
+    {
+      "appliedAt": "2026-11-07T13:11:41.182Z",
+      "appliedNow": false,
+      "checksum": "sha256:e8c60e468810b6c3a656a071d3635e6d160e36994e8b63b20a420f8032e7ee69",
+      "migrationId": "20261104_006_composite_schema"
+    },
+    {
+      "appliedAt": "2026-11-17T11:39:41.713Z",
+      "appliedNow": false,
+      "checksum": "sha256:e9bf58df5cb611afb8648aa43a067d232302605a11d3a1add3ea439a981275f6",
+      "migrationId": "20261112_007_usdg_valuation_schema"
+    },
+    {
+      "appliedAt": "2026-11-17T11:39:41.740Z",
+      "appliedNow": false,
+      "checksum": "sha256:80eb1896d83678254ff13d76608591b5b317a552dd9bd44a56269dadff3fb4c9",
+      "migrationId": "20261114_008_single_tick_capacity_schema"
+    },
+    {
+      "appliedAt": "2026-11-17T11:39:41.750Z",
+      "appliedNow": false,
+      "checksum": "sha256:3266c5c3afc5e7f7dd26bc932ebe19afbc4b5ff322ef39f75cdf02bb52393ce3",
+      "migrationId": "20261114_009_hop_price_limit_schema"
+    },
+    {
+      "appliedAt": "2026-11-18T09:14:01.681Z",
+      "appliedNow": false,
+      "checksum": "sha256:e88fa2cd6e7dbee2e3a5c295382acee4094660b179187337d590c04b6499f09f",
+      "migrationId": "20261118_010_cross_tick_seed_schema"
+    },
+    {
+      "appliedAt": "2026-11-18T18:08:11.024Z",
+      "appliedNow": false,
+      "checksum": "sha256:00bca5b77c2813c04bf25211052999f90d928effab0936f6bfdef5060705e55e",
+      "migrationId": "20261119_011_skipped_token_reason_schema"
+    },
+    {
+      "appliedAt": "2026-11-18T19:11:33.318Z",
+      "appliedNow": false,
+      "checksum": "sha256:875800f83d01b91f63e8645966fb24458102c2c9e51d187254ad4d176c034b7e",
+      "migrationId": "20261119_012_skipped_token_pool_localization"
+    },
+    {
+      "appliedAt": "2026-11-18T19:11:33.327Z",
+      "appliedNow": false,
+      "checksum": "sha256:2a18d18eec119d582fca38ec7b36bf1aa9aa1df3ed78ea3bc81f2afbfa300eb8",
+      "migrationId": "20261119_013_pool_status_reason"
+    },
+    {
+      "appliedAt": "2026-11-21T16:24:40.225Z",
+      "appliedNow": false,
+      "checksum": "sha256:85b0039054e4b4162090df704dc98f517796f04ddc5f2efc8991198fc20ab817",
+      "migrationId": "20261121_014_review_closed_loop_identity_schema"
+    },
+    {
+      "appliedAt": "2026-11-23T22:07:52.123Z",
+      "appliedNow": false,
+      "checksum": "sha256:505b6cf9a2e0ce1b9b676b0358f163bb29d5068f199a6ae11ed5f596285acb18",
+      "migrationId": "20261123_015_directional_pool_schema"
+    },
+    {
+      "appliedAt": "2026-11-23T22:41:50.797Z",
+      "appliedNow": false,
+      "checksum": "sha256:ff22181b4910b819cc674553e803f6f7ea6021b58b5a1e84593c9681603b1f0a",
+      "migrationId": "20261124_016_closed_loop_directional_wiring"
+    },
+    {
+      "appliedAt": "2026-11-25T09:04:50.819Z",
+      "appliedNow": false,
+      "checksum": "sha256:745eb4aedf670904dcea3de0d6eba167e6be24da714b1f6eba95ba9a0080da8d",
+      "migrationId": "20261125_017_observation_optimal_pool_view"
+    },
+    {
+      "appliedAt": "2026-11-25T17:45:38.404Z",
+      "appliedNow": true,
+      "checksum": "sha256:d9345f87d6a02b215749f051b4deaa6bd2b58146f0d8d96e458b3b20c9b00f06",
+      "migrationId": "20261125_018_closed_loop_directional_only"
+    }
+  ],
+  "schemaChecksum": "sha256:f3938a1ceba07f6d4b31618c1b7c5a9606fa1f2640568f15d4de7fb62761bddb"
+}

@@ -1,0 +1,12 @@
+   Compiling manager-db v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\manager_db)
+   Compiling pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\pool_manager)
+   Compiling candidate-edge-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\candidate_edge_pool_manager)
+   Compiling candidate-exchange-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\candidate_exchange_pool_manager)
+   Compiling directional-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\directional_pool_manager)
+   Compiling closed-loop-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\closed_loop_manager)
+closed_loop_manager\src\lib.rs:5388:45: warning: unused import: `next_review_moment`
+   Compiling review-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\review_manager)
+warning: `closed-loop-manager` (lib test) generated 1 warning (run `cargo fix --lib -p closed-loop-manager --tests` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 03s
+     Running unittests src\lib.rs (target\debug\deps\closed_loop_manager-21688cc4fc15b50f.exe)
+error: test failed, to rerun pass `-p closed-loop-manager --lib`

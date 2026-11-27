@@ -4,6 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::Path;
 
+use crate::scope::TokenLoadMode;
+
 const PROTOCOL: &str = "uniswap_v4";
 const CANDIDATE_SCOPE: &str = "core4";
 const OBSERVATION_SCOPE: &str = "candidate_exchange";
@@ -101,7 +103,15 @@ pub struct ClosedLoopBaseline {
     pub hop_count: i64,
     pub complete_three_hop_loop_count: i64,
     pub incomplete_loop_count: i64,
-    pub invalid_hop_pool_reference_count: i64,
+    /// The hops whose **directional** pool does not resolve.
+    ///
+    /// A hop names the directional pool it walks, so the reference is
+    /// valid only when that row exists in the direction layer, in the
+    /// scope the hop says it came from, with the direction the hop
+    /// records, and with an active status.  A hop that names no row, or
+    /// names a row of another direction, is counted here: it is the
+    /// omission this audit exists to catch.
+    pub invalid_hop_directional_reference_count: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -150,7 +160,10 @@ pub fn audit_mainnet_baseline(
         database_path,
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
     )?;
-    connection.busy_timeout(std::time::Duration::from_secs(5))?;
+    // The store is written by the runtime as well as by the managers, so
+    // a read can lose the race for the write lock.  Five seconds was short
+    // enough to fail an audit that would have succeeded a moment later.
+    connection.busy_timeout(std::time::Duration::from_secs(60))?;
 
     let mut issues = Vec::new();
     let mut token_libraries = Vec::new();
@@ -221,21 +234,6 @@ pub fn audit_mainnet_baseline(
     if !pools.core_scope_policy_matches {
         issues.push("core_scope_library_policy_stale".to_owned());
     }
-    if !pools.core_scope_policy_matches {
-        issues.push("core_scope_library_policy_stale".to_owned());
-    }
-    if !pools.core_scope_policy_matches {
-        issues.push("core_scope_library_policy_stale".to_owned());
-    }
-    if !pools.core_scope_policy_matches {
-        issues.push("core_scope_library_policy_stale".to_owned());
-    }
-    if !pools.core_scope_policy_matches {
-        issues.push("core_scope_library_policy_stale".to_owned());
-    }
-    if !pools.core_scope_policy_matches {
-        issues.push("core_scope_library_policy_stale".to_owned());
-    }
     if !pools.candidate_scope_policy_matches {
         issues.push("candidate_scope_library_policy_stale".to_owned());
     }
@@ -265,7 +263,7 @@ pub fn audit_mainnet_baseline(
     if closed_loops.incomplete_loop_count > 0 {
         issues.push("closed_loop_not_exactly_three_hops".to_owned());
     }
-    if closed_loops.invalid_hop_pool_reference_count > 0 {
+    if closed_loops.invalid_hop_directional_reference_count > 0 {
         issues.push("closed_loop_hop_pool_reference_invalid".to_owned());
     }
 
@@ -472,12 +470,15 @@ fn read_pool_baseline(
     )?;
     let core_scope_configured_libraries =
         read_scope_libraries(connection, network, chain_id, CANDIDATE_SCOPE)?;
+    // The policy of a scope is the **default load mode** of the scope
+    // manager, so the audit and the manager can never disagree about
+    // what a production scope is supposed to carry.
     let core_scope_policy_matches =
-        core_scope_configured_libraries == ["core".to_owned(), "stocks".to_owned()];
+        core_scope_configured_libraries == expected_scope_libraries(CANDIDATE_SCOPE);
     let candidate_scope_configured_libraries =
         read_scope_libraries(connection, network, chain_id, OBSERVATION_SCOPE)?;
     let candidate_scope_policy_matches =
-        candidate_scope_configured_libraries == ["core".to_owned(), "stocks".to_owned()];
+        candidate_scope_configured_libraries == expected_scope_libraries(OBSERVATION_SCOPE);
     let mut statement = connection.prepare(
         "SELECT lower(token0), lower(token1) FROM v4_exchange_pools_candidate_exchange
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3",
@@ -646,6 +647,16 @@ fn read_scope_libraries(
     Ok(serde_json::from_str::<Vec<String>>(&configured_libraries_json).unwrap_or_default())
 }
 
+fn expected_scope_libraries(scope_key: &str) -> Vec<String> {
+    // The libraries a scope carries when it follows the default load
+    // mode of the scope manager.
+    TokenLoadMode::default_for_scope(scope_key)
+        .library_keys()
+        .iter()
+        .map(|key| (*key).to_owned())
+        .collect()
+}
+
 fn read_closed_loop_baseline(
     connection: &Connection,
     network: &str,
@@ -677,13 +688,21 @@ fn read_closed_loop_baseline(
         params![network, chain_id, PROTOCOL, CANDIDATE_SCOPE],
         |row| row.get(0),
     )?;
-    let invalid_hop_pool_reference_count = connection.query_row(
+    // The hop names the **directional** pool it walks, so the reference is
+    // checked against the direction layer: the row has to exist, in the
+    // scope the hop records, with the direction the hop records.  A hop
+    // that names a base pool, or a direction that does not exist, is an
+    // omission and is counted here.
+    let invalid_hop_directional_reference_count = connection.query_row(
         "SELECT COUNT(*) FROM manager_v4_closed_loop_hops h
          WHERE h.network = ?1 AND h.chain_id = ?2 AND h.protocol = ?3 AND h.scope_key = ?4
            AND NOT EXISTS (
-               SELECT 1 FROM v4_exchange_pools_candidate_exchange p
+               SELECT 1 FROM manager_v4_directional_exchange_pools p
                WHERE p.network = h.network AND p.chain_id = h.chain_id
-                 AND p.protocol = h.protocol AND p.pool_id = h.pool_id
+                 AND p.protocol = h.protocol
+                 AND p.scope_key = h.directional_scope_key
+                 AND p.directional_pool_id = h.directional_pool_id
+                 AND p.direction = h.hop_direction
                  AND p.pool_status = 'active'
            )",
         params![network, chain_id, PROTOCOL, CANDIDATE_SCOPE],
@@ -694,7 +713,7 @@ fn read_closed_loop_baseline(
         hop_count,
         complete_three_hop_loop_count,
         incomplete_loop_count: loop_count.saturating_sub(complete_three_hop_loop_count),
-        invalid_hop_pool_reference_count,
+        invalid_hop_directional_reference_count,
     })
 }
 

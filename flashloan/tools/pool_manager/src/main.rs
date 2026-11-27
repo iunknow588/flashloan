@@ -547,6 +547,10 @@ fn main() {
                     } else {
                         Some(rpc_url)
                     },
+                    // The command line names one endpoint on purpose: the
+                    // operator asked for that node.  The runtime path
+                    // assembles its own ordered list instead.
+                    rpc_urls: None,
                     batch_size,
                     timeout_seconds,
                     apply,

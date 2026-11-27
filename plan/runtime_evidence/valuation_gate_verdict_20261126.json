@@ -1,0 +1,64 @@
+{
+  "probe": "valuation_gate_verdict_20261126",
+  "task": "T-闭.02",
+  "readOnly": true,
+  "reviewedLoopsWithPositiveProfit": 4,
+  "verdictFlips": 0,
+  "reviewsRead": 178,
+  "reviewsOnTokensThatLostTheirValuation": 0,
+  "flips": [],
+  "verdicts": [
+    {
+      "loopKey": "0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+      "reviewVersion": 167,
+      "reviewStatus": "not_executable",
+      "signedPnlRaw": "0xbb3a9ddd5",
+      "borrowTokenDecimals": 18,
+      "profitUsdgRawBefore": 123,
+      "profitUsdgRawAfter": 123,
+      "thresholdUsdgRaw": 10000000,
+      "crossTickStartsBefore": true,
+      "crossTickStartsAfter": true,
+      "verdictFlipped": false
+    },
+    {
+      "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x0000000000000000000000000000000000000000:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "reviewVersion": 167,
+      "reviewStatus": "not_executable",
+      "signedPnlRaw": "0x1a5a8a0e1db",
+      "borrowTokenDecimals": 18,
+      "profitUsdgRawBefore": 142,
+      "profitUsdgRawAfter": 142,
+      "thresholdUsdgRaw": 10000000,
+      "crossTickStartsBefore": true,
+      "crossTickStartsAfter": true,
+      "verdictFlipped": false
+    },
+    {
+      "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+      "reviewVersion": 167,
+      "reviewStatus": "not_executable",
+      "signedPnlRaw": "0x4df997e0ed",
+      "borrowTokenDecimals": 18,
+      "profitUsdgRawBefore": 26,
+      "profitUsdgRawAfter": 26,
+      "thresholdUsdgRaw": 10000000,
+      "crossTickStartsBefore": true,
+      "crossTickStartsAfter": true,
+      "verdictFlipped": false
+    },
+    {
+      "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+      "reviewVersion": 160,
+      "reviewStatus": "not_executable",
+      "signedPnlRaw": "0x4e11c3fb17",
+      "borrowTokenDecimals": 18,
+      "profitUsdgRawBefore": 26,
+      "profitUsdgRawAfter": 26,
+      "thresholdUsdgRaw": 10000000,
+      "crossTickStartsBefore": true,
+      "crossTickStartsAfter": true,
+      "verdictFlipped": false
+    }
+  ]
+}

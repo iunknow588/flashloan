@@ -1,0 +1,274 @@
+
+running 53 tests
+test tests::a_hop_without_a_published_state_has_no_folded_capacity ... ok
+test tests::a_hop_that_cannot_carry_a_position_inside_its_tick_range_disqualifies_the_path ... FAILED
+test tests::a_loop_without_tick_states_publishes_no_folded_capacity ... FAILED
+test tests::a_hop_below_the_capacity_floor_disqualifies_the_whole_path ... FAILED
+test tests::a_backup_of_the_direction_layer_takes_over_a_hop_the_candidate_list_could_not_serve ... FAILED
+test tests::a_hop_with_room_inside_its_tick_range_admits_the_loop ... FAILED
+test tests::a_hop_whose_primary_fails_the_capacity_gate_is_taken_over_by_its_next_candidate ... FAILED
+test tests::a_measurement_restarts_the_review_clock_of_the_loop ... FAILED
+test tests::a_mismatched_expected_scope_checksum_refuses_to_write ... FAILED
+test tests::a_pool_the_direction_layer_does_not_publish_is_a_topology_error ... ok
+test tests::a_row_that_trades_the_other_way_is_a_topology_error ... ok
+test tests::a_pool_without_a_market_snapshot_publishes_no_valuation ... FAILED
+test tests::a_stale_measurement_clears_the_schedule_of_the_loop ... FAILED
+test tests::an_acknowledgement_of_another_generation_clears_nothing ... FAILED
+test tests::an_acknowledgement_of_the_current_generation_clears_the_flag ... FAILED
+test tests::a_pool_without_a_rank_stays_behind_the_ranked_pools ... FAILED
+test tests::a_stale_scope_checksum_is_repaired_and_the_drift_is_removed ... FAILED
+test tests::a_pool_without_static_facts_publishes_no_valuation ... FAILED
+test tests::an_acknowledgement_of_a_generation_the_library_left_clears_nothing ... FAILED
+test tests::an_optimization_that_failed_the_gate_is_recorded_as_expired ... FAILED
+test tests::builds_three_token_loop_without_usd_depth_dependency ... FAILED
+test tests::an_unmeasured_hop_does_not_disqualify_the_path ... FAILED
+test tests::anchor_metadata_is_loaded_from_token_catalog_when_candidate_rows_exclude_self ... FAILED
+test tests::every_hop_carries_the_direction_layer_identity ... FAILED
+test tests::comparison_reports_exact_legacy_topology ... FAILED
+test tests::every_hop_above_the_capacity_floor_admits_the_loop ... FAILED
+test tests::one_anchor_publishes_two_independent_directed_closed_loops ... FAILED
+test tests::the_candidate_combinations_are_tried_from_the_primary_outward ... ok
+test tests::the_closed_loop_floor_is_the_pool_manager_admission_floor ... ok
+test tests::the_direction_of_a_hop_never_flips ... ok
+test tests::the_folded_capacity_is_equal_to_the_legacy_fold ... ok
+test tests::stale_observation_candidate_version_is_rejected ... FAILED
+test tests::the_closed_loop_state_records_the_direction_layer_identity ... FAILED
+test tests::the_closed_loop_layer_publishes_its_own_scope_checksum ... FAILED
+test tests::the_folded_single_tick_capacity_is_published_on_the_loop ... FAILED
+test tests::repeated_apply_is_stable_and_idempotent ... FAILED
+test tests::repairing_the_scope_checksum_is_idempotent ... FAILED
+test tests::the_direction_rank_decides_the_primary_of_a_hop ... FAILED
+test tests::only_the_optimizations_in_effect_are_consumed_and_the_rest_stand_by ... FAILED
+test tests::the_hop_direction_is_read_from_the_directional_row ... ok
+test tests::the_path_capacity_is_folded_into_the_anchor_token ... ok
+test tests::the_primary_order_switch_is_read_from_the_environment ... ok
+test tests::the_single_tick_bound_is_taken_from_the_direction_of_the_row ... ok
+test tests::the_usdg_path_publishes_a_capacity_when_the_pool_order_is_inverted ... ok
+test usdg_valuation::tests::a_token_paired_with_usdg_at_the_peg_is_worth_one_usdg ... ok
+test usdg_valuation::tests::a_token_without_a_usdg_route_has_no_valuation ... ok
+test usdg_valuation::tests::a_token_without_known_decimals_has_no_valuation ... ok
+test usdg_valuation::tests::the_usdg_side_of_the_pool_may_be_either_token ... ok
+test usdg_valuation::tests::usdg_unit_value_does_not_require_a_self_pair_pool ... ok
+test tests::the_search_over_the_combinations_stays_bounded ... ok
+test tests::the_legacy_order_is_kept_when_the_switch_is_off ... FAILED
+test tests::the_path_minimum_is_the_binding_capacity ... FAILED
+test tests::the_reordering_keeps_the_membership_of_the_candidate_list ... FAILED
+
+failures:
+
+---- tests::a_hop_that_cannot_carry_a_position_inside_its_tick_range_disqualifies_the_path stdout ----
+
+thread 'tests::a_hop_that_cannot_carry_a_position_inside_its_tick_range_disqualifies_the_path' (18712) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- tests::a_loop_without_tick_states_publishes_no_folded_capacity stdout ----
+
+thread 'tests::a_loop_without_tick_states_publishes_no_folded_capacity' (9784) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::a_hop_below_the_capacity_floor_disqualifies_the_whole_path stdout ----
+
+thread 'tests::a_hop_below_the_capacity_floor_disqualifies_the_whole_path' (8388) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::a_backup_of_the_direction_layer_takes_over_a_hop_the_candidate_list_could_not_serve stdout ----
+
+thread 'tests::a_backup_of_the_direction_layer_takes_over_a_hop_the_candidate_list_could_not_serve' (21140) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::a_hop_with_room_inside_its_tick_range_admits_the_loop stdout ----
+
+thread 'tests::a_hop_with_room_inside_its_tick_range_admits_the_loop' (4900) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::a_hop_whose_primary_fails_the_capacity_gate_is_taken_over_by_its_next_candidate stdout ----
+
+thread 'tests::a_hop_whose_primary_fails_the_capacity_gate_is_taken_over_by_its_next_candidate' (12060) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::a_measurement_restarts_the_review_clock_of_the_loop stdout ----
+
+thread 'tests::a_measurement_restarts_the_review_clock_of_the_loop' (16052) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::a_mismatched_expected_scope_checksum_refuses_to_write stdout ----
+
+thread 'tests::a_mismatched_expected_scope_checksum_refuses_to_write' (6060) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::a_pool_without_a_market_snapshot_publishes_no_valuation stdout ----
+
+thread 'tests::a_pool_without_a_market_snapshot_publishes_no_valuation' (19076) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::a_stale_measurement_clears_the_schedule_of_the_loop stdout ----
+
+thread 'tests::a_stale_measurement_clears_the_schedule_of_the_loop' (11736) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::an_acknowledgement_of_another_generation_clears_nothing stdout ----
+
+thread 'tests::an_acknowledgement_of_another_generation_clears_nothing' (8188) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::an_acknowledgement_of_the_current_generation_clears_the_flag stdout ----
+
+thread 'tests::an_acknowledgement_of_the_current_generation_clears_the_flag' (3172) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::a_pool_without_a_rank_stays_behind_the_ranked_pools stdout ----
+
+thread 'tests::a_pool_without_a_rank_stays_behind_the_ranked_pools' (18052) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::a_stale_scope_checksum_is_repaired_and_the_drift_is_removed stdout ----
+
+thread 'tests::a_stale_scope_checksum_is_repaired_and_the_drift_is_removed' (13660) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::a_pool_without_static_facts_publishes_no_valuation stdout ----
+
+thread 'tests::a_pool_without_static_facts_publishes_no_valuation' (9576) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::an_acknowledgement_of_a_generation_the_library_left_clears_nothing stdout ----
+
+thread 'tests::an_acknowledgement_of_a_generation_the_library_left_clears_nothing' (6448) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::an_optimization_that_failed_the_gate_is_recorded_as_expired stdout ----
+
+thread 'tests::an_optimization_that_failed_the_gate_is_recorded_as_expired' (8568) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::builds_three_token_loop_without_usd_depth_dependency stdout ----
+
+thread 'tests::builds_three_token_loop_without_usd_depth_dependency' (11192) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::an_unmeasured_hop_does_not_disqualify_the_path stdout ----
+
+thread 'tests::an_unmeasured_hop_does_not_disqualify_the_path' (16048) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::anchor_metadata_is_loaded_from_token_catalog_when_candidate_rows_exclude_self stdout ----
+
+thread 'tests::anchor_metadata_is_loaded_from_token_catalog_when_candidate_rows_exclude_self' (20696) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::every_hop_carries_the_direction_layer_identity stdout ----
+
+thread 'tests::every_hop_carries_the_direction_layer_identity' (3412) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::comparison_reports_exact_legacy_topology stdout ----
+
+thread 'tests::comparison_reports_exact_legacy_topology' (4424) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::every_hop_above_the_capacity_floor_admits_the_loop stdout ----
+
+thread 'tests::every_hop_above_the_capacity_floor_admits_the_loop' (17984) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::one_anchor_publishes_two_independent_directed_closed_loops stdout ----
+
+thread 'tests::one_anchor_publishes_two_independent_directed_closed_loops' (18896) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::stale_observation_candidate_version_is_rejected stdout ----
+
+thread 'tests::stale_observation_candidate_version_is_rejected' (20816) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::the_closed_loop_state_records_the_direction_layer_identity stdout ----
+
+thread 'tests::the_closed_loop_state_records_the_direction_layer_identity' (7380) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::the_closed_loop_layer_publishes_its_own_scope_checksum stdout ----
+
+thread 'tests::the_closed_loop_layer_publishes_its_own_scope_checksum' (3624) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::the_folded_single_tick_capacity_is_published_on_the_loop stdout ----
+
+thread 'tests::the_folded_single_tick_capacity_is_published_on_the_loop' (20396) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::repeated_apply_is_stable_and_idempotent stdout ----
+
+thread 'tests::repeated_apply_is_stable_and_idempotent' (1412) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::repairing_the_scope_checksum_is_idempotent stdout ----
+
+thread 'tests::repairing_the_scope_checksum_is_idempotent' (20968) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::the_direction_rank_decides_the_primary_of_a_hop stdout ----
+
+thread 'tests::the_direction_rank_decides_the_primary_of_a_hop' (21412) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::only_the_optimizations_in_effect_are_consumed_and_the_rest_stand_by stdout ----
+
+thread 'tests::only_the_optimizations_in_effect_are_consumed_and_the_rest_stand_by' (21004) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::the_legacy_order_is_kept_when_the_switch_is_off stdout ----
+
+thread 'tests::the_legacy_order_is_kept_when_the_switch_is_off' (8000) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::the_path_minimum_is_the_binding_capacity stdout ----
+
+thread 'tests::the_path_minimum_is_the_binding_capacity' (9120) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+---- tests::the_reordering_keeps_the_membership_of_the_candidate_list stdout ----
+
+thread 'tests::the_reordering_keeps_the_membership_of_the_candidate_list' (21368) panicked at manager_db\src\migrate.rs:822:14:
+internal error: entered unreachable code: migration id is a fixed internal enum
+
+
+failures:
+    tests::a_backup_of_the_direction_layer_takes_over_a_hop_the_candidate_list_could_not_serve
+    tests::a_hop_below_the_capacity_floor_disqualifies_the_whole_path
+    tests::a_hop_that_cannot_carry_a_position_inside_its_tick_range_disqualifies_the_path
+    tests::a_hop_whose_primary_fails_the_capacity_gate_is_taken_over_by_its_next_candidate
+    tests::a_hop_with_room_inside_its_tick_range_admits_the_loop
+    tests::a_loop_without_tick_states_publishes_no_folded_capacity
+    tests::a_measurement_restarts_the_review_clock_of_the_loop
+    tests::a_mismatched_expected_scope_checksum_refuses_to_write
+    tests::a_pool_without_a_market_snapshot_publishes_no_valuation
+    tests::a_pool_without_a_rank_stays_behind_the_ranked_pools
+    tests::a_pool_without_static_facts_publishes_no_valuation
+    tests::a_stale_measurement_clears_the_schedule_of_the_loop
+    tests::a_stale_scope_checksum_is_repaired_and_the_drift_is_removed
+    tests::an_acknowledgement_of_a_generation_the_library_left_clears_nothing
+    tests::an_acknowledgement_of_another_generation_clears_nothing
+    tests::an_acknowledgement_of_the_current_generation_clears_the_flag
+    tests::an_optimization_that_failed_the_gate_is_recorded_as_expired
+    tests::an_unmeasured_hop_does_not_disqualify_the_path
+    tests::anchor_metadata_is_loaded_from_token_catalog_when_candidate_rows_exclude_self
+    tests::builds_three_token_loop_without_usd_depth_dependency
+    tests::comparison_reports_exact_legacy_topology
+    tests::every_hop_above_the_capacity_floor_admits_the_loop
+    tests::every_hop_carries_the_direction_layer_identity
+    tests::one_anchor_publishes_two_independent_directed_closed_loops
+    tests::only_the_optimizations_in_effect_are_consumed_and_the_rest_stand_by
+    tests::repairing_the_scope_checksum_is_idempotent
+    tests::repeated_apply_is_stable_and_idempotent
+    tests::stale_observation_candidate_version_is_rejected
+    tests::the_closed_loop_layer_publishes_its_own_scope_checksum
+    tests::the_closed_loop_state_records_the_direction_layer_identity
+    tests::the_direction_rank_decides_the_primary_of_a_hop
+    tests::the_folded_single_tick_capacity_is_published_on_the_loop
+    tests::the_legacy_order_is_kept_when_the_switch_is_off
+    tests::the_path_minimum_is_the_binding_capacity
+    tests::the_reordering_keeps_the_membership_of_the_candidate_list
+
+test result: FAILED. 18 passed; 35 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.16s
+

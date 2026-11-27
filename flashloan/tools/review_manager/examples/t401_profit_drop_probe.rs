@@ -37,7 +37,9 @@
 //! with `--live <current store> --baseline <pre-switch store> --label <name>`
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::str::FromStr;
 
+use manager_contracts::DirectionalPoolId;
 use pool_manager::{read_pool_parity_states_on_connection, PoolParityState};
 use review_manager::{build_hop_chain, simulate_route, HopDirectionList};
 use rusqlite::{Connection, OpenFlags};
@@ -53,10 +55,13 @@ const SCOPE_KEY: &str = "core4";
 struct LoopRow {
     loop_key: String,
     path_addresses: Vec<String>,
-    pool_ids: Vec<String>,
+    /// The directional pools the loop walks, as the closed loop publishes
+    /// them.  The base pool travels inside every one of them.
+    directional_pool_ids: Vec<String>,
     capacity_anchor_raw: Option<u128>,
     hop_directions: HopDirectionList,
-    hop_pools: Vec<String>,
+    /// The directional pool of every hop, in hop order.
+    hop_directional_pools: Vec<String>,
 }
 
 /// The measured outcome of one loop.
@@ -148,6 +153,24 @@ fn parse_json_array(raw: Option<String>) -> Vec<String> {
     serde_json::from_str::<Vec<String>>(trimmed).unwrap_or_default()
 }
 
+/// The base pool a published pool identity names.
+///
+/// The closed loop publishes the **directional** pools it walks, and the
+/// base pool travels inside the directional pool id:
+/// `dpool:v1:{network}:{chain_id}:{scope}:{base_pool_id}:{direction}`.
+/// The pool states the probe replays are published per **base** pool, so
+/// the base pool is resolved here, at the boundary.
+///
+/// An identity that is not a directional pool id is already a pool id and
+/// is returned unchanged: the resolution never invents a pool.
+fn base_pool_of(published_pool_id: &str) -> String {
+    let trimmed = published_pool_id.trim();
+    match DirectionalPoolId::from_str(trimmed) {
+        Ok(directional) => directional.base_pool_id().to_owned(),
+        Err(_) => trimmed.to_owned(),
+    }
+}
+
 fn read_generation(path: &str) -> Result<(BTreeMap<String, LoopRow>, String, i64), String> {
     let connection = open_read_only(path)?;
     let version: i64 = connection
@@ -171,7 +194,7 @@ fn read_generation(path: &str) -> Result<(BTreeMap<String, LoopRow>, String, i64
     {
         let mut statement = connection
             .prepare(
-                "SELECT loop_key, hop_index, pool_id, hop_direction
+                "SELECT loop_key, hop_index, directional_pool_id, hop_direction
                  FROM manager_v4_closed_loop_hops
                  WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4
                  ORDER BY loop_key, hop_index",
@@ -199,7 +222,7 @@ fn read_generation(path: &str) -> Result<(BTreeMap<String, LoopRow>, String, i64
     {
         let mut statement = connection
             .prepare(
-                "SELECT loop_key, path_addresses_json, pool_ids_json,
+                "SELECT loop_key, path_addresses_json, directional_pool_ids_json,
                         single_tick_capacity_anchor_raw
                  FROM manager_v4_closed_loops
                  WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4",
@@ -212,12 +235,12 @@ fn read_generation(path: &str) -> Result<(BTreeMap<String, LoopRow>, String, i64
                     Ok(LoopRow {
                         loop_key: row.get::<_, String>(0)?,
                         path_addresses: parse_json_array(row.get::<_, Option<String>>(1)?),
-                        pool_ids: parse_json_array(row.get::<_, Option<String>>(2)?),
+                        directional_pool_ids: parse_json_array(row.get::<_, Option<String>>(2)?),
                         capacity_anchor_raw: row
                             .get::<_, Option<String>>(3)?
                             .and_then(|value| value.trim().parse::<u128>().ok()),
                         hop_directions: Vec::new(),
-                        hop_pools: Vec::new(),
+                        hop_directional_pools: Vec::new(),
                     })
                 },
             )
@@ -225,7 +248,7 @@ fn read_generation(path: &str) -> Result<(BTreeMap<String, LoopRow>, String, i64
         for mut row in rows.flatten() {
             if let Some(entries) = hops.get(&row.loop_key) {
                 row.hop_directions = entries.iter().map(|entry| entry.2).collect();
-                row.hop_pools = entries.iter().map(|entry| entry.1.clone()).collect();
+                row.hop_directional_pools = entries.iter().map(|entry| entry.1.clone()).collect();
             }
             loops.insert(row.loop_key.clone(), row);
         }
@@ -252,15 +275,19 @@ fn profit_at(
             0,
         );
     }
-    let pool_ids = if row.pool_ids.is_empty() {
-        row.hop_pools.clone()
+    let pool_ids = if row.directional_pool_ids.is_empty() {
+        row.hop_directional_pools.clone()
     } else {
-        row.pool_ids.clone()
+        row.directional_pool_ids.clone()
     };
+    // The chain is replayed against the **base** pools: the pool states
+    // the kernel reads are published per base pool, and the base pool
+    // travels inside every directional pool id.
+    let base_pool_ids: Vec<String> = pool_ids.iter().map(|pool_id| base_pool_of(pool_id)).collect();
     let Some(chain) = build_hop_chain(
         &row.path_addresses,
         states,
-        &pool_ids,
+        &base_pool_ids,
         Some(&row.hop_directions),
     ) else {
         return (None, Some("hop_chain_unavailable".to_string()), 0);
@@ -319,15 +346,15 @@ fn compare(
         let old_capacity = old.capacity_anchor_raw;
         let new_capacity = new.capacity_anchor_raw;
         let capacity_changed = old_capacity != new_capacity;
-        let old_pools = if old.pool_ids.is_empty() {
-            old.hop_pools.clone()
+        let old_pools = if old.directional_pool_ids.is_empty() {
+            old.hop_directional_pools.clone()
         } else {
-            old.pool_ids.clone()
+            old.directional_pool_ids.clone()
         };
-        let new_pools = if new.pool_ids.is_empty() {
-            new.hop_pools.clone()
+        let new_pools = if new.directional_pool_ids.is_empty() {
+            new.hop_directional_pools.clone()
         } else {
-            new.pool_ids.clone()
+            new.directional_pool_ids.clone()
         };
         let pools_changed = old_pools != new_pools;
         let directions_changed = old.hop_directions != new.hop_directions;
@@ -559,9 +586,15 @@ fn main() {
     // an artefact of two different moments.
     let mut pool_ids: BTreeSet<String> = BTreeSet::new();
     for row in baseline_loops.values().chain(live_loops.values()) {
-        for pool_id in row.pool_ids.iter().chain(row.hop_pools.iter()) {
-            if !pool_id.trim().is_empty() {
-                pool_ids.insert(pool_id.trim().to_lowercase());
+        for published in row
+            .directional_pool_ids
+            .iter()
+            .chain(row.hop_directional_pools.iter())
+        {
+            // The parity states are published per **base** pool.
+            let base_pool_id = base_pool_of(published);
+            if !base_pool_id.trim().is_empty() {
+                pool_ids.insert(base_pool_id.trim().to_lowercase());
             }
         }
     }

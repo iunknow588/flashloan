@@ -1,0 +1,8 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.77s
+     Running unittests src\lib.rs (target\debug\deps\pool_manager-0952d3bf8cb87e43.exe)
+     Running unittests src\main.rs (target\debug\deps\pool_manager-44577c79122ca1bc.exe)
+   Doc-tests pool_manager

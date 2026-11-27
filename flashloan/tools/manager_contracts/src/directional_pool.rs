@@ -183,7 +183,26 @@ impl V4Pool {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DirectionalPool {
-    pub base: V4Pool,
+    /// The base pool this direction is projected from.
+    ///
+    /// The base pool is an **internal object** of the directional pool:
+    /// the field is private, so a consumer cannot take the base pool out of
+    /// the direction that goes with it.  A consumer that reads the base
+    /// facts reads them through the accessors below, and every one of those
+    /// accessors answers in the company of the direction the pool is
+    /// traded in.  There is therefore no way to hold a base pool without
+    /// its direction, and no way to build a closed loop, a review or a
+    /// broadcast out of a base pool alone.
+    ///
+    /// The field is **flattened** into the serialized row on purpose.
+    /// A nested `"base"` object would hand the reader a handle that is
+    /// shaped like a bare base pool, and a handle is all a consumer needs
+    /// to start keying a closed loop by base pool again.  Flattened, the
+    /// JSON *is* a direction row -- the base facts appear in it as the
+    /// projection copies they are in the database -- and there is no
+    /// sub-object to take out.
+    #[serde(flatten)]
+    base: V4Pool,
     pub direction: PoolDirection,
     /// The amount of the **input** token the pool can carry, in raw units.
     ///
@@ -228,6 +247,87 @@ impl DirectionalPool {
     /// The token this direction receives.
     pub fn output_token_key_id(&self) -> &str {
         self.base.output_token_key_id(self.direction)
+    }
+
+    /// The identity of the base pool this direction is projected from.
+    ///
+    /// The base pool id is part of the **identity** of the directional
+    /// pool -- the directional id carries it -- so it is readable.  What
+    /// is not readable is the base pool *object*: a consumer of this
+    /// accessor always holds a direction as well.
+    pub fn base_pool_id(&self) -> &str {
+        &self.base.base_pool_id
+    }
+
+    /// The pool manager contract the base pool lives in.
+    pub fn pool_manager(&self) -> &str {
+        &self.base.pool_manager
+    }
+
+    /// The serialized pool key of the base pool.
+    pub fn pool_key_json(&self) -> &str {
+        &self.base.pool_key_json
+    }
+
+    /// The lower address token of the base pool.
+    pub fn token0(&self) -> &str {
+        &self.base.token0
+    }
+
+    /// The higher address token of the base pool.
+    pub fn token1(&self) -> &str {
+        &self.base.token1
+    }
+
+    /// The key id of the lower address token of the base pool.
+    pub fn token0_key_id(&self) -> &str {
+        &self.base.token0_key_id
+    }
+
+    /// The key id of the higher address token of the base pool.
+    pub fn token1_key_id(&self) -> &str {
+        &self.base.token1_key_id
+    }
+
+    /// The fixed fee of the base pool, in hundredths of a bip.
+    pub fn fee(&self) -> i64 {
+        self.base.fee
+    }
+
+    /// The tick spacing of the base pool.
+    pub fn tick_spacing(&self) -> i64 {
+        self.base.tick_spacing
+    }
+
+    /// The hook contract of the base pool.
+    ///
+    /// The direction layer only publishes pools without a hook, so a
+    /// non-empty value here is a fact the layer never carries.
+    pub fn hooks(&self) -> &str {
+        &self.base.hooks
+    }
+
+    /// The published square-root price of the base pool, in Q96.
+    ///
+    /// `None` means the pool publishes no snapshot: the absence is a
+    /// coverage gap, never a price of zero.
+    pub fn sqrt_price_x96(&self) -> Option<&str> {
+        self.base.sqrt_price_x96.as_deref()
+    }
+
+    /// The initialized tick the published price of the base pool sits in.
+    pub fn tick(&self) -> Option<i64> {
+        self.base.tick
+    }
+
+    /// The published liquidity of the base pool.
+    pub fn liquidity(&self) -> Option<&str> {
+        self.base.liquidity.as_deref()
+    }
+
+    /// The price-impact depth capacity of the base pool, in raw units.
+    pub fn depth_capacity_raw(&self) -> Option<&str> {
+        self.base.depth_capacity_raw.as_deref()
     }
 
     /// The identity of this directional pool.
@@ -322,5 +422,34 @@ mod tests {
         pool.token0 = TOKEN1.to_owned();
         pool.token1 = TOKEN0.to_owned();
         assert!(!pool.token_order_is_canonical());
+    }
+
+    #[test]
+    fn the_serialized_row_is_a_direction_row_and_carries_no_base_object() {
+        let pool = base();
+        let high_to_low = DirectionalPool::of_pool(pool, PoolDirection::HighToLow);
+
+        let row = serde_json::to_value(&high_to_low).expect("the row serializes");
+        let object = row.as_object().expect("the row is an object");
+        // There is no sub-object to take out: the row *is* the direction.
+        assert!(
+            !object.contains_key("base"),
+            "the serialized direction row must not carry a nested base pool"
+        );
+        // The base facts sit in the row as the projection copies they are
+        // in the database -- one level, no handle.
+        assert_eq!(
+            object.get("basePoolId").and_then(|value| value.as_str()),
+            Some(high_to_low.base_pool_id())
+        );
+        assert_eq!(
+            object.get("direction").and_then(|value| value.as_i64()),
+            Some(high_to_low.direction.raw())
+        );
+
+        // And the row round-trips: a reader rebuilds a direction row.
+        let rebuilt: DirectionalPool =
+            serde_json::from_value(row).expect("the direction row round-trips");
+        assert_eq!(rebuilt, high_to_low);
     }
 }

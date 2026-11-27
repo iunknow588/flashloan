@@ -41,11 +41,13 @@ use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 
-use closed_loop_manager::ClosedLoopStatus;
+use closed_loop_manager::{acknowledge_consumers_rebuilt, ClosedLoopStatus};
 use review_manager::{
-    ClosedLoopIdentityEvidence, ExpectedUpstream, ReviewDiagnosticInput, ReviewDiagnosticType,
-    ReviewEvidenceInput, ReviewWriteRequest, RunArbitrageEvidence, SignedPnl,
+    ClosedLoopGenerationEvidence, ClosedLoopIdentityEvidence, ExpectedUpstream,
+    ReviewDiagnosticInput, ReviewDiagnosticType, ReviewEvidenceInput, ReviewWriteRequest,
+    RunArbitrageEvidence, SignedPnl,
 };
 
 use crate::closed_loop_identity::{ClosedLoopCatalog, ClosedLoopUpstream};
@@ -66,6 +68,24 @@ const SIGNED_PNL_UNIT: &str = "raw";
 
 /// The source the signed profit is published with.
 const SIGNED_PNL_SOURCE: &str = "native_rust_ladder";
+
+/// The scope and the generation the consumers were last acknowledged for.
+///
+/// The acknowledgement is a write on the Manager's own state row, and the
+/// publication runs many times per round.  The generation moves only when
+/// the closed-loop library is rebuilt, so remembering it keeps one write per
+/// generation instead of one write per publication.
+#[derive(Clone, PartialEq, Eq)]
+struct AcknowledgedGeneration {
+    database_path: String,
+    network: String,
+    chain_id: i64,
+    closed_loop_version: i64,
+    materialized_checksum: Option<String>,
+}
+
+static ACKNOWLEDGED_GENERATIONS: std::sync::Mutex<Vec<AcknowledgedGeneration>> =
+    std::sync::Mutex::new(Vec::new());
 
 /// The keys the Review Manager reads the final input amount from.
 ///
@@ -182,6 +202,12 @@ pub struct ReviewPublishOutcome {
     pub idempotency_key: String,
     /// When the generation was published.
     pub published_at: String,
+    /// The closed loops the publication left out.
+    ///
+    /// A loop is left out when the catalog replaced it after the
+    /// measurement, or when it is no longer published at all.  The list is
+    /// published so the drop is visible instead of silent.
+    pub dropped_loop_keys: Vec<String>,
 }
 
 /// The upstream versions one review generation is filed against.
@@ -307,6 +333,10 @@ pub struct ReviewEvidenceAccumulator {
     updated_at: Option<String>,
 }
 
+// The coverage methods of the accumulator belong to the whole-catalog
+// publication.  The per-loop publication keeps the accumulator for the
+// round bookkeeping of the scope and reads none of them.
+#[allow(dead_code)]
 impl ReviewEvidenceAccumulator {
     /// An empty accumulator.
     pub fn new() -> Self {
@@ -417,6 +447,7 @@ impl ReviewEvidenceAccumulator {
 /// The generation is published only when the evidence covers the **whole**
 /// closed-loop catalog, and only against the upstream versions the
 /// closed-loop Manager publishes right now.
+#[allow(dead_code)]
 pub fn publish_review_generation(
     database_path: &str,
     network: &str,
@@ -496,7 +527,269 @@ pub fn publish_review_generation(
         review_version: outcome.result.review_version,
         idempotency_key: key,
         published_at: chrono::Utc::now().to_rfc3339(),
+        dropped_loop_keys: Vec::new(),
     })
+}
+
+/// Publish the reviews of the closed loops one review group measured.
+///
+/// The publication is **per closed loop**.  It writes the reviews of the
+/// loops the evidence names and touches nothing else: the review of one
+/// closed loop never decides the review of another one, and a closed loop
+/// that cannot be published never keeps the other loops from being
+/// published.
+///
+/// The generation the evidence was measured under travels with the
+/// evidence, so the store files every review under the generation it was
+/// measured against and not under the one the catalog happens to hold when
+/// the review lands.  The publication therefore expects **no** upstream
+/// generation of its own: a generation that moved on between the
+/// measurement and the publication is exactly the case a per-loop
+/// publication has to survive.
+pub fn publish_review_loops(
+    database_path: &str,
+    network: &str,
+    chain_id: i64,
+    evidence: Vec<ReviewEvidenceInput>,
+    measured_catalog: &ClosedLoopCatalog,
+    round_id: &str,
+) -> Result<ReviewPublishOutcome, ReviewPublishError> {
+    if evidence.is_empty() {
+        return Err(ReviewPublishError::Manager(
+            "the publication carries no measured route".to_owned(),
+        ));
+    }
+    // The catalog may have replaced a closed loop since the measurement.
+    // Such a loop is **dropped** instead of failing the whole publication:
+    // one closed loop that left the catalog must not keep the other closed
+    // loops of the group from being published.
+    //
+    // A loop the catalog still publishes under the same key but with
+    // another identity is dropped as well: the measurement describes the
+    // loop that no longer exists, and a review of it is not a review of the
+    // loop that replaced it.
+    let snapshot = closed_loop_manager::read_closed_loop_snapshot(
+        database_path,
+        network,
+        chain_id,
+        None,
+        MAX_REVIEW_LOOPS,
+    )
+    .map_err(|error| ReviewPublishError::ClosedLoopState(error.to_string()))?;
+    let current = crate::closed_loop_identity::catalog_from_rows(
+        &snapshot
+            .loops
+            .iter()
+            .map(identity_row_of)
+            .collect::<Vec<Value>>(),
+    );
+    let known: BTreeSet<String> = snapshot
+        .loops
+        .iter()
+        .map(|row| row.loop_key.trim().to_lowercase())
+        .filter(|key| !key.is_empty())
+        .collect();
+    let mut dropped: Vec<String> = Vec::new();
+    let evidence: Vec<ReviewEvidenceInput> = evidence
+        .into_iter()
+        .filter(|item| {
+            let key = item.loop_key.trim().to_lowercase();
+            if !known.contains(&key) {
+                dropped.push(item.loop_key.clone());
+                return false;
+            }
+            let measured = measured_catalog.identity_by_key(&key);
+            let published = current.identity_by_key(&key);
+            match (measured, published) {
+                (Some(measured), Some(published)) => {
+                    if !measured.is_same_loop(published) {
+                        dropped.push(item.loop_key.clone());
+                        return false;
+                    }
+                    true
+                }
+                // A loop the runtime catalog does not hold cannot be
+                // compared, and the evidence of the runtime catalog is the
+                // one the measurement was made under.
+                (None, Some(_)) => true,
+                (Some(_), None) => true,
+                (None, None) => true,
+            }
+        })
+        .collect();
+    if evidence.is_empty() {
+        return Err(ReviewPublishError::Manager(format!(
+            "every measured closed loop left the catalog: {}",
+            dropped.join(", ")
+        )));
+    }
+    let key = loops_idempotency_key(network, chain_id, &evidence, round_id);
+    let request = ReviewWriteRequest {
+        network: network.to_owned(),
+        chain_id,
+        operation: REVIEW_PUBLISH_OPERATION.to_owned(),
+        request_id: format!("{REVIEW_PUBLISH_OPERATION}-{round_id}"),
+        idempotency_key: key.clone(),
+        apply: true,
+        expected_upstream: ExpectedUpstream::default(),
+        evidence,
+    };
+    let outcome = review_manager::run_reviews_write(database_path, request)
+        .map_err(|error| ReviewPublishError::Manager(error.to_string()))?;
+    acknowledge_the_rebuilt_consumers(database_path, network, chain_id, measured_catalog);
+    Ok(ReviewPublishOutcome {
+        published: true,
+        loop_count: outcome.result.loop_count,
+        evidence_count: outcome.result.reviewed_count,
+        completed_count: outcome.result.completed_count,
+        data_incomplete_count: outcome.result.data_incomplete_count,
+        not_executable_count: outcome.result.not_executable_count,
+        broadcast_request_count: outcome.result.broadcast_request_count,
+        review_version: outcome.result.review_version,
+        idempotency_key: key,
+        published_at: chrono::Utc::now().to_rfc3339(),
+        dropped_loop_keys: dropped,
+    })
+}
+
+/// Tell the closed-loop Manager that the consumers rebuilt.
+///
+/// The Manager's `consumers_need_rebuild` flag says that the closed-loop
+/// library moved and that the consumers may still hold the generation before
+/// it.  This publication was measured against the generation the runtime
+/// catalog carries, so the consumers **have** rebuilt, and the Manager may
+/// stop saying that they have to.
+///
+/// The acknowledgement names the generation it was measured under, so it
+/// clears the flag only while that generation is the one the library
+/// publishes now: a directory that moved again after the measurement leaves
+/// the flag set, because the consumers really are behind again.
+///
+/// A failed acknowledgement does **not** fail the publication.  The reviews
+/// are already written, and a flag that stays set is a visible and correct
+/// statement about the consumers; losing the reviews over it would be the
+/// worse trade.
+fn acknowledge_the_rebuilt_consumers(
+    database_path: &str,
+    network: &str,
+    chain_id: i64,
+    measured_catalog: &ClosedLoopCatalog,
+) {
+    let Some(upstream) = measured_catalog.upstream() else {
+        return;
+    };
+    let generation = AcknowledgedGeneration {
+        database_path: database_path.to_owned(),
+        network: network.to_owned(),
+        chain_id,
+        closed_loop_version: upstream.closed_loop_version,
+        materialized_checksum: upstream.materialized_checksum.clone(),
+    };
+    if let Ok(acknowledged) = ACKNOWLEDGED_GENERATIONS.lock() {
+        if acknowledged.contains(&generation) {
+            return;
+        }
+    }
+    match acknowledge_consumers_rebuilt(
+        database_path,
+        network,
+        chain_id,
+        generation.closed_loop_version,
+        generation.materialized_checksum.as_deref(),
+    ) {
+        Ok(_) => {
+            if let Ok(mut acknowledged) = ACKNOWLEDGED_GENERATIONS.lock() {
+                acknowledged.retain(|entry| {
+                    entry.database_path != generation.database_path
+                        || entry.network != generation.network
+                        || entry.chain_id != generation.chain_id
+                });
+                acknowledged.push(generation);
+            }
+        }
+        Err(error) => {
+            eprintln!(
+                "review publish: the closed-loop Manager could not be told that the \
+                 consumers rebuilt against version {}: {error}",
+                generation.closed_loop_version
+            );
+        }
+    }
+}
+
+/// The catalog identity of one closed-loop row.
+///
+/// The runtime catalog is read out of the SQL rows, and those rows carry
+/// the JSON columns the identity reader expects.  The rows the Manager
+/// publishes carry the same facts under their own names, so the row is
+/// translated here and the identity reader stays the only place that knows
+/// the shape of an identity.
+fn identity_row_of(row: &closed_loop_manager::ClosedLoopRow) -> Value {
+    json!({
+        "loop_key": row.loop_key,
+        "path_addresses_json": serde_json::to_string(&row.path_addresses)
+            .unwrap_or_else(|_| "[]".to_owned()),
+        "pool_ids_json": serde_json::to_string(&row.directional_pool_ids)
+            .unwrap_or_else(|_| "[]".to_owned()),
+        "single_tick_capacity_anchor_raw": row.single_tick_capacity_anchor_raw
+            .map(|value| value.to_string()),
+        "single_tick_capacity_binding_pool_id": row
+            .single_tick_capacity_binding_directional_pool_id
+            .clone(),
+        "borrow_token_usdg_value_raw": row.borrow_token_usdg_value_raw
+            .map(|value| value.to_string()),
+        "borrow_token_decimals": row.borrow_token_decimals,
+        "cross_tick_review_threshold_usdg_raw": row
+            .cross_tick_review_threshold_usdg_raw
+            .to_string(),
+        "cross_tick_capacity_anchor_raw": row.cross_tick_capacity_anchor_raw
+            .map(|value| value.to_string()),
+    })
+}
+
+/// The idempotency key of one per-loop publication.
+///
+/// The key names the round, the loops the round carried and the generation
+/// they were measured under.  The loops are part of the key because two
+/// groups publish disjoint sets of closed loops, and the generation is part
+/// of it because a review is filed under the generation it was measured
+/// against.
+fn loops_idempotency_key(
+    network: &str,
+    chain_id: i64,
+    evidence: &[ReviewEvidenceInput],
+    round_id: &str,
+) -> String {
+    let mut loops = BTreeSet::new();
+    let mut generations = BTreeSet::new();
+    for item in evidence {
+        loops.insert(item.loop_key.trim().to_lowercase());
+        if let Some(generation) = item.closed_loop_generation.as_ref() {
+            generations.insert(format!(
+                "{}:{}:{}:{}:{}:{}",
+                generation.closed_loop_version.unwrap_or_default(),
+                generation.closed_loop_checksum.clone().unwrap_or_default(),
+                generation.candidate_edge_version.unwrap_or_default(),
+                generation.candidate_edge_checksum.clone().unwrap_or_default(),
+                generation.observation_version.unwrap_or_default(),
+                generation.observation_checksum.clone().unwrap_or_default(),
+            ));
+        }
+    }
+    let mut digest = Sha256::new();
+    for loop_key in &loops {
+        digest.update(loop_key.as_bytes());
+        digest.update(b"\n");
+    }
+    for generation in &generations {
+        digest.update(generation.as_bytes());
+        digest.update(b"\n");
+    }
+    let fingerprint = hex::encode(digest.finalize());
+    format!(
+        "{REVIEW_PUBLISH_OPERATION}/{network}/{chain_id}/loops/{}/{round_id}",
+        &fingerprint[..32]
+    )
 }
 
 /// Build the evidence of every route the review measured.
@@ -602,6 +895,11 @@ fn route_evidence(
     let diagnostics = measurement_diagnostics(route, signed_pnl.is_some(), measured_at);
     ReviewEvidenceInput {
         loop_key: loop_key.to_owned(),
+        // The generation the measurement was made under travels with the
+        // evidence.  The store files the review under that generation and
+        // not under the one the catalog holds when the review lands, so a
+        // measurement is never relabelled as a newer one.
+        closed_loop_generation: measured_generation(catalog, loop_key),
         static_preview: static_preview(route, measured_at, decimals),
         run_arbitrage: Some(RunArbitrageEvidence {
             ok,
@@ -615,6 +913,29 @@ fn route_evidence(
         reviewed_at: Some(measured_at.to_owned()),
         closed_loop_identity: Some(closed_loop_identity(route)),
     }
+}
+
+/// The generation one closed loop was measured under.
+///
+/// The generation of the catalog names the whole materialization, and the
+/// candidate edge and the observation name the two libraries the loop was
+/// built from.  A closed loop the catalog does not publish has no
+/// generation: a review that names one would borrow the generation of a
+/// loop it never measured.
+fn measured_generation(
+    catalog: &ClosedLoopCatalog,
+    loop_key: &str,
+) -> Option<ClosedLoopGenerationEvidence> {
+    let identity = catalog.identity_by_key(loop_key)?;
+    let upstream = catalog.upstream();
+    Some(ClosedLoopGenerationEvidence {
+        closed_loop_version: upstream.map(|value| value.closed_loop_version),
+        closed_loop_checksum: upstream.and_then(|value| value.materialized_checksum.clone()),
+        candidate_edge_version: identity.candidate_edge_version,
+        candidate_edge_checksum: identity.candidate_edge_checksum.clone(),
+        observation_version: identity.observation_version,
+        observation_checksum: identity.observation_checksum.clone(),
+    })
 }
 
 /// The diagnostic that names why a route carries no measured profit.
@@ -661,6 +982,21 @@ fn static_preview(route: &Value, measured_at: &str, decimals: Option<i64>) -> Va
         "selectedAmountRaw": route.get("selectedAmountRaw").cloned().unwrap_or(Value::Null),
         "selectedProfitRaw": route.get("selectedProfitRaw").cloned().unwrap_or(Value::Null),
         "attemptedCount": route.get("attemptedCount").cloned().unwrap_or(Value::Null),
+        // The **ceiling** the ladder searched inside travels with the
+        // review.  The selected amount is executable only when it stayed
+        // inside the published single-tick capacity, so a stored review
+        // that cannot show the ceiling cannot show that its own amount
+        // was inside the bound the review enforces.
+        "searchCeilingRaw": route
+            .get("ladder")
+            .and_then(|ladder| ladder.get("searchCeilingRaw"))
+            .cloned()
+            .unwrap_or(Value::Null),
+        "searchCeilingBasis": route
+            .get("ladder")
+            .and_then(|ladder| ladder.get("searchCeilingBasis"))
+            .cloned()
+            .unwrap_or(Value::Null),
         // The amount the route was measured at, and the ladder it was
         // measured over, travel with the review.  Without them a stored
         // review carries no amount at all, and every reader has to
@@ -1080,6 +1416,60 @@ mod tests {
         )
     }
 
+    /// **T-10**: the published review carries the **ceiling** the amount
+    /// ladder searched inside.
+    ///
+    /// The selected amount is executable only when it stayed inside the
+    /// published single-tick capacity.  The kernel publishes that ceiling
+    /// on the ladder payload, but a stored review that dropped it could no
+    /// longer show that its own amount was inside the bound the review
+    /// enforces — the evidence of the bound would be gone with the round
+    /// that produced it.
+    #[test]
+    fn the_published_review_carries_the_ceiling_the_ladder_searched_inside() {
+        let mut payload = route(LOOP_KEY);
+        payload["ladder"] = json!({
+            "searchCeilingRaw": "0x1bc16d674ec80000",
+            "searchCeilingBasis": "folded_single_tick_capacity",
+            "attempts": [],
+        });
+        payload["attempts"] = json!([
+            {
+                "amountRaw": "0x0de0b6b3a7640000",
+                "ok": true,
+                "profitable": true,
+                "profitRaw": "0x0de0b6b3a7640000",
+                "routeIndex": 0
+            }
+        ]);
+        payload["bestAmount"] = json!("0x0de0b6b3a7640000");
+        payload["bestAmountConfirmed"] = json!(true);
+        payload["bestAmountMissing"] = json!(false);
+        payload["bestAmountMeasured"] = json!(true);
+        let evidence = route_evidence(
+            &payload,
+            LOOP_KEY,
+            &catalog(),
+            None,
+            &|_| Some(18),
+            "2026-11-24T00:00:00Z",
+        );
+        assert_eq!(
+            evidence
+                .static_preview
+                .get("searchCeilingRaw")
+                .and_then(Value::as_str),
+            Some("0x1bc16d674ec80000")
+        );
+        assert_eq!(
+            evidence
+                .static_preview
+                .get("searchCeilingBasis")
+                .and_then(Value::as_str),
+            Some("folded_single_tick_capacity")
+        );
+    }
+
     /// **T-9**: the published review carries the amount the route was
     /// measured at **and** the ladder it was measured over.
     ///
@@ -1328,13 +1718,14 @@ mod tests {
                     anchor_token_key_id, anchor_address, anchor_symbol,
                     token_y_key_id, token_z_key_id, path_text,
                     path_addresses_json, path_symbols_json, pool_path_key,
-                    pool_ids_json, backup_pool_ids_json, hop_candidate_counts_json,
+                    directional_pool_ids_json, backup_directional_pool_ids_json,
+                    hop_candidate_counts_json,
                     hop_candidate_combination_count, recommendation_basis,
                     recommended_first_priority, candidate_edge_version,
                     candidate_edge_checksum, observation_version,
                     observation_checksum, status, source,
                     single_tick_capacity_anchor_raw,
-                    single_tick_capacity_binding_pool_id,
+                    single_tick_capacity_binding_directional_pool_id,
                     created_at, updated_at
                  ) VALUES (?1, ?2, 'uniswap_v4', 'core4', ?3, 'route:v1',
                            'robinhood:4663:0x0000000000000000000000000000000000000000',
@@ -1344,10 +1735,10 @@ mod tests {
                            'USDG -> AMZN -> TA -> USDG',
                            '[\"0x0000000000000000000000000000000000000000\",\"0x1111111111111111111111111111111111111111\",\"0x2222222222222222222222222222222222222222\",\"0x0000000000000000000000000000000000000000\"]',
                            '[\"USDG\",\"AMZN\",\"TA\",\"USDG\"]', 'pool-path:1',
-                           '[\"pool-a\",\"pool-yz\",\"pool-d\"]', '{}', '{\"1\":1}',
+                           '[\"dpool:v1:robinhood:4663:core4:pool-a:1\",\"dpool:v1:robinhood:4663:core4:pool-yz:1\",\"dpool:v1:robinhood:4663:core4:pool-d:1\"]', '{}', '{\"1\":1}',
                            1, 'fixture', 1, 7, 'sha256:candidate-edge', 4,
                            'sha256:observation', 'active', 'fixture',
-                           '1000000000000000', 'pool-yz',
+                           '1000000000000000', 'dpool:v1:robinhood:4663:core4:pool-yz:1',
                            'fixture', 'fixture')",
                 rusqlite::params![NETWORK, CHAIN_ID, LOOP_KEY],
             )
@@ -1743,5 +2134,379 @@ mod tests {
             run.raw.get("quote").and_then(|value| value.get("candidate_pools")),
             Some(&json!([{"poolId": "pool-a", "sqrtPriceX96": "1"}]))
         );
+    }
+
+    /// The second closed loop of the two-loop fixture.
+    const LOOP_KEY_B: &str = "0x3333333333333333333333333333333333333333:0x4444444444444444444444444444444444444444:0x5555555555555555555555555555555555555555";
+
+    /// A closed loop the Manager library does not publish at all.
+    const LOOP_KEY_C: &str = "0x6666666666666666666666666666666666666666:0x7777777777777777777777777777777777777777:0x8888888888888888888888888888888888888888";
+
+    /// The manager fixture with **two** closed loops.
+    ///
+    /// Two loops make the independence of a per-loop publication
+    /// observable: a loop the measurement no longer describes must not
+    /// keep the other loop from being published.
+    fn manager_database_with_two_loops() -> (tempfile::TempDir, String) {
+        let (directory, path) = manager_database();
+        let connection = rusqlite::Connection::open(&path).unwrap();
+        let path_addresses = serde_json::to_string(&json!([
+            "0x3333333333333333333333333333333333333333",
+            "0x4444444444444444444444444444444444444444",
+            "0x5555555555555555555555555555555555555555",
+            "0x3333333333333333333333333333333333333333"
+        ]))
+        .unwrap();
+        let path_symbols = serde_json::to_string(&json!(["BBB", "CCC", "DDD", "BBB"])).unwrap();
+        let directional_pool_ids = serde_json::to_string(&json!([
+            "dpool:v1:robinhood:4663:core4:pool-b:1",
+            "dpool:v1:robinhood:4663:core4:pool-yz:1",
+            "dpool:v1:robinhood:4663:core4:pool-d:1"
+        ]))
+        .unwrap();
+        let hop_candidate_counts = serde_json::to_string(&json!({"1": 1})).unwrap();
+        connection
+            .execute(
+                "INSERT INTO manager_v4_closed_loops (
+                    network, chain_id, protocol, scope_key, loop_key, route_key_id,
+                    anchor_token_key_id, anchor_address, anchor_symbol,
+                    token_y_key_id, token_z_key_id, path_text,
+                    path_addresses_json, path_symbols_json, pool_path_key,
+                    directional_pool_ids_json, backup_directional_pool_ids_json,
+                    hop_candidate_counts_json,
+                    hop_candidate_combination_count, recommendation_basis, recommended_first_priority,
+                    candidate_edge_version, candidate_edge_checksum, observation_version,
+                    observation_checksum, status, source,
+                    single_tick_capacity_anchor_raw, single_tick_capacity_binding_directional_pool_id,
+                    created_at, updated_at
+                 ) VALUES (?1, ?2, 'uniswap_v4', 'core4', ?3, 'route:v1',
+                           'robinhood:4663:0x3333333333333333333333333333333333333333',
+                           '0x3333333333333333333333333333333333333333', 'BBB',
+                           'robinhood:4663:0x4444444444444444444444444444444444444444',
+                           'robinhood:4663:0x5555555555555555555555555555555555555555',
+                           'BBB -> CCC -> DDD -> BBB',
+                           ?4, ?5, 'pool-path:2',
+                           ?6, '{}', ?7,
+                           1, 'fixture', 1, 7, 'sha256:candidate-edge', 4,
+                           'sha256:observation', 'active', 'fixture',
+                           '2000000000000000', 'dpool:v1:robinhood:4663:core4:pool-yz:1',
+                           'fixture', 'fixture')",
+                rusqlite::params![
+                    NETWORK,
+                    CHAIN_ID,
+                    LOOP_KEY_B,
+                    path_addresses,
+                    path_symbols,
+                    directional_pool_ids,
+                    hop_candidate_counts
+                ],
+            )
+            .unwrap();
+        drop(connection);
+        (directory, path)
+    }
+
+    /// One closed loop as the runtime catalog holds it.
+    ///
+    /// The row carries the same facts the Manager publishes, so the
+    /// identity the two sides hold can be compared with
+    /// `is_same_loop`.
+    fn identity_row(
+        loop_key: &str,
+        path_addresses_json: &str,
+        pool_ids_json: &str,
+        capacity: &str,
+        binding: Option<&str>,
+    ) -> Value {
+        json!({
+            "loop_key": loop_key,
+            "path_addresses_json": path_addresses_json,
+            "pool_ids_json": pool_ids_json,
+            "single_tick_capacity_anchor_raw": capacity,
+            "single_tick_capacity_binding_pool_id": binding,
+            "candidate_edge_version": 7,
+            "candidate_edge_checksum": "sha256:candidate-edge",
+            "observation_version": 4,
+            "observation_checksum": "sha256:observation"
+        })
+    }
+
+    /// The address path of the first closed loop.
+    const PATH_A: &str = "[\"0x0000000000000000000000000000000000000000\",\"0x1111111111111111111111111111111111111111\",\"0x2222222222222222222222222222222222222222\",\"0x0000000000000000000000000000000000000000\"]";
+
+    /// The address path of the second closed loop.
+    const PATH_B: &str = "[\"0x3333333333333333333333333333333333333333\",\"0x4444444444444444444444444444444444444444\",\"0x5555555555555555555555555555555555555555\",\"0x3333333333333333333333333333333333333333\"]";
+
+    /// The runtime catalog of the two-loop fixture.
+    ///
+    /// The catalog holds both loops with the identity the Manager
+    /// publishes, so a publication of both loops succeeds.
+    fn measured_catalog_of_two_loops() -> ClosedLoopCatalog {
+        crate::closed_loop_identity::catalog_from_rows(&[
+            identity_row(
+                LOOP_KEY,
+                PATH_A,
+                "[\"pool-a\",\"pool-yz\",\"pool-d\"]",
+                "1000000000000000",
+                Some("pool-yz"),
+            ),
+            identity_row(
+                LOOP_KEY_B,
+                PATH_B,
+                "[\"pool-b\",\"pool-yz\",\"pool-d\"]",
+                "2000000000000000",
+                Some("pool-yz"),
+            ),
+        ])
+    }
+
+    /// The runtime catalog in which the second loop was **rebuilt**.
+    ///
+    /// The measurement was made against another identity of the second
+    /// loop, so the publication has to drop it: a review of the loop that
+    /// no longer exists is not a review of the loop that replaced it.
+    fn measured_catalog_with_a_rebuilt_second_loop() -> ClosedLoopCatalog {
+        crate::closed_loop_identity::catalog_from_rows(&[
+            identity_row(
+                LOOP_KEY,
+                PATH_A,
+                "[\"pool-a\",\"pool-yz\",\"pool-d\"]",
+                "1000000000000000",
+                Some("pool-yz"),
+            ),
+            identity_row(
+                LOOP_KEY_B,
+                PATH_B,
+                "[\"pool-b\",\"pool-x\",\"pool-d\"]",
+                "3000000000000000",
+                Some("pool-x"),
+            ),
+        ])
+    }
+
+    /// The measured route of the second closed loop.
+    fn route_b() -> Value {
+        json!({
+            "closedLoopKey": LOOP_KEY_B,
+            "routeSymbols": ["BBB", "CCC", "DDD", "BBB"],
+            "routeAddresses": [
+                "0x3333333333333333333333333333333333333333",
+                "0x4444444444444444444444444444444444444444",
+                "0x5555555555555555555555555555555555555555",
+                "0x3333333333333333333333333333333333333333"
+            ],
+            "status": "profitable_amount_found",
+            "selectedAmountRaw": "0x0de0b6b3a7640000",
+            "selectedProfitRaw": "0x0de0b6b3a7640000",
+            "runArbitrage": {
+                "ok": true,
+                "executable": true,
+                "blockNumber": 12345,
+                "selectedAmountRaw": "0x0de0b6b3a7640000",
+                "reportedNetProfitRaw": "0x0de0b6b3a7640000"
+            }
+        })
+    }
+
+    /// The evidence of the second closed loop.
+    fn evidence_of_b(catalog: &ClosedLoopCatalog) -> ReviewEvidenceInput {
+        route_evidence(
+            &route_b(),
+            LOOP_KEY_B,
+            catalog,
+            None,
+            &|_| Some(18),
+            "2026-11-24T00:00:00Z",
+        )
+    }
+
+    /// The evidence of the first closed loop, measured under a catalog.
+    ///
+    /// The evidence is built from the catalog the measurement was made
+    /// under, because the generation of the measurement is read out of it.
+    fn evidence_of_in(catalog: &ClosedLoopCatalog) -> ReviewEvidenceInput {
+        route_evidence(
+            &route(LOOP_KEY),
+            LOOP_KEY,
+            catalog,
+            None,
+            &|_| Some(18),
+            "2026-11-24T00:00:00Z",
+        )
+    }
+
+    /// **T-11**: a per-loop publication publishes the measured loop and
+    /// asks for no upstream generation of its own.
+    ///
+    /// The generation the measurement was made under travels with the
+    /// evidence, so a closed-loop library that moved on between the
+    /// measurement and the publication does not stop the publication.
+    #[test]
+    fn a_per_loop_publication_publishes_the_measured_loop_under_its_own_generation() {
+        let (_directory, path) = manager_database();
+        let measured = measured_catalog_of_two_loops().with_upstream(Some(ClosedLoopUpstream {
+            closed_loop_version: 7,
+            materialized_checksum: Some("sha256:measured".to_owned()),
+        }));
+        let outcome = publish_review_loops(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            vec![evidence_of_in(&measured)],
+            &measured,
+            "r1-1",
+        )
+        .expect("the measured loop is still published");
+        assert!(outcome.published);
+        assert_eq!(outcome.loop_count, 1);
+        assert_eq!(outcome.evidence_count, 1);
+        assert!(outcome.dropped_loop_keys.is_empty());
+        let connection = rusqlite::Connection::open(&path).unwrap();
+        let (rows, version): (i64, i64) = connection
+            .query_row(
+                "SELECT COUNT(*), MAX(closed_loop_version) FROM manager_v4_reviews WHERE network = ?1 AND chain_id = ?2",
+                rusqlite::params![NETWORK, CHAIN_ID],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(rows, 1, "one review row per measured closed loop");
+        assert_eq!(
+            version, 7,
+            "the review is filed under the generation it was measured against, not under the one the library holds now"
+        );
+    }
+
+    /// The consumers rebuilt, and the Manager is told about it.
+    ///
+    /// The publication was measured against the generation the Manager
+    /// publishes now, so the consumers are no longer behind and the flag
+    /// that says they are may go.
+    #[test]
+    fn a_publication_tells_the_manager_that_the_consumers_rebuilt() {
+        let (_directory, path) = manager_database();
+        mark_the_consumers_behind(&path);
+        let measured = measured_catalog_of_two_loops().with_upstream(Some(ClosedLoopUpstream {
+            closed_loop_version: 19,
+            materialized_checksum: Some("sha256:closed-loop".to_owned()),
+        }));
+        publish_review_loops(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            vec![evidence_of_in(&measured)],
+            &measured,
+            "r-ack-1",
+        )
+        .expect("the measured loop is published");
+        assert_eq!(
+            stored_consumers_need_rebuild(&path),
+            0,
+            "the consumers rebuilt against the generation the library publishes \
+             now, so the flag must be cleared"
+        );
+    }
+
+    /// A publication of another generation leaves the flag set.
+    ///
+    /// The consumers measured against a generation the library has already
+    /// left.  They are behind, and a flag that this publication clears is a
+    /// flag that lies.
+    #[test]
+    fn a_publication_of_another_generation_leaves_the_flag_set() {
+        let (_directory, path) = manager_database();
+        mark_the_consumers_behind(&path);
+        let measured = measured_catalog_of_two_loops().with_upstream(Some(ClosedLoopUpstream {
+            closed_loop_version: 7,
+            materialized_checksum: Some("sha256:measured".to_owned()),
+        }));
+        publish_review_loops(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            vec![evidence_of_in(&measured)],
+            &measured,
+            "r-ack-2",
+        )
+        .expect("the measured loop is published");
+        assert_eq!(
+            stored_consumers_need_rebuild(&path),
+            1,
+            "the consumers are behind the generation the library publishes now, \
+             so the flag must survive the publication"
+        );
+    }
+
+    /// Tell the Manager that its consumers still have to rebuild.
+    fn mark_the_consumers_behind(path: &str) {
+        let connection = rusqlite::Connection::open(path).unwrap();
+        connection
+            .execute(
+                "UPDATE manager_v4_closed_loop_library_state
+                 SET consumers_need_rebuild = 1
+                 WHERE network = ?1 AND chain_id = ?2",
+                rusqlite::params![NETWORK, CHAIN_ID],
+            )
+            .unwrap();
+    }
+
+    /// What the Manager says about its consumers.
+    fn stored_consumers_need_rebuild(path: &str) -> i64 {
+        let connection = rusqlite::Connection::open(path).unwrap();
+        connection
+            .query_row(
+                "SELECT consumers_need_rebuild FROM manager_v4_closed_loop_library_state
+                 WHERE network = ?1 AND chain_id = ?2",
+                rusqlite::params![NETWORK, CHAIN_ID],
+                |row| row.get(0),
+            )
+            .unwrap()
+    }
+
+    /// **T-12**: one closed loop that cannot be published does not keep
+    /// the other closed loops from being published.
+    ///
+    /// The evidence carries three closed loops: one the Manager still
+    /// publishes with the same identity, one it publishes under another
+    /// identity, and one it does not publish at all.  The first one is
+    /// published, the other two are dropped and named.
+    #[test]
+    fn a_loop_that_cannot_be_published_does_not_block_the_other_loops() {
+        let (_directory, path) = manager_database_with_two_loops();
+        let measured = measured_catalog_with_a_rebuilt_second_loop();
+        let evidence = vec![
+            evidence_of_in(&measured),
+            evidence_of_b(&measured),
+            ReviewEvidenceInput {
+                loop_key: LOOP_KEY_C.to_owned(),
+                ..evidence_of_in(&measured)
+            },
+        ];
+        let outcome = publish_review_loops(&path, NETWORK, CHAIN_ID, evidence, &measured, "r1-2")
+            .expect("one measured loop is still published");
+        assert_eq!(
+            outcome.evidence_count, 1,
+            "only the loop that can be published is reviewed"
+        );
+        assert_eq!(outcome.dropped_loop_keys.len(), 2, "both unusable loops are named");
+        assert!(outcome
+            .dropped_loop_keys
+            .iter()
+            .any(|key| key.eq_ignore_ascii_case(LOOP_KEY_B)));
+        assert!(outcome
+            .dropped_loop_keys
+            .iter()
+            .any(|key| key.eq_ignore_ascii_case(LOOP_KEY_C)));
+        let connection = rusqlite::Connection::open(&path).unwrap();
+        let loop_keys: Vec<String> = connection
+            .prepare(
+                "SELECT loop_key FROM manager_v4_reviews WHERE network = ?1 AND chain_id = ?2",
+            )
+            .unwrap()
+            .query_map(rusqlite::params![NETWORK, CHAIN_ID], |row| row.get(0))
+            .unwrap()
+            .map(|row| row.unwrap())
+            .collect();
+        assert_eq!(loop_keys.len(), 1, "only the published loop has a review row");
+        assert!(loop_keys[0].eq_ignore_ascii_case(LOOP_KEY));
     }
 }

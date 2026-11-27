@@ -978,6 +978,20 @@ pub fn swap_scan_report(report: &SwapScanReport) -> Value {
 // Block timestamps
 // ---------------------------------------------------------------------------
 
+/// The offset of Beijing time in seconds.
+///
+/// The chain publishes its block time in UTC, and the system reads every
+/// record in Beijing time, so the block time is converted into it as soon
+/// as it is read.  The offset is fixed, so the conversion does not depend
+/// on the machine that reads it.
+const BEIJING_OFFSET_SECONDS: i32 = 8 * 60 * 60;
+
+/// The offset of Beijing time.
+pub fn beijing_offset() -> chrono::FixedOffset {
+    chrono::FixedOffset::east_opt(BEIJING_OFFSET_SECONDS)
+        .expect("the offset of Beijing time is valid")
+}
+
 /// Reads the timestamp of a block from the chain.
 ///
 /// The websocket log subscription does not carry a timestamp, so the trade
@@ -1048,8 +1062,16 @@ pub async fn read_block_timestamps(
             else {
                 continue;
             };
+            // The block time is read from the chain and is rendered in
+            // Beijing time, the clock the whole system reads its records
+            // in.  The instant is untouched: only the way it is written
+            // down changes, and the offset in the stamp keeps it exact.
             let formatted = chrono::DateTime::from_timestamp(timestamp as i64, 0)
-                .map(|value| value.format("%Y-%m-%dT%H:%M:%SZ").to_string())
+                .map(|value| {
+                    value
+                        .with_timezone(&beijing_offset())
+                        .to_rfc3339()
+                })
                 .unwrap_or_default();
             if !formatted.is_empty() {
                 timestamps.insert(*block, formatted);

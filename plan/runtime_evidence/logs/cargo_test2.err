@@ -1,0 +1,94 @@
+   Compiling closed-loop-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\closed_loop_manager)
+error[E0425]: cannot find function `start_review_clock_on_connection` in this scope
+    --> closed_loop_manager\src\lib.rs:7306:21
+     |
+7306 |             assert!(start_review_clock_on_connection(
+     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+     |
+help: consider importing this function
+     |
+5837 +     use crate::start_review_clock_on_connection;
+     |
+
+error[E0425]: cannot find function `review_interval_seconds` in this scope
+    --> closed_loop_manager\src\lib.rs:7321:18
+     |
+7321 |             (1..=review_interval_seconds()).contains(&wait),
+     |                  ^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+     |
+help: consider importing this function
+     |
+5837 +     use crate::review_interval_seconds;
+     |
+
+error[E0425]: cannot find function `advance_review_clock_on_connection` in this scope
+    --> closed_loop_manager\src\lib.rs:7338:17
+     |
+7338 |                 advance_review_clock_on_connection(&connection, NETWORK, CHAIN_ID, &loop_key)
+     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+     |
+help: consider importing this function
+     |
+5837 +     use crate::advance_review_clock_on_connection;
+     |
+
+error[E0425]: cannot find function `set_review_wait` in this scope
+    --> closed_loop_manager\src\lib.rs:7363:17
+     |
+7363 |         assert!(set_review_wait(&path, NETWORK, CHAIN_ID, &loop_key, 0).unwrap());
+     |                 ^^^^^^^^^^^^^^^ not found in this scope
+     |
+help: consider importing this function
+     |
+5837 +     use crate::set_review_wait;
+     |
+
+error[E0425]: cannot find value `REVIEW_INTERVAL_PARAMETER_NAMESPACE` in this scope
+    --> closed_loop_manager\src\lib.rs:7402:25
+     |
+7402 |                         REVIEW_INTERVAL_PARAMETER_NAMESPACE,
+     |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+     |
+help: consider importing this constant
+     |
+5837 +     use crate::REVIEW_INTERVAL_PARAMETER_NAMESPACE;
+     |
+
+error[E0425]: cannot find value `REVIEW_INTERVAL_PARAMETER_KEY` in this scope
+    --> closed_loop_manager\src\lib.rs:7403:25
+     |
+7403 |                         REVIEW_INTERVAL_PARAMETER_KEY
+     |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+     |
+help: consider importing this constant
+     |
+5837 +     use crate::REVIEW_INTERVAL_PARAMETER_KEY;
+     |
+
+error[E0425]: cannot find function `review_interval_seconds_on_connection` in this scope
+    --> closed_loop_manager\src\lib.rs:7409:20
+     |
+7409 |         assert_eq!(review_interval_seconds_on_connection(&connection), 30);
+     |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+     |
+help: consider importing this function
+     |
+5837 +     use crate::review_interval_seconds_on_connection;
+     |
+
+error[E0425]: cannot find function `start_review_clock_on_connection` in this scope
+    --> closed_loop_manager\src\lib.rs:7418:21
+     |
+7418 |             assert!(start_review_clock_on_connection(
+     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+     |
+help: consider importing this function
+     |
+5837 +     use crate::start_review_clock_on_connection;
+     |
+
+   Compiling review-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\review_manager)
+   Compiling broadcast-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\broadcast_manager)
+For more information about this error, try `rustc --explain E0425`.
+error: could not compile `closed-loop-manager` (lib test) due to 8 previous errors
+warning: build failed, waiting for other jobs to finish...

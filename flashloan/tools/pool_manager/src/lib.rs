@@ -1899,6 +1899,16 @@ pub struct DepthOptions {
     /// Explicit RPC endpoint. When empty the configured environment
     /// variables are consulted.
     pub rpc_url: Option<String>,
+    /// Ordered RPC endpoints to try, when the caller knows more than one.
+    ///
+    /// The list is tried in order and the first endpoint that answers wins.
+    /// A caller that names one endpoint *and* the chain's own endpoints
+    /// puts them both here: the named endpoint stays first and the chain's
+    /// endpoints are the alternatives.  One endpoint turns a momentary
+    /// network fault into a failed refresh, and a failed refresh stops the
+    /// pipeline that publishes the next review.  `rpc_url` is the
+    /// single-endpoint form; when both are present this list wins.
+    pub rpc_urls: Option<Vec<String>>,
     /// Number of `eth_call` requests sent per JSON-RPC batch.
     pub batch_size: usize,
     /// Per-request timeout in seconds.
@@ -1921,6 +1931,45 @@ pub struct DepthOptions {
     /// over the report, so the depth measurement always uses the
     /// valuations that survived a restart.
     pub usdg_valuation_db: Option<String>,
+}
+
+/// The RPC endpoints a depth refresh tries, in order.
+///
+/// Three inputs, in this order of precedence:
+///
+/// 1. `options.rpc_urls` -- the ordered list the caller assembled;
+/// 2. `options.rpc_url` -- one endpoint the caller named;
+/// 3. the endpoints the chain itself publishes.
+///
+/// The chain's own endpoints are always chain-scoped: a testnet run never
+/// reads the mainnet's nodes, because the mainnet's answer describes a
+/// chain the run is not serving.
+pub fn resolve_depth_rpc_urls(options: &DepthOptions, chain_id: i64) -> Vec<String> {
+    let mut resolved: Vec<String> = Vec::new();
+    if let Some(urls) = options.rpc_urls.as_ref() {
+        for url in urls {
+            push_endpoint(&mut resolved, url);
+        }
+    }
+    if resolved.is_empty() {
+        if let Some(url) = options.rpc_url.as_ref() {
+            push_endpoint(&mut resolved, url);
+        }
+    }
+    if resolved.is_empty() {
+        for url in chain::rpc_urls_for_chain(chain_id) {
+            push_endpoint(&mut resolved, &url);
+        }
+    }
+    resolved
+}
+
+/// Adds one endpoint to the list, ignoring blanks and repeats.
+fn push_endpoint(resolved: &mut Vec<String>, value: &str) {
+    let trimmed = value.trim();
+    if !trimmed.is_empty() && !resolved.iter().any(|existing| existing == trimmed) {
+        resolved.push(trimmed.to_owned());
+    }
 }
 
 /// Refreshes the on-chain depth evidence of the candidate pools.
@@ -2034,13 +2083,12 @@ pub fn refresh_depth(store: &str, chain_id: i64, options: &DepthOptions) -> Resu
         }));
     }
 
-    let rpc_urls: Vec<String> = match &options.rpc_url {
-        Some(url) if !url.trim().is_empty() => vec![url.trim().to_string()],
-        // The endpoints have to belong to the chain that is being measured.
-        // Reading the mainnet configuration for a testnet run would measure
-        // the mainnet's pools and report them as the testnet's depth.
-        _ => chain::rpc_urls_for(chain_id),
-    };
+    // The endpoints have to belong to the chain that is being measured.
+    // Reading the mainnet configuration for a testnet run would measure
+    // the mainnet's pools and report them as the testnet's depth.  A caller
+    // that names its own endpoint keeps it first, and the chain's own
+    // endpoints follow it as the alternatives.
+    let rpc_urls: Vec<String> = resolve_depth_rpc_urls(options, chain_id);
     if rpc_urls.is_empty() {
         return Err(
             "no RPC endpoint configured; set the chain RPC environment variable or pass --rpc-url"
@@ -2057,6 +2105,11 @@ pub fn refresh_depth(store: &str, chain_id: i64, options: &DepthOptions) -> Resu
     let mut refreshed = Vec::new();
     let mut errors = Vec::new();
     let mut written = 0usize;
+    // Pools whose snapshot row the write statement could not change
+    // because the row does not exist yet. They are reported so a caller
+    // can tell "the measurement was written" apart from "there was no
+    // row to write into".
+    let mut rows_without_snapshot = 0usize;
     let mut processed = 0usize;
     // CORE-R34-02: how many pools the node answered only half of. Those
     // pools keep their stored measurement and are reported separately, so a
@@ -2173,7 +2226,7 @@ pub fn refresh_depth(store: &str, chain_id: i64, options: &DepthOptions) -> Resu
                 "capacity": depth::capacity_json(&capacity, state.tick, &state.sqrt_price_x96),
             });
             if options.apply {
-                write_depth_snapshot(
+                let rows_changed = write_depth_snapshot(
                     &connection,
                     &network,
                     chain_id,
@@ -2185,7 +2238,14 @@ pub fn refresh_depth(store: &str, chain_id: i64, options: &DepthOptions) -> Resu
                     &materialization_batch,
                     recent_swap_active.get(&state.pool_id.trim().to_lowercase()).copied().flatten(),
                 )?;
-                written += 1;
+                // The count is the number of rows the statement really
+                // changed. A pool without a snapshot row changes zero
+                // rows, and reporting that as a write would tell the
+                // caller a row is fresh when it was never touched.
+                written += rows_changed;
+                if rows_changed == 0 {
+                    rows_without_snapshot += 1;
+                }
             }
             // A pool contributes one row per side that has both a measured
             // capacity and a USDG valuation. A side without a valuation
@@ -2289,6 +2349,7 @@ pub fn refresh_depth(store: &str, chain_id: i64, options: &DepthOptions) -> Resu
         "truncated": truncated,
         "refreshedCount": refreshed.len(),
         "writtenCount": written,
+        "rowsWithoutSnapshotCount": rows_without_snapshot,
         "incompleteReadCount": incomplete_reads,
         "candidateBalancesPropagated": candidate_balances_propagated,
         "usdgDepthRowsWritten": usdg_depth_rows_written,
@@ -2672,7 +2733,7 @@ fn write_depth_snapshot(
     token1_decimals: Option<i64>,
     materialization_batch: &str,
     recent_swap_active: Option<i64>,
-) -> Result<(), String> {
+) -> Result<usize, String> {
     let now = chrono::Utc::now().to_rfc3339();
     // The `balances` payload is the bridge between the chain read and the
     // sizing path. It was previously written as `{}`, which made
@@ -2715,7 +2776,7 @@ fn write_depth_snapshot(
     // measured binding-side capacity. It is the same basis the candidate
     // surface uses, so both surfaces publish one admission decision.
     let snapshot_depth_status = depth_band_for_binding_capacity(binding_capacity);
-    connection
+    let rows_changed = connection
         .execute(
             // ``estimated_tvl_usd`` is cleared on every write. The USD
             // valuation is a reference-only observation: the shared depth
@@ -2803,7 +2864,12 @@ fn write_depth_snapshot(
             ],
         )
         .map_err(|error| error.to_string())?;
-    Ok(())
+    // The number of rows the statement actually changed is the honest
+    // answer to "did this pool's row move?".  The statement is an UPDATE,
+    // so a pool that has no snapshot row yet changes zero rows: counting
+    // the attempt instead would report a write that never happened, and a
+    // caller that trusts that number would believe a stale row is fresh.
+    Ok(rows_changed)
 }
 
 pub fn refresh_key(
@@ -2894,6 +2960,60 @@ mod tests {
     use super::*;
     use rusqlite::params;
     use tempfile::NamedTempFile;
+
+    /// T-核.05: the depth refresh tries the endpoints it was given, in the
+    /// order it was given them.
+    ///
+    /// One endpoint turns a momentary network fault into a failed refresh,
+    /// and a failed refresh stops the pipeline that publishes the next
+    /// review generation.  The list the caller assembles is therefore the
+    /// contract, and it is tried exactly as it is written down.
+    #[test]
+    fn the_refresh_tries_the_endpoints_it_was_given_in_order() {
+        let options = DepthOptions {
+            rpc_urls: Some(vec![
+                "https://first.example".to_string(),
+                " https://second.example ".to_string(),
+                "https://first.example".to_string(),
+                "   ".to_string(),
+            ]),
+            ..DepthOptions::default()
+        };
+        let urls = resolve_depth_rpc_urls(&options, chain::ROBINHOOD_CHAIN_ID);
+        assert_eq!(
+            urls,
+            vec![
+                "https://first.example".to_string(),
+                "https://second.example".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn one_named_endpoint_is_used_when_no_list_is_given() {
+        let options = DepthOptions {
+            rpc_url: Some("https://only.example".to_string()),
+            ..DepthOptions::default()
+        };
+        let urls = resolve_depth_rpc_urls(&options, chain::ROBINHOOD_CHAIN_ID);
+        assert_eq!(urls, vec!["https://only.example".to_string()]);
+    }
+
+    #[test]
+    fn the_chain_endpoints_are_used_when_the_caller_names_none() {
+        let options = DepthOptions::default();
+        let urls = resolve_depth_rpc_urls(&options, chain::ROBINHOOD_TESTNET_CHAIN_ID);
+        assert_eq!(
+            urls,
+            chain::rpc_urls_for_chain(chain::ROBINHOOD_TESTNET_CHAIN_ID)
+        );
+        for url in &urls {
+            assert!(
+                !url.contains("mainnet.chain.robinhood.com"),
+                "a testnet refresh must not read the mainnet's nodes: {url}"
+            );
+        }
+    }
 
     /// T-候储.01: the pool manager materialises the measured swap activity
     /// into the depth snapshot row.

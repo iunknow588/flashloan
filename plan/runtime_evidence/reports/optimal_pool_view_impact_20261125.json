@@ -1,0 +1,191 @@
+{
+  "schema": "optimal-pool-view-impact-v1",
+  "mode": "read-only",
+  "database": "E:/2026OPC大赛/flashLoan/flashloan/db/local_store_4663.sqlite3",
+  "observationRows": 1420,
+  "rowsWithDirectSwapPool": 386,
+  "rowsWhereTheViewIsUnresolved": 1034,
+  "rowsWithDirectSwapPoolWhereTheViewIsUnresolved": 0,
+  "rowsWhereTheViewWouldDiffer": 88,
+  "rowsWithDirectSwapPoolWhereTheViewWouldDiffer": 88,
+  "differingSamples": [
+    {
+      "scopeKey": "candidate_exchange",
+      "directionKey": "robinhood:4663:0x0000000000000000000000000000000000000000->robinhood:4663:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+      "tokenX": "robinhood:4663:0x0000000000000000000000000000000000000000",
+      "tokenY": "robinhood:4663:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+      "stored": "0x6d9af55c4cb0d740dc5237e8fe2d60e017412fb1af4e2d81e948124797e56748",
+      "viewWouldAnswer": "0x10906975ba92bce9209431984d3e3e4b0eac706db274e8d1a29358331a555987"
+    },
+    {
+      "scopeKey": "candidate_exchange",
+      "directionKey": "robinhood:4663:0x0000000000000000000000000000000000000000->robinhood:4663:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "tokenX": "robinhood:4663:0x0000000000000000000000000000000000000000",
+      "tokenY": "robinhood:4663:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "stored": "0x881b4219078c86ac3a3930a6c229c2c846209fe9b4f0b8671772d42e2a799796",
+      "viewWouldAnswer": "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237"
+    },
+    {
+      "scopeKey": "candidate_exchange",
+      "directionKey": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c->robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "tokenX": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "tokenY": "robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "stored": "0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30",
+      "viewWouldAnswer": "0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e"
+    },
+    {
+      "scopeKey": "candidate_exchange",
+      "directionKey": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c->robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "tokenX": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "tokenY": "robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "stored": "0x8dc0387af606d84be8e4c2fc1da7bdc6d467337e9f3e075113f968922a190847",
+      "viewWouldAnswer": "0xe6b713cf680868a40aafca45810b0c894eb5c696f5a2230d4816e6695e90e681"
+    },
+    {
+      "scopeKey": "candidate_exchange",
+      "directionKey": "robinhood:4663:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea->robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "tokenX": "robinhood:4663:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+      "tokenY": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "stored": "0xcb6ffbcc84359535c2cc0a5688c0a76520ea6e0a4820fddd3ac8d7880e576370",
+      "viewWouldAnswer": "0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448"
+    },
+    {
+      "scopeKey": "candidate_exchange",
+      "directionKey": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0x0000000000000000000000000000000000000000",
+      "tokenX": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "tokenY": "robinhood:4663:0x0000000000000000000000000000000000000000",
+      "stored": "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+      "viewWouldAnswer": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e"
+    },
+    {
+      "scopeKey": "candidate_exchange",
+      "directionKey": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "tokenX": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "tokenY": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "stored": "0xe5923c8a8be481ec89a2ca784a2bbfa4235de6d88f92260fd66b660c4babf907",
+      "viewWouldAnswer": "0xf840a23a88418eebafeedba18aaefb9709c2e3c91ab0749962f6181e28205dd9"
+    },
+    {
+      "scopeKey": "candidate_exchange",
+      "directionKey": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+      "tokenX": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "tokenY": "robinhood:4663:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+      "stored": "0xcb6ffbcc84359535c2cc0a5688c0a76520ea6e0a4820fddd3ac8d7880e576370",
+      "viewWouldAnswer": "0x8567e70dbf639a618ba5eaf9402743452b93ca45c9bf8b97462407f07d7b7448"
+    },
+    {
+      "scopeKey": "candidate_exchange",
+      "directionKey": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "tokenX": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "tokenY": "robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "stored": "0x5875d407a42965b0e768c8925cea290e06fa50603ef34fc99eb92a1050e6ae36",
+      "viewWouldAnswer": "0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f"
+    },
+    {
+      "scopeKey": "candidate_exchange",
+      "directionKey": "robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35->robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "tokenX": "robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "tokenY": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "stored": "0x5875d407a42965b0e768c8925cea290e06fa50603ef34fc99eb92a1050e6ae36",
+      "viewWouldAnswer": "0xc58bb68060bcb7b3ea0f6d4a4afef1e57f628722e808db12afb6d1733552872f"
+    },
+    {
+      "scopeKey": "candidate_exchange",
+      "directionKey": "robinhood:4663:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec->robinhood:4663:0x0000000000000000000000000000000000000000",
+      "tokenX": "robinhood:4663:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "tokenY": "robinhood:4663:0x0000000000000000000000000000000000000000",
+      "stored": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+      "viewWouldAnswer": "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35"
+    },
+    {
+      "scopeKey": "candidate_exchange",
+      "directionKey": "robinhood:4663:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5->robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "tokenX": "robinhood:4663:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+      "tokenY": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "stored": "0x628c98ab436ee34a6a7decd606242890582591bdf7c9a35d90e0d08021c31ea0",
+      "viewWouldAnswer": "0x447ede3c1eb7a15486e65e82898f8e52fa0db64175a50dd5de75e766d55f7c00"
+    },
+    {
+      "scopeKey": "candidate_exchange",
+      "directionKey": "robinhood:4663:0xec262a75e413fafd0df80480274532c79d42da09->robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "tokenX": "robinhood:4663:0xec262a75e413fafd0df80480274532c79d42da09",
+      "tokenY": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "stored": "0x319bac87e616a89e241c10aeb8afd4892a852cdd8b373cd9765ecddc40b87cfe",
+      "viewWouldAnswer": "0xc105b8300ff65d750a0e4e63c7a879e20504069b770713464a5315e797735326"
+    },
+    {
+      "scopeKey": "candidate_exchange",
+      "directionKey": "robinhood:4663:0xff080c8ce2e5feadaca0da81314ae59d232d4afd->robinhood:4663:0x0000000000000000000000000000000000000000",
+      "tokenX": "robinhood:4663:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "tokenY": "robinhood:4663:0x0000000000000000000000000000000000000000",
+      "stored": "0x881b4219078c86ac3a3930a6c229c2c846209fe9b4f0b8671772d42e2a799796",
+      "viewWouldAnswer": "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237"
+    },
+    {
+      "scopeKey": "candidate_exchange",
+      "directionKey": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0x0000000000000000000000000000000000000000",
+      "tokenX": "robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "tokenY": "robinhood:4663:0x0000000000000000000000000000000000000000",
+      "stored": "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+      "viewWouldAnswer": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e"
+    },
+    {
+      "scopeKey": "candidate_exchange",
+      "directionKey": "robinhood:4663:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec->robinhood:4663:0x0000000000000000000000000000000000000000",
+      "tokenX": "robinhood:4663:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "tokenY": "robinhood:4663:0x0000000000000000000000000000000000000000",
+      "stored": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+      "viewWouldAnswer": "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35"
+    },
+    {
+      "scopeKey": "candidate_exchange",
+      "directionKey": "robinhood:4663:0x0000000000000000000000000000000000000000->robinhood:4663:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "tokenX": "robinhood:4663:0x0000000000000000000000000000000000000000",
+      "tokenY": "robinhood:4663:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "stored": "0x881b4219078c86ac3a3930a6c229c2c846209fe9b4f0b8671772d42e2a799796",
+      "viewWouldAnswer": "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237"
+    },
+    {
+      "scopeKey": "candidate_exchange",
+      "directionKey": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c->robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "tokenX": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "tokenY": "robinhood:4663:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "stored": "0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30",
+      "viewWouldAnswer": "0x2bca43d9d8c75399e3c6ba14e9dc88f44ca8968bb4694a8be4f80bd5a550df2e"
+    },
+    {
+      "scopeKey": "candidate_exchange",
+      "directionKey": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c->robinhood:4663:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+      "tokenX": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "tokenY": "robinhood:4663:0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+      "stored": "0x3ea70ce0b34473692549f97e630a1d82dc05cea94fa55f81b50f10c8c6d8186f",
+      "viewWouldAnswer": "0xa821b3724b451b22476c5347471b2a96d185b86af8760f226273e34ab4b2b8a0"
+    },
+    {
+      "scopeKey": "candidate_exchange",
+      "directionKey": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c->robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "tokenX": "robinhood:4663:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "tokenY": "robinhood:4663:0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "stored": "0x8dc0387af606d84be8e4c2fc1da7bdc6d467337e9f3e075113f968922a190847",
+      "viewWouldAnswer": "0xe6b713cf680868a40aafca45810b0c894eb5c696f5a2230d4816e6695e90e681"
+    }
+  ],
+  "hopSelectionBasisDistribution": [
+    {
+      "pool_selection_basis": "directional_pair_direction_rank:1",
+      "hops": 522
+    }
+  ],
+  "directionalPoolRows": [
+    {
+      "scope_key": "candidate_exchange",
+      "rows": 352,
+      "pools": 176
+    },
+    {
+      "scope_key": "core4",
+      "rows": 340,
+      "pools": 170
+    }
+  ]
+}

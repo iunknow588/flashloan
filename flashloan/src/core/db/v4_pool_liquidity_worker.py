@@ -35,6 +35,7 @@ V4_MAINTENANCE_WORKER_DOMAINS = (
     "v4_pool_liquidity_worker",
     "v4_candidate_yc_zc_worker",
     "v4_market_observation_worker",
+    "v4_directional_pool_worker",
     "v4_dex_overview_worker",
     "v4_closed_loop_worker",
     "v4_onchain_review_worker",
@@ -45,6 +46,7 @@ MAINTENANCE_WORKER_ORDER = (
     "v4_pool_liquidity_worker",
     "v4_candidate_yc_zc_worker",
     "v4_market_observation_worker",
+    "v4_directional_pool_worker",
     "v4_dex_overview_worker",
     "v4_closed_loop_worker",
 )
@@ -111,6 +113,8 @@ def load_v4_pool_liquidity_cursor(
         "last_scanned_at": completeness.get("last_scanned_at") or None,
         "mode": str(completeness.get("mode") or "idle"),
         "error": completeness.get("error") or None,
+        "snapshot_read_at": completeness.get("snapshot_read_at") or None,
+        "snapshot_rows_written": _int(completeness.get("snapshot_rows_written")),
         "refreshed_at": refreshed_at,
     }
 
@@ -131,6 +135,8 @@ def save_v4_pool_liquidity_cursor(
     last_block_number: int = 0,
     mode: str = "idle",
     error: str | None = None,
+    snapshot_read_at: str | None = None,
+    snapshot_rows_written: int = 0,
 ) -> dict[str, Any]:
     """Persist one incremental sweep checkpoint."""
     completeness = {
@@ -145,6 +151,14 @@ def save_v4_pool_liquidity_cursor(
         "mode": mode,
         "error": error,
     }
+    # The freshness of the depth snapshot table, read back after the tick.
+    # The verdict count says which pools carry a verdict; these two say
+    # when the newest verdict was measured and how many rows the last write
+    # really changed.  A writer that stopped leaves the verdict count at
+    # zero and the age growing, so the age is what makes the difference
+    # visible.
+    completeness["snapshot_read_at"] = snapshot_read_at
+    completeness["snapshot_rows_written"] = max(0, int(snapshot_rows_written))
     upsert_initialization(
         database_url,
         network=network,

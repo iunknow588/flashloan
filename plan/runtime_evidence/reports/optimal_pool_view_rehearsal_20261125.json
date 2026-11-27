@@ -1,0 +1,83 @@
+{
+  "schema": "optimal-pool-view-rehearsal-v2",
+  "source": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "writePath": {
+    "beforeMigration": {
+      "rows": 1420,
+      "rowsWithDirectSwapPool": 386,
+      "withPoolViewAnswersNothing": 0,
+      "withoutPoolViewAnswersSomething": 0,
+      "withPoolViewDiffersFromStored": 88,
+      "objects": [
+        {
+          "type": "table",
+          "name": "manager_market_observation_yz_pairs"
+        }
+      ],
+      "distinctTriggerKeys": 1420
+    },
+    "afterMigration": {
+      "rows": 1420,
+      "rowsWithDirectSwapPool": 386,
+      "withPoolViewAnswersNothing": 0,
+      "withoutPoolViewAnswersSomething": 0,
+      "withPoolViewDiffersFromStored": 0,
+      "objects": [
+        {
+          "type": "table",
+          "name": "manager_market_observation_yz_pairs_base"
+        },
+        {
+          "type": "trigger",
+          "name": "manager_market_observation_yz_pairs_delete"
+        },
+        {
+          "type": "trigger",
+          "name": "manager_market_observation_yz_pairs_insert"
+        },
+        {
+          "type": "trigger",
+          "name": "manager_market_observation_yz_pairs_update"
+        },
+        {
+          "type": "view",
+          "name": "manager_market_observation_yz_pairs"
+        }
+      ]
+    },
+    "publisherCycle": {
+      "rowsBeforeClear": 1421,
+      "viewRowsMatchedByScopedClear": 1420,
+      "baseRowsAfterScopedClear": 1,
+      "clearRemovedExactlyTheMatchedRows": true,
+      "otherScopeRowsSurvived": 1,
+      "otherScopeUntouchable": true,
+      "rowsAfterRepublish": 2,
+      "republishedRowIsVisibleThroughTheView": true
+    }
+  },
+  "rollbackPath": {
+    "afterRollback": {
+      "rows": 1420,
+      "rowsWithDirectSwapPool": 386,
+      "withPoolViewAnswersNothing": 0,
+      "withoutPoolViewAnswersSomething": 0,
+      "withPoolViewDiffersFromStored": 0,
+      "objects": [
+        {
+          "type": "table",
+          "name": "manager_market_observation_yz_pairs"
+        }
+      ]
+    },
+    "rollbackValue": {
+      "rowsWithADirectionLayerAnswer": 386,
+      "rowsWithoutADirectionLayerAnswer": 1034,
+      "rowsThatCarryTheLivePrimary": 386,
+      "rowsThatKeptTheOldStoredValue": 1034,
+      "rowsThatLostTheirRow": 0,
+      "livePrimaryFullyRestored": true,
+      "noRowLost": true
+    }
+  }
+}

@@ -29,6 +29,11 @@ pub const CLOSED_LOOP_DIRECTIONAL_MIGRATION_ID: &str =
     "20261124_016_closed_loop_directional_wiring";
 pub const OBSERVATION_OPTIMAL_POOL_VIEW_MIGRATION_ID: &str =
     "20261125_017_observation_optimal_pool_view";
+pub const CLOSED_LOOP_DIRECTIONAL_ONLY_MIGRATION_ID: &str =
+    "20261125_018_closed_loop_directional_only";
+pub const REVIEW_SCHEDULE_MIGRATION_ID: &str = "20261127_019_review_schedule_schema";
+pub const CLOSED_LOOP_REVIEW_CLOCK_MIGRATION_ID: &str = "20261127_020_closed_loop_review_clock";
+pub const REVIEW_QUEUE_MIGRATION_ID: &str = "20261127_021_review_queue_schema";
 pub const MIGRATION_IDS: &[&str] = &[
     MIGRATION_ID,
     CANDIDATE_EDGE_MIGRATION_ID,
@@ -48,8 +53,12 @@ pub const MIGRATION_IDS: &[&str] = &[
     DIRECTIONAL_POOL_MIGRATION_ID,
     CLOSED_LOOP_DIRECTIONAL_MIGRATION_ID,
     OBSERVATION_OPTIMAL_POOL_VIEW_MIGRATION_ID,
+    CLOSED_LOOP_DIRECTIONAL_ONLY_MIGRATION_ID,
+    REVIEW_SCHEDULE_MIGRATION_ID,
+    CLOSED_LOOP_REVIEW_CLOCK_MIGRATION_ID,
+    REVIEW_QUEUE_MIGRATION_ID,
 ];
-pub const LATEST_MIGRATION_ID: &str = OBSERVATION_OPTIMAL_POOL_VIEW_MIGRATION_ID;
+pub const LATEST_MIGRATION_ID: &str = REVIEW_QUEUE_MIGRATION_ID;
 
 const PREFERRED_LEDGER: &str = "schema_migrations";
 const FALLBACK_LEDGER: &str = "manager_schema_migrations";
@@ -131,6 +140,22 @@ const MIGRATIONS: &[MigrationDefinition] = &[
     MigrationDefinition {
         id: OBSERVATION_OPTIMAL_POOL_VIEW_MIGRATION_ID,
         sql: include_str!("../migrations/20261125_017_observation_optimal_pool_view.sql"),
+    },
+    MigrationDefinition {
+        id: CLOSED_LOOP_DIRECTIONAL_ONLY_MIGRATION_ID,
+        sql: include_str!("../migrations/20261125_018_closed_loop_directional_only.sql"),
+    },
+    MigrationDefinition {
+        id: REVIEW_SCHEDULE_MIGRATION_ID,
+        sql: include_str!("../migrations/20261127_019_review_schedule_schema.sql"),
+    },
+    MigrationDefinition {
+        id: CLOSED_LOOP_REVIEW_CLOCK_MIGRATION_ID,
+        sql: include_str!("../migrations/20261127_020_closed_loop_review_clock.sql"),
+    },
+    MigrationDefinition {
+        id: REVIEW_QUEUE_MIGRATION_ID,
+        sql: include_str!("../migrations/20261127_021_review_queue_schema.sql"),
     },
 ];
 
@@ -258,6 +283,43 @@ const OBSERVATION_OPTIMAL_POOL_VIEW_TABLES: &[&str] = &[
     "manager_v4_directional_exchange_pools",
 ];
 
+/// The tables the "directional pools only" migration touches.
+///
+/// The migration removes the base pool columns from the closed loop rows, so
+/// the loop body, the hops and the optimization rows are all part of its
+/// compatibility contract.
+const CLOSED_LOOP_DIRECTIONAL_ONLY_TABLES: &[&str] = &[
+    "manager_v4_closed_loops",
+    "manager_v4_closed_loop_hops",
+    "manager_v4_closed_loop_optimizations",
+];
+
+/// The tables the review schedule migration touches.
+///
+/// The schedule lives beside the closed loop, so the loop that carries a
+/// review schedule is part of the compatibility contract of the
+/// migration.
+const REVIEW_SCHEDULE_TABLES: &[&str] = &["manager_v4_closed_loop_runtime_state"];
+
+/// The columns a migration **renames**: the new name and the old one.
+///
+/// The compatibility check runs before the migration is applied, so a
+/// renamed column has to be accepted under its old name as well -- and the
+/// check that runs after the migration passes on the new name, which is the
+/// only one that exists then.
+const RENAMED_COLUMN_ALIASES: &[(&str, &str, &str)] = &[
+    (
+        "manager_v4_closed_loop_optimizations",
+        "optimized_directional_pool_id",
+        "optimized_pool_id",
+    ),
+    (
+        "manager_v4_closed_loop_optimizations",
+        "original_directional_pool_id",
+        "original_pool_id",
+    ),
+];
+
 /// The columns each `ALTER TABLE` migration adds.
 ///
 /// The global `required_columns` list is the compatibility contract of a
@@ -289,6 +351,47 @@ const MIGRATION_ADDED_COLUMNS: &[(&str, &[(&str, &str)])] = &[
                 "directional_pool_checksum",
             ),
         ],
+    ),
+    (
+        CLOSED_LOOP_DIRECTIONAL_ONLY_MIGRATION_ID,
+        &[
+            (
+                "manager_v4_closed_loops",
+                "backup_directional_pool_ids_json",
+            ),
+            (
+                "manager_v4_closed_loops",
+                "single_tick_capacity_binding_directional_pool_id",
+            ),
+            (
+                "manager_v4_closed_loop_optimizations",
+                "original_directional_pool_id",
+            ),
+            (
+                "manager_v4_closed_loop_optimizations",
+                "optimized_directional_pool_id",
+            ),
+        ],
+    ),
+    (
+        REVIEW_SCHEDULE_MIGRATION_ID,
+        &[
+            (
+                "manager_v4_closed_loop_runtime_state",
+                "last_reviewed_at",
+            ),
+            (
+                "manager_v4_closed_loop_runtime_state",
+                "next_review_at",
+            ),
+        ],
+    ),
+    (
+        CLOSED_LOOP_REVIEW_CLOCK_MIGRATION_ID,
+        &[(
+            "manager_v4_closed_loop_runtime_state",
+            "review_cycle_started_at",
+        )],
     ),
 ];
 
@@ -487,7 +590,7 @@ pub fn migrate(database_path: &Path) -> Result<MigrationReport, MigrationError> 
     ensure_ledger(&transaction, &ledger)?;
 
     let mut records = Vec::with_capacity(MIGRATIONS.len());
-    for migration in MIGRATIONS {
+    for (index, migration) in MIGRATIONS.iter().enumerate() {
         let expected_checksum = checksum_for(migration.sql);
         let existing: Option<(String, String)> = transaction
             .query_row(
@@ -512,7 +615,15 @@ pub fn migrate(database_path: &Path) -> Result<MigrationReport, MigrationError> 
             continue;
         }
 
-        ensure_migration_tables_compatible(&transaction, migration.id)?;
+        // Every migration that has not run yet may still add a column, so
+        // the compatibility check has to know about **all** of them: a
+        // column that migration 016 adds cannot be required of migration
+        // 003, which runs long before it.
+        let pending: Vec<&str> = MIGRATIONS[index..]
+            .iter()
+            .map(|pending_migration| pending_migration.id)
+            .collect();
+        ensure_migration_tables_compatible(&transaction, migration.id, &pending)?;
         transaction.execute_batch(migration.sql)?;
         ensure_migration_added_columns(&transaction, migration.id)?;
         transaction.execute(
@@ -569,6 +680,15 @@ pub fn preflight_read_only(database_path: &Path) -> Result<PreflightReport, Migr
     connection.busy_timeout(std::time::Duration::from_secs(5))?;
     let quick_check: String = connection.query_row("PRAGMA quick_check", [], |row| row.get(0))?;
     let ledger = detect_ledger(&connection)?;
+    // The migrations that still have to run.  A column one of them adds
+    // cannot be required yet, so the compatibility check asks for the
+    // contract the database will have **after** the pending migrations.
+    let applied = applied_migration_ids(&connection, &ledger)?;
+    let pending: Vec<&str> = MIGRATION_IDS
+        .iter()
+        .copied()
+        .filter(|id| !applied.iter().any(|applied_id| applied_id == id))
+        .collect();
     let mut target_tables = Vec::with_capacity(TARGET_TABLES.len());
     for table in TARGET_TABLES {
         target_tables.push(TablePresence {
@@ -580,7 +700,7 @@ pub fn preflight_read_only(database_path: &Path) -> Result<PreflightReport, Migr
     for table in TARGET_TABLES {
         let present = table_exists(&connection, table)?;
         let missing_columns = if present {
-            missing_required_columns(&connection, table)?
+            missing_required_columns(&connection, table, &pending)?
         } else {
             Vec::new()
         };
@@ -609,6 +729,16 @@ pub fn preflight_read_only(database_path: &Path) -> Result<PreflightReport, Migr
 
 fn checksum_for(sql: &str) -> String {
     format!("sha256:{}", hex::encode(Sha256::digest(sql.as_bytes())))
+}
+
+/// The migrations the ledger records as applied.
+fn applied_migration_ids(connection: &Connection, ledger: &str) -> Result<Vec<String>, MigrationError> {
+    if !table_exists(connection, ledger)? {
+        return Ok(Vec::new());
+    }
+    let mut statement = connection.prepare(&format!("SELECT migration_id FROM {ledger}"))?;
+    let rows = statement.query_map([], |row| row.get::<_, String>(0))?;
+    Ok(rows.collect::<Result<Vec<_>, _>>()?)
 }
 
 fn select_ledger(connection: &Connection) -> Result<String, MigrationError> {
@@ -706,6 +836,7 @@ fn ledger_has_expected_columns(
 fn ensure_migration_tables_compatible(
     connection: &Connection,
     migration_id: &str,
+    pending: &[&str],
 ) -> Result<(), MigrationError> {
     let tables = match migration_id {
         MIGRATION_ID => BASE_TABLES,
@@ -726,13 +857,17 @@ fn ensure_migration_tables_compatible(
         DIRECTIONAL_POOL_MIGRATION_ID => DIRECTIONAL_POOL_TABLES,
         CLOSED_LOOP_DIRECTIONAL_MIGRATION_ID => CLOSED_LOOP_DIRECTIONAL_TABLES,
         OBSERVATION_OPTIMAL_POOL_VIEW_MIGRATION_ID => OBSERVATION_OPTIMAL_POOL_VIEW_TABLES,
+        CLOSED_LOOP_DIRECTIONAL_ONLY_MIGRATION_ID => CLOSED_LOOP_DIRECTIONAL_ONLY_TABLES,
+        REVIEW_SCHEDULE_MIGRATION_ID => REVIEW_SCHEDULE_TABLES,
+        CLOSED_LOOP_REVIEW_CLOCK_MIGRATION_ID => REVIEW_SCHEDULE_TABLES,
+        REVIEW_QUEUE_MIGRATION_ID => REVIEW_SCHEDULE_TABLES,
         _ => unreachable!("migration id is a fixed internal enum"),
     };
     for table in tables {
         if !table_exists(connection, table)? {
             continue;
         }
-        let missing_columns = missing_required_columns(connection, table)?;
+        let missing_columns = missing_required_columns(connection, table, pending)?;
         if !missing_columns.is_empty() {
             return Err(MigrationError::TargetTableIncompatible {
                 table: (*table).to_owned(),
@@ -746,6 +881,7 @@ fn ensure_migration_tables_compatible(
 fn missing_required_columns(
     connection: &Connection,
     table: &str,
+    pending: &[&str],
 ) -> Result<Vec<String>, MigrationError> {
     let mut statement = connection.prepare(&format!("PRAGMA table_info({table})"))?;
     let names = statement
@@ -753,7 +889,31 @@ fn missing_required_columns(
         .collect::<Result<Vec<_>, _>>()?;
     Ok(required_columns(table)
         .iter()
-        .filter(|required| !names.iter().any(|name| name == *required))
+        .filter(|required| {
+            if names.iter().any(|name| name == *required) {
+                return false;
+            }
+            // A renamed column is accepted under its old name until the
+            // migration that renames it has been applied.
+            if RENAMED_COLUMN_ALIASES.iter().any(|(alias_table, alias_new, alias_old)| {
+                *alias_table == table
+                    && alias_new == *required
+                    && names.iter().any(|name| name == alias_old)
+            }) {
+                return false;
+            }
+            // A column a **pending** migration adds cannot be required yet:
+            // the column does not exist before the migration runs, and the
+            // check would call a database unmigratable when it is merely
+            // unmigrated.
+            !MIGRATION_ADDED_COLUMNS.iter().any(|(id, columns)| {
+                pending.contains(id)
+                    && columns.iter().any(|entry| {
+                        let (added_table, added_column) = *entry;
+                        added_table == table && added_column == **required
+                    })
+            })
+        })
         .map(|required| (*required).to_owned())
         .collect())
 }
@@ -917,20 +1077,20 @@ fn required_columns(table: &str) -> &'static [&'static str] {
             "route_key_id",
             "anchor_token_key_id",
             "pool_path_key",
-            "pool_ids_json",
+            "directional_pool_ids_json",
         ],
         "manager_v4_closed_loop_hops" => &[
             "loop_key",
             "hop_index",
             "input_token_key_id",
             "output_token_key_id",
-            "pool_id",
+            "directional_pool_id",
         ],
         "manager_v4_closed_loop_optimizations" => &[
             "loop_key",
             "hop_index",
             "optimization_id",
-            "optimized_pool_id",
+            "optimized_directional_pool_id",
         ],
         "manager_v4_closed_loop_runtime_state" => {
             &["loop_key", "runtime_status", "review_generation"]

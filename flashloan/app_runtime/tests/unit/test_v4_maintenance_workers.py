@@ -47,11 +47,40 @@ def _complete_worker(
     )
 
 
+def _manager_closed_loop_receipt(
+    monkeypatch,
+    *,
+    ok: bool = True,
+    error_code: str | None = None,
+) -> None:
+    """Replace the Rust closed loop bridge with a receipt.
+
+    The slot calls the manager and reads its receipt back; the manager's
+    own behaviour is covered by the Rust test suite.  This helper keeps the
+    slot's own behaviour -- the verdict, the pruning and the backfill --
+    testable without a materialized manager side upstream.
+    """
+    receipt: dict[str, Any] = {
+        "ok": ok,
+        "manager": "closed_loop_manager",
+        "closedLoopVersion": 1,
+        "changedRows": 0,
+    }
+    if not ok:
+        receipt["error"] = "closed_loop_rebuild_failed"
+        receipt["errorCode"] = error_code or "UPSTREAM_NOT_MATERIALIZED"
+    monkeypatch.setattr(
+        "core.rs_bridge.rebuild_closed_loops",
+        lambda *args, **kwargs: receipt,
+    )
+
+
 def test_worker_domains_cover_required_stages() -> None:
     assert MAINTENANCE_WORKER_ORDER == (
         "v4_pool_liquidity_worker",
         "v4_candidate_yc_zc_worker",
         "v4_market_observation_worker",
+        "v4_directional_pool_worker",
         "v4_dex_overview_worker",
         "v4_closed_loop_worker",
     )
@@ -59,6 +88,7 @@ def test_worker_domains_cover_required_stages() -> None:
         "v4_pool_liquidity_worker",
         "v4_candidate_yc_zc_worker",
         "v4_market_observation_worker",
+        "v4_directional_pool_worker",
         "v4_dex_overview_worker",
         "v4_closed_loop_worker",
         "v4_onchain_review_worker",
@@ -72,7 +102,11 @@ def test_worker_dependencies_follow_pool_first_order() -> None:
     assert deps["v4_pool_liquidity_worker"] == ()
     assert deps["v4_candidate_yc_zc_worker"] == ("v4_pool_liquidity_worker",)
     assert deps["v4_market_observation_worker"] == ("v4_candidate_yc_zc_worker",)
-    assert deps["v4_closed_loop_worker"] == ("v4_market_observation_worker",)
+    assert deps["v4_directional_pool_worker"] == ("v4_pool_liquidity_worker",)
+    assert deps["v4_closed_loop_worker"] == (
+        "v4_market_observation_worker",
+        "v4_directional_pool_worker",
+    )
     assert deps["v4_dex_overview_worker"] == (
         "v4_market_observation_worker",
         "v4_closed_loop_worker",
@@ -309,6 +343,7 @@ def test_closed_loop_maintenance_preserves_protected_testnet_residue(
         workers.WORKER_POOL_LIQUIDITY,
         workers.WORKER_CANDIDATE_YC_ZC,
         workers.WORKER_MARKET_OBSERVATION,
+        workers.WORKER_DIRECTIONAL_POOL,
     ):
         _complete_worker(database, worker)
     monkeypatch.setattr(
@@ -320,6 +355,7 @@ def test_closed_loop_maintenance_preserves_protected_testnet_residue(
         "core.db.builders.build_closed_loops_anchor",
         lambda *args, **kwargs: {"ok": True, "loopCount": 0},
     )
+    _manager_closed_loop_receipt(monkeypatch)
     residue = {
         "network": ROBINHOOD_TESTNET_NETWORK,
         "chain_id": ROBINHOOD_TESTNET_CHAIN_ID,
@@ -356,6 +392,7 @@ def test_closed_loop_worker_canonicalizes_prunes_and_backfills_after_rebuild(
         workers.WORKER_POOL_LIQUIDITY,
         workers.WORKER_CANDIDATE_YC_ZC,
         workers.WORKER_MARKET_OBSERVATION,
+        workers.WORKER_DIRECTIONAL_POOL,
     ):
         _complete_worker(database, worker)
     monkeypatch.setattr(
@@ -367,6 +404,7 @@ def test_closed_loop_worker_canonicalizes_prunes_and_backfills_after_rebuild(
         "core.db.builders.build_closed_loops_anchor",
         lambda *args, **kwargs: {"ok": True, "loopCount": 2},
     )
+    _manager_closed_loop_receipt(monkeypatch)
     anchor = "0x" + ("1" * 40)
     y = "0x" + ("2" * 40)
     z = "0x" + ("3" * 40)
@@ -479,6 +517,92 @@ def test_closed_loop_worker_canonicalizes_prunes_and_backfills_after_rebuild(
     ) is None
 
 
+def test_closed_loop_slot_fails_when_the_manager_rebuild_fails(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """The slot is all or nothing: a failed manager rebuild fails the slot."""
+    database = str((tmp_path / "closed-loop-manager-failure.sqlite3").resolve())
+    ensure_business_schema(database)
+    for worker in (
+        workers.WORKER_POOL_LIQUIDITY,
+        workers.WORKER_CANDIDATE_YC_ZC,
+        workers.WORKER_MARKET_OBSERVATION,
+        workers.WORKER_DIRECTIONAL_POOL,
+    ):
+        _complete_worker(database, worker)
+    monkeypatch.setattr(
+        workers,
+        "all_anchor_symbols",
+        lambda *args, **kwargs: ("ETH",),
+    )
+    legacy_calls: list[str] = []
+
+    def _legacy_builder(*args, **kwargs):
+        legacy_calls.append("legacy")
+        return {"ok": True, "loopCount": 1}
+
+    monkeypatch.setattr("core.db.builders.build_closed_loops_anchor", _legacy_builder)
+    _manager_closed_loop_receipt(
+        monkeypatch,
+        ok=False,
+        error_code="UPSTREAM_VERSION_CHANGED",
+    )
+
+    result = workers.run_closed_loop_build(
+        database_url=database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+    )
+
+    assert result["ok"] is False
+    assert result["managerSource"] == "unavailable"
+    assert result["managerErrorCode"] == "UPSTREAM_VERSION_CHANGED"
+    # The legacy path is not a fallback: it must not run at all, or the two
+    # closed loop layers would sit at two different generations.
+    assert legacy_calls == []
+    cursor = load_worker_cursor(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        worker=workers.WORKER_CLOSED_LOOP,
+    )
+    assert cursor["mode"] != "complete"
+
+
+def test_directional_pool_slot_fails_when_the_manager_entry_is_missing(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """A runtime without the manager entry fails the slot, it does not degrade."""
+    database = str((tmp_path / "directional-pool-entry-missing.sqlite3").resolve())
+    ensure_business_schema(database)
+    _complete_worker(database, workers.WORKER_POOL_LIQUIDITY)
+
+    def _missing_entry(*args, **kwargs):
+        raise AttributeError(
+            "module 'flashloan_rs' has no attribute 'rebuild_directional_pools'"
+        )
+
+    monkeypatch.setattr("core.rs_bridge.rebuild_directional_pools", _missing_entry)
+
+    result = workers.run_directional_pool_build(
+        database_url=database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+    )
+
+    assert result["ok"] is False
+    assert result["error"] == "directional_pool_entry_unavailable"
+    cursor = load_worker_cursor(
+        database,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+        worker=workers.WORKER_DIRECTIONAL_POOL,
+    )
+    assert cursor["mode"] != "complete"
+
+
 def test_pipeline_rebuilds_after_pool_worker_completes(
     tmp_path,
     monkeypatch,
@@ -503,6 +627,11 @@ def test_pipeline_rebuilds_after_pool_worker_completes(
     assert blocked["phase"] == "blocked_upstream"
 
     _complete_worker(database, workers.WORKER_POOL_LIQUIDITY)
+    # The closed loop slot folds on the direction layer, so the directional
+    # slot is one of its upstreams.  The cursor is completed directly here:
+    # this test covers the chain topology, and the directional slot's own
+    # behaviour has its own test.
+    _complete_worker(database, workers.WORKER_DIRECTIONAL_POOL)
     monkeypatch.setattr(
         workers,
         "all_anchor_symbols",
@@ -530,6 +659,7 @@ def test_pipeline_rebuilds_after_pool_worker_completes(
             "loopCount": 1,
         },
     )
+    _manager_closed_loop_receipt(monkeypatch)
     monkeypatch.setattr(
         "market.binance_market.dex_surfaces.database_overview_snapshot",
         lambda *args, **kwargs: {"exists": True, "closedLoopRouteSummaries": []},
@@ -559,6 +689,7 @@ def test_pipeline_rebuilds_after_pool_worker_completes(
     for worker in (
         workers.WORKER_CANDIDATE_YC_ZC,
         workers.WORKER_MARKET_OBSERVATION,
+        workers.WORKER_DIRECTIONAL_POOL,
         workers.WORKER_CLOSED_LOOP,
         workers.WORKER_DEX_OVERVIEW,
     ):

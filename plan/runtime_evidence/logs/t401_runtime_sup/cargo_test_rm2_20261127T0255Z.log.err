@@ -1,0 +1,4 @@
+   Compiling review-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\review_manager)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.04s
+     Running unittests src\lib.rs (target\debug\deps\review_manager-db2c16b42b7ae5f0.exe)
+error: test failed, to rerun pass `-p review-manager --lib`

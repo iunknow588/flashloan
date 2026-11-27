@@ -1,8 +1,23 @@
 use closed_loop_manager::{
     read_closed_loop_snapshot, ClosedLoopError, ClosedLoopHopRow, ClosedLoopRow, ClosedLoopStatus,
 };
+
+/// The review clock of a closed loop.
+///
+/// The clock belongs to the **closed loop**, so the Review Manager
+/// re-exports it: the broadcast layer starts the clock of a loop after a
+/// confirmed broadcast, and it reaches the same code through the Review
+/// Manager instead of a second dependency edge.
+pub use closed_loop_manager::{
+    advance_review_clocks_on_connection, advance_review_clock_on_connection,
+    begin_review_cycle_on_connection,
+    mark_review_required_on_connection, record_review_schedule_on_connection,
+    review_interval_seconds, review_interval_seconds_on_connection,
+    start_review_clock_on_connection, ClosedLoopError as ClosedLoopClockError,
+};
 use pool_manager::{
-    read_pool_parity_states, PoolParityState, SingleTickExecutionState,
+    read_live_pool_parity_states, read_pool_parity_states, rpc_urls_for, PoolParityState,
+    SingleTickExecutionState,
     DEFAULT_MAX_CAPACITY_MULTIPLIER_BPS,
 };
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension, TransactionBehavior};
@@ -66,25 +81,52 @@ const MAX_REQUEST_ID_LENGTH: usize = 128;
 const MAX_IDEMPOTENCY_KEY_LENGTH: usize = 256;
 const MAX_SNAPSHOT_LIMIT: usize = 1_000;
 
+/// How long the live pool-state read may take.
+///
+/// The read is one batched `eth_call` against the Pool Manager, and the
+/// answer is the state the review compares its quote against. The timeout
+/// is the same one the shadow comparison uses, because both are the same
+/// question asked at the same moment.
+const LIVE_POOL_STATE_TIMEOUT_SECONDS: u64 = 20;
 
 
 
 
 
 
-const MAX_AUTOMATIC_BROADCAST_REVIEW_AGE_SECONDS: i64 = 120;
+
 const MAX_AUTOMATIC_BROADCAST_FUTURE_SKEW_SECONDS: i64 = 30;
 
-fn review_is_fresh_for_automatic_broadcast(reviewed_at: &str) -> bool {
+/// The automatic review interval of a closed loop, in seconds.
+///
+/// The interval is **one** parameter and it lives with the closed loop,
+/// because it answers one question: how often is every closed loop
+/// measured again.  The freshness rule below reads the same number, so a
+/// review is accepted for a broadcast exactly while it is still the
+/// current measurement of its loop — no second window that could disagree
+/// with the first.
+pub fn automatic_review_interval_seconds() -> i64 {
+    closed_loop_manager::review_interval_seconds()
+}
+
+/// The automatic review interval of a closed loop, read from the
+/// configuration parameters.
+///
+/// The parameter is read from the store the closed loops live in, so a
+/// changed interval is in force on the next round of the review without a
+/// restart of the process.
+pub fn automatic_review_interval_seconds_on_connection(connection: &Connection) -> i64 {
+    closed_loop_manager::review_interval_seconds_on_connection(connection)
+}
+
+fn review_is_fresh_for_automatic_broadcast(reviewed_at: &str, window_seconds: i64) -> bool {
     let Ok(reviewed_at) = chrono::DateTime::parse_from_rfc3339(reviewed_at) else {
         return false;
     };
     let age = chrono::Utc::now()
         .signed_duration_since(reviewed_at.with_timezone(&chrono::Utc))
         .num_seconds();
-    (-MAX_AUTOMATIC_BROADCAST_FUTURE_SKEW_SECONDS
-        ..=MAX_AUTOMATIC_BROADCAST_REVIEW_AGE_SECONDS)
-        .contains(&age)
+    (-MAX_AUTOMATIC_BROADCAST_FUTURE_SKEW_SECONDS..=window_seconds).contains(&age)
 }
 
 #[derive(Debug)]
@@ -246,6 +288,45 @@ pub struct ReviewEvidenceInput {
     /// identity indistinguishable from a review with no identity at all.
     #[serde(default)]
     pub closed_loop_identity: Option<ClosedLoopIdentityEvidence>,
+    /// The **generation** the measurement was made under.
+    ///
+    /// Every closed loop carries its own review, and a review is filed
+    /// under the generation it was measured against - not under whatever
+    /// generation the catalog happens to be in when the row is written.
+    /// The closed-loop catalog is rebuilt continuously, so a generation
+    /// that moved on while one loop was being measured must not relabel
+    /// that loop's review.
+    ///
+    /// The field is optional: a measurement that names no generation is
+    /// filed under the generation the Review Manager reads, which is what
+    /// a review measured without a published catalog gets.
+    #[serde(default)]
+    pub closed_loop_generation: Option<ClosedLoopGenerationEvidence>,
+}
+
+/// The closed-loop generation one measurement was made under.
+///
+/// The version names the generation and the checksum names its content,
+/// so a generation that was rebuilt with the same version but different
+/// content is still told apart from the one before it.  Every field is
+/// optional: a generation that names only some of them is stored as it is
+/// and the missing part is taken from the generation the Review Manager
+/// reads.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ClosedLoopGenerationEvidence {
+    #[serde(default)]
+    pub closed_loop_version: Option<i64>,
+    #[serde(default)]
+    pub closed_loop_checksum: Option<String>,
+    #[serde(default)]
+    pub candidate_edge_version: Option<i64>,
+    #[serde(default)]
+    pub candidate_edge_checksum: Option<String>,
+    #[serde(default)]
+    pub observation_version: Option<i64>,
+    #[serde(default)]
+    pub observation_checksum: Option<String>,
 }
 
 /// The closed-loop identity of one reviewed route.
@@ -709,6 +790,14 @@ struct ReviewInput {
     /// The state is read once, through Pool Manager's published API, so the
     /// gate never reads a Pool Manager table directly.
     pool_states: BTreeMap<String, PoolParityState>,
+    /// The base pool of every directional pool the closed loops walk.
+    ///
+    /// The closed loop names **directional** pools and nothing else, so the
+    /// base pool of a hop is resolved **through** the direction layer: the
+    /// direction row owns the base pool facts.  A directional pool without a
+    /// row has no base pool, and the review then cannot prove the hop -- it
+    /// never guesses a base pool from the identity alone.
+    base_pools: BTreeMap<String, String>,
 }
 
 #[derive(Default)]
@@ -720,7 +809,7 @@ struct DesiredReviewData {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct ReviewChecksumPayload<'a> {
+struct ReviewStateChecksumPayload<'a> {
     closed_loop_version: i64,
     closed_loop_checksum: &'a str,
     candidate_edge_version: i64,
@@ -730,9 +819,7 @@ struct ReviewChecksumPayload<'a> {
     pool_scope_checksum: &'a str,
     library_versions: &'a BTreeMap<String, i64>,
     library_checksums: &'a BTreeMap<String, String>,
-    reviews: &'a [ReviewRow],
-    diagnostics: &'a [ReviewDiagnosticRow],
-    broadcast_requests: &'a [BroadcastRequestRow],
+    reviews: &'a [ReviewContentProjection],
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -968,48 +1055,41 @@ fn run_on_connection(
         validate_expected_upstream(&request.expected_upstream, &input.closed_loop)?;
     }
     validate_evidence_membership(evidence, &input.loops)?;
-    let desired = build_review_rows(&input, evidence)?;
-    let checksum = review_checksum(&input, &desired)?;
+    // The freshness window is the automatic review interval, and the
+    // interval is a parameter that may change while the system runs, so it
+    // is read from the store this pass writes to.
+    let freshness_window_seconds = automatic_review_interval_seconds_on_connection(connection);
+    let desired = build_review_rows(&input, evidence, freshness_window_seconds)?;
     let previous = read_status_on_connection(connection, network, chain_id)?;
-    let counts_match = previous.enabled
-        && previous.loop_count == input.closed_loop.loop_count
-        && previous.reviewed_count == evidence.len()
-        && previous.completed_count
-            == desired
-                .reviews
-                .iter()
-                .filter(|row| row.review_status == "completed")
-                .count()
-        && previous.data_incomplete_count
-            == desired
-                .reviews
-                .iter()
-                .filter(|row| row.review_status == "data_incomplete")
-                .count()
-        && previous.not_executable_count
-            == desired
-                .reviews
-                .iter()
-                .filter(|row| row.review_status == "not_executable")
-                .count()
-        && previous.failed_count
-            == desired
-                .reviews
-                .iter()
-                .filter(|row| row.review_status == "failed")
-                .count()
-        && previous.broadcast_request_count == desired.broadcast_requests.len();
-    let changed =
-        previous.materialized_checksum.as_deref() != Some(checksum.as_str()) || !counts_match;
+    // The reviews the store already holds, and the state this pass leaves
+    // behind.  A review belongs to **one** closed loop, so the state of the
+    // library is the whole set of reviews the store holds - not the set
+    // this pass carried.  The reviews accumulate over time: a loop that
+    // was not measured in this pass keeps the review it already has, and a
+    // loop that was measured again carries its newest measurement.
+    let stored = read_stored_review_projections(connection, network, chain_id)?;
+    let accumulated =
+        accumulate_review_state(connection, network, chain_id, &stored, &desired)?;
+    let checksum = review_state_checksum(&input, &accumulated)?;
+    // The pass changed something when a loop it carried holds a different
+    // review than the one it had, or when the accumulated state of the
+    // library moved.  One loop's measurement never decides another loop's
+    // review, so the comparison is made loop by loop.
+    let batch_changed = batch_content_changed(&stored, &desired);
+    let counts_changed = previous.enabled
+        && (previous.loop_count != input.closed_loop.loop_count
+            || previous.reviewed_count != accumulated.reviewed_count
+            || previous.completed_count != accumulated.completed_count
+            || previous.data_incomplete_count != accumulated.data_incomplete_count
+            || previous.not_executable_count != accumulated.not_executable_count
+            || previous.failed_count != accumulated.failed_count
+            || previous.broadcast_request_count != accumulated.broadcast_request_count);
+    let changed = batch_changed || counts_changed;
     let review_version = if changed {
         previous.review_version.saturating_add(1).max(1)
     } else {
         previous.review_version.max(1)
     };
-    let completed_count = status_count(&desired.reviews, "completed");
-    let data_incomplete_count = status_count(&desired.reviews, "data_incomplete");
-    let not_executable_count = status_count(&desired.reviews, "not_executable");
-    let failed_count = status_count(&desired.reviews, "failed");
     let changed_rows = if changed {
         desired.reviews.len() + desired.diagnostics.len() + desired.broadcast_requests.len()
     } else {
@@ -1047,12 +1127,12 @@ fn run_on_connection(
         library_versions: input.closed_loop.library_versions.clone(),
         library_checksums: input.closed_loop.library_checksums.clone(),
         loop_count: input.loops.len(),
-        reviewed_count: evidence.len(),
-        completed_count,
-        data_incomplete_count,
-        not_executable_count,
-        failed_count,
-        broadcast_request_count: desired.broadcast_requests.len(),
+        reviewed_count: accumulated.reviewed_count,
+        completed_count: accumulated.completed_count,
+        data_incomplete_count: accumulated.data_incomplete_count,
+        not_executable_count: accumulated.not_executable_count,
+        failed_count: accumulated.failed_count,
+        broadcast_request_count: accumulated.broadcast_request_count,
         changed_rows,
         review_version,
         materialized_checksum: checksum,
@@ -1063,17 +1143,43 @@ fn run_on_connection(
     // with the generation that is about to be written, so the old rows are
     // read *before* they are replaced.  A pass that changed nothing writes
     // no rows at all, and then there is nothing to compare either.
+    //
+    // The generation that is about to be written is the **whole** set of
+    // reviews the store holds after the pass: the loops this pass carried
+    // with their new reviews, and the loops it did not carry with the
+    // reviews they already had.  A review stream that reported the loops
+    // the pass did not touch as removed would say the opposite of what the
+    // store holds.
     let audit = if apply && changed {
+        let previous_rows = read_review_rows_for_diff(connection, network, chain_id)?;
+        let carried_keys = desired
+            .reviews
+            .iter()
+            .map(|row| row.loop_key.trim().to_lowercase())
+            .collect::<BTreeSet<_>>();
+        let mut next_rows = previous_rows
+            .iter()
+            .filter(|snapshot| !carried_keys.contains(&snapshot.loop_key.trim().to_lowercase()))
+            .cloned()
+            .collect::<Vec<_>>();
+        next_rows.extend(desired.reviews.iter().map(review_row_snapshot));
+        next_rows.sort_by(|left, right| left.loop_key.cmp(&right.loop_key));
         Some(ReviewAuditState {
             context: records::ReviewGenerationContext {
                 network: network.to_owned(),
                 chain_id,
                 review_version: result.review_version,
                 review_checksum: Some(result.materialized_checksum.clone()),
-                observed_at: chrono::Utc::now().to_rfc3339(),
+                // The audit stream is written in Beijing time: the record
+                // and the name of the file it lands in are read in one
+                // clock, so an operator sees the hour of the day the
+                // measurement happened in the name of the file.
+                observed_at: chrono::Utc::now()
+                    .with_timezone(&records::beijing_offset())
+                    .to_rfc3339(),
             },
-            previous: read_review_rows_for_diff(connection, network, chain_id)?,
-            next: desired.reviews.iter().map(review_row_snapshot).collect(),
+            previous: previous_rows,
+            next: next_rows,
         })
     } else {
         None
@@ -1081,7 +1187,12 @@ fn run_on_connection(
 
     if apply {
         if changed {
-            replace_review_rows(connection, network, chain_id, &desired, &result)?;
+            upsert_review_rows(connection, network, chain_id, &desired, &result)?;
+            // A measurement restarts the review clock of the loop it
+            // measured.  The clock belongs to the closed loop, so the
+            // write goes through the closed-loop Manager, in the same
+            // transaction as the review it belongs to.
+            record_review_schedules(connection, network, chain_id, &desired)?;
         }
         if let Some((request, request_digest)) = prepared_write {
             persist_write_request(connection, request, &request_digest, &result)?;
@@ -1094,10 +1205,248 @@ fn run_on_connection(
     })
 }
 
-/// Read the reviews of the current generation in the shape the audit stream
-/// compares.
+/// The content of one review, projected so a stored row and a freshly built
+/// row can be compared field by field.
 ///
-/// The filter is the same one `replace_review_rows` uses, so the rows read
+/// The projection holds the **measured** content of the review only.  The
+/// identity of the closed loop is not part of it: the identity belongs to
+/// the closed-loop catalog and is written into the row beside the review,
+/// so a catalog that moved on does not make an unchanged review look
+/// changed.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReviewContentProjection {
+    loop_key: String,
+    review_status: String,
+    review_reason: Option<String>,
+    reviewed_at: String,
+    signed_pnl: Option<SignedPnl>,
+    static_preview: serde_json::Value,
+    run_arbitrage: serde_json::Value,
+    pool_ids: Vec<String>,
+    hop_sqrt_price_limits: Vec<String>,
+    closed_loop_identity: Option<ClosedLoopIdentityEvidence>,
+}
+
+/// The state the review library holds after a pass.
+///
+/// The state is the **whole** set of reviews the store holds: the loops the
+/// pass carried with their new reviews, and the loops it did not carry
+/// with the reviews they already had.  The reviews accumulate over time,
+/// so the state is a sum and never a replacement.
+struct AccumulatedReviewState {
+    projections: Vec<ReviewContentProjection>,
+    reviewed_count: usize,
+    completed_count: usize,
+    data_incomplete_count: usize,
+    not_executable_count: usize,
+    failed_count: usize,
+    broadcast_request_count: usize,
+}
+
+/// The projection of a freshly built review row.
+fn projection_of_review_row(row: &ReviewRow) -> ReviewContentProjection {
+    ReviewContentProjection {
+        loop_key: row.loop_key.clone(),
+        review_status: row.review_status.clone(),
+        review_reason: row.review_reason.clone(),
+        reviewed_at: row.reviewed_at.clone(),
+        signed_pnl: row.signed_pnl.clone(),
+        static_preview: row.static_preview.clone(),
+        run_arbitrage: row.run_arbitrage.clone(),
+        pool_ids: row.pool_ids.clone(),
+        hop_sqrt_price_limits: row.hop_sqrt_price_limits.clone(),
+        closed_loop_identity: normalized_closed_loop_identity(row.closed_loop_identity.clone()),
+    }
+}
+
+/// The identity of a review, without the shape that says nothing.
+///
+/// A review that names no verdict at all carries no identity: the four
+/// fields are all absent, and the stored row holds four NULL columns for
+/// them.  The projection therefore drops the empty identity on both sides,
+/// so an unchanged review does not look changed because of the shape of an
+/// absent verdict.
+fn normalized_closed_loop_identity(
+    identity: Option<ClosedLoopIdentityEvidence>,
+) -> Option<ClosedLoopIdentityEvidence> {
+    identity.filter(|value| {
+        value.closed_loop_identity_status.is_some()
+            || value.closed_loop_pool_identity_status.is_some()
+            || value.identity_mismatch.is_some()
+            || value.closed_loop_repair_target.is_some()
+    })
+}
+
+/// The reviews the store holds for the scope, projected.
+fn read_stored_review_projections(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+) -> Result<BTreeMap<String, ReviewContentProjection>, ReviewError> {
+    let mut statement = connection.prepare(
+        "SELECT loop_key, review_status, review_reason, reviewed_at,
+                signed_pnl_raw, signed_pnl_amount, signed_pnl_currency,
+                signed_pnl_address, signed_pnl_unit, signed_pnl_source,
+                static_preview_json, run_arbitrage_json, pool_ids_json,
+                hop_sqrt_price_limits_json, closed_loop_identity_status,
+                closed_loop_pool_identity_status, identity_mismatch,
+                closed_loop_repair_target
+         FROM manager_v4_reviews
+         WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4",
+    )?;
+    let rows = statement.query_map(
+        params![network, chain_id, NETWORK_PROTOCOL, REVIEW_SCOPE_KEY],
+        |row| {
+            Ok(ReviewContentProjection {
+                loop_key: row.get::<_, String>(0)?,
+                review_status: row.get::<_, String>(1)?,
+                review_reason: row.get::<_, Option<String>>(2)?,
+                reviewed_at: row.get::<_, String>(3)?,
+                signed_pnl: signed_pnl_of_columns(
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, Option<f64>>(5)?,
+                    row.get::<_, Option<String>>(6)?,
+                    row.get::<_, Option<String>>(7)?,
+                    row.get::<_, Option<String>>(8)?,
+                    row.get::<_, Option<String>>(9)?,
+                ),
+                static_preview: json_value_of_column(row.get::<_, Option<String>>(10)?),
+                run_arbitrage: json_value_of_column(row.get::<_, Option<String>>(11)?),
+                pool_ids: json_strings_of_column(row.get::<_, Option<String>>(12)?),
+                hop_sqrt_price_limits: json_strings_of_column(row.get::<_, Option<String>>(13)?),
+                closed_loop_identity: normalized_closed_loop_identity(Some(
+                    ClosedLoopIdentityEvidence {
+                        closed_loop_identity_status: row.get::<_, Option<String>>(14)?,
+                        closed_loop_pool_identity_status: row.get::<_, Option<String>>(15)?,
+                        identity_mismatch: row.get::<_, Option<String>>(16)?,
+                        closed_loop_repair_target: row.get::<_, Option<String>>(17)?,
+                    },
+                )),
+            })
+        },
+    )?;
+    let mut projections = BTreeMap::new();
+    for row in rows {
+        let projection = row?;
+        projections.insert(projection.loop_key.trim().to_lowercase(), projection);
+    }
+    Ok(projections)
+}
+
+/// The signed profit a stored row holds.
+fn signed_pnl_of_columns(
+    raw: Option<String>,
+    amount: Option<f64>,
+    currency: Option<String>,
+    address: Option<String>,
+    unit: Option<String>,
+    source: Option<String>,
+) -> Option<SignedPnl> {
+    raw.map(|raw| SignedPnl {
+        raw,
+        amount: amount.unwrap_or_default(),
+        currency: currency.unwrap_or_default(),
+        address,
+        unit: unit.unwrap_or_default(),
+        source: source.unwrap_or_default(),
+    })
+}
+
+/// A JSON column read back as a value.
+fn json_value_of_column(text: Option<String>) -> serde_json::Value {
+    text.and_then(|value| serde_json::from_str(&value).ok())
+        .unwrap_or(serde_json::Value::Null)
+}
+
+/// A JSON column read back as a list of strings.
+fn json_strings_of_column(text: Option<String>) -> Vec<String> {
+    text.and_then(|value| serde_json::from_str(&value).ok())
+        .unwrap_or_default()
+}
+
+/// The state the library holds after the pass.
+fn accumulate_review_state(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+    stored: &BTreeMap<String, ReviewContentProjection>,
+    desired: &DesiredReviewData,
+) -> Result<AccumulatedReviewState, ReviewError> {
+    let carried_keys = desired
+        .reviews
+        .iter()
+        .map(|row| row.loop_key.trim().to_lowercase())
+        .collect::<BTreeSet<_>>();
+    let mut projections = stored
+        .iter()
+        .filter(|(key, _)| !carried_keys.contains(*key))
+        .map(|(_, value)| value.clone())
+        .collect::<Vec<_>>();
+    projections.extend(desired.reviews.iter().map(projection_of_review_row));
+    projections.sort_by(|left, right| left.loop_key.cmp(&right.loop_key));
+    let status_count = |status: &str| {
+        projections
+            .iter()
+            .filter(|projection| projection.review_status == status)
+            .count()
+    };
+    // The broadcast requests of the loops the pass carried replace the
+    // stored ones; the requests of the loops it did not carry are kept.
+    let stored_requests = read_stored_broadcast_request_loop_keys(connection, network, chain_id)?;
+    let carried_requests = stored_requests
+        .iter()
+        .filter(|key| !carried_keys.contains(&key.trim().to_lowercase()))
+        .count();
+    Ok(AccumulatedReviewState {
+        reviewed_count: projections.len(),
+        completed_count: status_count("completed"),
+        data_incomplete_count: status_count("data_incomplete"),
+        not_executable_count: status_count("not_executable"),
+        failed_count: status_count("failed"),
+        broadcast_request_count: carried_requests + desired.broadcast_requests.len(),
+        projections,
+    })
+}
+
+/// The loops the store holds a broadcast request for.
+fn read_stored_broadcast_request_loop_keys(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+) -> Result<Vec<String>, ReviewError> {
+    let mut statement = connection.prepare(
+        "SELECT loop_key FROM manager_v4_review_broadcast_requests
+         WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4",
+    )?;
+    let rows = statement.query_map(
+        params![network, chain_id, NETWORK_PROTOCOL, REVIEW_SCOPE_KEY],
+        |row| row.get::<_, String>(0),
+    )?;
+    let mut keys = Vec::new();
+    for row in rows {
+        keys.push(row?);
+    }
+    Ok(keys)
+}
+
+/// Whether a loop the pass carried holds a different review than it had.
+fn batch_content_changed(
+    stored: &BTreeMap<String, ReviewContentProjection>,
+    desired: &DesiredReviewData,
+) -> bool {
+    desired.reviews.iter().any(|row| {
+        let key = row.loop_key.trim().to_lowercase();
+        match stored.get(&key) {
+            Some(existing) => *existing != projection_of_review_row(row),
+            None => true,
+        }
+    })
+}
+
+/// Read the reviews of the current generation in the shape the audit stream
+///
+/// The filter is the same one `upsert_review_rows` uses, so the rows read
 /// here are exactly the rows the write replaces.
 fn read_review_rows_for_diff(
     connection: &Connection,
@@ -1108,7 +1457,8 @@ fn read_review_rows_for_diff(
         "SELECT loop_key, closed_loop_version, review_status, review_reason,
                 signed_pnl_raw, signed_pnl_currency, signed_pnl_unit, signed_pnl_source,
                 path_symbols_json, pool_ids_json,
-                single_tick_capacity_anchor_raw, single_tick_capacity_binding_pool_id
+                single_tick_capacity_anchor_raw, single_tick_capacity_binding_pool_id,
+                reviewed_at
          FROM manager_v4_reviews
          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4
          ORDER BY loop_key",
@@ -1129,6 +1479,7 @@ fn read_review_rows_for_diff(
                 row.get::<_, Option<String>>(9)?,
                 row.get::<_, Option<String>>(10)?,
                 row.get::<_, Option<String>>(11)?,
+                row.get::<_, Option<String>>(12)?,
             ))
         },
     )?;
@@ -1147,9 +1498,11 @@ fn read_review_rows_for_diff(
             pool_ids_json,
             capacity_anchor_raw,
             capacity_binding_pool_id,
+            reviewed_at,
         ) = row?;
         snapshots.push(records::ReviewRowSnapshot {
             loop_key,
+            reviewed_at,
             closed_loop_version,
             review_status,
             review_reason,
@@ -1170,6 +1523,10 @@ fn read_review_rows_for_diff(
 fn review_row_snapshot(row: &ReviewRow) -> records::ReviewRowSnapshot {
     records::ReviewRowSnapshot {
         loop_key: row.loop_key.clone(),
+        // The moment of the measurement travels with the review: the audit
+        // record has to name the hour the review belongs to, and the only
+        // moment that knows it is the one the review was measured at.
+        reviewed_at: Some(row.reviewed_at.clone()),
         closed_loop_version: Some(row.closed_loop_version),
         review_status: Some(row.review_status.clone()),
         review_reason: row.review_reason.clone(),
@@ -1222,10 +1579,494 @@ fn publish_review_audit(
     }
 }
 
-fn status_count(rows: &[ReviewRow], status: &str) -> usize {
-    rows.iter()
-        .filter(|row| row.review_status == status)
-        .count()
+/// The environment variable that sets how long a closed loop may go
+/// without a fresh review before the sweep calls it stale.
+pub const STALE_REVIEW_SECONDS_ENV: &str = "REVIEW_STALE_AFTER_SECONDS";
+
+/// The default freshness window of a review, in seconds.
+///
+/// The window has to be **longer** than the review cycle, otherwise the
+/// sweep calls a healthy closed loop stale.  The cycle is bounded by the
+/// chain: every closed loop is priced against the chain, and a full round
+/// over the mainnet catalog takes **tens of minutes** (measured on
+/// 2026-11-26: a round refreshed **48** of the **174** closed loops in
+/// **11** minutes, and the oldest loop of a round waited **52** minutes
+/// for its turn).  The default therefore spans **two** rounds, so a loop
+/// that is merely waiting its turn is never marked, and a loop that
+/// really left the round is marked within an hour and a half.
+///
+/// The window is a **parameter** (`REVIEW_STALE_AFTER_SECONDS`): it says
+/// how long "too long" is, and it never relaxes a gate.
+pub const DEFAULT_STALE_REVIEW_SECONDS: i64 = 5_400;
+
+/// The reason a closed loop that was never reviewed carries.
+const STALE_REASON_NEVER_REVIEWED: &str = "not_reviewed_at_all";
+
+/// The prefix of the reason a closed loop that went quiet carries.
+const STALE_REASON_PREFIX: &str = "not_reviewed_since:";
+
+/// The outcome of one stale sweep.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StaleReviewSweepOutcome {
+    pub network: String,
+    pub chain_id: i64,
+    pub protocol: String,
+    pub scope_key: String,
+    /// The freshness window the sweep judged by.
+    pub stale_after_seconds: i64,
+    /// How many closed loops the sweep looked at.
+    pub scanned_count: usize,
+    /// How many closed loops the sweep marked as stale.
+    pub marked_count: usize,
+    /// How many broadcast requests the sweep withdrew.
+    pub withdrawn_request_count: usize,
+    /// The loops the sweep marked.
+    pub stale_loop_keys: Vec<String>,
+    /// When the sweep ran.
+    pub observed_at: String,
+}
+
+/// Mark every closed loop that has not been reviewed for too long.
+///
+/// A closed loop that goes quiet must not go **silent**.  The sweep writes
+/// the missing statement into the store: the review row of the loop says
+/// that no fresh review arrived, a diagnostic names the reason, and the
+/// broadcast request of the loop is withdrawn, so a stale opportunity can
+/// never be broadcast.
+///
+/// The sweep touches **only** the loops it marks.  One loop that goes
+/// quiet never changes the review of another loop, and a loop that is
+/// reviewed again carries its new review over the marker.
+///
+/// The sweep runs on its own clock, so the store keeps telling the truth
+/// even while the review path is unable to publish.
+pub fn mark_stale_reviews(
+    database_path: impl AsRef<Path>,
+    network: &str,
+    chain_id: i64,
+    stale_after_seconds: Option<i64>,
+    apply: bool,
+) -> Result<StaleReviewSweepOutcome, ReviewError> {
+    validate_operation(network, chain_id)?;
+    let stale_after_seconds = stale_after_seconds
+        .unwrap_or_else(stale_after_seconds_from_environment);
+    if stale_after_seconds <= 0 {
+        return Err(ReviewError::InvalidRequest(
+            "stale_after_seconds must be greater than zero".to_owned(),
+        ));
+    }
+    let database_path = database_path.as_ref();
+    let snapshot = closed_loop_manager::read_closed_loop_snapshot(
+        database_path,
+        network,
+        chain_id,
+        None,
+        MAX_SNAPSHOT_LIMIT,
+    )
+    .map_err(|error| ReviewError::ClosedLoopRead(error.to_string()))?;
+    if !snapshot.status.enabled {
+        return Err(ReviewError::MissingClosedLoopState);
+    }
+    let observed_at = chrono::Utc::now();
+    let observed_at_text = observed_at.to_rfc3339();
+    let cutoff = observed_at - chrono::Duration::seconds(stale_after_seconds);
+    let mut connection = open_connection(database_path, apply)?;
+    connection.busy_timeout(std::time::Duration::from_secs(60))?;
+    let stored = read_stored_review_projections(&connection, network, chain_id)?;
+    let stale = stale_loops(&snapshot.loops, &stored, cutoff);
+    let mut outcome = StaleReviewSweepOutcome {
+        network: network.to_owned(),
+        chain_id,
+        protocol: NETWORK_PROTOCOL.to_owned(),
+        scope_key: REVIEW_SCOPE_KEY.to_owned(),
+        stale_after_seconds,
+        scanned_count: snapshot.loops.len(),
+        marked_count: 0,
+        withdrawn_request_count: 0,
+        stale_loop_keys: Vec::new(),
+        observed_at: observed_at_text.clone(),
+    };
+    if stale.is_empty() {
+        return Ok(outcome);
+    }
+    let previous_rows = read_review_rows_for_diff(&connection, network, chain_id)?;
+    let previous_status = read_status_on_connection(&connection, network, chain_id)?;
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let mut withdrawn = 0usize;
+    for entry in &stale {
+        withdrawn += withdraw_broadcast_request(
+            &transaction,
+            network,
+            chain_id,
+            &entry.loop_key,
+        )?;
+        mark_stale_loop(
+            &transaction,
+            network,
+            chain_id,
+            entry,
+            &snapshot.loops,
+            &snapshot.status,
+            &observed_at_text,
+            stale_after_seconds,
+        )?;
+        // The measurement of the loop is old, so the loop waits for a new
+        // one.  Its schedule says so: the loop is marked as waiting and
+        // the moment it was due is cleared.
+        closed_loop_manager::mark_review_required_on_connection(
+            &transaction,
+            network,
+            chain_id,
+            &entry.loop_key,
+        )
+        .map_err(|error| ReviewError::ClosedLoopRead(error.to_string()))?;
+    }
+    // The state of the library names the reviews the store holds, so it is
+    // recomputed over the whole store: the marker of one loop changes the
+    // counts of the scope, and the checksum has to name the state that is
+    // in the store now.
+    let stored_after = read_stored_review_projections(&transaction, network, chain_id)?;
+    let desired = DesiredReviewData::default();
+    let accumulated =
+        accumulate_review_state(&transaction, network, chain_id, &stored_after, &desired)?;
+    let input = ReviewInput {
+        closed_loop: snapshot.status.clone(),
+        loops: Vec::new(),
+        hop_directions: BTreeMap::new(),
+        pool_states: BTreeMap::new(),
+        base_pools: BTreeMap::new(),
+    };
+    let checksum = review_state_checksum(&input, &accumulated)?;
+    let result = ReviewMaterializationResult {
+        network: network.to_owned(),
+        chain_id,
+        protocol: NETWORK_PROTOCOL.to_owned(),
+        scope_key: REVIEW_SCOPE_KEY.to_owned(),
+        apply,
+        dry_run: !apply,
+        closed_loop_version: snapshot.status.closed_loop_version,
+        closed_loop_checksum: closed_loop_checksum(&snapshot.status)?.to_owned(),
+        candidate_edge_version: closed_loop_required_version(
+            snapshot.status.candidate_edge_version,
+            "candidate_edge_version",
+        )?,
+        candidate_edge_checksum: closed_loop_required_string(
+            snapshot.status.candidate_edge_checksum.as_deref(),
+            "candidate_edge_checksum",
+        )?,
+        observation_version: closed_loop_required_version(
+            snapshot.status.observation_version,
+            "observation_version",
+        )?,
+        observation_checksum: closed_loop_required_string(
+            snapshot.status.observation_checksum.as_deref(),
+            "observation_checksum",
+        )?,
+        pool_scope_checksum: closed_loop_required_string(
+            snapshot.status.pool_scope_checksum.as_deref(),
+            "pool_scope_checksum",
+        )?,
+        library_versions: snapshot.status.library_versions.clone(),
+        library_checksums: snapshot.status.library_checksums.clone(),
+        loop_count: snapshot.loops.len(),
+        reviewed_count: accumulated.reviewed_count,
+        completed_count: accumulated.completed_count,
+        data_incomplete_count: accumulated.data_incomplete_count,
+        not_executable_count: accumulated.not_executable_count,
+        failed_count: accumulated.failed_count,
+        broadcast_request_count: accumulated.broadcast_request_count,
+        changed_rows: stale.len(),
+        review_version: previous_status.review_version.saturating_add(1).max(1),
+        materialized_checksum: checksum.clone(),
+        consumers_need_rebuild: true,
+    };
+    if apply {
+        insert_state(&transaction, network, chain_id, &result, &observed_at_text)?;
+    }
+    transaction.commit()?;
+    outcome.marked_count = stale.len();
+    outcome.withdrawn_request_count = withdrawn;
+    outcome.stale_loop_keys = stale
+        .iter()
+        .map(|entry| entry.loop_key.clone())
+        .collect();
+    if apply {
+        let next_rows = read_review_rows_for_diff(&connection, network, chain_id)?;
+        publish_stale_audit(
+            database_path,
+            network,
+            chain_id,
+            &previous_rows,
+            &next_rows,
+            result.review_version,
+            &checksum,
+            &observed_at_text,
+        );
+    }
+    Ok(outcome)
+}
+
+/// The freshness window the sweep judges by, read from the environment.
+fn stale_after_seconds_from_environment() -> i64 {
+    std::env::var(STALE_REVIEW_SECONDS_ENV)
+        .ok()
+        .and_then(|value| value.trim().parse::<i64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_STALE_REVIEW_SECONDS)
+}
+
+/// One closed loop that has not been reviewed for too long.
+struct StaleLoop {
+    /// The loop the marker belongs to.
+    loop_key: String,
+    /// The reason the loop is stale.
+    reason: String,
+    /// Whether the store already holds a review row of the loop.
+    exists: bool,
+    /// When the loop was reviewed last, if it ever was.
+    last_reviewed_at: Option<String>,
+}
+
+/// The closed loops that have not been reviewed for too long.
+///
+/// A loop that carries a marker already is **not** listed again: the
+/// marker is the statement, and repeating it would rewrite the row on
+/// every sweep without saying anything new.
+fn stale_loops(
+    loops: &[ClosedLoopRow],
+    stored: &BTreeMap<String, ReviewContentProjection>,
+    cutoff: chrono::DateTime<chrono::Utc>,
+) -> Vec<StaleLoop> {
+    let mut stale = Vec::new();
+    for closed_loop in loops {
+        let key = closed_loop.loop_key.trim().to_lowercase();
+        if key.is_empty() {
+            continue;
+        }
+        let Some(projection) = stored.get(&key) else {
+            stale.push(StaleLoop {
+                loop_key: closed_loop.loop_key.clone(),
+                reason: STALE_REASON_NEVER_REVIEWED.to_owned(),
+                exists: false,
+                last_reviewed_at: None,
+            });
+            continue;
+        };
+        let reviewed_at = chrono::DateTime::parse_from_rfc3339(projection.reviewed_at.trim())
+            .map(|value| value.with_timezone(&chrono::Utc))
+            .ok();
+        let Some(reviewed_at) = reviewed_at else {
+            // A review that never reported a time has no age, so it can
+            // never prove that it is fresh.
+            if projection.review_status == "data_incomplete"
+                && projection.review_reason.as_deref() == Some(STALE_REASON_NEVER_REVIEWED)
+            {
+                continue;
+            }
+            stale.push(StaleLoop {
+                loop_key: closed_loop.loop_key.clone(),
+                reason: STALE_REASON_NEVER_REVIEWED.to_owned(),
+                exists: true,
+                last_reviewed_at: Some(projection.reviewed_at.clone()),
+            });
+            continue;
+        };
+        if reviewed_at > cutoff {
+            continue;
+        }
+        let reason = format!("{STALE_REASON_PREFIX}{}", projection.reviewed_at.trim());
+        if projection.review_status == "data_incomplete"
+            && projection.review_reason.as_deref() == Some(reason.as_str())
+        {
+            continue;
+        }
+        stale.push(StaleLoop {
+            loop_key: closed_loop.loop_key.clone(),
+            reason,
+            exists: true,
+            last_reviewed_at: Some(projection.reviewed_at.clone()),
+        });
+    }
+    stale
+}
+
+/// Write the marker of one stale loop into the store.
+fn mark_stale_loop(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+    entry: &StaleLoop,
+    loops: &[ClosedLoopRow],
+    status: &ClosedLoopStatus,
+    observed_at: &str,
+    stale_after_seconds: i64,
+) -> Result<(), ReviewError> {
+    if entry.exists {
+        // The measurement of the loop stays: the marker says that the
+        // measurement is old, it does not pretend the loop never ran.
+        connection.execute(
+            "UPDATE manager_v4_reviews
+                SET review_status = 'data_incomplete',
+                    review_reason = ?2,
+                    updated_at = ?3
+              WHERE network = ?1 AND chain_id = ?4 AND protocol = ?5
+                AND scope_key = ?6 AND loop_key = ?7",
+            params![
+                network,
+                entry.reason,
+                observed_at,
+                chain_id,
+                NETWORK_PROTOCOL,
+                REVIEW_SCOPE_KEY,
+                entry.loop_key
+            ],
+        )?;
+    } else {
+        let Some(closed_loop) = loops
+            .iter()
+            .find(|row| row.loop_key.trim().eq_ignore_ascii_case(entry.loop_key.trim()))
+        else {
+            return Ok(());
+        };
+        connection.execute(
+            "INSERT INTO manager_v4_reviews (
+                 network, chain_id, protocol, scope_key, loop_key,
+                 closed_loop_version, closed_loop_checksum,
+                 candidate_edge_version, candidate_edge_checksum,
+                 observation_version, observation_checksum, pool_scope_checksum,
+                 anchor_token_key_id, anchor_address, anchor_symbol, path_text,
+                 path_addresses_json, path_symbols_json, pool_path_key,
+                 pool_ids_json, review_status, review_reason, static_preview_json,
+                 run_arbitrage_json, reviewed_at,
+                 single_tick_capacity_anchor_raw,
+                 single_tick_capacity_binding_pool_id,
+                 created_at, updated_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
+                       ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23,
+                       ?24, ?25, ?26, ?27, ?28, ?28)",
+            params![
+                network,
+                chain_id,
+                NETWORK_PROTOCOL,
+                REVIEW_SCOPE_KEY,
+                closed_loop.loop_key,
+                status.closed_loop_version,
+                closed_loop_checksum(status)?,
+                closed_loop.candidate_edge_version,
+                closed_loop.candidate_edge_checksum,
+                closed_loop.observation_version,
+                closed_loop.observation_checksum,
+                closed_loop_required_string(
+                    status.pool_scope_checksum.as_deref(),
+                    "pool_scope_checksum",
+                )?,
+                closed_loop.anchor_token_key_id,
+                closed_loop.anchor_address,
+                closed_loop.anchor_symbol,
+                closed_loop.path_text,
+                serde_json::to_string(&closed_loop.path_addresses)?,
+                serde_json::to_string(&closed_loop.path_symbols)?,
+                closed_loop.pool_path_key,
+                serde_json::to_string(&closed_loop.directional_pool_ids)?,
+                "data_incomplete",
+                entry.reason,
+                "{}",
+                "{}",
+                entry
+                    .last_reviewed_at
+                    .clone()
+                    .unwrap_or_else(|| "unreviewed".to_owned()),
+                closed_loop.single_tick_capacity_anchor_raw
+                    .map(|value| value.to_string()),
+                closed_loop.single_tick_capacity_binding_directional_pool_id.clone(),
+                observed_at
+            ],
+        )?;
+    }
+    // The diagnostic names the reason of the marker, so the store says
+    // **why** the loop went quiet and not only that it did.
+    connection.execute(
+        "INSERT INTO manager_v4_review_diagnostics (
+             network, chain_id, protocol, scope_key, loop_key,
+             diagnostic_id, diagnostic_type, diagnostic_code, message,
+             hop_index, pool_id, selector, payload_json, observed_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'evidence_missing', 'review_stale',
+                   ?7, NULL, NULL, NULL, ?8, ?9)
+         ON CONFLICT(network, chain_id, protocol, scope_key, loop_key, diagnostic_id)
+         DO UPDATE SET message = excluded.message,
+                       payload_json = excluded.payload_json,
+                       observed_at = excluded.observed_at",
+        params![
+            network,
+            chain_id,
+            NETWORK_PROTOCOL,
+            REVIEW_SCOPE_KEY,
+            entry.loop_key,
+            format!("review_stale:{}", entry.loop_key),
+            entry.reason,
+            serde_json::to_string(&serde_json::json!({
+                "staleAfterSeconds": stale_after_seconds,
+                "lastReviewedAt": entry.last_reviewed_at,
+            }))?,
+            observed_at
+        ],
+    )?;
+    Ok(())
+}
+
+/// Withdraw the broadcast request of one closed loop.
+///
+/// A request that was generated from a review that is no longer fresh may
+/// not be broadcast: the opportunity it names is not the one the market
+/// holds now.
+fn withdraw_broadcast_request(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+    loop_key: &str,
+) -> Result<usize, ReviewError> {
+    let withdrawn = connection.execute(
+        "DELETE FROM manager_v4_review_broadcast_requests
+          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
+            AND scope_key = ?4 AND loop_key = ?5",
+        params![network, chain_id, NETWORK_PROTOCOL, REVIEW_SCOPE_KEY, loop_key],
+    )?;
+    Ok(withdrawn)
+}
+
+/// Publish the audit lines of the markers the sweep wrote.
+fn publish_stale_audit(
+    database_path: &Path,
+    network: &str,
+    chain_id: i64,
+    previous: &[records::ReviewRowSnapshot],
+    next: &[records::ReviewRowSnapshot],
+    review_version: i64,
+    review_checksum: &str,
+    observed_at: &str,
+) {
+    let context = records::ReviewGenerationContext {
+        network: network.to_owned(),
+        chain_id,
+        review_version,
+        review_checksum: Some(review_checksum.to_owned()),
+        observed_at: observed_at.to_owned(),
+    };
+    let lines = records::diff_review_generations(&context, previous, next);
+    if lines.is_empty() {
+        return;
+    }
+    let directory = match records::review_record_dir(database_path, network, chain_id) {
+        Ok(directory) => directory,
+        Err(error) => {
+            records::note_review_publish_failure(&error);
+            return;
+        }
+    };
+    if let Err(error) = records::publish_review_records(&directory, lines) {
+        records::note_review_publish_failure(&error);
+    }
 }
 
 fn validate_operation(network: &str, chain_id: i64) -> Result<(), ReviewError> {
@@ -1315,10 +2156,29 @@ fn read_review_input(
             actual: snapshot.loops.len(),
         });
     }
-    let pool_ids: Vec<String> = snapshot
-        .loops
-        .iter()
-        .flat_map(|row| row.pool_ids.iter().cloned())
+    // The base pools are resolved **through** the direction layer.  The
+    // closed loop publishes directional pools, so this is the only place
+    // where a base pool enters the review, and it enters together with the
+    // direction it belongs to.
+    //
+    // The **whole** direction layer of the chain is read, not only the
+    // pools the closed loops publish: the review picks the pool of every
+    // hop, and the pool it picks may be one the catalog published as a
+    // backup.  A review that could only see the published pools would have
+    // no state for the pool it actually priced, and it would have to
+    // refuse the route it measured.
+    let base_pools = read_base_pools_of_directional_pools(
+        connection
+            .path()
+            .map(Path::new)
+            .unwrap_or_else(|| Path::new("manager.sqlite3")),
+        network,
+        chain_id,
+    );
+    let pool_ids: Vec<String> = base_pools
+        .values()
+        .map(|base_pool_id| base_pool_id.trim().to_ascii_lowercase())
+        .filter(|base_pool_id| !base_pool_id.is_empty())
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect();
@@ -1329,29 +2189,120 @@ fn read_review_input(
     // and only that route. Aborting the whole review would turn a
     // measurement gap into an outage, and the review would no longer
     // report the routes it *can* judge.
-    let pool_states = read_pool_parity_states(
+    //
+    // The state is read from the **chain**, not from the stored snapshot:
+    // the gate compares the review's own quote against the state the pool
+    // is in, and a stored snapshot answers a question about a moment that
+    // is already gone.
+    let pool_states = read_current_pool_states(
         connection
             .path()
             .map(Path::new)
             .unwrap_or_else(|| Path::new("manager.sqlite3")),
         network,
         chain_id,
-        NETWORK_PROTOCOL,
         &pool_ids,
-    )
-    .map(|states| {
-        states
-            .into_iter()
-            .map(|state| (state.pool_id.clone(), state))
-            .collect()
-    })
-    .unwrap_or_default();
+    );
     Ok(ReviewInput {
         closed_loop: snapshot.status,
         loops: snapshot.loops,
         hop_directions: hop_directions_by_loop(&snapshot.hops),
         pool_states,
+        base_pools,
     })
+}
+
+/// The **current** state of the pools the review judges a route against.
+///
+/// The review prices a route from the chain and then asks whether the pool
+/// still sits where the quote said it sits. The second question has to be
+/// asked of the chain as well: a stored snapshot is a measurement, and a
+/// measurement ages while the pool trades. Comparing a snapshot that is
+/// minutes old against a live quote does not report a market move, it
+/// reports the age of the snapshot, and the gate would read it as "the
+/// market moved against the route" and refuse a route that is still good.
+///
+/// Pool Manager owns the chain access and publishes the live reading
+/// (pinned to one block), so Review Manager never talks to the chain for a
+/// pool state of its own. When the live reading is unavailable the stored
+/// snapshot is used, and the review keeps the meaning it always had: a hop
+/// whose state cannot be read cannot be proven, so that hop is refused.
+fn read_current_pool_states(
+    database_path: &Path,
+    network: &str,
+    chain_id: i64,
+    pool_ids: &[String],
+) -> BTreeMap<String, PoolParityState> {
+    let into_map = |states: Vec<PoolParityState>| -> BTreeMap<String, PoolParityState> {
+        states
+            .into_iter()
+            .map(|state| (state.pool_id.clone(), state))
+            .collect()
+    };
+    let rpc_urls = rpc_urls_for(chain_id);
+    if !rpc_urls.is_empty() {
+        if let Ok(states) = read_live_pool_parity_states(
+            database_path,
+            network,
+            chain_id,
+            NETWORK_PROTOCOL,
+            pool_ids,
+            &rpc_urls,
+            LIVE_POOL_STATE_TIMEOUT_SECONDS,
+        ) {
+            return into_map(states);
+        }
+    }
+    read_pool_parity_states(
+        database_path,
+        network,
+        chain_id,
+        NETWORK_PROTOCOL,
+        pool_ids,
+    )
+    .map(into_map)
+    .unwrap_or_default()
+}
+
+/// The base pool of every directional pool of the chain.
+///
+/// The direction layer row owns the base pool facts, so the resolution goes
+/// through it: a directional pool that has no row has no base pool, and the
+/// review reports the hop as unprovable instead of guessing.
+///
+/// The whole layer is read, because the review picks the pool of every hop
+/// and the pool it picks is not necessarily one the closed loops publish:
+/// the catalog publishes one pool per hop and keeps the rest as backups,
+/// and the review is free to price a backup.
+fn read_base_pools_of_directional_pools(
+    database_path: &Path,
+    network: &str,
+    chain_id: i64,
+) -> BTreeMap<String, String> {
+    let mut base_pools = BTreeMap::new();
+    let Ok(connection) = Connection::open_with_flags(
+        database_path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
+    ) else {
+        return base_pools;
+    };
+    let Ok(mut statement) = connection.prepare(
+        "SELECT directional_pool_id, base_pool_id
+         FROM manager_v4_directional_exchange_pools
+         WHERE network = ?1 AND chain_id = ?2 AND protocol = 'uniswap_v4'",
+    ) else {
+        return base_pools;
+    };
+    let rows = statement.query_map(params![network, chain_id as i64], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    });
+    let Ok(rows) = rows else {
+        return base_pools;
+    };
+    for row in rows.flatten() {
+        base_pools.insert(row.0, row.1);
+    }
+    base_pools
 }
 
 /// The stored hop directions of every closed loop, in hop order.
@@ -1359,7 +2310,10 @@ fn read_review_input(
 /// The hop rows are the closed-loop Manager's own records, so the
 /// direction is the Manager's number and not one the review derives.
 fn hop_directions_by_loop(hops: &[ClosedLoopHopRow]) -> BTreeMap<String, HopDirectionList> {
-    let mut by_loop: BTreeMap<String, BTreeMap<usize, Option<i64>>> = BTreeMap::new();
+    // The hop row stores the direction of the directional pool the hop walks,
+    // so the direction is always there: a hop that does not name a
+    // directional pool cannot be published at all.
+    let mut by_loop: BTreeMap<String, BTreeMap<usize, i64>> = BTreeMap::new();
     for hop in hops {
         // The hop rows number their hops from **one**, the route numbers
         // them from zero, so the row is moved onto the route's index.
@@ -1374,11 +2328,201 @@ fn hop_directions_by_loop(hops: &[ClosedLoopHopRow]) -> BTreeMap<String, HopDire
         .map(|(loop_key, hops)| {
             let length = hops.keys().max().map(|index| index + 1).unwrap_or(0);
             let directions = (0..length)
-                .map(|index| hops.get(&index).copied().flatten())
+                .map(|index| hops.get(&index).copied())
                 .collect();
             (loop_key, directions)
         })
         .collect()
+}
+
+/// The pools the review priced, in hop order.
+///
+/// The closed loop fixes the **path**: the three tokens and the order they
+/// are walked in.  The pool of every hop is chosen when the route is
+/// priced, and the quote the measurement carries names the pools it chose
+/// in the order the route walked them.
+///
+/// Those pools are the pools the route traded and the pools the broadcast
+/// will trade, so every gate is judged against them.  A quote that names
+/// no pool yields an empty list: the route then cannot be proven against
+/// any pool, and the review reports it as not comparable rather than
+/// falling back to a pool the route never touched.
+fn review_time_pool_ids(payload: &serde_json::Value) -> Vec<String> {
+    let Some(pools) = payload
+        .get("quote")
+        .and_then(|quote| {
+            quote
+                .get("candidate_pools")
+                .or_else(|| quote.get("candidatePools"))
+        })
+        .and_then(|value| value.as_array())
+    else {
+        return Vec::new();
+    };
+    pools
+        .iter()
+        .filter_map(|pool| {
+            pool.get("poolId")
+                .or_else(|| pool.get("pool_id"))
+                .and_then(|value| value.as_str())
+                .map(|value| value.trim().to_ascii_lowercase())
+                .filter(|value| !value.is_empty())
+        })
+        .collect()
+}
+
+/// The direction a directional pool was published for.
+///
+/// The id ends with the direction it belongs to, so the direction is read
+/// from the id itself and never guessed from the pool's state.
+fn directional_pool_direction(directional_pool_id: &str) -> Option<i64> {
+    match directional_pool_id.trim().rsplit(':').next() {
+        Some("0") => Some(0),
+        Some("1") => Some(1),
+        _ => None,
+    }
+}
+
+/// The base pools the closed loop published for one hop.
+///
+/// A hop publishes one main pool and keeps the rest as candidates, so the
+/// set of pools the hop may trade is the main pool and every candidate.
+/// The review may only confirm a pool from that set: a pool the loop
+/// never offered is not a pool the closed loop could have walked.
+fn hop_option_base_pools(
+    closed_loop: &ClosedLoopRow,
+    hop_index: usize,
+    base_pools: &BTreeMap<String, String>,
+) -> BTreeSet<String> {
+    let mut options = BTreeSet::new();
+    if let Some(directional_pool_id) = closed_loop.directional_pool_ids.get(hop_index) {
+        if let Some(base_pool_id) = base_pools.get(directional_pool_id) {
+            options.insert(base_pool_id.trim().to_ascii_lowercase());
+        }
+    }
+    let hop_key = match hop_index {
+        0 => "first",
+        1 => "middle",
+        2 => "third",
+        _ => return options,
+    };
+    if let Some(candidates) = closed_loop.backup_directional_pool_ids.get(hop_key) {
+        for candidate in candidates {
+            if let Some(base_pool_id) = base_pools.get(candidate) {
+                options.insert(base_pool_id.trim().to_ascii_lowercase());
+            }
+        }
+    }
+    options
+}
+
+/// The directional pool the review confirmed for one hop.
+///
+/// The closed loop publishes its pools as **directional** pools, so the
+/// confirmation is the option of that hop whose base pool the review
+/// priced and whose direction the hop walked in.
+///
+/// The option is taken from the **loop's own list** and never from a
+/// global search of the direction layer: the same base pool is published
+/// under more than one scope (`core4` and `candidate_exchange`), and a
+/// global search would name the pool of the wrong scope.
+fn confirmed_hop_directional_pool(
+    closed_loop: &ClosedLoopRow,
+    hop_index: usize,
+    priced_base_pool_id: &str,
+    hop_direction: Option<i64>,
+    base_pools: &BTreeMap<String, String>,
+) -> Option<String> {
+    let priced = priced_base_pool_id.trim().to_ascii_lowercase();
+    let mut options: Vec<&String> = Vec::new();
+    if let Some(main_pool) = closed_loop.directional_pool_ids.get(hop_index) {
+        options.push(main_pool);
+    }
+    let hop_key = match hop_index {
+        0 => "first",
+        1 => "middle",
+        2 => "third",
+        _ => return None,
+    };
+    if let Some(backups) = closed_loop.backup_directional_pool_ids.get(hop_key) {
+        options.extend(backups.iter());
+    }
+    options
+        .into_iter()
+        .find(|directional_pool_id| {
+            let base_matches = base_pools
+                .get(*directional_pool_id)
+                .map(|base_pool_id| base_pool_id.trim().eq_ignore_ascii_case(&priced))
+                .unwrap_or(false);
+            let direction_matches = hop_direction
+                .map(|direction| {
+                    directional_pool_direction(directional_pool_id) == Some(direction)
+                })
+                .unwrap_or(true);
+            base_matches && direction_matches
+        })
+        .map(|directional_pool_id| directional_pool_id.clone())
+}
+
+/// The directional pools the review confirmed, in hop order.
+///
+/// A confirmed pool is a **directional** pool: the base pool the review
+/// priced together with the direction it walked in, named by the closed
+/// loop that published it.
+///
+/// `None` means the confirmation failed: one hop names a pool the loop
+/// published for another hop, or the hop chain itself is incomplete.
+fn confirmed_directional_pools(
+    closed_loop: &ClosedLoopRow,
+    chain: &HopChain,
+    priced_pool_ids: &[String],
+    base_pools: &BTreeMap<String, String>,
+) -> Option<Vec<String>> {
+    // The chain and the quote must describe the same hops: a hop that was
+    // skipped leaves the two lists of different lengths, and the route
+    // then cannot be confirmed against any pool.
+    if chain.hops.len() != priced_pool_ids.len() {
+        return None;
+    }
+    let mut confirmed = Vec::with_capacity(chain.hops.len());
+    for (hop_index, hop) in chain.hops.iter().enumerate() {
+        // A hop that spends token0 trades the lower address into the higher
+        // one, so it walks direction 1; a hop that spends token1 walks
+        // direction 0.  The chain already proved this against the route.
+        let direction = if hop.zero_for_one { 1 } else { 0 };
+        confirmed.push(confirmed_hop_directional_pool(
+            closed_loop,
+            hop_index,
+            &hop.pool_id,
+            Some(direction),
+            base_pools,
+        )?);
+    }
+    Some(confirmed)
+}
+
+/// The path key of the pools the review confirmed.
+///
+/// The key is the closed loop's own key followed by the confirmed pools,
+/// so the path the review walked is readable in one string: the loop it
+/// belongs to, and the three pools it walked in it.
+///
+/// A review that confirmed no pool keeps the catalog's path key, because
+/// the catalog's pools are then the only pools the review can name.
+fn confirmed_pool_path_key(
+    closed_loop_path_key: &str,
+    loop_key: &str,
+    confirmed_pool_ids: Option<&[String]>,
+) -> String {
+    let Some(confirmed_pool_ids) = confirmed_pool_ids else {
+        return closed_loop_path_key.trim().to_owned();
+    };
+    let mut key = loop_key.trim().to_owned();
+    for pool_id in confirmed_pool_ids {
+        key.push(':');
+        key.push_str(pool_id.trim());
+    }
+    key
 }
 
 fn validate_evidence_membership(
@@ -1434,6 +2578,16 @@ fn validate_evidence_membership(
 /// A favorable hop does **not** prove a larger profit. It only publishes a
 /// candidate capacity, and the final single-tick gate still has to re-price
 /// every hop with the final input amount.
+///
+/// Every hop is priced with the amount that **reaches** it. The first hop
+/// spends the borrowed principal and every later hop spends the output of its
+/// predecessor, because the three hops of a closed loop trade three different
+/// tokens: the raw amount of the principal is not the raw amount of the
+/// second or the third hop, it is a different number in a different unit.
+/// The chain is walked over the **expected** states, the states the review
+/// priced, and the current state of a hop is then compared against the
+/// expected state of the *same* hop with the *same* amount, so the verdict
+/// answers "did this hop move" and not "did the route move".
 fn evaluate_final_state_transition_gate(
     input: &ReviewInput,
     run: &RunArbitrageEvidence,
@@ -1476,6 +2630,11 @@ fn evaluate_final_state_transition_gate(
     };
 
     let mut execution_hops = Vec::with_capacity(chain.hops.len());
+    // The amount that reaches the hop being judged. The first hop receives the
+    // borrowed principal; every later hop receives the output of its
+    // predecessor, so the amount is carried along the chain instead of being
+    // repeated for every hop.
+    let mut chain_amount_in_raw = amount_in_raw;
     for hop in &chain.hops {
         let Some(current) = input.pool_states.get(&hop.pool_id) else {
             return RouteTransitionVerdict {
@@ -1501,27 +2660,21 @@ fn evaluate_final_state_transition_gate(
                 hops: Vec::new(),
             };
         }
-        // The expected capacity of the hop is the exact single-tick bound
-        // of the expected state, so the classifier can tell an exact
-        // capacity change from a price-distance approximation.
-        let expected_capacity_raw = match pool_manager::depth::single_tick_swap_amount_out(
-            expected.sqrt_price_x96,
-            expected.liquidity,
-            hop.fee_pips,
-            expected.tick_spacing as i32,
-            expected.tick as i32,
-            amount_in_raw,
-            hop.zero_for_one,
-        ) {
-            Ok(quote) if quote.inside_tick_range => quote.max_amount_in_raw,
-            Ok(_) => {
+        let hop_amount_in_raw = chain_amount_in_raw;
+        // The hop is priced with the amount that reaches it, so the expected
+        // capacity is the exact single-tick bound of **that** hop for
+        // **that** amount, and the classifier can tell an exact capacity
+        // change from a price-distance approximation.
+        let hop_amount = match hop_expected_amount(expected, hop, hop_amount_in_raw) {
+            Ok(amount) => amount,
+            Err(HopAmountFailure::CrossesTick) => {
                 return RouteTransitionVerdict {
                     broadcast_allowed: false,
                     reason: Some(format!("expected_amount_crosses_tick:{}", hop.pool_id)),
                     hops: Vec::new(),
                 }
             }
-            Err(_) => {
+            Err(HopAmountFailure::Unpriceable) => {
                 return RouteTransitionVerdict {
                     broadcast_allowed: false,
                     reason: Some(format!("expected_quote_unavailable:{}", hop.pool_id)),
@@ -1529,6 +2682,8 @@ fn evaluate_final_state_transition_gate(
                 }
             }
         };
+        // The next hop spends what this hop produced.
+        chain_amount_in_raw = hop_amount.amount_out_raw;
         execution_hops.push(HopExecutionState {
             pool_id: hop.pool_id.clone(),
             expected: SingleTickExecutionState {
@@ -1545,11 +2700,130 @@ fn evaluate_final_state_transition_gate(
             },
             fee_pips: hop.fee_pips,
             zero_for_one: hop.zero_for_one,
-            amount_in_raw,
-            expected_capacity_raw,
+            amount_in_raw: hop_amount_in_raw,
+            expected_capacity_raw: hop_amount.expected_capacity_raw,
         });
     }
     evaluate_route_transition(&execution_hops, DEFAULT_MAX_CAPACITY_MULTIPLIER_BPS)
+}
+
+/// The per-hop price limits the review publishes for the route.
+///
+/// The limit of a hop is the boundary of the tick range the **review
+/// priced**: the price the runtime measured, and the tick range that price
+/// sits in. The contract enforces the limit, so the limit is the proof that
+/// the transaction may only trade inside the range the review measured. A
+/// market that moved past a limit makes the transaction revert instead of
+/// trading outside the range, which is why the limit does not have to be
+/// re-measured a second time before the transaction is sent.
+///
+/// The limits come from the review's own quote and from nothing else. A
+/// stored snapshot is a measurement, and a measurement ages: a limit taken
+/// from a snapshot would publish a range the review never priced, and the
+/// transaction would be bounded by a range nobody measured.
+///
+/// The list is empty unless **every** hop proved a usable limit. A partial
+/// list is not safe to encode: a missing hop would silently receive the
+/// global V4 price bound, which is exactly what version 1 forbids.
+fn review_price_limits(
+    run: Option<&RunArbitrageEvidence>,
+    chain: Option<&HopChain>,
+) -> Vec<String> {
+    let (Some(run), Some(chain)) = (run, chain) else {
+        return Vec::new();
+    };
+    if chain.hops.len() != 3 {
+        return Vec::new();
+    }
+    let Ok(run_payload) = serde_json::to_value(run) else {
+        return Vec::new();
+    };
+    let expected_by_pool: BTreeMap<String, ReviewTimePoolState> =
+        extract_review_time_pool_states(&run_payload)
+            .into_iter()
+            .map(|state| (state.pool_id.clone(), state))
+            .collect();
+    let mut limits = Vec::with_capacity(chain.hops.len());
+    for hop in &chain.hops {
+        let Some(expected) = expected_by_pool.get(&hop.pool_id) else {
+            return Vec::new();
+        };
+        if expected.tick_spacing <= 0 || expected.sqrt_price_x96 == 0 {
+            return Vec::new();
+        }
+        let Ok(bounds) = pool_manager::depth::tick_range_bounds(
+            expected.tick as i32,
+            expected.tick_spacing as i32,
+            expected.sqrt_price_x96,
+        ) else {
+            return Vec::new();
+        };
+        // The swap runs towards the boundary the direction names: a hop that
+        // spends token0 walks the price down, and one that spends token1
+        // walks it up.
+        let boundary = if hop.zero_for_one {
+            bounds.lower_sqrt_price_x96
+        } else {
+            bounds.upper_sqrt_price_x96
+        };
+        if boundary == 0 {
+            return Vec::new();
+        }
+        limits.push(boundary.to_string());
+    }
+    limits
+}
+
+/// The amount a hop carries and the exact bound of that hop.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct HopAmount {
+    /// The amount that reaches the hop, in raw units.
+    amount_in_raw: u128,
+    /// The exact single-tick bound of the hop in the expected state.
+    expected_capacity_raw: u128,
+    /// The amount the hop produces, which the next hop receives.
+    amount_out_raw: u128,
+}
+
+/// Why a hop could not be priced with the amount that reaches it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum HopAmountFailure {
+    /// The hop's expected state does not keep the amount inside its tick
+    /// range, so the hop would cross the boundary the version forbids.
+    CrossesTick,
+    /// The hop's expected state cannot price the amount at all.
+    Unpriceable,
+}
+
+/// Prices one hop with the amount that **reaches** it.
+///
+/// The hop is priced with the **expected** state, the state the candidate
+/// ranking recorded, because the amount that reaches a hop is the output of
+/// its predecessor and the predecessor was priced with the expected state as
+/// well. The hop therefore produces the amount the next hop receives.
+fn hop_expected_amount(
+    expected: &ReviewTimePoolState,
+    hop: &HopState,
+    amount_in_raw: u128,
+) -> Result<HopAmount, HopAmountFailure> {
+    let quote = match pool_manager::depth::single_tick_swap_amount_out(
+        expected.sqrt_price_x96,
+        expected.liquidity,
+        hop.fee_pips,
+        expected.tick_spacing as i32,
+        expected.tick as i32,
+        amount_in_raw,
+        hop.zero_for_one,
+    ) {
+        Ok(quote) if quote.inside_tick_range => quote,
+        Ok(_) => return Err(HopAmountFailure::CrossesTick),
+        Err(_) => return Err(HopAmountFailure::Unpriceable),
+    };
+    Ok(HopAmount {
+        amount_in_raw,
+        expected_capacity_raw: quote.max_amount_in_raw,
+        amount_out_raw: quote.amount_out_raw,
+    })
 }
 
 /// The final single-tick gate of one closed loop.
@@ -1700,9 +2974,51 @@ fn parse_raw_amount(value: &serde_json::Value) -> Option<u128> {
     }
 }
 
+/// Whether the amount ladder really measured the route.
+///
+/// A route may only be declared profitable when the ladder **probed** it.
+/// The profit of a route that was never probed is the rounding of a dust
+/// amount: the contract prices it, the fee it charges is smaller than one
+/// unit, and the remainder reads as a profit that was never earned.
+///
+/// The ladder publishes the measurement, so the review reads it and never
+/// assumes it: a preview without a measured amount is not a measurement.
+fn ladder_measured(static_preview: &serde_json::Value) -> bool {
+    let Some(calculation) = static_preview
+        .get("bestAmountCalculation")
+        .and_then(|value| value.as_object())
+    else {
+        return false;
+    };
+    let measured = calculation
+        .get("bestAmountMeasured")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+    let probes = calculation
+        .get("probeCount")
+        .and_then(|value| value.as_u64())
+        .unwrap_or(0);
+    measured && probes > 0
+}
+
+/// The reason the ladder did not measure the route.
+///
+/// The status is the ladder's own diagnosis, so the reason names the
+/// block that stopped it instead of a generic word.
+fn ladder_unmeasured_reason(static_preview: &serde_json::Value) -> String {
+    static_preview
+        .get("bestAmountCalculation")
+        .and_then(|value| value.get("bestAmountLadderStatus"))
+        .and_then(|value| value.as_str())
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "unknown".to_owned())
+}
+
 fn build_review_rows(
     input: &ReviewInput,
     evidence: &[ReviewEvidenceInput],
+    freshness_window_seconds: i64,
 ) -> Result<DesiredReviewData, ReviewError> {
     // The evidence is indexed by the **exact published loop key**. One
     // measurement belongs to the closed loop it names; a rotation names a
@@ -1714,28 +3030,33 @@ fn build_review_rows(
         .collect::<BTreeMap<_, _>>();
     let mut desired = DesiredReviewData::default();
     for closed_loop in &input.loops {
-        let item = evidence_by_loop
+        // A closed loop that was **not measured in this pass** keeps the
+        // review it already has: the write touches the loops it carries
+        // and nothing else.  One loop's measurement therefore never
+        // decides another loop's review - not by blanking it, and not by
+        // gating the whole write on it.
+        let Some(item) = evidence_by_loop
             .get(&closed_loop.loop_key.trim().to_lowercase())
-            .copied();
-        let run_arbitrage = item.and_then(|value| value.run_arbitrage.as_ref());
+            .copied()
+        else {
+            continue;
+        };
+        let run_arbitrage = item.run_arbitrage.as_ref();
         let run_json = match run_arbitrage {
             Some(value) => serde_json::to_value(value)?,
             None => serde_json::Value::Null,
         };
-        let static_preview = item
-            .map(|value| normalize_object(&value.static_preview))
-            .unwrap_or_else(empty_object);
+        let static_preview = normalize_object(&item.static_preview);
         let reviewed_at = item
-            .and_then(|value| value.reviewed_at.as_deref())
+            .reviewed_at
+            .as_deref()
             .filter(|value| !value.trim().is_empty())
             .unwrap_or("unreported")
             .to_owned();
 
         let mut diagnostics = BTreeMap::new();
-        if let Some(item) = item {
-            for diagnostic in &item.diagnostics {
-                insert_diagnostic(&mut diagnostics, &closed_loop.loop_key, diagnostic.clone())?;
-            }
+        for diagnostic in &item.diagnostics {
+            insert_diagnostic(&mut diagnostics, &closed_loop.loop_key, diagnostic.clone())?;
         }
         if let Some(run) = run_arbitrage {
             for diagnostic in &run.diagnostics {
@@ -1746,23 +3067,117 @@ fn build_review_rows(
         let signed_pnl = run_arbitrage
             .and_then(|value| value.signed_pnl.as_ref())
             .filter(|value| validate_signed_pnl(value));
-        // The hop chain is built **once** per closed loop: the stored
-        // direction of every hop, cross-checked against the route the
-        // kernel measured.
+        // The hop chain is built **once** per closed loop: the pools the
+        // review priced, with the stored direction of every hop,
+        // cross-checked against the route the kernel measured.
+        //
+        // The closed loop fixes the path, and the **review** fixes the
+        // pools: the quote the measurement carries names the pool of every
+        // hop, and those are the pools the route traded and the pools the
+        // broadcast will trade.  The chain is therefore built over the
+        // priced pools, and the catalog's own pool of a hop is never
+        // substituted for a pool the review did not measure.
         //
         // A hop whose stored direction contradicts the route is **skipped**
         // and reported.  It is never rewritten, and it never voids the
         // review of the whole closed loop: the remaining hops are judged
         // normally, and the route simply cannot be proven executable over
         // the hop that drifted.
+        let priced_pool_ids = review_time_pool_ids(&run_json);
         let hop_chain = build_hop_chain(
             &closed_loop.path_addresses,
             &input.pool_states,
-            &closed_loop.pool_ids,
+            &priced_pool_ids,
             input
                 .hop_directions
                 .get(&closed_loop.loop_key.trim().to_lowercase()),
         );
+        // The pools the review confirmed: the priced pool of every hop,
+        // with the direction it was walked in.  The confirmation is what
+        // the broadcast trades, so it is published with the review and it
+        // is what the broadcast compares the route against.
+        let confirmed_pool_ids = hop_chain
+            .as_ref()
+            .and_then(|chain| {
+                confirmed_directional_pools(
+                    closed_loop,
+                    chain,
+                    &priced_pool_ids,
+                    &input.base_pools,
+                )
+            });
+        // The pools the review confirms must be pools the closed loop
+        // published for that hop: the main pool, or one of the candidates
+        // the hop keeps as a backup.  A pool outside that set is not a
+        // pool the closed loop could have walked, so the review may not
+        // confirm it and the route may never be broadcast.
+        //
+        // A hop that published **no** option at all is the same case: the
+        // loop never offered a pool for that hop, so nothing the route
+        // priced can be confirmed.  The guard is closed on both counts,
+        // because a review that confirms an unproven pool is exactly the
+        // failure the confirmation exists to prevent.
+        let pool_outside_options = priced_pool_ids
+            .iter()
+            .enumerate()
+            .find_map(|(hop_index, pool_id)| {
+                let options = hop_option_base_pools(closed_loop, hop_index, &input.base_pools);
+                if options.contains(pool_id.trim()) {
+                    None
+                } else {
+                    Some((hop_index, pool_id.clone()))
+                }
+            });
+        // A hop that published no option at all cannot be confirmed, and
+        // it is reported apart from a foreign pool: the first is a gap in
+        // the catalog, the second is a pool the route invented.
+        let hop_without_options = priced_pool_ids
+            .iter()
+            .enumerate()
+            .find_map(|(hop_index, _)| {
+                let options = hop_option_base_pools(closed_loop, hop_index, &input.base_pools);
+                if options.is_empty() {
+                    Some(hop_index)
+                } else {
+                    None
+                }
+            });
+        // A hop that trades one of its candidates instead of its main pool
+        // is a **substitution**, and it is recorded: the main pool no
+        // longer carries the trade, and the candidate did.
+        //
+        // The chain and the quote must describe the same hops, or the hop
+        // index of a chain hop is not the hop of the route: a skipped hop
+        // shifts the list and the substitution would be filed against the
+        // wrong hop.
+        if let Some(chain) = hop_chain
+            .as_ref()
+            .filter(|chain| chain.hops.len() == priced_pool_ids.len())
+        {
+            let main_pools = &closed_loop.directional_pool_ids;
+            for (hop_index, hop) in chain.hops.iter().enumerate() {
+                let Some(main_directional_pool_id) = main_pools.get(hop_index) else {
+                    continue;
+                };
+                let main_base_pool_id = input
+                    .base_pools
+                    .get(main_directional_pool_id)
+                    .map(|value| value.trim().to_ascii_lowercase())
+                    .unwrap_or_default();
+                if main_base_pool_id.is_empty()
+                    || main_base_pool_id == hop.pool_id.trim().to_ascii_lowercase()
+                {
+                    continue;
+                }
+                insert_candidate_substitution_diagnostic(
+                    &mut diagnostics,
+                    &closed_loop.loop_key,
+                    hop_index,
+                    &hop.pool_id,
+                    &main_base_pool_id,
+                )?;
+            }
+        }
         if let Some(chain) = hop_chain.as_ref() {
             for mismatch in &chain.direction_mismatches {
                 insert_direction_mismatch_diagnostic(
@@ -1804,6 +3219,20 @@ fn build_review_rows(
             .map(|run| {
                 evaluate_final_state_transition_gate(input, run, hop_chain.as_ref())
             });
+        // The market-move classification is **evidence**, not a gate.
+        //
+        // The review priced the route against the chain and publishes the
+        // proof of it: the three per-hop price limits are the tick ranges
+        // the contract enforces. A market that moved past a limit makes
+        // the transaction revert on chain, so the trade costs gas and never
+        // principal. Refusing the route here instead would refuse a route
+        // that is still good, and it would refuse it over a **measurement**:
+        // the gate compares the quote with a reading taken at another
+        // moment, and the difference between the two is at least as much
+        // the age of the reading as it is a move of the market.
+        //
+        // The classification is therefore recorded and published, and the
+        // route continues to the broadcast request.
         let transition_blocked = transition_verdict
             .as_ref()
             .filter(|verdict| !verdict.broadcast_allowed);
@@ -1814,10 +3243,19 @@ fn build_review_rows(
         // metadata. A route with fewer than three limits cannot be encoded
         // as a bounded three-hop swap, so it must never become a broadcast
         // request.
-        let hop_sqrt_price_limits = transition_verdict
-            .as_ref()
-            .map(route_transition_price_limits)
-            .unwrap_or_default();
+        //
+        // They are the tick ranges of the prices **the review priced**, so
+        // they are available whenever the review measured the route, and
+        // they do not depend on a second reading taken at another moment.
+        let hop_sqrt_price_limits = review_price_limits(run_arbitrage, hop_chain.as_ref());
+        let hop_sqrt_price_limits = if hop_sqrt_price_limits.is_empty() {
+            transition_verdict
+                .as_ref()
+                .map(route_transition_price_limits)
+                .unwrap_or_default()
+        } else {
+            hop_sqrt_price_limits
+        };
         let (review_status, review_reason) = match run_arbitrage {
             None => {
                 insert_synthetic_missing_diagnostic(
@@ -1843,6 +3281,31 @@ fn build_review_rows(
             }
             Some(run) if run.ok && run.executable => {
                 match (single_tick_blocked, transition_blocked) {
+                    // The route traded a pool the closed loop never
+                    // published for that hop, so the route is not the
+                    // closed loop: the review may not confirm it and it
+                    // may never be broadcast.
+                    (_, _) if hop_without_options.is_some() => (
+                        "not_executable",
+                        Some(format!(
+                            "loop_options_unavailable:hop_{}",
+                            hop_without_options.unwrap_or_default()
+                        )),
+                    ),
+                    (_, _) if pool_outside_options.is_some() => (
+                        "not_executable",
+                        Some(format!(
+                            "pool_not_in_loop_options:hop_{}:{}",
+                            pool_outside_options
+                                .as_ref()
+                                .map(|(hop_index, _)| *hop_index)
+                                .unwrap_or_default(),
+                            pool_outside_options
+                                .as_ref()
+                                .map(|(_, pool_id)| pool_id.trim().to_owned())
+                                .unwrap_or_default()
+                        )),
+                    ),
                     (Some(verdict), _) => (
                         "not_executable",
                         Some(format!(
@@ -1853,17 +3316,34 @@ fn build_review_rows(
                                 .unwrap_or_else(|| "unknown".to_owned())
                         )),
                     ),
-                    (None, Some(verdict)) => (
-                        "not_executable",
+                    // The market-move classification does not decide the
+                    // verdict: the route keeps the verdict its own
+                    // measurement gave it, and the price limits it
+                    // publishes are what the contract enforces on chain.
+                    // The classification travels with the review as a
+                    // diagnostic, so the movement is on the record.
+                    // The ladder arm does not read the market-move
+                    // classification at all: that classification is
+                    // evidence and it travels with the review as a
+                    // diagnostic.  A route the ladder never probed is an
+                    // incomplete measurement whatever the market did, so
+                    // the two questions are answered independently.
+                    (_, _) if !ladder_measured(&static_preview) => (
+                        "data_incomplete",
                         Some(format!(
-                            "state_transition_gate_failed:{}",
-                            verdict
-                                .reason
-                                .clone()
-                                .unwrap_or_else(|| "unknown".to_owned())
+                            "ladder_not_measured:{}",
+                            ladder_unmeasured_reason(&static_preview)
                         )),
                     ),
-                    (None, None) => ("completed", None),
+                    // The gates passed, so the only thing left is the
+                    // measurement itself: a route the ladder never
+                    // probed has no measured profit, and a profit that
+                    // was never measured is the rounding of a dust
+                    // amount.  Such a route is **not** a positive
+                    // opportunity, so it is filed as an incomplete
+                    // measurement and it never becomes a broadcast
+                    // request.
+                    (_, _) => ("completed", None),
                 }
             }
             Some(run) if !run.ok => (
@@ -1877,14 +3357,33 @@ fn build_review_rows(
         };
 
         let page_category = review_page_category(review_status, signed_pnl).to_owned();
+        // The row is filed under the generation the measurement was made
+        // under.  The closed-loop catalog is rebuilt continuously, so the
+        // generation the Review Manager reads now is often not the one the
+        // route was priced against; relabelling the review would make an
+        // old measurement look like a fresh one.
+        let generation = item.closed_loop_generation.as_ref();
+        let current_closed_loop_checksum = closed_loop_checksum(&input.closed_loop)?.to_owned();
         let mut row = ReviewRow {
             loop_key: closed_loop.loop_key.clone(),
-            closed_loop_version: input.closed_loop.closed_loop_version,
-            closed_loop_checksum: closed_loop_checksum(&input.closed_loop)?.to_owned(),
-            candidate_edge_version: closed_loop.candidate_edge_version,
-            candidate_edge_checksum: closed_loop.candidate_edge_checksum.clone(),
-            observation_version: closed_loop.observation_version,
-            observation_checksum: closed_loop.observation_checksum.clone(),
+            closed_loop_version: generation
+                .and_then(|value| value.closed_loop_version)
+                .unwrap_or(input.closed_loop.closed_loop_version),
+            closed_loop_checksum: generation
+                .and_then(|value| value.closed_loop_checksum.clone())
+                .unwrap_or(current_closed_loop_checksum),
+            candidate_edge_version: generation
+                .and_then(|value| value.candidate_edge_version)
+                .unwrap_or(closed_loop.candidate_edge_version),
+            candidate_edge_checksum: generation
+                .and_then(|value| value.candidate_edge_checksum.clone())
+                .unwrap_or_else(|| closed_loop.candidate_edge_checksum.clone()),
+            observation_version: generation
+                .and_then(|value| value.observation_version)
+                .unwrap_or(closed_loop.observation_version),
+            observation_checksum: generation
+                .and_then(|value| value.observation_checksum.clone())
+                .unwrap_or_else(|| closed_loop.observation_checksum.clone()),
             pool_scope_checksum: input
                 .closed_loop
                 .pool_scope_checksum
@@ -1896,8 +3395,20 @@ fn build_review_rows(
             path_text: closed_loop.path_text.clone(),
             path_addresses: closed_loop.path_addresses.clone(),
             path_symbols: closed_loop.path_symbols.clone(),
-            pool_path_key: closed_loop.pool_path_key.clone(),
-            pool_ids: closed_loop.pool_ids.clone(),
+            // The review publishes the pools **it** measured, which are
+            // the directional pools of the priced base pool and the
+            // direction the hop walked in.  The catalog's own pool of a
+            // hop is a recommendation: the review is the point where the
+            // pool of a hop is confirmed, and the broadcast trades the
+            // confirmed pool.
+            pool_path_key: confirmed_pool_path_key(
+                &closed_loop.pool_path_key,
+                &closed_loop.loop_key,
+                confirmed_pool_ids.as_deref(),
+            ),
+            pool_ids: confirmed_pool_ids
+                .clone()
+                .unwrap_or_else(|| closed_loop.directional_pool_ids.clone()),
             review_status: review_status.to_owned(),
             page_category,
             review_reason,
@@ -1907,22 +3418,28 @@ fn build_review_rows(
             reviewed_at,
             single_tick_capacity_anchor_raw: closed_loop.single_tick_capacity_anchor_raw,
             single_tick_capacity_binding_pool_id: closed_loop
-                .single_tick_capacity_binding_pool_id
+                .single_tick_capacity_binding_directional_pool_id
                 .clone(),
             hop_sqrt_price_limits: hop_sqrt_price_limits.clone(),
             // The identity travels with the review. It is **copied**, never
             // rebuilt: the closed-loop kernel measured it against the
             // catalog the closed-loop Manager publishes, and the Review
             // Manager has no way to measure it again.
-            closed_loop_identity: item.and_then(|value| value.closed_loop_identity.clone()),
+            closed_loop_identity: item.closed_loop_identity.clone(),
         };
         let fresh_for_automatic_broadcast =
-            review_is_fresh_for_automatic_broadcast(&row.reviewed_at);
+            review_is_fresh_for_automatic_broadcast(&row.reviewed_at, freshness_window_seconds);
         if review_status == "completed" {
             if let Some(pnl) = &row.signed_pnl {
                 if pnl.amount > 0.0
                     && fresh_for_automatic_broadcast
                     && row.hop_sqrt_price_limits.len() == 3
+                    // The broadcast trades the pools the review confirmed,
+                    // so a request without a confirmed pool per hop is
+                    // not a request anybody may execute.
+                    && confirmed_pool_ids
+                        .as_ref()
+                        .is_some_and(|pool_ids| pool_ids.len() == 3)
                 {
                     desired.broadcast_requests.push(BroadcastRequestRow {
                         loop_key: row.loop_key.clone(),
@@ -1955,6 +3472,12 @@ fn build_review_rows(
                     row.review_reason = Some(if row.hop_sqrt_price_limits.len() != 3 {
                         "positive review has no complete per-hop price limits and cannot trigger automatic broadcast"
                                 .to_owned()
+                    } else if confirmed_pool_ids
+                        .as_ref()
+                        .is_none_or(|pool_ids| pool_ids.len() != 3)
+                    {
+                        "positive review confirmed no pool for every hop and cannot trigger automatic broadcast"
+                            .to_owned()
                     } else {
                         "positive review is stale and cannot trigger automatic broadcast".to_owned()
                     });
@@ -2168,6 +3691,46 @@ fn insert_direction_mismatch_diagnostic(
     )
 }
 
+/// Records the hop that traded one of its candidates instead of its main
+/// pool.
+///
+/// The closed loop publishes one main pool per hop and keeps the rest as
+/// candidates.  When the main pool no longer carries the trade, a
+/// candidate does, and the review says so: the operator reads which pool
+/// the arbitrage actually ran on, and the candidate substitution is never
+/// invisible.
+fn insert_candidate_substitution_diagnostic(
+    diagnostics: &mut BTreeMap<String, ReviewDiagnosticRow>,
+    loop_key: &str,
+    hop_index: usize,
+    priced_pool_id: &str,
+    main_pool_id: &str,
+) -> Result<(), ReviewError> {
+    insert_diagnostic(
+        diagnostics,
+        loop_key,
+        ReviewDiagnosticInput {
+            diagnostic_id: Some(format!("candidate-substitution:{loop_key}:{hop_index}")),
+            diagnostic_type: ReviewDiagnosticType::Other,
+            diagnostic_code: Some("CandidateSubstitution".to_owned()),
+            message: Some(format!(
+                "hop {} traded the candidate pool {priced_pool_id} instead of its main pool \
+                 {main_pool_id}",
+                hop_index + 1
+            )),
+            hop_index: Some(hop_index),
+            pool_id: Some(priced_pool_id.to_owned()),
+            selector: None,
+            payload: serde_json::json!({
+                "hopIndex": hop_index,
+                "pricedPoolId": priced_pool_id,
+                "mainPoolId": main_pool_id,
+            }),
+            observed_at: None,
+        },
+    )
+}
+
 /// Serialises the per-hop verdicts of the transition gate.
 ///
 /// The raw amounts are 128-bit values, which JSON numbers cannot carry
@@ -2179,6 +3742,7 @@ fn transition_hop_payload(verdict: &RouteTransitionVerdict) -> Vec<serde_json::V
         .map(|hop| {
             serde_json::json!({
                 "poolId": hop.pool_id,
+                "amountInRaw": hop.amount_in_raw.to_string(),
                 "outcome": hop.outcome.as_str(),
                 "reason": hop.reason,
                 "broadcastAllowed": hop.broadcast_allowed,
@@ -2418,11 +3982,18 @@ fn closed_loop_required_string(value: Option<&str>, field: &str) -> Result<Strin
         .ok_or_else(|| ReviewError::InvalidRequest(format!("{field} is missing")))
 }
 
-fn review_checksum(
+/// The checksum of the reviews the library holds.
+///
+/// The checksum covers the **whole** set of reviews, not the set one pass
+/// carried: the reviews accumulate, so a checksum over the accumulated set
+/// is the only one that names the state the library is in.  The upstream
+/// fields are part of it, so a closed-loop generation that moved on is told
+/// apart from a review that changed.
+fn review_state_checksum(
     input: &ReviewInput,
-    desired: &DesiredReviewData,
+    accumulated: &AccumulatedReviewState,
 ) -> Result<String, ReviewError> {
-    let payload = ReviewChecksumPayload {
+    let payload = ReviewStateChecksumPayload {
         closed_loop_version: input.closed_loop.closed_loop_version,
         closed_loop_checksum: closed_loop_checksum(&input.closed_loop)?,
         candidate_edge_version: closed_loop_required_version(
@@ -2456,9 +4027,7 @@ fn review_checksum(
             })?,
         library_versions: &input.closed_loop.library_versions,
         library_checksums: &input.closed_loop.library_checksums,
-        reviews: &desired.reviews,
-        diagnostics: &desired.diagnostics,
-        broadcast_requests: &desired.broadcast_requests,
+        reviews: &accumulated.projections,
     };
     Ok(checksum_bytes(&serde_json::to_vec(&payload)?))
 }
@@ -2786,6 +4355,27 @@ pub fn read_broadcast_requests_on_connection(
     read_broadcast_requests(connection, network, chain_id, loop_key, limit)
 }
 
+/// Read the broadcast requests the store holds for one chain.
+///
+/// The function opens the store itself, so a caller that only wants the
+/// requests does not have to own a connection.  The store is opened
+/// read-only: reading the requests never writes anything.
+///
+/// The runtime needs the requests because the **review** is the layer that
+/// proves a route executable, and the proof carries the three per-hop
+/// price limits the executor needs.  The request row is the only place
+/// those limits are written, so the broadcast task is built from what is
+/// read here and never from a second derivation.
+pub fn read_broadcast_requests_for_chain(
+    database_path: impl AsRef<Path>,
+    network: &str,
+    chain_id: i64,
+    limit: usize,
+) -> Result<Vec<BroadcastRequestRow>, ReviewError> {
+    let connection = open_connection(database_path.as_ref(), false)?;
+    read_broadcast_requests_on_connection(&connection, network, chain_id, None, limit)
+}
+
 /// Read the closed-loop identity columns of a review row.
 ///
 /// The identity is **optional**. A review row whose identity columns are
@@ -3066,7 +4656,18 @@ fn read_broadcast_requests(
     Ok(rows.collect::<Result<Vec<_>, _>>()?)
 }
 
-fn replace_review_rows(
+/// Write the reviews of the loops this pass carried.
+///
+/// The write is **per closed loop**: only the loops the evidence names are
+/// replaced, and every other loop keeps the review it already has.  A
+/// review is therefore never decided by another loop's measurement - not by
+/// being blanked, and not by the write being held back until the whole
+/// catalog was measured.
+///
+/// The rows of the loops that were written accumulate over time: a loop
+/// that is measured again carries its newest measurement, and the history
+/// of every measurement stays in the review record stream.
+fn upsert_review_rows(
     connection: &Connection,
     network: &str,
     chain_id: i64,
@@ -3074,19 +4675,26 @@ fn replace_review_rows(
     result: &ReviewMaterializationResult,
 ) -> Result<(), ReviewError> {
     let now = chrono::Utc::now().to_rfc3339();
+    let loop_keys = desired
+        .reviews
+        .iter()
+        .map(|row| row.loop_key.clone())
+        .collect::<Vec<_>>();
     for table in [
         "manager_v4_review_diagnostics",
         "manager_v4_review_broadcast_requests",
         "manager_v4_reviews",
     ] {
-        connection.execute(
-            &format!(
-                "DELETE FROM {table}
-                 WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
-                   AND scope_key = ?4"
-            ),
-            params![network, chain_id, NETWORK_PROTOCOL, REVIEW_SCOPE_KEY],
-        )?;
+        for loop_key in &loop_keys {
+            connection.execute(
+                &format!(
+                    "DELETE FROM {table}
+                     WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
+                       AND scope_key = ?4 AND loop_key = ?5"
+                ),
+                params![network, chain_id, NETWORK_PROTOCOL, REVIEW_SCOPE_KEY, loop_key],
+            )?;
+        }
     }
     insert_state(connection, network, chain_id, result, &now)?;
     for row in &desired.reviews {
@@ -3254,6 +4862,70 @@ fn replace_review_rows(
         )?;
     }
     Ok(())
+}
+
+/// Restart the review clock of every loop this pass measured.
+///
+/// The clock belongs to the **closed loop**, so the write goes through the
+/// closed-loop Manager: the moment of the measurement and the moment it is
+/// due again are stored beside the loop, and a rebuild of the catalog
+/// carries them over instead of resetting them.
+fn record_review_schedules(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+    desired: &DesiredReviewData,
+) -> Result<(), ReviewError> {
+    for row in &desired.reviews {
+        if closed_loop_manager::next_review_moment(&row.reviewed_at).is_none() {
+            // A review that names no moment cannot restart a clock: the
+            // row keeps the measurement it has, and the loop waits for a
+            // review that names one.
+            continue;
+        }
+        // The reason says what the round of the review found: a loop that
+        // was measured and carries a profit waits for the next round, and a
+        // loop that was measured and carries no profit waits for the next
+        // round just the same -- both restart the clock of the loop.
+        let reason = match review_round_outcome(row) {
+            ReviewRoundOutcome::Profit => "measured_with_profit",
+            ReviewRoundOutcome::NoProfit => "measured_without_profit",
+        };
+        closed_loop_manager::record_review_schedule_on_connection(
+            connection,
+            network,
+            chain_id,
+            &row.loop_key,
+            &row.reviewed_at,
+            reason,
+        )
+        .map_err(|error| ReviewError::ClosedLoopRead(error.to_string()))?;
+    }
+    Ok(())
+}
+
+/// What a round of the review found.
+enum ReviewRoundOutcome {
+    /// The round found a profit that may be traded.
+    Profit,
+    /// The round found no profit: the loop has no room to trade, so it
+    /// waits for the next round all the same.
+    NoProfit,
+}
+
+/// The outcome of one round of the review.
+fn review_round_outcome(row: &ReviewRow) -> ReviewRoundOutcome {
+    let profitable = row.review_status == "completed"
+        && row
+            .signed_pnl
+            .as_ref()
+            .map(|pnl| pnl.amount > 0.0)
+            .unwrap_or(false);
+    if profitable {
+        ReviewRoundOutcome::Profit
+    } else {
+        ReviewRoundOutcome::NoProfit
+    }
 }
 
 fn insert_state(
@@ -3672,18 +5344,122 @@ fn usize_from_i64(value: i64) -> usize {
 #[cfg(test)]
 mod tests {
     use super::{
-        clear_review_records_write, read_review_page, read_review_snapshot, run_reviews,
-        run_reviews_write, ExpectedUpstream, ReviewClearRequest, ReviewDiagnosticInput,
-        ReviewDiagnosticType, ReviewError, ReviewEvidenceInput, ReviewOutcomeFilter,
-        ClosedLoopIdentityEvidence, ReviewReadQuery, ReviewRecordStore, ReviewWriteRequest,
-        RunArbitrageEvidence, SignedPnl,
+        clear_review_records_write, mark_stale_reviews, read_review_page, read_review_snapshot,
+        run_reviews, run_reviews_write, ExpectedUpstream, ReviewClearRequest,
+        ReviewDiagnosticInput, ReviewDiagnosticType, ReviewError, ReviewEvidenceInput,
+        ReviewOutcomeFilter, ClosedLoopIdentityEvidence, ReviewReadQuery, ReviewRecordStore,
+        ReviewWriteRequest, RunArbitrageEvidence, SignedPnl, DEFAULT_STALE_REVIEW_SECONDS,
     };
+    use super::{hop_expected_amount, HopAmountFailure, HopState, ReviewTimePoolState};
+    use chrono::Timelike;
     use rusqlite::{params, Connection};
     use std::collections::BTreeMap;
 
     const NETWORK: &str = "robinhood";
     const CHAIN_ID: i64 = 4663;
     const LOOP_KEY: &str = "loop-1";
+
+    /// A pool that charges 90% and sits at price one, so a hop that
+    /// receives an amount returns roughly a tenth of it.
+    fn expensive_hop(pool_id: &str) -> (ReviewTimePoolState, HopState) {
+        let expected = ReviewTimePoolState {
+            pool_id: pool_id.to_owned(),
+            token0: "0xaaa".to_owned(),
+            token1: "0xbbb".to_owned(),
+            fee: 900_000,
+            tick_spacing: 60,
+            hooks: "0x0000000000000000000000000000000000000000".to_owned(),
+            sqrt_price_x96: 1u128 << 96,
+            tick: 0,
+            liquidity: 100_000_000_000_000_000_000,
+            liquidity_read_at: None,
+        };
+        let hop = HopState {
+            pool_id: pool_id.to_owned(),
+            token_in: "0xaaa".to_owned(),
+            token_out: "0xbbb".to_owned(),
+            sqrt_price_x96: 1u128 << 96,
+            liquidity: 100_000_000_000_000_000_000,
+            fee_pips: 900_000,
+            zero_for_one: true,
+        };
+        (expected, hop)
+    }
+
+    #[test]
+    fn a_hop_is_priced_with_the_amount_that_reaches_it() {
+        // The amount that reaches a hop is the output of its predecessor,
+        // not the principal the loop was funded with. The state transition
+        // gate therefore prices the second hop with what the first hop
+        // produced; with a 90% fee that is a tenth of the principal.
+        let (expected, hop) = expensive_hop("pool-hop-0");
+        let principal = 1_000_000_000_000_000u128;
+
+        let first = hop_expected_amount(&expected, &hop, principal)
+            .expect("the first hop is priced with the principal");
+        assert_eq!(first.amount_in_raw, principal);
+        assert!(
+            first.amount_out_raw <= principal / 10,
+            "the 90% fee must leave at most a tenth: {}",
+            first.amount_out_raw
+        );
+        assert!(
+            first.amount_out_raw > principal / 20,
+            "the hop must still produce a usable amount: {}",
+            first.amount_out_raw
+        );
+
+        let second = hop_expected_amount(&expected, &hop, first.amount_out_raw)
+            .expect("the second hop is priced with the output of the first");
+        assert_eq!(
+            second.amount_in_raw, first.amount_out_raw,
+            "the second hop must receive what the first hop produced"
+        );
+        assert!(
+            second.amount_in_raw < principal / 5,
+            "the second hop must not be priced with the principal: {}",
+            second.amount_in_raw
+        );
+    }
+
+    #[test]
+    fn a_hop_that_crosses_its_tick_range_is_refused() {
+        let (expected, hop) = expensive_hop("pool-hop-0");
+        let principal = 1_000_000_000_000_000u128;
+        let capacity = pool_manager::depth::single_tick_swap_amount_out(
+            expected.sqrt_price_x96,
+            expected.liquidity,
+            hop.fee_pips,
+            expected.tick_spacing as i32,
+            expected.tick as i32,
+            principal,
+            hop.zero_for_one,
+        )
+        .expect("the hop is priceable")
+        .max_amount_in_raw;
+
+        assert_eq!(
+            hop_expected_amount(&expected, &hop, capacity + 1).unwrap_err(),
+            HopAmountFailure::CrossesTick,
+            "one unit above the single-tick bound must be refused"
+        );
+        assert!(
+            hop_expected_amount(&expected, &hop, capacity).is_ok(),
+            "the bound itself must still be priceable"
+        );
+    }
+
+    #[test]
+    fn a_hop_without_a_price_is_refused() {
+        let (mut expected, hop) = expensive_hop("pool-hop-0");
+        expected.sqrt_price_x96 = 0;
+
+        assert_eq!(
+            hop_expected_amount(&expected, &hop, 1_000_000_000_000_000u128).unwrap_err(),
+            HopAmountFailure::Unpriceable,
+            "a pool without a price cannot price any amount"
+        );
+    }
 
     #[test]
     fn a_rotation_of_a_directed_cycle_is_a_different_closed_loop() {
@@ -3766,13 +5542,14 @@ mod tests {
                     anchor_token_key_id, anchor_address, anchor_symbol,
                     token_y_key_id, token_z_key_id, path_text,
                     path_addresses_json, path_symbols_json, pool_path_key,
-                    pool_ids_json, backup_pool_ids_json, hop_candidate_counts_json,
+                    directional_pool_ids_json, backup_directional_pool_ids_json,
+                    hop_candidate_counts_json,
                     hop_candidate_combination_count, recommendation_basis,
                     recommended_first_priority, candidate_edge_version,
                     candidate_edge_checksum, observation_version,
                     observation_checksum, status, source,
                     single_tick_capacity_anchor_raw,
-                    single_tick_capacity_binding_pool_id,
+                    single_tick_capacity_binding_directional_pool_id,
                     created_at, updated_at
                  ) VALUES (?1, ?2, 'uniswap_v4', 'core4', ?3, 'route:v1',
                            'robinhood:4663:0x1111111111111111111111111111111111111111',
@@ -3782,17 +5559,137 @@ mod tests {
                            'USDG -> AMZN -> TA -> USDG',
                            '[\"0x1111111111111111111111111111111111111111\",\"0x2222222222222222222222222222222222222222\",\"0x3333333333333333333333333333333333333333\",\"0x1111111111111111111111111111111111111111\"]',
                            '[\"USDG\",\"AMZN\",\"TA\",\"USDG\"]', 'pool-path:1',
-                           '[\"pool-a\",\"pool-yz\",\"pool-d\"]', '{}', '{\"1\":1,\"2\":1,\"3\":1}',
+                           '[\"dpool:v1:robinhood:4663:core4:pool-a:1\",\"dpool:v1:robinhood:4663:core4:pool-yz:1\",\"dpool:v1:robinhood:4663:core4:pool-d:1\"]', '{}', '{\"1\":1,\"2\":1,\"3\":1}',
                            1, 'fixture', 1, 7, 'sha256:candidate-edge', 4,
                            'sha256:observation', 'active', 'fixture',
-                           '1000000000000000000000000', 'pool-yz',
+                           '1000000000000000000000000',
+                           'dpool:v1:robinhood:4663:core4:pool-yz:1',
                            'fixture', 'fixture')",
                 params![NETWORK, CHAIN_ID, LOOP_KEY],
             )
             .unwrap();
         seed_pool_states(&connection);
+        seed_directional_pools(&connection);
         drop(connection);
         path.to_path_buf()
+    }
+
+    /// The identity of one directional pool of the fixture's scope.
+    ///
+    /// The directional pool id is the base pool id **plus** the direction,
+    /// so a consumer that holds it cannot drop the direction and keep the
+    /// pool.
+    fn directional_pool_id(base_pool_id: &str, direction: i64) -> String {
+        format!("dpool:v1:{NETWORK}:{CHAIN_ID}:core4:{base_pool_id}:{direction}")
+    }
+
+    /// The direction layer rows of the fixture's three pools.
+    ///
+    /// The closed loop walks **directional** pools, so the direction layer
+    /// is the only place where a base pool enters the review: the review
+    /// resolves the base pool of a hop through the row of its direction.
+    fn seed_directional_pools(connection: &Connection) {
+        let pools = [
+            (
+                "pool-a",
+                "0x1111111111111111111111111111111111111111",
+                "0x2222222222222222222222222222222222222222",
+            ),
+            (
+                "pool-yz",
+                "0x2222222222222222222222222222222222222222",
+                "0x3333333333333333333333333333333333333333",
+            ),
+            (
+                "pool-d",
+                "0x3333333333333333333333333333333333333333",
+                "0x1111111111111111111111111111111111111111",
+            ),
+        ];
+        for (base_pool_id, token0, token1) in pools {
+            connection
+                .execute(
+                    "INSERT INTO manager_v4_directional_exchange_pools (
+                        network, chain_id, protocol, scope_key, base_pool_id,
+                        direction, directional_pool_id, pool_manager,
+                        pool_key_json, token0, token1, token0_key_id,
+                        token1_key_id, fee, tick_spacing, hooks, pair_key_id,
+                        input_token_key_id, output_token_key_id, zero_for_one,
+                        pool_status, pair_direction_rank, materialized_at,
+                        updated_at
+                     ) VALUES (?1, ?2, 'uniswap_v4', 'core4', ?3, 1, ?4,
+                               '0xpoolmanager', '{}', ?5, ?6, ?7, ?8, 3000,
+                               60, '0x0', 'pair:fixture', ?7, ?8, 1, 'active',
+                               1, 'fixture', 'fixture')",
+                    params![
+                        NETWORK,
+                        CHAIN_ID,
+                        base_pool_id,
+                        directional_pool_id(base_pool_id, 1),
+                        token0,
+                        token1,
+                        format!("robinhood:4663:{token0}"),
+                        format!("robinhood:4663:{token1}"),
+                    ],
+                )
+                .unwrap();
+        }
+    }
+
+    /// Seeds a backup directional pool for the fixture's first hop.
+    ///
+    /// A hop publishes one main pool and keeps the candidates it did not
+    /// choose as backups, so the review is allowed to price one of those
+    /// backups instead of the main pool: the closed loop then trades a
+    /// candidate, and the review has to say so.
+    fn seed_first_hop_backup(connection: &Connection) {
+        connection
+            .execute(
+                "INSERT INTO manager_v4_directional_exchange_pools (
+                    network, chain_id, protocol, scope_key, base_pool_id,
+                    direction, directional_pool_id, pool_manager,
+                    pool_key_json, token0, token1, token0_key_id,
+                    token1_key_id, fee, tick_spacing, hooks, pair_key_id,
+                    input_token_key_id, output_token_key_id, zero_for_one,
+                    pool_status, pair_direction_rank, materialized_at,
+                    updated_at
+                 ) VALUES (?1, ?2, 'uniswap_v4', 'core4', 'pool-b', 1, ?3,
+                           '0xpoolmanager', '{}',
+                           '0x1111111111111111111111111111111111111111',
+                           '0x2222222222222222222222222222222222222222',
+                           'robinhood:4663:0x1111111111111111111111111111111111111111',
+                           'robinhood:4663:0x2222222222222222222222222222222222222222',
+                           3000, 60, '0x0', 'pair:fixture',
+                           'robinhood:4663:0x1111111111111111111111111111111111111111',
+                           'robinhood:4663:0x2222222222222222222222222222222222222222',
+                           1, 'active', 2, 'fixture', 'fixture')",
+                params![NETWORK, CHAIN_ID, directional_pool_id("pool-b", 1)],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE manager_v4_closed_loops
+                 SET backup_directional_pool_ids_json = ?1
+                 WHERE network = ?2 AND chain_id = ?3 AND loop_key = ?4",
+                params![
+                    serde_json::json!({
+                        "first": [directional_pool_id("pool-b", 1)],
+                        "middle": [],
+                        "third": [],
+                    })
+                    .to_string(),
+                    NETWORK,
+                    CHAIN_ID,
+                    LOOP_KEY
+                ],
+            )
+            .unwrap();
+        seed_pool_state(
+            connection,
+            "pool-b",
+            "0x1111111111111111111111111111111111111111",
+            "0x2222222222222222222222222222222222222222",
+        );
     }
 
     /// Seeds the measured pool state of the route's three pools.
@@ -3857,29 +5754,38 @@ mod tests {
             ),
         ];
         for (pool_id, token0, token1) in pools {
-            connection
-                .execute(
-                    "INSERT INTO v4_exchange_pools (
-                        network, chain_id, protocol, pool_id, token0, token1,
-                        fee, dynamic_fee, special_fee, hooks, tick_spacing
-                     ) VALUES (?1, ?2, 'uniswap_v4', ?3, ?4, ?5, 3000, 0, 0, '', 60)",
-                    params![NETWORK, CHAIN_ID, pool_id, token0, token1],
-                )
-                .unwrap();
-            connection
-                .execute(
-                    "INSERT INTO v4_exchange_pool_liquidity_snapshots (
-                        network, chain_id, protocol, pool_id, depth_status,
-                        liquidity, has_liquidity, tick, sqrt_price_x96,
-                        liquidity_read_at, evidence_source
-                     ) VALUES (?1, ?2, 'uniswap_v4', ?3, 'ok',
-                               '100000000000000000000', 1, 0,
-                               '79228162514264337593543950336',
-                               'block:100', 'fixture')",
-                    params![NETWORK, CHAIN_ID, pool_id],
-                )
-                .unwrap();
+            seed_pool_state(connection, pool_id, token0, token1);
         }
+    }
+
+    /// Seeds the measured state of one pool.
+    ///
+    /// The state is what the route is priced against, so a pool the
+    /// review names has to carry one: a pool without a state cannot be
+    /// priced, and a route over it cannot be proven.
+    fn seed_pool_state(connection: &Connection, pool_id: &str, token0: &str, token1: &str) {
+        connection
+            .execute(
+                "INSERT INTO v4_exchange_pools (
+                    network, chain_id, protocol, pool_id, token0, token1,
+                    fee, dynamic_fee, special_fee, hooks, tick_spacing
+                 ) VALUES (?1, ?2, 'uniswap_v4', ?3, ?4, ?5, 3000, 0, 0, '', 60)",
+                params![NETWORK, CHAIN_ID, pool_id, token0, token1],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO v4_exchange_pool_liquidity_snapshots (
+                    network, chain_id, protocol, pool_id, depth_status,
+                    liquidity, has_liquidity, tick, sqrt_price_x96,
+                    liquidity_read_at, evidence_source
+                 ) VALUES (?1, ?2, 'uniswap_v4', ?3, 'ok',
+                           '100000000000000000000', 1, 0,
+                           '79228162514264337593543950336',
+                           'block:100', 'fixture')",
+                params![NETWORK, CHAIN_ID, pool_id],
+            )
+            .unwrap();
     }
 
     fn insert_review_fixture(
@@ -4072,7 +5978,21 @@ mod tests {
     ) -> ReviewEvidenceInput {
         ReviewEvidenceInput {
             loop_key: LOOP_KEY.to_owned(),
-            static_preview: serde_json::json!({"ok": ok, "executable": executable}),
+            closed_loop_generation: None,
+            // The preview carries the **measured** amount ladder, exactly
+            // like the runtime publishes it.  A review may only declare a
+            // profit the ladder actually measured, so a fixture without a
+            // measured ladder would file every route as an incomplete
+            // measurement.
+            static_preview: serde_json::json!({
+                "ok": ok,
+                "executable": executable,
+                "bestAmountCalculation": {
+                    "bestAmountLadderStatus": "profitable_amount_found",
+                    "bestAmountMeasured": true,
+                    "probeCount": 3,
+                },
+            }),
             run_arbitrage: Some(RunArbitrageEvidence {
                 ok,
                 executable,
@@ -4097,25 +6017,7 @@ mod tests {
                     // publish it exactly like the runtime does.
                     (
                         "quote".to_owned(),
-                        serde_json::json!({
-                            "candidate_pools": [
-                                candidate_pool_fixture(
-                                    "pool-a",
-                                    "0x1111111111111111111111111111111111111111",
-                                    "0x2222222222222222222222222222222222222222",
-                                ),
-                                candidate_pool_fixture(
-                                    "pool-yz",
-                                    "0x2222222222222222222222222222222222222222",
-                                    "0x3333333333333333333333333333333333333333",
-                                ),
-                                candidate_pool_fixture(
-                                    "pool-d",
-                                    "0x3333333333333333333333333333333333333333",
-                                    "0x1111111111111111111111111111111111111111",
-                                ),
-                            ]
-                        }),
+                        serde_json::json!({ "candidate_pools": route_pools() }),
                     ),
                 ]),
             }),
@@ -4140,6 +6042,107 @@ mod tests {
             library_checksums: closed.library_checksums,
         }
         .tap(|_| assert_eq!(status.review_version, 0))
+    }
+
+    /// A measurement restarts the review clock of the loop it measured.
+    ///
+    /// The clock belongs to the **closed loop**, so the review manager
+    /// writes it through the closed-loop Manager: the moment of the
+    /// measurement and the moment it is due again are stored beside the
+    /// loop, and the loop stops waiting for a review.
+    #[test]
+    fn a_review_restarts_the_review_clock_of_the_loop() {
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute(
+                    "INSERT INTO manager_v4_closed_loop_runtime_state (
+                         network, chain_id, protocol, scope_key, loop_key,
+                         runtime_status, status_reason, review_generation,
+                         review_required, last_rebuilt_at, last_reviewed_at,
+                         next_review_at, updated_at
+                     ) VALUES (?1, ?2, 'uniswap_v4', 'core4', ?3,
+                               'ready_for_review', NULL, 1, 1, 'fixture',
+                               NULL, NULL, 'fixture')",
+                    params![NETWORK, CHAIN_ID, LOOP_KEY],
+                )
+                .unwrap();
+        }
+        run_reviews(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            vec![evidence(Some(signed_pnl(12.5)), true, true, Vec::new())],
+            true,
+        )
+        .unwrap();
+        let connection = Connection::open(&path).unwrap();
+        let clock: (Option<String>, Option<String>, i64) = connection
+            .query_row(
+                "SELECT last_reviewed_at, next_review_at, review_required
+                 FROM manager_v4_closed_loop_runtime_state
+                 WHERE network = ?1 AND chain_id = ?2 AND scope_key = 'core4'
+                   AND loop_key = ?3",
+                params![NETWORK, CHAIN_ID, LOOP_KEY],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(clock.0.as_deref(), Some("2026-11-04T00:00:00Z"));
+        let due = clock
+            .1
+            .as_deref()
+            .expect("the round that ended schedules the next round");
+        assert!(
+            due.starts_with(&chrono::Utc::now().to_rfc3339()[..13]),
+            "the next round starts one interval after the round ended, got {due}",
+        );
+        assert_eq!(clock.2, 0, "the loop is not waiting for a review");
+    }
+
+    /// The evidence of a route that priced a given set of pools.
+    ///
+    /// The pools are the ones the quote names, in the order the route
+    /// walked them: the review confirms those pools and the broadcast
+    /// trades them, so a fixture has to be able to price a pool other
+    /// than the one the catalog published.
+    fn evidence_pricing(
+        pools: Vec<serde_json::Value>,
+        signed_pnl: Option<SignedPnl>,
+        ok: bool,
+        executable: bool,
+    ) -> ReviewEvidenceInput {
+        let mut item = evidence(signed_pnl, ok, executable, Vec::new());
+        let quote = item
+            .run_arbitrage
+            .as_mut()
+            .unwrap()
+            .raw
+            .get_mut("quote")
+            .unwrap();
+        quote["candidate_pools"] = serde_json::Value::Array(pools);
+        item
+    }
+
+    /// The three pools the fixture's route walks over.
+    fn route_pools() -> Vec<serde_json::Value> {
+        vec![
+            candidate_pool_fixture(
+                "pool-a",
+                "0x1111111111111111111111111111111111111111",
+                "0x2222222222222222222222222222222222222222",
+            ),
+            candidate_pool_fixture(
+                "pool-yz",
+                "0x2222222222222222222222222222222222222222",
+                "0x3333333333333333333333333333333333333333",
+            ),
+            candidate_pool_fixture(
+                "pool-d",
+                "0x3333333333333333333333333333333333333333",
+                "0x1111111111111111111111111111111111111111",
+            ),
+        ]
     }
 
     trait Tap: Sized {
@@ -4383,7 +6386,9 @@ mod tests {
         );
         assert_eq!(
             request.single_tick_capacity_binding_pool_id.as_deref(),
-            Some("pool-yz")
+            // The binding pool follows the closed loop, and the closed loop
+            // names its pools by their **directional** identity.
+            Some("dpool:v1:robinhood:4663:core4:pool-yz:1")
         );
     }
 
@@ -4507,7 +6512,7 @@ mod tests {
                 "pool-d",
             ),
         ];
-        for (index, (hop_index, hop_name, input, output, pool_id)) in
+        for (index, (hop_index, hop_name, input, output, base_pool_id)) in
             hops.iter().enumerate()
         {
             connection
@@ -4516,10 +6521,12 @@ mod tests {
                         network, chain_id, protocol, scope_key, loop_key,
                         hop_index, hop_name, input_token_key_id,
                         output_token_key_id, input_address, output_address,
-                        pool_id, base_pool_id, pool_selection_basis,
-                        temporary_override, created_at, updated_at
+                        pool_selection_basis, temporary_override,
+                        directional_pool_id, hop_direction, directional_scope_key,
+                        created_at, updated_at
                      ) VALUES (?1, ?2, 'uniswap_v4', 'core4', ?3, ?4, ?5, ?6, ?7,
-                               ?8, ?9, ?10, ?10, 'fixture', 0, 'fixture', 'fixture')",
+                               ?8, ?9, 'fixture', 0, ?10, 1, 'core4',
+                               'fixture', 'fixture')",
                     params![
                         NETWORK,
                         CHAIN_ID,
@@ -4530,7 +6537,7 @@ mod tests {
                         format!("robinhood:4663:{output}"),
                         input,
                         output,
-                        pool_id,
+                        directional_pool_id(base_pool_id, 1),
                     ],
                 )
                 .unwrap();
@@ -4842,6 +6849,166 @@ mod tests {
         assert_eq!(result.broadcast_request_count, 0);
     }
 
+    /// A review may confirm a **candidate** of a hop instead of the hop's
+    /// main pool: the hop published the candidate as its backup, so the
+    /// pool is one the closed loop could have walked.  The substitution is
+    /// recorded, because the main pool no longer carries the trade.
+    #[test]
+    fn a_review_confirming_a_candidate_pool_passes_and_records_the_substitution() {
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            seed_first_hop_backup(&connection);
+        }
+        let pools = vec![
+            candidate_pool_fixture(
+                "pool-b",
+                "0x1111111111111111111111111111111111111111",
+                "0x2222222222222222222222222222222222222222",
+            ),
+            candidate_pool_fixture(
+                "pool-yz",
+                "0x2222222222222222222222222222222222222222",
+                "0x3333333333333333333333333333333333333333",
+            ),
+            candidate_pool_fixture(
+                "pool-d",
+                "0x3333333333333333333333333333333333333333",
+                "0x1111111111111111111111111111111111111111",
+            ),
+        ];
+        let mut fresh = evidence_pricing(pools, Some(signed_pnl(12.5)), true, true);
+        fresh.reviewed_at = Some(chrono::Utc::now().to_rfc3339());
+        let result = run_reviews(&path, NETWORK, CHAIN_ID, vec![fresh], true).unwrap();
+        assert_eq!(result.completed_count, 1);
+        assert_eq!(result.not_executable_count, 0);
+        assert_eq!(result.broadcast_request_count, 1);
+        let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        assert_eq!(snapshot.reviews[0].review_status, "completed");
+        assert!(snapshot
+            .diagnostics
+            .iter()
+            .any(|row| row.diagnostic_code.as_deref() == Some("CandidateSubstitution")));
+        // The review publishes the **directional** pool it confirmed, so
+        // the broadcast trades the pool of the review and not the pool of
+        // the catalog.
+        assert_eq!(
+            snapshot.reviews[0].pool_ids,
+            vec![
+                directional_pool_id("pool-b", 1),
+                directional_pool_id("pool-yz", 1),
+                directional_pool_id("pool-d", 1),
+            ]
+        );
+    }
+
+    /// A pool the closed loop never published for that hop is not a pool
+    /// the loop could have walked, so the review may not confirm it and
+    /// the route may never be broadcast.
+    #[test]
+    fn a_review_pricing_a_pool_outside_the_loop_options_is_not_executable() {
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            // The pool is a real pool of the layer, but the loop never
+            // published it for the first hop.
+            seed_pool_state(
+                &connection,
+                "pool-stray",
+                "0x1111111111111111111111111111111111111111",
+                "0x2222222222222222222222222222222222222222",
+            );
+        }
+        let pools = vec![
+            candidate_pool_fixture(
+                "pool-stray",
+                "0x1111111111111111111111111111111111111111",
+                "0x2222222222222222222222222222222222222222",
+            ),
+            candidate_pool_fixture(
+                "pool-yz",
+                "0x2222222222222222222222222222222222222222",
+                "0x3333333333333333333333333333333333333333",
+            ),
+            candidate_pool_fixture(
+                "pool-d",
+                "0x3333333333333333333333333333333333333333",
+                "0x1111111111111111111111111111111111111111",
+            ),
+        ];
+        let mut fresh = evidence_pricing(pools, Some(signed_pnl(12.5)), true, true);
+        fresh.reviewed_at = Some(chrono::Utc::now().to_rfc3339());
+        let result = run_reviews(&path, NETWORK, CHAIN_ID, vec![fresh], true).unwrap();
+        assert_eq!(result.completed_count, 0);
+        assert_eq!(result.not_executable_count, 1);
+        assert_eq!(result.broadcast_request_count, 0);
+        let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        assert_eq!(snapshot.reviews[0].review_status, "not_executable");
+        assert!(snapshot.reviews[0]
+            .review_reason
+            .as_deref()
+            .unwrap_or_default()
+            .starts_with("pool_not_in_loop_options:hop_0:"));
+    }
+
+    /// A hop the closed loop published no pool for cannot be confirmed:
+    /// the route may have priced any pool, and a review that confirms an
+    /// option the loop never offered proves nothing.
+    #[test]
+    fn a_hop_without_a_published_option_cannot_be_confirmed() {
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute(
+                    "UPDATE manager_v4_closed_loops
+                     SET directional_pool_ids_json = '[]',
+                         backup_directional_pool_ids_json = '{}'
+                     WHERE network = ?1 AND chain_id = ?2 AND loop_key = ?3",
+                    params![NETWORK, CHAIN_ID, LOOP_KEY],
+                )
+                .unwrap();
+        }
+        let mut fresh = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
+        fresh.reviewed_at = Some(chrono::Utc::now().to_rfc3339());
+        let result = run_reviews(&path, NETWORK, CHAIN_ID, vec![fresh], true).unwrap();
+        assert_eq!(result.completed_count, 0);
+        assert_eq!(result.not_executable_count, 1);
+        assert_eq!(result.broadcast_request_count, 0);
+        let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        assert_eq!(snapshot.reviews[0].review_status, "not_executable");
+        assert_eq!(
+            snapshot.reviews[0].review_reason.as_deref(),
+            Some("loop_options_unavailable:hop_0")
+        );
+    }
+
+    /// A profit the amount ladder never measured is not a profit: the
+    /// route is filed as an incomplete measurement and it never becomes a
+    /// broadcast request.
+    #[test]
+    fn a_review_without_a_measured_ladder_is_data_incomplete() {
+        let (_directory, path) = database();
+        let mut fresh = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
+        fresh.reviewed_at = Some(chrono::Utc::now().to_rfc3339());
+        fresh.static_preview["bestAmountCalculation"] = serde_json::json!({
+            "bestAmountLadderStatus": "no_profitable_amount_found",
+            "bestAmountMeasured": false,
+            "probeCount": 0,
+        });
+        let result = run_reviews(&path, NETWORK, CHAIN_ID, vec![fresh], true).unwrap();
+        assert_eq!(result.completed_count, 0);
+        assert_eq!(result.data_incomplete_count, 1);
+        assert_eq!(result.broadcast_request_count, 0);
+        let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        assert_eq!(snapshot.reviews[0].review_status, "data_incomplete");
+        assert!(snapshot.reviews[0]
+            .review_reason
+            .as_deref()
+            .unwrap_or_default()
+            .starts_with("ladder_not_measured:"));
+    }
+
     #[test]
     fn positive_executable_review_generates_broadcast_request_only() {
         let (_directory, path) = database();
@@ -4854,7 +7021,12 @@ mod tests {
         assert_eq!(snapshot.reviews[0].review_status, "completed");
         assert_eq!(snapshot.broadcast_requests[0].request_status, "generated");
         assert_eq!(snapshot.broadcast_requests[0].signed_pnl.amount, 12.5);
-        assert_eq!(snapshot.broadcast_requests[0].pool_ids[1], "pool-yz");
+        // The request carries the pools of the reviewed loop, and the loop
+        // names them by their **directional** identity.
+        assert_eq!(
+            snapshot.broadcast_requests[0].pool_ids[1],
+            "dpool:v1:robinhood:4663:core4:pool-yz:1"
+        );
 
         let repeated = run_reviews(&path, NETWORK, CHAIN_ID, vec![fresh], true).unwrap();
         assert_eq!(repeated.review_version, result.review_version);
@@ -4882,6 +7054,101 @@ mod tests {
             Some("positive review is stale and cannot trigger automatic broadcast")
         );
         assert!(snapshot.broadcast_requests.is_empty());
+    }
+
+    #[test]
+    fn a_closed_loop_that_went_quiet_is_marked_with_an_explicit_error() {
+        let (_directory, path) = database();
+        let mut old = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
+        old.reviewed_at = Some("2020-01-01T00:00:00Z".to_owned());
+        run_reviews(&path, NETWORK, CHAIN_ID, vec![old], true).unwrap();
+        let outcome = mark_stale_reviews(&path, NETWORK, CHAIN_ID, Some(60), true).unwrap();
+        assert_eq!(outcome.scanned_count, 1);
+        assert_eq!(outcome.marked_count, 1);
+        assert_eq!(outcome.stale_loop_keys, vec![LOOP_KEY.to_owned()]);
+        let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        assert_eq!(snapshot.reviews[0].review_status, "data_incomplete");
+        assert_eq!(
+            snapshot.reviews[0].review_reason.as_deref(),
+            Some("not_reviewed_since:2020-01-01T00:00:00Z")
+        );
+        // A loop that went quiet may never be broadcast.
+        assert!(snapshot.broadcast_requests.is_empty());
+        // The diagnostic names the reason of the marker.
+        assert!(snapshot
+            .diagnostics
+            .iter()
+            .any(|row| row.diagnostic_code.as_deref() == Some("review_stale")));
+    }
+
+    #[test]
+    fn the_default_stale_window_outlasts_a_review_round() {
+        // A review round is bounded by the chain: the mainnet catalog is
+        // priced loop by loop, and a round over it takes tens of minutes
+        // (measured on 2026-11-26: the oldest loop of a round waited 52
+        // minutes for its turn).  A window shorter than that would call a
+        // healthy closed loop stale on every round, and the marker would
+        // drown the statement it is meant to make.
+        assert!(
+            DEFAULT_STALE_REVIEW_SECONDS >= 1_800,
+            "the default stale window must outlast a review round"
+        );
+    }
+
+    #[test]
+    fn a_closed_loop_that_was_never_reviewed_is_marked_as_such() {
+        let (_directory, path) = database();
+        let outcome = mark_stale_reviews(&path, NETWORK, CHAIN_ID, Some(900), true).unwrap();
+        assert_eq!(outcome.scanned_count, 1);
+        assert_eq!(outcome.marked_count, 1);
+        let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        assert_eq!(snapshot.reviews[0].review_status, "data_incomplete");
+        assert_eq!(
+            snapshot.reviews[0].review_reason.as_deref(),
+            Some("not_reviewed_at_all")
+        );
+        assert_eq!(snapshot.reviews[0].reviewed_at, "unreviewed");
+    }
+
+    #[test]
+    fn a_fresh_review_is_never_marked_as_stale() {
+        let (_directory, path) = database();
+        let mut fresh = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
+        fresh.reviewed_at = Some(chrono::Utc::now().to_rfc3339());
+        run_reviews(&path, NETWORK, CHAIN_ID, vec![fresh], true).unwrap();
+        let outcome = mark_stale_reviews(&path, NETWORK, CHAIN_ID, Some(900), true).unwrap();
+        assert_eq!(outcome.scanned_count, 1);
+        assert_eq!(outcome.marked_count, 0);
+        let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        assert_eq!(snapshot.reviews[0].review_status, "completed");
+    }
+
+    #[test]
+    fn a_stale_marker_is_written_once_and_never_rewritten() {
+        let (_directory, path) = database();
+        let mut old = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
+        old.reviewed_at = Some("2020-01-01T00:00:00Z".to_owned());
+        run_reviews(&path, NETWORK, CHAIN_ID, vec![old], true).unwrap();
+        let first = mark_stale_reviews(&path, NETWORK, CHAIN_ID, Some(60), true).unwrap();
+        assert_eq!(first.marked_count, 1);
+        let second = mark_stale_reviews(&path, NETWORK, CHAIN_ID, Some(60), true).unwrap();
+        // The marker is the statement, and repeating it says nothing new.
+        assert_eq!(second.marked_count, 0);
+    }
+
+    #[test]
+    fn a_review_that_arrives_after_the_marker_replaces_it() {
+        let (_directory, path) = database();
+        let mut old = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
+        old.reviewed_at = Some("2020-01-01T00:00:00Z".to_owned());
+        run_reviews(&path, NETWORK, CHAIN_ID, vec![old], true).unwrap();
+        mark_stale_reviews(&path, NETWORK, CHAIN_ID, Some(60), true).unwrap();
+        let mut fresh = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
+        fresh.reviewed_at = Some(chrono::Utc::now().to_rfc3339());
+        run_reviews(&path, NETWORK, CHAIN_ID, vec![fresh], true).unwrap();
+        let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        assert_eq!(snapshot.reviews[0].review_status, "completed");
+        assert_eq!(snapshot.reviews[0].review_reason, None);
     }
 
     #[test]
@@ -5262,7 +7529,8 @@ mod tests {
         .unwrap();
         assert_eq!(outcome.completed_count, 1);
 
-        // The audit stream lands next to the db directory, one file per day.
+        // The audit stream lands next to the db directory, one file per
+        // closed loop and hour inside the folder of its day.
         let records = directory
             .path()
             .join("db")
@@ -5270,12 +7538,18 @@ mod tests {
             .join(NETWORK)
             .join(CHAIN_ID.to_string());
         super::records::drain_review_records(&records).await.unwrap();
-        let day = chrono::Utc::now().date_naive();
-        let content = std::fs::read_to_string(
-            records
-                .join(super::records::review_day_folder(day))
-                .join(format!("{}.jsonl", super::records::loop_file_stem(LOOP_KEY))),
-        )
+        // The record is filed under the hour the **review** was measured in,
+        // in Beijing time, so the file is looked up in the same clock and
+        // not under the hour the writer happened to run in.
+        let measured = chrono::DateTime::parse_from_rfc3339("2026-11-04T00:00:00Z")
+            .unwrap()
+            .with_timezone(&super::records::beijing_offset());
+        let content = std::fs::read_to_string(super::records::review_file_path(
+            &records,
+            measured.date_naive(),
+            measured.hour(),
+            LOOP_KEY,
+        ))
         .unwrap();
         let line: serde_json::Value =
             serde_json::from_str(content.lines().next().unwrap()).unwrap();

@@ -24,6 +24,21 @@ DEFAULT_BINANCE_VELOCITY_MIN_CHANGE_PERCENT = 0.2
 DEFAULT_BINANCE_RAW_SIDE_LIMIT = 50
 DEFAULT_DEX_SCAN_WORKERS = 1
 DEFAULT_DEX_EVIDENCE_TIMEOUT_SECONDS = 120
+# The automatic review interval of a closed loop, in seconds.
+#
+# The closed loop owns a **review clock**: the loop starts the clock when it
+# has been dealt with -- a broadcast that confirmed a profit, or a review
+# that found no profit at all -- and the clock runs until the loop is due
+# again.  This number is the length of that clock, so it is also the length
+# of one review cycle of a loop: from the start of a review round to the end
+# of the round.
+DEFAULT_CLOSED_LOOP_REVIEW_INTERVAL_SECONDS = 60
+
+# The closed loops of a fresh catalog do **not** all become due in the same
+# second: their review time points are spread by this spacing, so the first
+# round of the reviews does not hit the RPC provider with every loop at
+# once.  The value is a parameter like the interval itself.
+DEFAULT_CLOSED_LOOP_REVIEW_START_SPACING_SECONDS = 2
 
 DEFAULT_MIN_COW_SPREAD_PERCENT = 0.0
 DEFAULT_MIN_SIDE_CHANGE_PERCENT = 0.05
@@ -51,6 +66,8 @@ def strategy_defaults() -> dict[str, float | int]:
         "BINANCE_VELOCITY_MIN_CHANGE_PERCENT": DEFAULT_BINANCE_VELOCITY_MIN_CHANGE_PERCENT,
         "DEX_SCAN_WORKERS": DEFAULT_DEX_SCAN_WORKERS,
         "DEX_EVIDENCE_TIMEOUT_SECONDS": DEFAULT_DEX_EVIDENCE_TIMEOUT_SECONDS,
+        "CLOSED_LOOP_REVIEW_INTERVAL_SECONDS": DEFAULT_CLOSED_LOOP_REVIEW_INTERVAL_SECONDS,
+        "CLOSED_LOOP_REVIEW_START_SPACING_SECONDS": DEFAULT_CLOSED_LOOP_REVIEW_START_SPACING_SECONDS,
         "TRIGGER_MIN_UP_CHANGE_PERCENT": DEFAULT_TRIGGER_MIN_UP_CHANGE_PERCENT,
         "TRIGGER_MIN_DOWN_CHANGE_PERCENT": DEFAULT_TRIGGER_MIN_DOWN_CHANGE_PERCENT,
     }

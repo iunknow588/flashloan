@@ -123,6 +123,18 @@ def sanitize_strategy_config(values: dict) -> dict:
     config["ARBITRAGE_ROUTE_TRADE_FEE_HOPS"] = max(1, int(config["ARBITRAGE_ROUTE_TRADE_FEE_HOPS"]))
     config["DEX_SCAN_WORKERS"] = max(1, min(int(config["DEX_SCAN_WORKERS"]), 64))
     config["DEX_EVIDENCE_TIMEOUT_SECONDS"] = max(60, min(float(config["DEX_EVIDENCE_TIMEOUT_SECONDS"]), 120))
+    # The review clock of a closed loop may not be shorter than the moment
+    # a review itself takes, and it may not be longer than an hour: a loop
+    # that is measured too rarely trades on a market that moved on.
+    config["CLOSED_LOOP_REVIEW_INTERVAL_SECONDS"] = max(
+        5, min(int(config["CLOSED_LOOP_REVIEW_INTERVAL_SECONDS"]), 3600)
+    )
+    # The review time points of a fresh catalog are spread by this
+    # spacing, so the loops do not all become due in the same second and
+    # the first round of the reviews does not overrun the RPC rate limit.
+    config["CLOSED_LOOP_REVIEW_START_SPACING_SECONDS"] = max(
+        0, min(int(config["CLOSED_LOOP_REVIEW_START_SPACING_SECONDS"]), 60)
+    )
     config["EXECUTION_SLIPPAGE_BPS"] = max(0, min(int(config["EXECUTION_SLIPPAGE_BPS"]), 5000))
     config["EXECUTION_PLAN_MAX_AGE_SECONDS"] = max(1, int(config["EXECUTION_PLAN_MAX_AGE_SECONDS"]))
     config["BINANCE_CHANGE_WINDOW_SECONDS"] = max(MIN_SAMPLING_SECONDS, float(config["BINANCE_CHANGE_WINDOW_SECONDS"]))

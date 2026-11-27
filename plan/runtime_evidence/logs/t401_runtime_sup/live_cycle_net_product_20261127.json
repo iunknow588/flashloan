@@ -1,0 +1,514 @@
+{
+  "chainId": 4663,
+  "rpcUrl": "https://robinhood-rpc.publicnode.com",
+  "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+  "loopCount": 10,
+  "gatePassingCount": 0,
+  "loops": [
+    {
+      "path": [
+        "ETH",
+        "NVDA",
+        "SPY",
+        "ETH"
+      ],
+      "usable": true,
+      "net_product": 998850999731313699,
+      "edge_ppm": -1150,
+      "gate_passes": false,
+      "hops": [
+        {
+          "hop": "0x0000000000000000000000000000000000000000->0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "candidates": 1,
+          "chosen": {
+            "pool_id": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+            "fee": 500,
+            "zero_for_one": true,
+            "liquidity": "1156979411753573601336",
+            "depth_status": "deep",
+            "candidate_count": 1
+          }
+        },
+        {
+          "hop": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec->0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "candidates": 1,
+          "chosen": {
+            "pool_id": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+            "fee": 250,
+            "zero_for_one": false,
+            "liquidity": "9795494793134326748130",
+            "depth_status": "deep",
+            "candidate_count": 1
+          }
+        },
+        {
+          "hop": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c->0x0000000000000000000000000000000000000000",
+          "candidates": 1,
+          "chosen": {
+            "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+            "fee": 1000,
+            "zero_for_one": false,
+            "liquidity": "1204455954517232123586",
+            "depth_status": "deep",
+            "candidate_count": 1
+          }
+        }
+      ]
+    },
+    {
+      "path": [
+        "ETH",
+        "META",
+        "SPY",
+        "ETH"
+      ],
+      "usable": true,
+      "net_product": 998443806724538628,
+      "edge_ppm": -1557,
+      "gate_passes": false,
+      "hops": [
+        {
+          "hop": "0x0000000000000000000000000000000000000000->0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+          "candidates": 1,
+          "chosen": {
+            "pool_id": "0xf89d70906c1464e5f0853fbb0601c111bfb48ef54537c0527694a559b33dd801",
+            "fee": 2100,
+            "zero_for_one": true,
+            "liquidity": "26823316057396779715",
+            "depth_status": "medium",
+            "candidate_count": 1
+          }
+        },
+        {
+          "hop": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35->0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "candidates": 2,
+          "chosen": {
+            "pool_id": "0x8dc0387af606d84be8e4c2fc1da7bdc6d467337e9f3e075113f968922a190847",
+            "fee": 350,
+            "zero_for_one": false,
+            "liquidity": "3430788256924137442373",
+            "depth_status": "deep",
+            "candidate_count": 2
+          }
+        },
+        {
+          "hop": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c->0x0000000000000000000000000000000000000000",
+          "candidates": 1,
+          "chosen": {
+            "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+            "fee": 1000,
+            "zero_for_one": false,
+            "liquidity": "1204455954517232123586",
+            "depth_status": "deep",
+            "candidate_count": 1
+          }
+        }
+      ]
+    },
+    {
+      "path": [
+        "ETH",
+        "GOOGL",
+        "SPY",
+        "ETH"
+      ],
+      "usable": true,
+      "net_product": 997995019308276515,
+      "edge_ppm": -2005,
+      "gate_passes": false,
+      "hops": [
+        {
+          "hop": "0x0000000000000000000000000000000000000000->0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+          "candidates": 1,
+          "chosen": {
+            "pool_id": "0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d",
+            "fee": 2100,
+            "zero_for_one": true,
+            "liquidity": "140741859568161252291",
+            "depth_status": "medium",
+            "candidate_count": 1
+          }
+        },
+        {
+          "hop": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "candidates": 2,
+          "chosen": {
+            "pool_id": "0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30",
+            "fee": 250,
+            "zero_for_one": false,
+            "liquidity": "32433853313968371362601",
+            "depth_status": "deep",
+            "candidate_count": 2
+          }
+        },
+        {
+          "hop": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c->0x0000000000000000000000000000000000000000",
+          "candidates": 1,
+          "chosen": {
+            "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+            "fee": 1000,
+            "zero_for_one": false,
+            "liquidity": "1204455954517232123586",
+            "depth_status": "deep",
+            "candidate_count": 1
+          }
+        }
+      ]
+    },
+    {
+      "path": [
+        "ETH",
+        "SPY",
+        "NVDA",
+        "ETH"
+      ],
+      "usable": true,
+      "net_product": 997651110582817733,
+      "edge_ppm": -2349,
+      "gate_passes": false,
+      "hops": [
+        {
+          "hop": "0x0000000000000000000000000000000000000000->0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "candidates": 1,
+          "chosen": {
+            "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+            "fee": 1000,
+            "zero_for_one": true,
+            "liquidity": "1204455954517232123586",
+            "depth_status": "deep",
+            "candidate_count": 1
+          }
+        },
+        {
+          "hop": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c->0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "candidates": 1,
+          "chosen": {
+            "pool_id": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+            "fee": 250,
+            "zero_for_one": true,
+            "liquidity": "9795494793134326748130",
+            "depth_status": "deep",
+            "candidate_count": 1
+          }
+        },
+        {
+          "hop": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec->0x0000000000000000000000000000000000000000",
+          "candidates": 1,
+          "chosen": {
+            "pool_id": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+            "fee": 500,
+            "zero_for_one": false,
+            "liquidity": "1156979411753573601336",
+            "depth_status": "deep",
+            "candidate_count": 1
+          }
+        }
+      ]
+    },
+    {
+      "path": [
+        "ETH",
+        "SPY",
+        "MU",
+        "ETH"
+      ],
+      "usable": true,
+      "net_product": 997233683938091959,
+      "edge_ppm": -2767,
+      "gate_passes": false,
+      "hops": [
+        {
+          "hop": "0x0000000000000000000000000000000000000000->0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "candidates": 1,
+          "chosen": {
+            "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+            "fee": 1000,
+            "zero_for_one": true,
+            "liquidity": "1204455954517232123586",
+            "depth_status": "deep",
+            "candidate_count": 1
+          }
+        },
+        {
+          "hop": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c->0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "candidates": 1,
+          "chosen": {
+            "pool_id": "0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c",
+            "fee": 500,
+            "zero_for_one": true,
+            "liquidity": "6500931493523787577053",
+            "depth_status": "deep",
+            "candidate_count": 1
+          }
+        },
+        {
+          "hop": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd->0x0000000000000000000000000000000000000000",
+          "candidates": 3,
+          "chosen": {
+            "pool_id": "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237",
+            "fee": 1800,
+            "zero_for_one": false,
+            "liquidity": "62171986845307389525",
+            "depth_status": "medium",
+            "candidate_count": 3
+          }
+        }
+      ]
+    },
+    {
+      "path": [
+        "ETH",
+        "MU",
+        "SPY",
+        "ETH"
+      ],
+      "usable": true,
+      "net_product": 996172996456711496,
+      "edge_ppm": -3828,
+      "gate_passes": false,
+      "hops": [
+        {
+          "hop": "0x0000000000000000000000000000000000000000->0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "candidates": 3,
+          "chosen": {
+            "pool_id": "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237",
+            "fee": 1800,
+            "zero_for_one": true,
+            "liquidity": "62171986845307389525",
+            "depth_status": "medium",
+            "candidate_count": 3
+          }
+        },
+        {
+          "hop": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd->0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "candidates": 1,
+          "chosen": {
+            "pool_id": "0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c",
+            "fee": 500,
+            "zero_for_one": false,
+            "liquidity": "6500931493523787577053",
+            "depth_status": "deep",
+            "candidate_count": 1
+          }
+        },
+        {
+          "hop": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c->0x0000000000000000000000000000000000000000",
+          "candidates": 1,
+          "chosen": {
+            "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+            "fee": 1000,
+            "zero_for_one": false,
+            "liquidity": "1204455954517232123586",
+            "depth_status": "deep",
+            "candidate_count": 1
+          }
+        }
+      ]
+    },
+    {
+      "path": [
+        "ETH",
+        "SPY",
+        "GOOGL",
+        "ETH"
+      ],
+      "usable": true,
+      "net_product": 995312534613410350,
+      "edge_ppm": -4688,
+      "gate_passes": false,
+      "hops": [
+        {
+          "hop": "0x0000000000000000000000000000000000000000->0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "candidates": 1,
+          "chosen": {
+            "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+            "fee": 1000,
+            "zero_for_one": true,
+            "liquidity": "1204455954517232123586",
+            "depth_status": "deep",
+            "candidate_count": 1
+          }
+        },
+        {
+          "hop": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c->0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+          "candidates": 2,
+          "chosen": {
+            "pool_id": "0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30",
+            "fee": 250,
+            "zero_for_one": true,
+            "liquidity": "32433853313968371362601",
+            "depth_status": "deep",
+            "candidate_count": 2
+          }
+        },
+        {
+          "hop": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3->0x0000000000000000000000000000000000000000",
+          "candidates": 1,
+          "chosen": {
+            "pool_id": "0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d",
+            "fee": 2100,
+            "zero_for_one": false,
+            "liquidity": "140741859568161252291",
+            "depth_status": "medium",
+            "candidate_count": 1
+          }
+        }
+      ]
+    },
+    {
+      "path": [
+        "ETH",
+        "SPY",
+        "META",
+        "ETH"
+      ],
+      "usable": true,
+      "net_product": 994821766435630439,
+      "edge_ppm": -5179,
+      "gate_passes": false,
+      "hops": [
+        {
+          "hop": "0x0000000000000000000000000000000000000000->0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+          "candidates": 1,
+          "chosen": {
+            "pool_id": "0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6",
+            "fee": 1000,
+            "zero_for_one": true,
+            "liquidity": "1204455954517232123586",
+            "depth_status": "deep",
+            "candidate_count": 1
+          }
+        },
+        {
+          "hop": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c->0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+          "candidates": 2,
+          "chosen": {
+            "pool_id": "0xe6b713cf680868a40aafca45810b0c894eb5c696f5a2230d4816e6695e90e681",
+            "fee": 500,
+            "zero_for_one": true,
+            "liquidity": "105703699136590820533",
+            "depth_status": "medium",
+            "candidate_count": 2
+          }
+        },
+        {
+          "hop": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35->0x0000000000000000000000000000000000000000",
+          "candidates": 1,
+          "chosen": {
+            "pool_id": "0xf89d70906c1464e5f0853fbb0601c111bfb48ef54537c0527694a559b33dd801",
+            "fee": 2100,
+            "zero_for_one": false,
+            "liquidity": "26823316057396779715",
+            "depth_status": "medium",
+            "candidate_count": 1
+          }
+        }
+      ]
+    },
+    {
+      "path": [
+        "ETH",
+        "MU",
+        "NVDA",
+        "ETH"
+      ],
+      "usable": true,
+      "net_product": 988705587917986392,
+      "edge_ppm": -11295,
+      "gate_passes": false,
+      "hops": [
+        {
+          "hop": "0x0000000000000000000000000000000000000000->0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "candidates": 3,
+          "chosen": {
+            "pool_id": "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237",
+            "fee": 1800,
+            "zero_for_one": true,
+            "liquidity": "62171986845307389525",
+            "depth_status": "medium",
+            "candidate_count": 3
+          }
+        },
+        {
+          "hop": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd->0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "candidates": 1,
+          "chosen": {
+            "pool_id": "0x7b1c4469fbc25827332bcf7a4c273fcbb5d60815c03e5844c74feb51c2313cc7",
+            "fee": 12500,
+            "zero_for_one": false,
+            "liquidity": "25472686470334530725",
+            "depth_status": "medium",
+            "candidate_count": 1
+          }
+        },
+        {
+          "hop": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec->0x0000000000000000000000000000000000000000",
+          "candidates": 1,
+          "chosen": {
+            "pool_id": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+            "fee": 500,
+            "zero_for_one": false,
+            "liquidity": "1156979411753573601336",
+            "depth_status": "deep",
+            "candidate_count": 1
+          }
+        }
+      ]
+    },
+    {
+      "path": [
+        "ETH",
+        "NVDA",
+        "MU",
+        "ETH"
+      ],
+      "usable": true,
+      "net_product": 981765909825093099,
+      "edge_ppm": -18235,
+      "gate_passes": false,
+      "hops": [
+        {
+          "hop": "0x0000000000000000000000000000000000000000->0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+          "candidates": 1,
+          "chosen": {
+            "pool_id": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+            "fee": 500,
+            "zero_for_one": true,
+            "liquidity": "1156979411753573601336",
+            "depth_status": "deep",
+            "candidate_count": 1
+          }
+        },
+        {
+          "hop": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec->0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "candidates": 1,
+          "chosen": {
+            "pool_id": "0x7b1c4469fbc25827332bcf7a4c273fcbb5d60815c03e5844c74feb51c2313cc7",
+            "fee": 12500,
+            "zero_for_one": true,
+            "liquidity": "25472686470334530725",
+            "depth_status": "medium",
+            "candidate_count": 1
+          }
+        },
+        {
+          "hop": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd->0x0000000000000000000000000000000000000000",
+          "candidates": 3,
+          "chosen": {
+            "pool_id": "0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237",
+            "fee": 1800,
+            "zero_for_one": false,
+            "liquidity": "62171986845307389525",
+            "depth_status": "medium",
+            "candidate_count": 3
+          }
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "net_product is the contract's fee-adjusted spot product at the latest block",
+    "gate_passes is the contract's own profitability gate (net_product > 1e18)",
+    "a passing gate still has to survive price impact and gas at execution"
+  ]
+}

@@ -1,0 +1,54 @@
+.........................F.............................................. [ 79%]
+...............F...                                                      [100%]
+================================== FAILURES ===================================
+_ MainnetArbitrageHealerTests.test_an_unhealthy_production_state_breaks_the_stability_window _
+
+self = <scripts.tests.test_mainnet_arbitrage_healer.MainnetArbitrageHealerTests testMethod=test_an_unhealthy_production_state_breaks_the_stability_window>
+
+    def test_an_unhealthy_production_state_breaks_the_stability_window(self):
+        report = self.healthy_report()
+        report["transactionProduction"]["state"] = "upstream_invalid"
+        verdict = HEALER.StabilityTracker().observe(report)
+>       self.assertFalse(verdict["satisfied"])
+E       AssertionError: True is not false
+
+scripts\tests\test_mainnet_arbitrage_healer.py:1115: AssertionError
+_ MainnetArbitrageHealerTests.test_the_review_freshness_is_read_from_the_published_measurement_moment _
+
+self = <scripts.tests.test_mainnet_arbitrage_healer.MainnetArbitrageHealerTests testMethod=test_the_review_freshness_is_read_from_the_published_measurement_moment>
+
+    def test_the_review_freshness_is_read_from_the_published_measurement_moment(self):
+        """The Review Manager publishes ``reviewedAt`` and no ``createdAt``.
+    
+        Reading ``created_at`` alone made every Manager review look
+        infinitely old, so the production verdict reported
+        ``review_stalled`` while the runtime was writing a fresh review
+        every few seconds, and the operator was sent to repair a review
+        layer that was already green.
+        """
+        published = [
+            {"loopKey": "loop-1", "reviewedAt": "2026-11-10T12:00:00Z",
+             "signedPnl": {"amount": "1.0", "currency": "ETH"}},
+            {"loopKey": "loop-2", "reviewedAt": "2026-11-10T06:00:00Z",
+             "signedPnl": {"amount": "2.0", "currency": "ETH"}},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "reviews.sqlite3"
+            connection = sqlite3.connect(database)
+            connection.execute("CREATE TABLE manager_v4_reviews (loop_key TEXT)")
+            connection.commit()
+            connection.close()
+            with mock.patch.object(HEALER, "manager_read_reviews",
+                                   return_value=published), \
+                    mock.patch.object(HEALER, "manager_read_closed_loops",
+                                      return_value={"loops": [{"loopKey": "loop-1"},
+                                                               {"loopKey": "loop-2"}]}):
+                report = HEALER.audit_reviews(database, 24)
+>       self.assertEqual(report["legacy"]["latestReviewAt"], "2026-11-10T12:00:00Z")
+E       AssertionError: None != '2026-11-10T12:00:00Z'
+
+scripts\tests\test_mainnet_arbitrage_healer.py:1534: AssertionError
+=========================== short test summary info ===========================
+FAILED scripts/tests/test_mainnet_arbitrage_healer.py::MainnetArbitrageHealerTests::test_an_unhealthy_production_state_breaks_the_stability_window
+FAILED scripts/tests/test_mainnet_arbitrage_healer.py::MainnetArbitrageHealerTests::test_the_review_freshness_is_read_from_the_published_measurement_moment
+2 failed, 89 passed in 70.55s (0:01:10)

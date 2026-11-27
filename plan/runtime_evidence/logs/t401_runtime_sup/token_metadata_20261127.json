@@ -1,0 +1,129 @@
+{
+  "rpcCount": 5,
+  "candidates": [
+    {
+      "symbol": "NET",
+      "registry": "v4_token_allowlist (funding)",
+      "address": "0xca9c78dd337a67f6e0077f65f5e9218719d30edf",
+      "claimedDecimals": 9,
+      "claimedSource": "onchain-erc20-metadata",
+      "readings": [
+        {
+          "endpoint": "robinhood-rpc.publicnode.com",
+          "symbol": "NET",
+          "decimals": 9,
+          "name": "NetNet",
+          "totalSupply": 121787590622878
+        },
+        {
+          "endpoint": "blissful-billowing-pine.robinhood-mainnet.quiknode.pro",
+          "symbol": "NET",
+          "decimals": 9,
+          "name": "NetNet",
+          "totalSupply": 121787590622878
+        }
+      ]
+    },
+    {
+      "symbol": "NET",
+      "registry": "robinhood_stock_tokens (stock)",
+      "address": "0x116F00968269B7bfbaD4109cE591d6E74c0601d4",
+      "claimedDecimals": 18,
+      "claimedSource": "robinhood_assets_api",
+      "readings": [
+        {
+          "endpoint": "robinhood-rpc.publicnode.com",
+          "symbol": "NET",
+          "decimals": 18,
+          "name": "Cloudflare, Inc. Class A common stock • Robinhood Token",
+          "totalSupply": 494016320000000000000
+        },
+        {
+          "endpoint": "blissful-billowing-pine.robinhood-mainnet.quiknode.pro",
+          "symbol": "NET",
+          "decimals": 18,
+          "name": "Cloudflare, Inc. Class A common stock • Robinhood Token",
+          "totalSupply": 494016320000000000000
+        }
+      ]
+    },
+    {
+      "symbol": "DJT",
+      "registry": "v4_token_allowlist (funding)",
+      "address": "0x820012a9bfb19db161a1a059a6d83c2777fc0777",
+      "claimedDecimals": 18,
+      "claimedSource": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "readings": [
+        {
+          "endpoint": "robinhood-rpc.publicnode.com",
+          "symbol": "DJT",
+          "decimals": 18,
+          "name": "Trump Media & Technology Group C",
+          "totalSupply": 1000000000000000000000000000
+        },
+        {
+          "endpoint": "blissful-billowing-pine.robinhood-mainnet.quiknode.pro",
+          "symbol": "DJT",
+          "decimals": 18,
+          "name": "Trump Media & Technology Group C",
+          "totalSupply": 1000000000000000000000000000
+        }
+      ]
+    },
+    {
+      "symbol": "DJT",
+      "registry": "robinhood_stock_tokens (stock)",
+      "address": "0x1D11f0496982706C5e14A514D4E79F2e6BdE4516",
+      "claimedDecimals": 18,
+      "claimedSource": "robinhood_assets_api",
+      "readings": [
+        {
+          "endpoint": "robinhood-rpc.publicnode.com",
+          "symbol": "DJT",
+          "decimals": 18,
+          "name": "Trump Media & Technology Group • Robinhood Token",
+          "totalSupply": 196287181380000000000000
+        },
+        {
+          "endpoint": "blissful-billowing-pine.robinhood-mainnet.quiknode.pro",
+          "symbol": "DJT",
+          "decimals": 18,
+          "name": "Trump Media & Technology Group • Robinhood Token",
+          "totalSupply": 196287181380000000000000
+        }
+      ]
+    }
+  ],
+  "endpoints": [
+    {
+      "url": "rpc.ordofi.network",
+      "alive": false,
+      "chainId": null,
+      "error": "URLError: <urlopen error [Errno 11002] getaddrinfo failed>"
+    },
+    {
+      "url": "robinhood-mainnet.g.alchemy.com",
+      "alive": false,
+      "chainId": null,
+      "error": "HTTPError: HTTP Error 429: Too Many Requests"
+    },
+    {
+      "url": "rpc.mainnet.chain.robinhood.com",
+      "alive": false,
+      "chainId": null,
+      "error": "HTTPError: HTTP Error 403: Forbidden"
+    },
+    {
+      "url": "robinhood-rpc.publicnode.com",
+      "alive": true,
+      "chainId": 4663,
+      "error": null
+    },
+    {
+      "url": "blissful-billowing-pine.robinhood-mainnet.quiknode.pro",
+      "alive": true,
+      "chainId": 4663,
+      "error": null
+    }
+  ]
+}

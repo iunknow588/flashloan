@@ -1,0 +1,41 @@
+{
+  "observed_at": "2026-11-26T17:33:25",
+  "latest_reviewed_at": "2026-11-26T09:33:09.428633+00:00",
+  "status_counts": {
+    "completed": 1,
+    "data_incomplete": 18,
+    "not_executable": 155
+  },
+  "new_path_key_rows": 174,
+  "old_path_key_rows": 0,
+  "confirmed_pool_substitutions": [],
+  "transition_gate_reasons": {
+    "state_transition_gate_failed:expected_amount_crosses_tick:0x24107d152f14a76d292123265ae3f3c71f86": 2,
+    "state_transition_gate_failed:expected_amount_crosses_tick:0x447ede3c1eb7a15486e65e82898f8e52fa0d": 1,
+    "state_transition_gate_failed:expected_amount_crosses_tick:0x632d9bdccf26e13dbf23b185f29cba47e237": 1,
+    "state_transition_gate_failed:expected_amount_crosses_tick:0xc58bb68060bcb7b3ea0f6d4a4afef1e57f62": 1,
+    "state_transition_gate_failed:expected_pool_state_unavailable:0x71f9660f9535e3e81d720696a58ea8027": 1,
+    "state_transition_gate_failed:hop_1_failed:tick_range_changed": 2
+  },
+  "expected_pool_state_unavailable": 1,
+  "ladder_not_measured_rows": 0,
+  "pool_not_in_loop_options_rows": 0,
+  "candidate_substitution_diagnostics": 0,
+  "broadcast_requests_total": 1,
+  "broadcast_requests_generated": 1,
+  "execution_attempts": 0,
+  "reasons": {
+    "<none>": 1,
+    "runArbitrage returned ok=false": 146,
+    "signed PnL is missing or incomplete": 18,
+    "single_tick_gate_failed:final_input_exceeds_single_tick_capacity": 1,
+    "state_transition_gate_failed:expected_amount_crosses_tick:0x24107d152f14a76d292123265ae3f3c71f86": 2,
+    "state_transition_gate_failed:expected_amount_crosses_tick:0x447ede3c1eb7a15486e65e82898f8e52fa0d": 1,
+    "state_transition_gate_failed:expected_amount_crosses_tick:0x632d9bdccf26e13dbf23b185f29cba47e237": 1,
+    "state_transition_gate_failed:expected_amount_crosses_tick:0xc58bb68060bcb7b3ea0f6d4a4afef1e57f62": 1,
+    "state_transition_gate_failed:expected_pool_state_unavailable:0x71f9660f9535e3e81d720696a58ea8027": 1,
+    "state_transition_gate_failed:hop_1_failed:tick_range_changed": 2
+  },
+  "baseline_reviewed_at": "2026-11-26T08:29:58.045761700+00:00",
+  "new_generation": true
+}

@@ -1,0 +1,131 @@
+{"candidateEdge": {"rehearsal": {"status": 200, "ok": true, "error": null, "data": {"apply": true, "dryRun": false, "changedRows": 1222, "eligiblePoolCount": 26, "materializedChecksum": "sha256:f87bdd4934d51e97789d143053040daba9e5164bdabd2e70e9a86b28d854a351", "consumersNeedRebuild": true, "idempotentReplay": false, "skipReasonCounts": {}}}, "applied": {"status": 200, "ok": true, "error": null, "data": {"apply": true, "dryRun": false, "changedRows": 0, "eligiblePoolCount": 26, "materializedChecksum": "sha256:f87bdd4934d51e97789d143053040daba9e5164bdabd2e70e9a86b28d854a351", "consumersNeedRebuild": false, "idempotentReplay": false, "skipReasonCounts": {}}}}}
+{"candidateExchange": {"rehearsal": {"status": 200, "ok": true, "error": null, "data": {"apply": true, "dryRun": false, "changedRows": 710, "directionCount": 108, "materializedChecksum": "sha256:9930c276eb7a7673921e59e0fd064139dbcb6423c17dda7439675a147a416b59", "consumersNeedRebuild": true, "idempotentReplay": false}}, "applied": {"status": 200, "ok": true, "error": null, "data": {"apply": true, "dryRun": false, "changedRows": 0, "directionCount": 108, "materializedChecksum": "sha256:9930c276eb7a7673921e59e0fd064139dbcb6423c17dda7439675a147a416b59", "consumersNeedRebuild": false, "idempotentReplay": false}}}}
+{"directionalPools": {"rehearsal": {"status": 200, "ok": true, "error": null, "data": {"apply": true, "dryRun": false, "changedRows": 194, "materializedChecksum": "sha256:38348ae893bfde121933a2cdae0a94e2282373ddc9710a2c15ae0a2573d2c9a8", "consumersNeedRebuild": true, "idempotentReplay": false}}, "applied": {"status": 200, "ok": true, "error": null, "data": {"apply": true, "dryRun": false, "changedRows": 0, "materializedChecksum": "sha256:38348ae893bfde121933a2cdae0a94e2282373ddc9710a2c15ae0a2573d2c9a8", "consumersNeedRebuild": false, "idempotentReplay": false}}}}
+{"closedLoops": {"rehearsal": {"status": 200, "ok": true, "error": null, "data": {"apply": true, "dryRun": false, "changedRows": 152, "loopCount": 10, "hopCount": 30, "materializedChecksum": "sha256:cb398be39683dbeb7df1658e59e3212ca3a3459e1b87ac36320604c73b2aa9a7", "consumersNeedRebuild": true, "idempotentReplay": false}}, "applied": {"status": 200, "ok": true, "error": null, "data": {"apply": true, "dryRun": false, "changedRows": 0, "loopCount": 10, "hopCount": 30, "materializedChecksum": "sha256:cb398be39683dbeb7df1658e59e3212ca3a3459e1b87ac36320604c73b2aa9a7", "consumersNeedRebuild": false, "idempotentReplay": false}}}}
+{
+  "apply": true,
+  "steps": {
+    "candidateEdge": {
+      "rehearsal": {
+        "status": 200,
+        "ok": true,
+        "error": null,
+        "data": {
+          "apply": true,
+          "dryRun": false,
+          "changedRows": 1222,
+          "eligiblePoolCount": 26,
+          "materializedChecksum": "sha256:f87bdd4934d51e97789d143053040daba9e5164bdabd2e70e9a86b28d854a351",
+          "consumersNeedRebuild": true,
+          "idempotentReplay": false,
+          "skipReasonCounts": {}
+        }
+      },
+      "applied": {
+        "status": 200,
+        "ok": true,
+        "error": null,
+        "data": {
+          "apply": true,
+          "dryRun": false,
+          "changedRows": 0,
+          "eligiblePoolCount": 26,
+          "materializedChecksum": "sha256:f87bdd4934d51e97789d143053040daba9e5164bdabd2e70e9a86b28d854a351",
+          "consumersNeedRebuild": false,
+          "idempotentReplay": false,
+          "skipReasonCounts": {}
+        }
+      }
+    },
+    "candidateExchange": {
+      "rehearsal": {
+        "status": 200,
+        "ok": true,
+        "error": null,
+        "data": {
+          "apply": true,
+          "dryRun": false,
+          "changedRows": 710,
+          "directionCount": 108,
+          "materializedChecksum": "sha256:9930c276eb7a7673921e59e0fd064139dbcb6423c17dda7439675a147a416b59",
+          "consumersNeedRebuild": true,
+          "idempotentReplay": false
+        }
+      },
+      "applied": {
+        "status": 200,
+        "ok": true,
+        "error": null,
+        "data": {
+          "apply": true,
+          "dryRun": false,
+          "changedRows": 0,
+          "directionCount": 108,
+          "materializedChecksum": "sha256:9930c276eb7a7673921e59e0fd064139dbcb6423c17dda7439675a147a416b59",
+          "consumersNeedRebuild": false,
+          "idempotentReplay": false
+        }
+      }
+    },
+    "directionalPools": {
+      "rehearsal": {
+        "status": 200,
+        "ok": true,
+        "error": null,
+        "data": {
+          "apply": true,
+          "dryRun": false,
+          "changedRows": 194,
+          "materializedChecksum": "sha256:38348ae893bfde121933a2cdae0a94e2282373ddc9710a2c15ae0a2573d2c9a8",
+          "consumersNeedRebuild": true,
+          "idempotentReplay": false
+        }
+      },
+      "applied": {
+        "status": 200,
+        "ok": true,
+        "error": null,
+        "data": {
+          "apply": true,
+          "dryRun": false,
+          "changedRows": 0,
+          "materializedChecksum": "sha256:38348ae893bfde121933a2cdae0a94e2282373ddc9710a2c15ae0a2573d2c9a8",
+          "consumersNeedRebuild": false,
+          "idempotentReplay": false
+        }
+      }
+    },
+    "closedLoops": {
+      "rehearsal": {
+        "status": 200,
+        "ok": true,
+        "error": null,
+        "data": {
+          "apply": true,
+          "dryRun": false,
+          "changedRows": 152,
+          "loopCount": 10,
+          "hopCount": 30,
+          "materializedChecksum": "sha256:cb398be39683dbeb7df1658e59e3212ca3a3459e1b87ac36320604c73b2aa9a7",
+          "consumersNeedRebuild": true,
+          "idempotentReplay": false
+        }
+      },
+      "applied": {
+        "status": 200,
+        "ok": true,
+        "error": null,
+        "data": {
+          "apply": true,
+          "dryRun": false,
+          "changedRows": 0,
+          "loopCount": 10,
+          "hopCount": 30,
+          "materializedChecksum": "sha256:cb398be39683dbeb7df1658e59e3212ca3a3459e1b87ac36320604c73b2aa9a7",
+          "consumersNeedRebuild": false,
+          "idempotentReplay": false
+        }
+      }
+    }
+  }
+}
