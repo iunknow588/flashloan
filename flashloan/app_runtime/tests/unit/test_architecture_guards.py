@@ -651,11 +651,13 @@ def test_closed_loop_manual_review_and_broadcast_use_rust_only():
 
 def test_repo_root_keeps_only_intended_config_files():
     allowed_files = {
+        ".gitattributes",
         ".gitignore",
         "README.md",
         ".replit",
         "pytest.ini",
         "replit.nix",
+        "skills-lock.json",
     }
     generated_suffixes = (".log", ".json", ".sqlite3", ".tmp")
     generated_prefixes = (

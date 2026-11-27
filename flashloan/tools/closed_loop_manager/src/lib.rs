@@ -48,7 +48,7 @@ const HOP_MIDDLE_SCOPE_KEY: &str = "candidate_exchange";
 /// that order: the primary of a hop is the pool the direction layer ranked
 /// first.  The variable is the **kill switch** of that switch-over.
 ///
-/// Absent or empty means **on** — the direction layer is the authority — and
+/// Absent or empty means **on** 鈥?the direction layer is the authority 鈥?and
 /// only an explicit negative value (`0` / `false` / `off` / `no`) keeps the
 /// legacy order of the candidate tier.  A typo therefore can never silently
 /// disable the switch-over.
@@ -2582,7 +2582,7 @@ fn resolve_hop_directional_pool(
 /// observation) publishes for the hop, in their own order: its first entry
 /// is the hop's primary.  The **backup tier** follows and holds the pools of
 /// the same `(pair, direction)` group of the direction layer that the
-/// candidate tier does not name — the pools a truncation would have
+/// candidate tier does not name 鈥?the pools a truncation would have
 /// dropped.  The direction layer never truncates, so the group keeps every
 /// qualified pool and the backup tier is what makes them reachable.
 ///
@@ -2655,7 +2655,7 @@ fn build_hop_candidates(
         };
         // The tier of the pool inside its own group: the candidate tier of
         // the direction layer keeps the first `N` ranks, and everything
-        // beyond them is the backup tier — the tail a truncation dropped.
+        // beyond them is the backup tier 鈥?the tail a truncation dropped.
         let tier = match tier_of_rank(rank, eligible) {
             DirectionalPoolTier::Candidate => "candidate",
             DirectionalPoolTier::Backup => "backup",
@@ -4062,7 +4062,7 @@ fn read_loops(
                     .get::<_, Option<String>>(27)?
                     .and_then(|value| value.trim().parse::<u128>().ok()),
                 // The column was added by migration `20261124_016`, so a row
-                // that predates it — or a fixture that never wrote it —
+                // that predates it 鈥?or a fixture that never wrote it 鈥?
                 // carries NULL.  Reading it as a plain `String` turns that
                 // NULL into a hard error, which is exactly what the
                 // nullable columns around it already avoid.
@@ -4763,6 +4763,35 @@ pub fn reset_review_start_on_connection(
     Ok(updated > 0)
 }
 
+/// Reset the review start time of a closed loop in a store.
+///
+/// The wrapper opens the store and does the write, so a caller that only
+/// knows the path -- the runtime, for one -- does not have to open a
+/// connection of its own and does not have to know how the store is
+/// opened.  The rule the write follows is the one of
+/// [`reset_review_start_on_connection`]: this function only opens the
+/// door.
+pub fn reset_review_start(
+    database_path: impl AsRef<Path>,
+    network: &str,
+    chain_id: i64,
+    loop_key: &str,
+    reset: ReviewStartReset,
+    last_reviewed_at: Option<&str>,
+    reason: &str,
+) -> Result<bool, ClosedLoopError> {
+    let connection = open_connection(database_path.as_ref(), true)?;
+    reset_review_start_on_connection(
+        &connection,
+        network,
+        chain_id,
+        loop_key,
+        reset,
+        last_reviewed_at,
+        reason,
+    )
+}
+
 /// Start the review clock of a closed loop.
 ///
 /// The clock is the wait between two review rounds of a loop.  It is
@@ -5069,6 +5098,7 @@ pub fn read_due_review_loops(
 ) -> Result<Vec<ClosedLoopReviewDue>, ClosedLoopError> {
     let connection = open_connection(database_path.as_ref(), false)?;
     let now = chrono::Utc::now().to_rfc3339();
+    let now_epoch = chrono::Utc::now().timestamp();
     let mut statement = connection.prepare(
         "SELECT loop_key, runtime_status, next_review_at, review_cycle_started_at
          FROM manager_v4_closed_loop_runtime_state
@@ -5077,9 +5107,10 @@ pub fn read_due_review_loops(
            AND runtime_status IN ('ready_for_review', 'cooldown')
            AND (next_review_at IS NULL
                 OR (next_review_at NOT IN (?6, ?7)
-                    AND (julianday(next_review_at) IS NULL
-                         OR julianday(next_review_at) <= julianday(?5))))
-         ORDER BY julianday(next_review_at) ASC, loop_key ASC",
+                    AND (strftime('%s', next_review_at) IS NULL
+                         OR CAST(strftime('%s', next_review_at) AS INTEGER)
+                            <= CAST(strftime('%s', ?5) AS INTEGER))))
+         ORDER BY CAST(strftime('%s', next_review_at) AS INTEGER) ASC, loop_key ASC",
     )?;
     let rows = statement.query_map(
         params![
@@ -5098,7 +5129,8 @@ pub fn read_due_review_loops(
                 runtime_status: row.get(1)?,
                 review_waited_seconds: next_review_at
                     .as_deref()
-                    .map(seconds_since_moment)
+                    .and_then(moment_epoch)
+                    .map(|due| now_epoch.saturating_sub(due).max(0))
                     .unwrap_or(0),
                 next_review_at,
                 review_cycle_started_at: row.get(3)?,
@@ -5150,6 +5182,15 @@ pub struct ReviewSlot {
     pub due_epoch: i64,
     /// Whether the loop has no scheduled review at all.
     pub is_sentinel: bool,
+    /// The moment the round of the review of the loop started.
+    ///
+    /// The moment is **not** the moment the loop is scheduled at: it is
+    /// the moment the round that is running (or that ran) began.  The
+    /// sentinel that parks a busy loop replaces the scheduled moment, so
+    /// without this the queue would erase the trace of a round that
+    /// started and never ended -- and a watchdog that has to find such a
+    /// round would have nothing to look at.
+    pub review_cycle_started_at: Option<String>,
 }
 
 /// The review queue of a scope.
@@ -5293,7 +5334,7 @@ pub fn load_review_queue_on_connection(
     chain_id: i64,
 ) -> Result<ReviewQueue, ClosedLoopError> {
     let mut statement = connection.prepare(
-        "SELECT loop_key, runtime_status, next_review_at
+        "SELECT loop_key, runtime_status, next_review_at, review_cycle_started_at
            FROM manager_v4_closed_loop_runtime_state
           WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
             AND scope_key = ?4
@@ -5311,6 +5352,7 @@ pub fn load_review_queue_on_connection(
             let loop_key: String = row.get(0)?;
             let runtime_status: String = row.get(1)?;
             let due_at: Option<String> = row.get(2)?;
+            let review_cycle_started_at: Option<String> = row.get(3)?;
             let is_sentinel = due_at.as_deref().is_some_and(is_review_sentinel);
             let due_epoch = if is_sentinel {
                 // A loop that has no scheduled review sorts **last** for
@@ -5326,6 +5368,7 @@ pub fn load_review_queue_on_connection(
                 due_at,
                 due_epoch,
                 is_sentinel,
+                review_cycle_started_at,
             })
         },
     )?;
@@ -5344,6 +5387,138 @@ pub fn read_review_queue(
 ) -> Result<ReviewQueue, ClosedLoopError> {
     let connection = open_connection(database_path.as_ref(), false)?;
     load_review_queue_on_connection(&connection, network, chain_id)
+}
+
+/// The fingerprint of the review queue of a scope.
+///
+/// The fingerprint answers one question: **is the resident queue still
+/// the queue of the store?**  Every write that touches the schedule of a
+/// loop -- the claim of a round, the restart of a clock, the park at a
+/// sentinel -- bumps the moment the row was updated, so the fingerprint
+/// changes with every one of them.  A resident queue that carries the
+/// fingerprint of the moment it was loaded can therefore tell whether it
+/// may still be served.
+///
+/// The fingerprint is read with **one** row, so the check costs the same
+/// whether the scope holds ten loops or ten thousand.
+pub fn review_queue_fingerprint_on_connection(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+) -> Result<String, ClosedLoopError> {
+    let row: (i64, Option<String>) = connection.query_row(
+        "SELECT COUNT(*), MAX(updated_at)
+           FROM manager_v4_closed_loop_runtime_state
+          WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3
+            AND scope_key = ?4",
+        params![network, chain_id, NETWORK_PROTOCOL, CLOSED_LOOP_SCOPE_KEY],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    Ok(format!(
+        "{}|{}",
+        row.0,
+        row.1.as_deref().unwrap_or_default().trim()
+    ))
+}
+
+/// Read the fingerprint of the review queue of a scope.
+pub fn read_review_queue_fingerprint(
+    database_path: impl AsRef<Path>,
+    network: &str,
+    chain_id: i64,
+) -> Result<String, ClosedLoopError> {
+    let connection = open_connection(database_path.as_ref(), false)?;
+    review_queue_fingerprint_on_connection(&connection, network, chain_id)
+}
+
+/// The review queue of a scope, together with the fingerprint of the
+/// store it was read from.
+///
+/// The two are read **together**, inside one snapshot of the store, so
+/// they cannot disagree: the fingerprint says what the store looked like
+/// when the queue was read, and a queue that carries a **different**
+/// fingerprint than the one the store shows now is a queue that must be
+/// read again.
+///
+/// The pair is what makes a **resident** queue possible: the resident
+/// copy is served as long as the fingerprint holds, and the fingerprint
+/// costs **one row**, so the check does not grow with the scope.
+#[derive(Debug)]
+pub struct ResidentReviewQueue {
+    /// The fingerprint of the store at the moment the queue was read.
+    pub fingerprint: String,
+    /// The queue itself.
+    pub queue: ReviewQueue,
+}
+
+/// Read the review queue of a scope and the fingerprint of the store.
+pub fn read_resident_review_queue(
+    database_path: impl AsRef<Path>,
+    network: &str,
+    chain_id: i64,
+) -> Result<ResidentReviewQueue, ClosedLoopError> {
+    let connection = open_connection(database_path.as_ref(), false)?;
+    read_resident_review_queue_on_connection(&connection, network, chain_id)
+}
+
+/// Read the review queue of a scope and the fingerprint of the store,
+/// on a connection the caller holds.
+///
+/// The two are read inside **one** transaction, so they are two views of
+/// the same moment of the store: a write that lands between the two
+/// reads cannot make the fingerprint describe a queue that was never
+/// read.
+pub fn read_resident_review_queue_on_connection(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+) -> Result<ResidentReviewQueue, ClosedLoopError> {
+    let transaction = connection.unchecked_transaction()?;
+    let fingerprint = review_queue_fingerprint_on_connection(connection, network, chain_id)?;
+    let queue = load_review_queue_on_connection(connection, network, chain_id)?;
+    transaction.commit()?;
+    Ok(ResidentReviewQueue { fingerprint, queue })
+}
+
+/// The loops of a scope that are due, taken from the queue.
+///
+/// The queue is ordered by the moment the loops are scheduled at, so the
+/// walk stops at the **first** entry that is not due: the cost of one
+/// round is the number of loops that are due and **not** the number of
+/// loops the scope holds.  That is the difference between a scan that
+/// grows with the scope and a scan that grows with the work.
+pub fn due_review_loops_from_queue(
+    queue: &ReviewQueue,
+    now_epoch: i64,
+) -> Vec<ClosedLoopReviewDue> {
+    queue
+        .due_entries(now_epoch)
+        .into_iter()
+        .map(|slot| ClosedLoopReviewDue {
+            loop_key: slot.loop_key.clone(),
+            runtime_status: slot.runtime_status.clone(),
+            next_review_at: slot.due_at.clone(),
+            review_waited_seconds: now_epoch.saturating_sub(slot.due_epoch).max(0),
+            review_cycle_started_at: slot.review_cycle_started_at.clone(),
+        })
+        .collect()
+}
+
+/// The number of entries the walk over a queue touched.
+///
+/// The number is what makes the prefix truncation **observable**: a round
+/// that had to walk the whole queue touched every entry, and a round that
+/// stopped at the first entry that is not due touched the due entries and
+/// one more.
+pub fn review_queue_scan_cost(queue: &ReviewQueue, now_epoch: i64) -> usize {
+    let mut touched = 0usize;
+    for (moment, _) in &queue.order {
+        touched += 1;
+        if *moment > now_epoch {
+            break;
+        }
+    }
+    touched
 }
 
 /// One entry of the review queue, as an operator sees it.
@@ -6654,11 +6829,14 @@ mod tests {
         ReviewQueue, ReviewSlot, moment_epoch,
         read_review_queue, load_review_queue_on_connection, read_review_queue_view,
         count_waiting_review_loops, read_due_review_loops, RUNTIME_STATUS_RETIRED,
+        read_resident_review_queue, read_review_queue_fingerprint,
+        review_queue_scan_cost,
     };
     use manager_contracts::directional_pool::{DirectionalPool, PoolDirection, V4Pool};
     use manager_contracts::TokenKeyId;
     use rusqlite::{params, Connection};
     use std::collections::{BTreeMap, BTreeSet};
+    use chrono::Timelike;
 
     const NETWORK: &str = "robinhood";
     const CHAIN_ID: i64 = 4663;
@@ -8411,6 +8589,7 @@ mod tests {
             due_at: due_at.map(|value| value.to_owned()),
             due_epoch,
             is_sentinel,
+            review_cycle_started_at: None,
         }
     }
 
@@ -8749,6 +8928,156 @@ mod tests {
             count_waiting_review_loops(&path, NETWORK, CHAIN_ID).unwrap(),
             4
         );
+    }
+
+    /// The resident queue carries the fingerprint of the store.
+    ///
+    /// The fingerprint is what tells a resident copy whether it may still
+    /// be served: every write that touches the schedule of a loop bumps
+    /// the moment the row was updated, so the fingerprint follows the
+    /// store.
+    #[test]
+    fn the_resident_queue_carries_the_fingerprint_of_the_store() {
+        let (_directory, path) = database();
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let resident = read_resident_review_queue(&path, NETWORK, CHAIN_ID).unwrap();
+        assert!(!resident.fingerprint.is_empty());
+        assert_eq!(
+            resident.fingerprint,
+            read_review_queue_fingerprint(&path, NETWORK, CHAIN_ID).unwrap(),
+            "the fingerprint and the queue are two views of the same moment",
+        );
+        assert_eq!(
+            resident.queue.len(),
+            read_review_queue(&path, NETWORK, CHAIN_ID).unwrap().len(),
+            "the resident queue holds the loops of the scope",
+        );
+        // A write that touches the schedule of a loop changes the
+        // fingerprint, so a resident copy that fell behind is noticed.
+        let connection = Connection::open(&path).unwrap();
+        let loop_key = resident.queue.first().unwrap().loop_key.clone();
+        connection
+            .execute(
+                "UPDATE manager_v4_closed_loop_runtime_state
+                    SET updated_at = '2099-01-01T00:00:00+00:00'
+                  WHERE network = ?1 AND chain_id = ?2 AND loop_key = ?3",
+                params![NETWORK, CHAIN_ID, loop_key],
+            )
+            .unwrap();
+        assert_ne!(
+            resident.fingerprint,
+            read_review_queue_fingerprint(&path, NETWORK, CHAIN_ID).unwrap(),
+            "the fingerprint follows the store",
+        );
+    }
+
+    /// The queue and the store agree on the due loops **to the second**.
+    ///
+    /// The two answers are computed twice: once by the store and once by
+    /// the queue.  The store compares the moments with the **epoch
+    /// second** they fall into, and the queue counts in epoch seconds as
+    /// well, so a loop that is due in one of them is due in the other --
+    /// even when the two moments carry different fractions of a second.
+    #[test]
+    fn the_queue_and_the_store_agree_on_the_due_loops_to_the_second() {
+        let (_directory, path) = database();
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let seeded = snapshot.loops[0].loop_key.clone();
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute(
+                "UPDATE manager_v4_closed_loop_runtime_state
+                    SET runtime_status = 'cooldown',
+                        next_review_at = '2099-01-01T00:00:00+00:00'
+                  WHERE network = ?1 AND chain_id = ?2 AND loop_key = ?3",
+                params![NETWORK, CHAIN_ID, seeded],
+            )
+            .unwrap();
+        // The moment is anchored to the **start** of the current second, and
+        // the fraction is a quarter of a second: a moment that falls in the
+        // same second as the moment of the test, whatever the fraction of
+        // the second the test happens to run in.  Anchoring at the start of
+        // the second is what makes the assertion hold on every run -- a
+        // moment taken half a second after "now" lands in the **next**
+        // second half of the time, and the two answers then disagree for a
+        // reason that has nothing to do with the precision under test.
+        let now = chrono::Utc::now();
+        let start_of_second = now.with_nanosecond(0).unwrap();
+        let same_second = (start_of_second + chrono::Duration::milliseconds(250))
+            .to_rfc3339_opts(chrono::SecondsFormat::Nanos, true);
+        insert_runtime_state(&connection, "loop-same-second", "cooldown", Some(&same_second));
+        let due_from_store: Vec<String> = read_due_review_loops(&path, NETWORK, CHAIN_ID)
+            .unwrap()
+            .into_iter()
+            .map(|row| row.loop_key)
+            .collect();
+        let queue = read_review_queue(&path, NETWORK, CHAIN_ID).unwrap();
+        // The same moment is used on **both** sides: the store reads its own
+        // "now" when it is asked, and the queue is asked about the moment
+        // the test took, so the two answers are about the same second.
+        let due_from_queue: Vec<String> = queue
+            .due_entries(now.timestamp())
+            .into_iter()
+            .map(|slot| slot.loop_key.clone())
+            .collect();
+        assert_eq!(
+            due_from_store, due_from_queue,
+            "the queue and the store have to name the same due loops",
+        );
+        assert!(
+            due_from_queue.contains(&"loop-same-second".to_owned()),
+            "a loop that falls into the second of the moment is due, got {due_from_queue:?}",
+        );
+    }
+
+    /// The walk over the queue stops at the first loop that is not due.
+    ///
+    /// The number of entries the walk touched is the cost of one round:
+    /// it is the number of loops that are due and **one** more, not the
+    /// number of loops the scope holds.
+    #[test]
+    fn the_walk_over_the_queue_touches_the_due_loops_and_one_more() {
+        let (_directory, path) = database();
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let seeded = snapshot.loops[0].loop_key.clone();
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute(
+                "UPDATE manager_v4_closed_loop_runtime_state
+                    SET runtime_status = 'cooldown',
+                        next_review_at = '2099-01-01T00:00:00+00:00'
+                  WHERE network = ?1 AND chain_id = ?2 AND loop_key = ?3",
+                params![NETWORK, CHAIN_ID, seeded],
+            )
+            .unwrap();
+        insert_runtime_state(
+            &connection,
+            "loop-due-first",
+            "cooldown",
+            Some("2026-01-01T00:00:00+00:00"),
+        );
+        insert_runtime_state(
+            &connection,
+            "loop-due-second",
+            "cooldown",
+            Some("2026-01-02T00:00:00+00:00"),
+        );
+        insert_runtime_state(
+            &connection,
+            "loop-waits",
+            "cooldown",
+            Some("2099-01-01T00:00:00+00:00"),
+        );
+        let queue = read_review_queue(&path, NETWORK, CHAIN_ID).unwrap();
+        let now = chrono::Utc::now().timestamp();
+        assert_eq!(
+            review_queue_scan_cost(&queue, now),
+            3,
+            "the walk touches the due loops and the first one that is not due",
+        );
+        assert_eq!(queue.due_entries(now).len(), 2);
     }
 
     /// The queue is published as a view.

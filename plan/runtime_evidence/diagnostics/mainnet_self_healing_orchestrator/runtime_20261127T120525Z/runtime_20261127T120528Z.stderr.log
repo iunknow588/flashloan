@@ -1,0 +1,416 @@
+runtime env: profile=v4_dex dex_only=true active=4663/robinhood kv=E:\2026OPC大赛\flashLoan\flashloan\db\local_store_4663.sqlite3 dex_default=4663
+chain runtime active: chain_id=4663 network=robinhood database=E:\2026OPC大赛\flashLoan\flashloan\db\local_store_4663.sqlite3
+non-DEX background disabled by runtime profile v4_dex
+V4 maintenance workers running: ['v4_broadcast_execution_worker', 'v4_candidate_yc_zc_worker', 'v4_closed_loop_worker', 'v4_dex_overview_worker', 'v4_directional_pool_worker', 'v4_market_observation_worker', 'v4_onchain_review_worker', 'v4_pool_liquidity_worker']
+BNB shared market collector disabled by FLASHLOAN_BNB_SHARED_DATABASE
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.8:5000
+Press CTRL+C to quit
+127.0.0.1 - - [27/Nov/2026 20:05:47] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:05:47] "GET /healthz HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [27/Nov/2026 20:05:49] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [27/Nov/2026 20:07:41] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Nov/2026 20:07:41] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Nov/2026 20:07:43] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Nov/2026 20:07:43] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Nov/2026 20:07:43] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Nov/2026 20:13:37] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:13:37] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:13:38] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:13:38] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:13:38] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:13:39] "POST /api/dex/closed-loop-groups/eth|googl|spy/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:13:39] "GET /api/dex/closed-loop-groups?chain_id=4663&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:13:39] "POST /api/dex/closed-loop-groups/eth|nvda|spy/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:13:39] "GET /api/dex/closed-loop-groups?chain_id=4663&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:13:39] "POST /api/dex/closed-loop-groups/eth|meta|spy/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:13:39] "POST /api/dex/closed-loop-groups/eth|nvda|mu/refresh?chain_id=4663 HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [27/Nov/2026 20:13:46] "POST /api/dex/closed-loop-groups/eth|spy|nvda/refresh?chain_id=4663 HTTP/1.1" 200 -
+[review-stale] robinhood chain 4663: 5 of 10 closed loops went quiet, 0 broadcast requests withdrawn
+127.0.0.1 - - [27/Nov/2026 20:14:05] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:14:06] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:14:13] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Nov/2026 20:14:13] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Nov/2026 20:14:13] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Nov/2026 20:14:13] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Nov/2026 20:14:13] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Nov/2026 20:14:18] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:14:19] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:14:19] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:14:19] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:14:19] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:14:22] "POST /api/dex/closed-loop-groups/eth|mu|spy/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:14:22] "POST /api/dex/closed-loop-groups/eth|spy|meta/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:14:22] "POST /api/dex/closed-loop-groups/eth|spy|mu/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:14:22] "POST /api/dex/closed-loop-groups/eth|spy|googl/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:14:22] "POST /api/dex/closed-loop-groups/eth|mu|nvda/refresh?chain_id=4663 HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'blissful-billowing-pine.robinhood-mainnet.quiknode.pro'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'blissful-billowing-pine.robinhood-mainnet.quiknode.pro'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'blissful-billowing-pine.robinhood-mainnet.quiknode.pro'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'blissful-billowing-pine.robinhood-mainnet.quiknode.pro'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [27/Nov/2026 20:17:39] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:17:40] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:17:48] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Nov/2026 20:17:49] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 409 -
+127.0.0.1 - - [27/Nov/2026 20:17:49] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Nov/2026 20:17:49] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Nov/2026 20:17:49] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Nov/2026 20:17:53] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:17:53] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:17:54] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:17:54] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:17:58] "POST /api/dex/closed-loop-groups/eth|spy|googl/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:17:58] "POST /api/dex/closed-loop-groups/eth|spy|meta/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:17:58] "POST /api/dex/closed-loop-groups/eth|spy|mu/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:17:58] "POST /api/dex/closed-loop-groups/eth|googl|spy/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:20:32] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:20:33] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+closed-loop runtime state sync failed: database is locked
+Traceback (most recent call last):
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\dex_opportunity_scanner_rust_mixin.py", line 1739, in _record_native_worker_results
+    closed_loop_consumer.record_state_from_attempts(database_by_chain, attempts)
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_consumer.py", line 678, in record_state_from_attempts
+    claimed = machine.claim(
+              ^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_object.py", line 833, in claim
+    row = _sm.claim_loop(
+          ^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_state_machine.py", line 905, in claim_loop
+    changed = execute(
+              ^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 48, in execute
+    return _with_busy_retry(_run)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 37, in _with_busy_retry
+    raise last_error
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 29, in _with_busy_retry
+    return operation()
+           ^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 44, in _run
+    cursor = connection.execute(sql, tuple(params))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [27/Nov/2026 20:23:29] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Nov/2026 20:24:40] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Nov/2026 20:24:40] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Nov/2026 20:24:40] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Nov/2026 20:24:40] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Nov/2026 20:26:25] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:27:15] "GET /healthz HTTP/1.1" 200 -
+closed-loop runtime state sync failed: database is locked
+Traceback (most recent call last):
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\dex_opportunity_scanner_rust_mixin.py", line 1739, in _record_native_worker_results
+    closed_loop_consumer.record_state_from_attempts(database_by_chain, attempts)
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_consumer.py", line 678, in record_state_from_attempts
+    claimed = machine.claim(
+              ^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_object.py", line 833, in claim
+    row = _sm.claim_loop(
+          ^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_state_machine.py", line 905, in claim_loop
+    changed = execute(
+              ^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 48, in execute
+    return _with_busy_retry(_run)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 37, in _with_busy_retry
+    raise last_error
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 29, in _with_busy_retry
+    return operation()
+           ^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 44, in _run
+    cursor = connection.execute(sql, tuple(params))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+127.0.0.1 - - [27/Nov/2026 20:28:05] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:28:37] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:28:55] "GET /healthz HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [27/Nov/2026 20:29:45] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:30:35] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:31:25] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:32:15] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:32:56] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:33:06] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:33:56] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:34:11] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:34:11] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:34:11] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:34:11] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:34:11] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:34:11] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:34:11] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:34:11] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:34:22] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 409 -
+127.0.0.1 - - [27/Nov/2026 20:34:22] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 409 -
+127.0.0.1 - - [27/Nov/2026 20:34:22] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Nov/2026 20:34:22] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Nov/2026 20:34:22] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 409 -
+127.0.0.1 - - [27/Nov/2026 20:34:26] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:34:27] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:34:28] "POST /api/dex/closed-loop-groups/eth|meta|spy/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:34:29] "POST /api/dex/closed-loop-groups/eth|googl|spy/refresh?chain_id=4663 HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [27/Nov/2026 20:42:56] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:42:56] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:42:56] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:43:46] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:44:36] "GET /healthz HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [27/Nov/2026 20:45:26] "GET /healthz HTTP/1.1" 200 -
+closed-loop runtime state sync failed: database is locked
+Traceback (most recent call last):
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\dex_opportunity_scanner_rust_mixin.py", line 1739, in _record_native_worker_results
+    closed_loop_consumer.record_state_from_attempts(database_by_chain, attempts)
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_consumer.py", line 715, in record_state_from_attempts
+    closed = machine.mark_execution_not_requested(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_object.py", line 963, in mark_execution_not_requested
+    row = _sm.mark_execution_not_requested(
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_state_machine.py", line 1112, in mark_execution_not_requested
+    return transition_loop_state(
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_state_machine.py", line 1070, in transition_loop_state
+    changed = execute(
+              ^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 48, in execute
+    return _with_busy_retry(_run)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 37, in _with_busy_retry
+    raise last_error
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 29, in _with_busy_retry
+    return operation()
+           ^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 44, in _run
+    cursor = connection.execute(sql, tuple(params))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+127.0.0.1 - - [27/Nov/2026 20:46:09] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:46:09] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:46:09] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:46:09] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:46:16] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:47:06] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:47:56] "GET /healthz HTTP/1.1" 200 -
+closed-loop runtime state sync failed: database is locked
+Traceback (most recent call last):
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\dex_opportunity_scanner_rust_mixin.py", line 1739, in _record_native_worker_results
+    closed_loop_consumer.record_state_from_attempts(database_by_chain, attempts)
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_consumer.py", line 678, in record_state_from_attempts
+    claimed = machine.claim(
+              ^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_object.py", line 833, in claim
+    row = _sm.claim_loop(
+          ^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_state_machine.py", line 905, in claim_loop
+    changed = execute(
+              ^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 48, in execute
+    return _with_busy_retry(_run)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 37, in _with_busy_retry
+    raise last_error
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 29, in _with_busy_retry
+    return operation()
+           ^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 44, in _run
+    cursor = connection.execute(sql, tuple(params))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [27/Nov/2026 20:48:46] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:48:56] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [27/Nov/2026 20:49:36] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:51:47] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:52:37] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:53:25] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:53:27] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:54:17] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:54:27] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:55:07] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:55:30] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:55:30] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:55:30] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:55:30] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:55:30] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:55:30] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:55:30] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:55:57] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:56:47] "GET /healthz HTTP/1.1" 200 -
+closed-loop runtime state sync failed: database is locked
+Traceback (most recent call last):
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\dex_opportunity_scanner_rust_mixin.py", line 1739, in _record_native_worker_results
+    closed_loop_consumer.record_state_from_attempts(database_by_chain, attempts)
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_consumer.py", line 691, in record_state_from_attempts
+    completed = machine.complete(
+                ^^^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_object.py", line 854, in complete
+    row = _sm.complete_loop(
+          ^^^^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_state_machine.py", line 1179, in complete_loop
+    changed = execute(
+              ^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 48, in execute
+    return _with_busy_retry(_run)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 37, in _with_busy_retry
+    raise last_error
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 29, in _with_busy_retry
+    return operation()
+           ^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 44, in _run
+    cursor = connection.execute(sql, tuple(params))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+127.0.0.1 - - [27/Nov/2026 20:57:30] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:57:37] "GET /healthz HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [27/Nov/2026 20:58:26] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:58:27] "GET /healthz HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [27/Nov/2026 20:59:15] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:59:15] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 20:59:17] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 21:00:10] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 21:01:17] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 21:02:07] "GET /healthz HTTP/1.1" 200 -
+closed-loop runtime state sync failed: database is locked
+Traceback (most recent call last):
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\dex_opportunity_scanner_rust_mixin.py", line 1739, in _record_native_worker_results
+    closed_loop_consumer.record_state_from_attempts(database_by_chain, attempts)
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_consumer.py", line 691, in record_state_from_attempts
+    completed = machine.complete(
+                ^^^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_object.py", line 854, in complete
+    row = _sm.complete_loop(
+          ^^^^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_state_machine.py", line 1179, in complete_loop
+    changed = execute(
+              ^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 48, in execute
+    return _with_busy_retry(_run)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 37, in _with_busy_retry
+    raise last_error
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 29, in _with_busy_retry
+    return operation()
+           ^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 44, in _run
+    cursor = connection.execute(sql, tuple(params))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+127.0.0.1 - - [27/Nov/2026 21:02:20] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 21:02:57] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 21:03:33] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 21:03:33] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 21:03:33] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 21:03:33] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 21:03:47] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 21:04:37] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 21:05:27] "GET /healthz HTTP/1.1" 200 -
+closed-loop runtime state sync failed: database is locked
+Traceback (most recent call last):
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\dex_opportunity_scanner_rust_mixin.py", line 1739, in _record_native_worker_results
+    closed_loop_consumer.record_state_from_attempts(database_by_chain, attempts)
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_consumer.py", line 678, in record_state_from_attempts
+    claimed = machine.claim(
+              ^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_object.py", line 833, in claim
+    row = _sm.claim_loop(
+          ^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_state_machine.py", line 905, in claim_loop
+    changed = execute(
+              ^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 48, in execute
+    return _with_busy_retry(_run)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 37, in _with_busy_retry
+    raise last_error
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 29, in _with_busy_retry
+    return operation()
+           ^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 44, in _run
+    cursor = connection.execute(sql, tuple(params))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+127.0.0.1 - - [27/Nov/2026 21:06:18] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 21:07:08] "GET /healthz HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [27/Nov/2026 21:07:48] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 21:07:48] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 21:07:58] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 21:08:48] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 21:09:39] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [27/Nov/2026 21:09:40] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -

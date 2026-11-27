@@ -3465,7 +3465,13 @@ def build_report(
                 if name not in ("cascadeMatrix", "databaseBaseline")
                 and not layer.get("valid")]
     generated_at = now()
-    production = transaction_production_status(layers, generated_at)
+    # The production gate and the review queue read the **same** number:
+    # the review interval the chain is configured with.  The queue says
+    # when a loop is due, and the gate says how old a review may be while
+    # it is acted on -- one cadence, so the two can never disagree about
+    # what "fresh" means.
+    production = transaction_production_status(
+        layers, generated_at, review_interval_seconds(database))
     return {"mode": "check", "generatedAt": generated_at, "network": NETWORK, "chainId": CHAIN_ID,
             "database": str(database), "observationStartedAt": observation_started_at(),
             "orchestrationGoal": "continuously_produce_stable_arbitrage_transaction_records_and_analyze_pnl",

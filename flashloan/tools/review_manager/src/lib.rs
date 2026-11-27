@@ -119,14 +119,103 @@ pub fn automatic_review_interval_seconds_on_connection(connection: &Connection) 
     closed_loop_manager::review_interval_seconds_on_connection(connection)
 }
 
-fn review_is_fresh_for_automatic_broadcast(reviewed_at: &str, window_seconds: i64) -> bool {
-    let Ok(reviewed_at) = chrono::DateTime::parse_from_rfc3339(reviewed_at) else {
+/// Whether a measurement is the **current** one of its closed loop.
+///
+/// The question is answered by **moments**, never by an age.  The
+/// review interval says how long a loop waits before it is measured
+/// again, and that number belongs to the helper that schedules the loop
+/// -- nobody else needs it, and nobody else may rebuild it here: an age
+/// counted from the measurement would count the **time the review
+/// itself took**, and a review that took a minute to measure would look
+/// older than a review that took a second, although both are the
+/// current measurement of their loop.
+///
+/// A measurement belongs to the round that is running now, and the round
+/// starts at ``review_cycle_started_at``.  So the measurement is current
+/// exactly when it was taken at or after that moment.  A loop that
+/// publishes no round start -- nobody claimed the round -- is answered
+/// by the row the store already holds: a measurement that is not newer
+/// than the published one carries nothing new, so it cannot be the
+/// current measurement of its loop.
+fn review_is_current_for_automatic_broadcast(
+    reviewed_at: &str,
+    round_started_at: Option<&str>,
+    published_reviewed_at: Option<&str>,
+) -> bool {
+    let Ok(reviewed_at) = chrono::DateTime::parse_from_rfc3339(reviewed_at.trim()) else {
         return false;
     };
-    let age = chrono::Utc::now()
-        .signed_duration_since(reviewed_at.with_timezone(&chrono::Utc))
-        .num_seconds();
-    (-MAX_AUTOMATIC_BROADCAST_FUTURE_SKEW_SECONDS..=window_seconds).contains(&age)
+    let reviewed_at = reviewed_at.with_timezone(&chrono::Utc);
+    // A measurement that claims to happen in the future is a clock skew,
+    // not a measurement: the round it belongs to cannot have happened yet.
+    let skew_seconds = chrono::Utc::now().signed_duration_since(reviewed_at).num_seconds();
+    if skew_seconds > MAX_AUTOMATIC_BROADCAST_FUTURE_SKEW_SECONDS {
+        return false;
+    }
+    if let Some(round_started_at) = round_started_at
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+    {
+        return reviewed_at >= round_started_at.with_timezone(&chrono::Utc);
+    }
+    match published_reviewed_at
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+    {
+        Some(published) => reviewed_at > published.with_timezone(&chrono::Utc),
+        None => true,
+    }
+}
+
+/// The moments of one closed loop that say whether a measurement is its
+/// current one.
+///
+/// The moments are the loop's own: the start of the round that is
+/// running and the moment the store published the last review.  Both
+/// are read, never computed -- no interval is rebuilt here.
+#[derive(Debug, Clone, Default)]
+struct LoopReviewMoments {
+    /// The moment the round of the review of the loop started.
+    round_started_at: Option<String>,
+    /// The moment the review the store already holds was measured.
+    published_reviewed_at: Option<String>,
+}
+
+/// The moments of every closed loop of a scope, read from the store.
+///
+/// The round start comes from the review queue of the scope -- the queue
+/// holds the moment the round that is running now began, beside the
+/// moment the loop is scheduled at -- and the published measurement comes
+/// from the reviews the store already holds.  Both are **read**: the
+/// review interval is not rebuilt here, because it has already been
+/// folded into the moment the loop is scheduled at.
+fn read_loop_review_moments(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+    stored: &BTreeMap<String, ReviewContentProjection>,
+) -> Result<BTreeMap<String, LoopReviewMoments>, ReviewError> {
+    let queue = closed_loop_manager::load_review_queue_on_connection(connection, network, chain_id)
+        .map_err(|error| ReviewError::ClosedLoopRead(error.to_string()))?;
+    let mut moments = BTreeMap::new();
+    for slot in queue.iter() {
+        let key = slot.loop_key.trim().to_lowercase();
+        if key.is_empty() {
+            continue;
+        }
+        moments.insert(
+            key.clone(),
+            LoopReviewMoments {
+                round_started_at: slot.review_cycle_started_at.clone(),
+                published_reviewed_at: stored
+                    .get(&key)
+                    .map(|projection| projection.reviewed_at.clone()),
+            },
+        );
+    }
+    Ok(moments)
 }
 
 #[derive(Debug)]
@@ -1055,12 +1144,6 @@ fn run_on_connection(
         validate_expected_upstream(&request.expected_upstream, &input.closed_loop)?;
     }
     validate_evidence_membership(evidence, &input.loops)?;
-    // The freshness window is the automatic review interval, and the
-    // interval is a parameter that may change while the system runs, so it
-    // is read from the store this pass writes to.
-    let freshness_window_seconds = automatic_review_interval_seconds_on_connection(connection);
-    let desired = build_review_rows(&input, evidence, freshness_window_seconds)?;
-    let previous = read_status_on_connection(connection, network, chain_id)?;
     // The reviews the store already holds, and the state this pass leaves
     // behind.  A review belongs to **one** closed loop, so the state of the
     // library is the whole set of reviews the store holds - not the set
@@ -1068,6 +1151,14 @@ fn run_on_connection(
     // was not measured in this pass keeps the review it already has, and a
     // loop that was measured again carries its newest measurement.
     let stored = read_stored_review_projections(connection, network, chain_id)?;
+    // The moments that say whether a measurement is the current one of its
+    // loop: the start of the round that is running now, and the moment
+    // the store published the last review.  Both are the loop's own
+    // moments -- the review interval is not read here, because it has
+    // already been folded into the moment the loop is scheduled at.
+    let loop_moments = read_loop_review_moments(connection, network, chain_id, &stored)?;
+    let desired = build_review_rows(&input, evidence, &loop_moments)?;
+    let previous = read_status_on_connection(connection, network, chain_id)?;
     let accumulated =
         accumulate_review_state(connection, network, chain_id, &stored, &desired)?;
     let checksum = review_state_checksum(&input, &accumulated)?;
@@ -4870,6 +4961,19 @@ fn upsert_review_rows(
 /// closed-loop Manager: the moment of the measurement and the moment it is
 /// due again are stored beside the loop, and a rebuild of the catalog
 /// carries them over instead of resetting them.
+///
+/// The round **overrides** the one record the loop has in the queue:
+///
+/// * a round that found a **profit** parks the loop at the broadcast
+///   sentinel, because the loop has traded and waits for the receipt of
+///   its transaction -- it has no scheduled review while it waits;
+/// * a round that found **no profit** starts the clock again, so the
+///   loop is due one interval later.
+///
+/// The park is not a dead end: the broadcast layer puts the loop back in
+/// the queue when the attempt reaches its terminal state, and the runtime
+/// puts it back when the broadcast never left.  Without that release a
+/// profitable loop would wait for ever.
 fn record_review_schedules(
     connection: &Connection,
     network: &str,
@@ -4883,23 +4987,37 @@ fn record_review_schedules(
             // review that names one.
             continue;
         }
-        // The reason says what the round of the review found: a loop that
-        // was measured and carries a profit waits for the next round, and a
-        // loop that was measured and carries no profit waits for the next
-        // round just the same -- both restart the clock of the loop.
-        let reason = match review_round_outcome(row) {
-            ReviewRoundOutcome::Profit => "measured_with_profit",
-            ReviewRoundOutcome::NoProfit => "measured_without_profit",
-        };
-        closed_loop_manager::record_review_schedule_on_connection(
-            connection,
-            network,
-            chain_id,
-            &row.loop_key,
-            &row.reviewed_at,
-            reason,
-        )
-        .map_err(|error| ReviewError::ClosedLoopRead(error.to_string()))?;
+        match review_round_outcome(row) {
+            ReviewRoundOutcome::Profit => {
+                // The round paid, so the loop trades.  It waits for the
+                // receipt of its transaction, and a loop that waits has
+                // no scheduled review: it is parked at the broadcast
+                // sentinel until the attempt is terminal.
+                closed_loop_manager::reset_review_start_on_connection(
+                    connection,
+                    network,
+                    chain_id,
+                    &row.loop_key,
+                    closed_loop_manager::ReviewStartReset::BroadcastPending,
+                    Some(&row.reviewed_at),
+                    "measured_with_profit",
+                )
+                .map_err(|error| ReviewError::ClosedLoopRead(error.to_string()))?;
+            }
+            ReviewRoundOutcome::NoProfit => {
+                // The round found no profit, so the loop waits for the
+                // next round: the clock starts again.
+                closed_loop_manager::record_review_schedule_on_connection(
+                    connection,
+                    network,
+                    chain_id,
+                    &row.loop_key,
+                    &row.reviewed_at,
+                    "measured_without_profit",
+                )
+                .map_err(|error| ReviewError::ClosedLoopRead(error.to_string()))?;
+            }
+        }
     }
     Ok(())
 }
@@ -6044,14 +6162,19 @@ mod tests {
         .tap(|_| assert_eq!(status.review_version, 0))
     }
 
-    /// A measurement restarts the review clock of the loop it measured.
+    /// A measurement that found a profit parks the loop it measured.
     ///
     /// The clock belongs to the **closed loop**, so the review manager
     /// writes it through the closed-loop Manager: the moment of the
-    /// measurement and the moment it is due again are stored beside the
-    /// loop, and the loop stops waiting for a review.
+    /// measurement is stored beside the loop, and the loop stops waiting
+    /// for a review.
+    ///
+    /// A round that found a profit means the loop **trades**: it waits
+    /// for the receipt of its transaction, so it has no scheduled review
+    /// and is parked at the broadcast sentinel.  The broadcast layer puts
+    /// the loop back into the queue when the attempt is terminal.
     #[test]
-    fn a_review_restarts_the_review_clock_of_the_loop() {
+    fn a_profitable_review_parks_the_loop_at_the_broadcast_sentinel() {
         let (_directory, path) = database();
         {
             let connection = Connection::open(&path).unwrap();
@@ -6078,14 +6201,70 @@ mod tests {
         )
         .unwrap();
         let connection = Connection::open(&path).unwrap();
-        let clock: (Option<String>, Option<String>, i64) = connection
+        let clock: (Option<String>, Option<String>, i64, String) = connection
             .query_row(
-                "SELECT last_reviewed_at, next_review_at, review_required
+                "SELECT last_reviewed_at, next_review_at, review_required, runtime_status
                  FROM manager_v4_closed_loop_runtime_state
                  WHERE network = ?1 AND chain_id = ?2 AND scope_key = 'core4'
                    AND loop_key = ?3",
                 params![NETWORK, CHAIN_ID, LOOP_KEY],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(clock.0.as_deref(), Some("2026-11-04T00:00:00Z"));
+        assert_eq!(
+            clock.1.as_deref(),
+            Some(closed_loop_manager::BROADCAST_PENDING_SENTINEL_AT),
+            "a loop that waits for its receipt has no scheduled review",
+        );
+        assert_eq!(clock.2, 0, "the loop is not waiting for a review");
+        assert_eq!(
+            clock.3, "broadcast_pending",
+            "a loop that waits for its receipt says so in its state",
+        );
+    }
+
+    /// A measurement without a profit restarts the review clock of the
+    /// loop it measured.
+    ///
+    /// The loop found no room to trade, so it waits for the next round:
+    /// the clock starts again and the loop is due one interval later.
+    #[test]
+    fn a_review_without_profit_restarts_the_review_clock_of_the_loop() {
+        let (_directory, path) = database();
+        {
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute(
+                    "INSERT INTO manager_v4_closed_loop_runtime_state (
+                         network, chain_id, protocol, scope_key, loop_key,
+                         runtime_status, status_reason, review_generation,
+                         review_required, last_rebuilt_at, last_reviewed_at,
+                         next_review_at, updated_at
+                     ) VALUES (?1, ?2, 'uniswap_v4', 'core4', ?3,
+                               'ready_for_review', NULL, 1, 1, 'fixture',
+                               NULL, NULL, 'fixture')",
+                    params![NETWORK, CHAIN_ID, LOOP_KEY],
+                )
+                .unwrap();
+        }
+        run_reviews(
+            &path,
+            NETWORK,
+            CHAIN_ID,
+            vec![evidence(Some(signed_pnl(-12.5)), true, true, Vec::new())],
+            true,
+        )
+        .unwrap();
+        let connection = Connection::open(&path).unwrap();
+        let clock: (Option<String>, Option<String>, i64, String) = connection
+            .query_row(
+                "SELECT last_reviewed_at, next_review_at, review_required, runtime_status
+                 FROM manager_v4_closed_loop_runtime_state
+                 WHERE network = ?1 AND chain_id = ?2 AND scope_key = 'core4'
+                   AND loop_key = ?3",
+                params![NETWORK, CHAIN_ID, LOOP_KEY],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
             )
             .unwrap();
         assert_eq!(clock.0.as_deref(), Some("2026-11-04T00:00:00Z"));
@@ -6098,6 +6277,7 @@ mod tests {
             "the next round starts one interval after the round ended, got {due}",
         );
         assert_eq!(clock.2, 0, "the loop is not waiting for a review");
+        assert_eq!(clock.3, "cooldown", "the loop waits for its next round");
     }
 
     /// The evidence of a route that priced a given set of pools.

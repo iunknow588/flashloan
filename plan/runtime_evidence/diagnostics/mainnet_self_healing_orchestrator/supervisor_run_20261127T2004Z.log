@@ -1,0 +1,7 @@
+[2026-11-27T12:13:05Z] sample=0 actions=fill_current_loop_reviews,rereview_historical_positive_candidates,observe_automatic_broadcast blockers=broadcast positive=7 broadcasts=0 stableWindows=0/3 stable=False
+[2026-11-27T12:16:39Z] sample=1 actions=fill_current_loop_reviews,rereview_historical_positive_candidates,observe_automatic_broadcast blockers=broadcast positive=7 broadcasts=0 stableWindows=0/3 stable=False
+[2026-11-27T12:19:32Z] sample=2 actions=fill_current_loop_reviews,rereview_historical_positive_candidates,observe_automatic_broadcast blockers=broadcast positive=7 broadcasts=0 stableWindows=0/3 stable=False
+[2026-11-27T12:25:25Z] sample=3 actions=fill_current_loop_reviews,rereview_historical_positive_candidates,observe_automatic_broadcast blockers=broadcast positive=7 broadcasts=0 stableWindows=0/3 stable=False
+[2026-11-27T12:36:19Z] sample=4 actions=fill_current_loop_reviews,rereview_historical_positive_candidates,observe_automatic_broadcast blockers=broadcast positive=7 broadcasts=0 stableWindows=0/3 stable=False
+[2026-11-27T13:13:12Z] sample=5 actions=fill_current_loop_reviews,rereview_historical_positive_candidates,observe_automatic_broadcast blockers=broadcast positive=7 broadcasts=0 stableWindows=0/3 stable=False
+[2026-11-27T13:17:32Z] sample=6 actions=fill_current_loop_reviews,rereview_historical_positive_candidates,observe_automatic_broadcast blockers=broadcast positive=7 broadcasts=0 stableWindows=0/3 stable=False

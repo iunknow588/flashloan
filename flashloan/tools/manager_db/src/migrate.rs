@@ -1,4 +1,6 @@
-use rusqlite::{params_from_iter, Connection, OpenFlags, OptionalExtension, TransactionBehavior};
+use rusqlite::{
+    params, params_from_iter, Connection, OpenFlags, OptionalExtension, TransactionBehavior,
+};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
@@ -666,6 +668,109 @@ pub fn migrate(database_path: &Path) -> Result<MigrationReport, MigrationError> 
     })
 }
 
+/// One migration whose recorded checksum was rewritten.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestampedMigration {
+    /// The migration whose checksum was rewritten.
+    pub migration_id: String,
+    /// The checksum the ledger held before the restamp.
+    pub previous_checksum: String,
+    /// The checksum the ledger holds now.
+    pub checksum: String,
+}
+
+/// The report of a restamp of the migration ledger.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestampReport {
+    /// The store the ledger belongs to.
+    pub path: String,
+    /// The ledger that was read.
+    pub migration_table: String,
+    /// Whether the report describes a write that was **not** made.
+    pub dry_run: bool,
+    /// The migrations whose checksum was rewritten.
+    pub restamped: Vec<RestampedMigration>,
+    /// The migrations whose checksum already held.
+    pub unchanged: Vec<String>,
+}
+
+/// Rewrite the checksums the ledger records for the migrations that ran.
+///
+/// The ledger records **the text** of the migration that ran.  A ledger
+/// that was written from a checkout with other line endings holds the
+/// checksum of the same text in another spelling, and the migration tool
+/// refuses to apply anything while such a row is in the ledger -- the
+/// store is left in a state where no further migration can be applied at
+/// all.
+///
+/// The restamp rewrites the checksum of every **applied** migration to
+/// the checksum of the migration in the repository.  It touches the
+/// ledger and nothing else: no table of the store is read and no table
+/// of the store is written.
+pub fn restamp_ledger_checksums(
+    database_path: impl AsRef<Path>,
+    dry_run: bool,
+) -> Result<RestampReport, MigrationError> {
+    let database_path = database_path.as_ref();
+    let mut connection = Connection::open(database_path)?;
+    connection.busy_timeout(std::time::Duration::from_secs(5))?;
+    let ledger = select_ledger(&connection)?;
+    if !table_exists(&connection, &ledger)? {
+        return Ok(RestampReport {
+            path: database_path.display().to_string(),
+            migration_table: ledger,
+            dry_run,
+            restamped: Vec::new(),
+            unchanged: Vec::new(),
+        });
+    }
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let mut restamped = Vec::new();
+    let mut unchanged = Vec::new();
+    for migration in MIGRATIONS.iter() {
+        let existing: Option<String> = transaction
+            .query_row(
+                &format!("SELECT checksum FROM {ledger} WHERE migration_id = ?1"),
+                [migration.id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let Some(existing) = existing else {
+            continue;
+        };
+        let expected = checksum_for(migration.sql);
+        if existing == expected {
+            unchanged.push(migration.id.to_owned());
+            continue;
+        }
+        if !dry_run {
+            transaction.execute(
+                &format!("UPDATE {ledger} SET checksum = ?1 WHERE migration_id = ?2"),
+                params![expected, migration.id],
+            )?;
+        }
+        restamped.push(RestampedMigration {
+            migration_id: migration.id.to_owned(),
+            previous_checksum: existing,
+            checksum: expected,
+        });
+    }
+    if dry_run {
+        transaction.rollback()?;
+    } else {
+        transaction.commit()?;
+    }
+    Ok(RestampReport {
+        path: database_path.display().to_string(),
+        migration_table: ledger,
+        dry_run,
+        restamped,
+        unchanged,
+    })
+}
+
 pub fn preflight_read_only(database_path: &Path) -> Result<PreflightReport, MigrationError> {
     if !database_path.exists() {
         return Err(MigrationError::DatabaseNotReadable(
@@ -727,8 +832,21 @@ pub fn preflight_read_only(database_path: &Path) -> Result<PreflightReport, Migr
     })
 }
 
-fn checksum_for(sql: &str) -> String {
-    format!("sha256:{}", hex::encode(Sha256::digest(sql.as_bytes())))
+/// The checksum of the text of a migration.
+///
+/// The checksum answers one question: **is the migration that is in the
+/// repository the migration that has run?**  The answer has to survive
+/// the way the file travelled to the machine, so the line endings are
+/// normalized before the text is hashed.
+///
+/// Without that normalization a checkout that rewrote the line endings
+/// of the file changes the checksum of a migration that has **already
+/// run**, and the migration tool then refuses to run the migrations that
+/// are still pending -- the store is left in a state where no further
+/// migration can be applied at all.
+pub fn checksum_for(sql: &str) -> String {
+    let normalized = sql.replace("\r\n", "\n");
+    format!("sha256:{}", hex::encode(Sha256::digest(normalized.as_bytes())))
 }
 
 /// The migrations the ledger records as applied.

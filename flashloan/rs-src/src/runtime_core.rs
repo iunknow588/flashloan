@@ -2897,7 +2897,9 @@ fn map_broadcast_command_error(error: BroadcastError) -> RuntimeCoreError {
         BroadcastError::MissingReviewState | BroadcastError::ReviewSnapshotTruncated { .. } => {
             ("TOKEN_NOT_ADMITTED", 409)
         }
-        BroadcastError::ReviewRead(_) | BroadcastError::Sqlite(_) => ("UPSTREAM_UNAVAILABLE", 503),
+        BroadcastError::ReviewRead(_)
+        | BroadcastError::ClosedLoopRead(_)
+        | BroadcastError::Sqlite(_) => ("UPSTREAM_UNAVAILABLE", 503),
         BroadcastError::Json(_) => ("INTERNAL_ERROR", 500),
     };
     RuntimeCoreError::ManagerCommand {

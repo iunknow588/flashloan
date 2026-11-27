@@ -5147,6 +5147,100 @@ fn wake_broadcast_with_review_proof(
     outcome
 }
 
+/// Put a loop that was parked for a broadcast back into the review queue.
+///
+/// A round that found a profit parks its loop at the broadcast sentinel:
+/// the loop has traded and waits for the receipt of its transaction, so it
+/// has no scheduled review while it waits.  The park is released by the
+/// broadcast layer when the attempt reaches its terminal state -- a
+/// success and a failure both end the round.
+///
+/// A broadcast that never became an attempt has no terminal state, so
+/// nobody would release the loop: a gate refused it before it was sent,
+/// the reviewer did not publish a request for it, the signer was missing,
+/// or the send failed before a transaction existed.  The runtime knows
+/// these cases, so the runtime releases the loop itself.  Without that
+/// release a profitable loop would wait for ever and would never be
+/// measured again.
+///
+/// The release is a **restart of the clock**, so the loop is due one
+/// review interval later -- exactly what a loop whose round ended looks
+/// like.
+fn release_broadcast_pending_loop(
+    inner: &PoolInner,
+    command: &SubmitCommand,
+    payload: &Value,
+    wake: &Value,
+) -> Value {
+    // A broadcast that went out -- or that the execution queue took over
+    // -- owns the release: the attempt it produces reaches a terminal
+    // state and the broadcast layer puts the loop back then.
+    let enqueued = wake
+        .get("enqueued")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let broadcasted = wake
+        .get("broadcasted")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    if enqueued || broadcasted {
+        return json!({"released": false, "reason": "the broadcast is on its way"});
+    }
+    // The attempt is filed by the broadcast layer.  An attempt that was
+    // **not** filed has no terminal state, so the release belongs to the
+    // runtime.
+    let record = payload.get("broadcastRecord").unwrap_or(&Value::Null);
+    let recorded = record
+        .get("recorded")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let Some(loop_key) = payload
+        .get("closedLoopKey")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+    else {
+        return json!({"released": false, "reason": "the payload names no closed loop"});
+    };
+    let Some(database_path) = command
+        .database_path
+        .clone()
+        .or_else(|| inner.database_path.clone())
+    else {
+        return json!({"released": false, "reason": "database_path_unavailable"});
+    };
+    let Some(network) = command.network.clone() else {
+        return json!({"released": false, "reason": "network_unavailable"});
+    };
+    let Some(chain_id) = command.chain_id.filter(|value| *value > 0) else {
+        return json!({"released": false, "reason": "chain_id_unavailable"});
+    };
+    let reason = if recorded {
+        // The attempt was filed, so the broadcast layer releases the loop
+        // when the attempt is terminal.  A **failed** attempt is terminal
+        // already, so it releases the loop by itself.
+        return json!({
+            "released": false,
+            "reason": "the attempt was filed; the broadcast layer releases the loop",
+        });
+    } else {
+        "the broadcast never became an attempt"
+    };
+    match closed_loop_manager::reset_review_start(
+        &database_path,
+        &network,
+        chain_id,
+        &loop_key,
+        closed_loop_manager::ReviewStartReset::AfterRound,
+        None,
+        reason,
+    ) {
+        Ok(released) => json!({"released": released, "reason": reason}),
+        Err(error) => json!({"released": false, "error": error.to_string()}),
+    }
+}
+
 /// Send the transaction the review proved, right here.
 ///
 /// The review thread measured the profit, so the review thread sends the
@@ -6254,6 +6348,15 @@ fn worker_loop(
                 // list on every route and refused every broadcast.
                 let wake =
                     wake_broadcast_with_review_proof(&inner, &command, &mut payload);
+                // A broadcast that never left leaves its loop parked at
+                // the broadcast sentinel, so the runtime puts the loop
+                // back into the review queue.  A broadcast that went out
+                // is released by the broadcast layer when the attempt is
+                // terminal.
+                let release = release_broadcast_pending_loop(&inner, &command, &payload, &wake);
+                if release.get("released").and_then(Value::as_bool) == Some(true) {
+                    payload["broadcastPendingReleased"] = release.clone();
+                }
                 if wake.get("enqueued").and_then(Value::as_bool) == Some(true) {
                     payload["executionQueued"] = json!(true);
                     payload["executionQueueAt"] = json!(now_iso());

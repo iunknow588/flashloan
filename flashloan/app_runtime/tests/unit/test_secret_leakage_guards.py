@@ -43,6 +43,7 @@ NON_SECRET_HEX_FIXTURES = (
     # Test-only V4 pool ids and deterministic addresses; not key material.
     "0xe992d4e9041b58b363a83c1863a664a7c07e46728ee6788a38f789102bff83a0",
     "0x0000000000000000000000001111111111111111111111111111111111111111",
+    "0x2222222222222222222222222222222222222222222222222222222222222222",
     "0x6dff37dd1a996412e30723462231d2a67bc7d66702b498aa739746797c4302a3",
     # Uniswap V4 pool ids taken from the Swap event topic of the recorded
     # testnet trades; a pool id is a keccak of the pool key, not key

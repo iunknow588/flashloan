@@ -233,20 +233,40 @@ fn record_on_connection(
         hop_sqrt_price_limits: facts.hop_sqrt_price_limits,
     };
     let updated = upsert_attempt(connection, network, chain_id, &row)?;
-    // A broadcast that succeeded ends the round of the loop: the loop has
-    // been traded, so it starts the clock of its **next** round.  The
-    // clock belongs to the closed loop, so it is started through the
-    // closed-loop Manager: the loop waits for the interval and is due
-    // again when the clock runs out.
-    if attempt.status == BroadcastTerminalStatus::Success {
-        review_manager::start_review_clock_on_connection(
-            connection,
-            network,
-            chain_id,
-            &attempt.loop_key,
-            "broadcast_confirmed",
-        )
-        .map_err(|error| BroadcastError::ClosedLoopRead(error.to_string()))?;
+    // A broadcast that reached a **terminal** state ends the round of the
+    // loop: the loop has been traded, so it starts the clock of its
+    // **next** round.  The clock belongs to the closed loop, so it is
+    // started through the closed-loop Manager: the loop waits for the
+    // interval and is due again when the clock runs out.
+    //
+    // A **failed** attempt ends the round just the same.  The round that
+    // found the profit parked the loop at the broadcast sentinel, so a
+    // failure that did not release it would leave the loop waiting for
+    // ever -- it would never be measured again.
+    match attempt.status {
+        BroadcastTerminalStatus::Success => {
+            review_manager::start_review_clock_on_connection(
+                connection,
+                network,
+                chain_id,
+                &attempt.loop_key,
+                "broadcast_confirmed",
+            )
+            .map_err(|error| BroadcastError::ClosedLoopRead(error.to_string()))?;
+        }
+        BroadcastTerminalStatus::Failed => {
+            review_manager::start_review_clock_on_connection(
+                connection,
+                network,
+                chain_id,
+                &attempt.loop_key,
+                "broadcast_failed",
+            )
+            .map_err(|error| BroadcastError::ClosedLoopRead(error.to_string()))?;
+        }
+        // A pending attempt has no answer yet: the loop keeps waiting
+        // for the receipt of its transaction.
+        BroadcastTerminalStatus::Pending => {}
     }
     refresh_broadcast_state(connection, network, chain_id, &review, &now)?;
     Ok(RuntimeAttemptOutcome {
@@ -619,6 +639,55 @@ mod tests {
             other => panic!("the attempt was refused for the wrong reason: {other:?}"),
         }
         assert_eq!(attempt_count(&path), 0);
+    }
+
+    /// A failed attempt releases the loop that waited for its receipt.
+    ///
+    /// A round that found a profit parks its loop at the broadcast
+    /// sentinel, so a failure that did not release it would leave the
+    /// loop waiting for ever -- it would never be measured again.
+    #[test]
+    fn a_failed_attempt_releases_the_loop_that_waited_for_its_receipt() {
+        let (_directory, path) = database_with_record_root();
+        {
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute(
+                    "INSERT INTO manager_v4_closed_loop_runtime_state (
+                         network, chain_id, protocol, scope_key, loop_key,
+                         runtime_status, status_reason, review_generation,
+                         review_required, last_rebuilt_at, updated_at,
+                         last_reviewed_at, next_review_at, review_cycle_started_at
+                     ) VALUES (?1, ?2, 'uniswap_v4', 'core4', ?3,
+                               'broadcast_pending', 'measured_with_profit', 0, 0,
+                               'fixture', 'fixture', NULL,
+                               '2035-05-05T05:05:00+00:00', NULL)",
+                    params![NETWORK, CHAIN_ID, LOOP_KEY],
+                )
+                .unwrap();
+        }
+        let mut attempt = runtime_attempt(ATTEMPT_ID);
+        attempt.status = BroadcastTerminalStatus::Failed;
+        attempt.status_reason = Some("the chain refused the transaction".to_owned());
+        let outcome = record_runtime_attempt(&path, NETWORK, CHAIN_ID, &attempt).unwrap();
+        assert_eq!(outcome.status, "failed");
+
+        let connection = Connection::open(&path).unwrap();
+        let (status, next_review_at): (String, Option<String>) = connection
+            .query_row(
+                "SELECT runtime_status, next_review_at
+                   FROM manager_v4_closed_loop_runtime_state
+                  WHERE network = ?1 AND chain_id = ?2 AND loop_key = ?3",
+                params![NETWORK, CHAIN_ID, LOOP_KEY],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(status, "cooldown", "the released loop waits for its next round");
+        let due = next_review_at.expect("the released loop is due again");
+        assert!(
+            due.starts_with(&chrono::Utc::now().to_rfc3339()[..13]),
+            "the next round starts one interval after the failure, got {due}",
+        );
     }
 
     #[test]

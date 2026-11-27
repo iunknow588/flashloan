@@ -1,5 +1,6 @@
 use manager_db::{
-    migrate, migration_checksum, preflight_read_only, schema_checksum, MigrationError,
+    checksum_for, migrate, migration_checksum, preflight_read_only, restamp_ledger_checksums,
+    schema_checksum, MigrationError,
     BROADCAST_MIGRATION_ID, CANDIDATE_EDGE_MIGRATION_ID, CANDIDATE_EXCHANGE_MIGRATION_ID,
     CLOSED_LOOP_DIRECTIONAL_ONLY_MIGRATION_ID, CLOSED_LOOP_MIGRATION_ID, COMPOSITE_MIGRATION_ID,
     LATEST_MIGRATION_ID, MIGRATION_ID, MIGRATION_IDS, OBSERVATION_OPTIMAL_POOL_VIEW_MIGRATION_ID,
@@ -53,6 +54,78 @@ const TARGET_TABLES: &[&str] = &[
     "manager_pipeline_events",
     "manager_events",
 ];
+
+#[test]
+fn the_checksum_of_a_migration_does_not_depend_on_its_line_endings() {
+    // A checkout that rewrites the line endings of a migration file must
+    // not change the checksum of that migration: the checksum answers
+    // "is the migration in the repository the migration that ran?", and
+    // the line endings of the file are not part of that question.
+    let lf = "ALTER TABLE t ADD COLUMN a TEXT;\nALTER TABLE t ADD COLUMN b TEXT;\n";
+    let crlf = "ALTER TABLE t ADD COLUMN a TEXT;\r\nALTER TABLE t ADD COLUMN b TEXT;\r\n";
+    assert_eq!(checksum_for(lf), checksum_for(crlf));
+    assert_ne!(checksum_for(lf), checksum_for("ALTER TABLE t ADD COLUMN c TEXT;\n"));
+}
+
+#[test]
+fn a_ledger_that_records_a_migration_with_other_line_endings_is_restamped() {
+    // The ledger of a store that was migrated from a checkout with other
+    // line endings holds the checksum of the same text in another
+    // spelling.  The migration tool refuses to apply anything while such
+    // a row is in the ledger, so the restamp rewrites it -- and only the
+    // ledger is touched.
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("manager.sqlite3");
+    migrate(&path).unwrap();
+    let connection = Connection::open(&path).unwrap();
+    let before: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM manager_v4_closed_loop_runtime_state",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    connection
+        .execute(
+            "UPDATE schema_migrations SET checksum = 'sha256:deadbeef'
+              WHERE migration_id = ?1",
+            [MIGRATION_ID],
+        )
+        .unwrap();
+    drop(connection);
+
+    let refused = migrate(&path).unwrap_err();
+    assert!(matches!(refused, MigrationError::MigrationChecksumChanged { .. }));
+
+    let report = restamp_ledger_checksums(&path, true).unwrap();
+    assert!(report.dry_run);
+    assert_eq!(report.restamped.len(), 1);
+    assert_eq!(report.restamped[0].migration_id, MIGRATION_ID);
+    // A dry run writes nothing, so the ledger still holds the wrong
+    // checksum and the migration is still refused.
+    assert!(matches!(
+        migrate(&path).unwrap_err(),
+        MigrationError::MigrationChecksumChanged { .. }
+    ));
+
+    let report = restamp_ledger_checksums(&path, false).unwrap();
+    assert!(!report.dry_run);
+    assert_eq!(report.restamped.len(), 1);
+    assert_eq!(report.restamped[0].previous_checksum, "sha256:deadbeef");
+    assert_eq!(report.restamped[0].checksum, migration_checksum());
+
+    let after = migrate(&path).unwrap();
+    assert!(!after.applied_now, "the migrations had already run");
+    let connection = Connection::open(&path).unwrap();
+    let rows: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM manager_v4_closed_loop_runtime_state",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(rows, before, "the restamp touches the ledger only");
+}
 
 #[test]
 fn migration_is_idempotent_and_creates_only_empty_control_schema() {

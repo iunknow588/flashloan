@@ -1,0 +1,8 @@
+# The migration files are hashed into the migration ledger, so the bytes
+# of a migration have to mean the same thing on every machine.  A
+# checkout that rewrites the line endings of the file changes the bytes
+# of a migration that has already run, and the migration tool then
+# refuses to apply the migrations that are still pending.  The migration
+# tool normalizes the line endings before it hashes the text as well, so
+# the two rules together make the ledger independent of the checkout.
+flashloan/tools/manager_db/migrations/*.sql text eol=lf

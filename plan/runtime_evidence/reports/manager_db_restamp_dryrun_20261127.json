@@ -1,0 +1,57 @@
+{
+  "dryRun": true,
+  "migrationTable": "schema_migrations",
+  "path": "flashloan/db/local_store_4663.sqlite3",
+  "restamped": [
+    {
+      "checksum": "sha256:e7531a18f1bcabad5716c3eb08725a02a557589f5cfdcd221c013edc04c12b35",
+      "migrationId": "20261112_007_usdg_valuation_schema",
+      "previousChecksum": "sha256:e9bf58df5cb611afb8648aa43a067d232302605a11d3a1add3ea439a981275f6"
+    },
+    {
+      "checksum": "sha256:e3576ef5c86df27fc4396b5f135859820c860daabf39f38614253ef88aaa63ef",
+      "migrationId": "20261114_008_single_tick_capacity_schema",
+      "previousChecksum": "sha256:80eb1896d83678254ff13d76608591b5b317a552dd9bd44a56269dadff3fb4c9"
+    },
+    {
+      "checksum": "sha256:e21e3e8fc6675b3d212c88c1c28f37fedbcb97d4247c0424bc3ba5ff8131436f",
+      "migrationId": "20261114_009_hop_price_limit_schema",
+      "previousChecksum": "sha256:3266c5c3afc5e7f7dd26bc932ebe19afbc4b5ff322ef39f75cdf02bb52393ce3"
+    },
+    {
+      "checksum": "sha256:4e68f139a6d591f12e902db87b226a4fee1838aa2486ab3fa7fc18cf6a28e856",
+      "migrationId": "20261119_012_skipped_token_pool_localization",
+      "previousChecksum": "sha256:875800f83d01b91f63e8645966fb24458102c2c9e51d187254ad4d176c034b7e"
+    },
+    {
+      "checksum": "sha256:ba454c28d2cf50df57a49e499bb234ddfa91f0f278697426e575d342d5555d8c",
+      "migrationId": "20261119_013_pool_status_reason",
+      "previousChecksum": "sha256:2a18d18eec119d582fca38ec7b36bf1aa9aa1df3ed78ea3bc81f2afbfa300eb8"
+    },
+    {
+      "checksum": "sha256:d01050efffd61900ecda06835509067a4e8b56bb69f7b753139b2e263025b575",
+      "migrationId": "20261123_015_directional_pool_schema",
+      "previousChecksum": "sha256:505b6cf9a2e0ce1b9b676b0358f163bb29d5068f199a6ae11ed5f596285acb18"
+    },
+    {
+      "checksum": "sha256:0a8e4fe3c9423df486d4c9fad64c3304fb29ce166b59c0c247a06546917ef8b7",
+      "migrationId": "20261125_017_observation_optimal_pool_view",
+      "previousChecksum": "sha256:745eb4aedf670904dcea3de0d6eba167e6be24da714b1f6eba95ba9a0080da8d"
+    }
+  ],
+  "unchanged": [
+    "20261103_001_manager_schema",
+    "20261104_001_candidate_edge_schema",
+    "20261104_002_candidate_exchange_schema",
+    "20261104_003_closed_loop_schema",
+    "20261104_004_review_schema",
+    "20261104_005_broadcast_schema",
+    "20261104_006_composite_schema",
+    "20261118_010_cross_tick_seed_schema",
+    "20261119_011_skipped_token_reason_schema",
+    "20261121_014_review_closed_loop_identity_schema",
+    "20261124_016_closed_loop_directional_wiring",
+    "20261125_018_closed_loop_directional_only",
+    "20261127_019_review_schedule_schema"
+  ]
+}

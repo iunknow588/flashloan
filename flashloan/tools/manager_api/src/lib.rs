@@ -25,11 +25,12 @@ use candidate_exchange_pool_manager::{
 };
 use closed_loop_manager::{
     advance_review_clocks, begin_review_cycle, compare_closed_loops,
-    count_waiting_review_loops, materialize_closed_loops_write, read_due_review_loops,
-    read_closed_loop_snapshot, read_review_clocks, read_review_queue_view,
-    resolve_loop_key_by_path_symbols,
+    due_review_loops_from_queue, materialize_closed_loops_write,
+    read_closed_loop_snapshot, read_review_clocks, read_resident_review_queue,
+    read_review_queue_fingerprint, resolve_loop_key_by_path_symbols,
+    review_queue_scan_cost, review_queue_view,
     set_review_wait, ClosedLoopError, ClosedLoopReviewClock, ClosedLoopWriteRequest,
-    ClosedLoopReviewDue, ClosedLoopReviewQueueEntry,
+    ClosedLoopReviewDue, ClosedLoopReviewQueueEntry, ResidentReviewQueue,
     ExpectedUpstream as ClosedLoopExpectedUpstream,
 };
 use directional_pool_manager::{
@@ -58,10 +59,10 @@ use review_manager::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     net::SocketAddr,
     path::PathBuf,
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 use token_manager::{
     audit_manager_database, change_admission, read_library_tokens, resolve_token_symbol,
@@ -116,6 +117,19 @@ pub struct AppState {
     /// deployment that cannot name its guardrails does not get a
     /// broadcast -- it gets a refusal with a recorded reason.
     pub broadcast_guard_policy: Option<BroadcastGuardPolicy>,
+    /// The **resident** review queue of every scope this process serves.
+    ///
+    /// The queue is a derived index: the store stays the truth, and the
+    /// resident copy carries the fingerprint of the store at the moment
+    /// it was read.  A resident copy whose fingerprint still holds is
+    /// served as it is, so the main thread of the review walks the queue
+    /// instead of reading the store again -- and the check costs **one
+    /// row**, so the cost of the check does not grow with the scope.
+    ///
+    /// A write that touches the schedule of a loop changes the
+    /// fingerprint, so a resident copy that fell behind is thrown away
+    /// and read again on the next request.
+    pub review_queue_cache: Arc<Mutex<HashMap<(String, i64), Arc<ResidentReviewQueue>>>>,
 }
 
 impl Default for AppState {
@@ -134,6 +148,7 @@ impl Default for AppState {
             composite_authority: TokenAuthorityMode::Legacy,
             directional_pool_authority: TokenAuthorityMode::Legacy,
             broadcast_guard_policy: None,
+            review_queue_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -168,6 +183,42 @@ impl AppState {
             Some(network) => network.clone(),
             None => network_for_chain_id(chain_id),
         }
+    }
+
+    /// The review queue of a scope, served from the resident copy when
+    /// that copy is still the queue of the store.
+    ///
+    /// The answer says whether the copy was **resident**: a resident
+    /// answer was served without reading the loops of the scope again, a
+    /// fresh answer read them from the store.
+    pub fn review_queue(
+        &self,
+        database_path: impl AsRef<std::path::Path>,
+        network: &str,
+        chain_id: i64,
+    ) -> Result<(Arc<ResidentReviewQueue>, bool), ClosedLoopError> {
+        let key = (network.to_owned(), chain_id);
+        // One row says whether the resident copy is still the queue of
+        // the store: every write that touches the schedule of a loop
+        // changes the fingerprint.
+        let fingerprint =
+            read_review_queue_fingerprint(database_path.as_ref(), network, chain_id)?;
+        if let Ok(cache) = self.review_queue_cache.lock() {
+            if let Some(resident) = cache.get(&key) {
+                if resident.fingerprint == fingerprint {
+                    return Ok((resident.clone(), true));
+                }
+            }
+        }
+        let resident = Arc::new(read_resident_review_queue(
+            database_path.as_ref(),
+            network,
+            chain_id,
+        )?);
+        if let Ok(mut cache) = self.review_queue_cache.lock() {
+            cache.insert(key, resident.clone());
+        }
+        Ok((resident, false))
     }
 
     pub fn with_token_authority(mut self, authority: TokenAuthorityMode) -> Self {
@@ -3882,6 +3933,18 @@ struct ClosedLoopReviewDueResponse {
     queue: Vec<ClosedLoopReviewQueueEntry>,
     /// The number of entries of the queue.
     queue_length: usize,
+    /// The number of entries the walk over the queue touched.
+    ///
+    /// The number is what makes the **prefix truncation** observable: a
+    /// round that had to walk the whole queue touched every entry, and a
+    /// round that stopped at the first entry that is not due touched the
+    /// due entries and one more.
+    queue_scan_cost: usize,
+    /// Whether the queue was served from the resident copy.
+    ///
+    /// A resident answer was served without reading the loops of the
+    /// scope again; a fresh answer read them from the store.
+    queue_resident: bool,
 }
 
 /// The review clocks of a scope, after they were advanced.
@@ -3947,21 +4010,23 @@ async fn list_due_closed_loop_reviews(
         return failure(upstream_unavailable("MANAGER_DB_PATH is not configured", stage));
     };
     let network = state.network_for(query.chain_id);
-    let loops = match read_due_review_loops(database_path, &network, query.chain_id as i64) {
-        Ok(loops) => loops,
+    // The queue of the scope, served from the resident copy when that
+    // copy is still the queue of the store.  The walk over the queue
+    // stops at the first entry that is not due, so the cost of a round
+    // is the cost of the work and not the cost of the scope.
+    let (resident, is_resident) = match state.review_queue(database_path, &network, query.chain_id as i64)
+    {
+        Ok(resident) => resident,
         Err(error) => return failure(closed_loop_failure(error, query.chain_id, stage)),
     };
-    let waiting = match count_waiting_review_loops(database_path, &network, query.chain_id as i64) {
-        Ok(waiting) => waiting,
-        Err(error) => return failure(closed_loop_failure(error, query.chain_id, stage)),
-    };
+    let now = chrono::Utc::now().timestamp();
+    let loops = due_review_loops_from_queue(&resident.queue, now);
     // The whole queue of the scope: the entries are ordered by the
     // moment the loops are scheduled at, and a parked loop is in it as
     // well, because it is busy rather than due.
-    let queue = match read_review_queue_view(database_path, &network, query.chain_id as i64) {
-        Ok(queue) => queue,
-        Err(error) => return failure(closed_loop_failure(error, query.chain_id, stage)),
-    };
+    let queue = review_queue_view(&resident.queue, now);
+    let scan_cost = review_queue_scan_cost(&resident.queue, now);
+    let waiting = queue.waiting_count;
     let due: Vec<ClosedLoopReviewDue> = loops;
     success(
         query.chain_id,
@@ -3975,6 +4040,8 @@ async fn list_due_closed_loop_reviews(
             next_due_in_seconds: queue.next_due_in_seconds,
             queue_length: queue.length,
             queue: queue.entries,
+            queue_scan_cost: scan_cost,
+            queue_resident: is_resident,
         },
     )
 }
@@ -7442,5 +7509,110 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let value = response_json(response).await;
         assert_eq!(value["data"]["directionalPoolAuthorityMode"], "manager");
+    }
+
+    #[tokio::test]
+    async fn the_review_due_endpoint_serves_the_resident_queue() {
+        // The endpoint walks the queue of the scope and stops at the
+        // first loop that is not due, so the cost of a round is the cost
+        // of the work and not the cost of the scope.  The second answer
+        // is served from the resident copy, and a write that touches the
+        // schedule of a loop throws the copy away.
+        let (_directory, state, path) = temporary_state();
+        {
+            let connection = Connection::open(&path).unwrap();
+            for (loop_key, next_review_at) in [
+                ("loop-due", "2026-01-01T00:00:00+00:00"),
+                ("loop-waits", "2099-01-01T00:00:00+00:00"),
+            ] {
+                connection
+                    .execute(
+                        "INSERT INTO manager_v4_closed_loop_runtime_state (
+                             network, chain_id, protocol, scope_key, loop_key,
+                             runtime_status, status_reason, review_generation,
+                             review_required, last_rebuilt_at, updated_at,
+                             last_reviewed_at, next_review_at, review_cycle_started_at
+                         ) VALUES ('robinhood', 4663, 'uniswap_v4', 'core4', ?1,
+                                   'cooldown', 'fixture', 0, 0, 'fixture',
+                                   '2026-11-27T00:00:00+00:00', NULL, ?2, NULL)",
+                        rusqlite::params![loop_key, next_review_at],
+                    )
+                    .unwrap();
+            }
+        }
+        let app = app_with_state(state.clone());
+
+        let first = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/closed-loops/review-due?chainId=4663")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(first.status(), StatusCode::OK);
+        let first_value = response_json(first).await;
+        assert_eq!(first_value["data"]["dueCount"], 1);
+        assert_eq!(first_value["data"]["queueLength"], 2);
+        assert_eq!(
+            first_value["data"]["queueScanCost"], 2,
+            "the walk touches the due loop and the first one that is not due",
+        );
+        assert_eq!(
+            first_value["data"]["queueResident"], false,
+            "the first answer reads the loops of the scope",
+        );
+
+        let second = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/closed-loops/review-due?chainId=4663")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(second.status(), StatusCode::OK);
+        let second_value = response_json(second).await;
+        assert_eq!(
+            second_value["data"]["queueResident"], true,
+            "the second answer is served from the resident copy",
+        );
+        assert_eq!(second_value["data"]["dueCount"], 1);
+
+        // A write that touches the schedule of a loop changes the
+        // fingerprint of the store, so the resident copy is thrown away.
+        {
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute(
+                    "UPDATE manager_v4_closed_loop_runtime_state
+                        SET next_review_at = '2099-01-02T00:00:00+00:00',
+                            updated_at = '2026-11-27T01:00:00+00:00'
+                      WHERE network = 'robinhood' AND chain_id = 4663
+                        AND loop_key = 'loop-due'",
+                    [],
+                )
+                .unwrap();
+        }
+        let third = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/closed-loops/review-due?chainId=4663")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(third.status(), StatusCode::OK);
+        let third_value = response_json(third).await;
+        assert_eq!(
+            third_value["data"]["queueResident"], false,
+            "a write that changed the store throws the resident copy away",
+        );
+        assert_eq!(third_value["data"]["dueCount"], 0);
     }
 }

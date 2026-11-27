@@ -41,20 +41,6 @@
 use review_manager::BroadcastAdmissionFacts;
 use serde::{Deserialize, Serialize};
 
-/// The maximum age of a review that may still trigger a broadcast.
-///
-/// The freshness rule exists because a review measures a market state.
-/// A market state that is older than the current measurement of its closed
-/// loop is not the state the executor is about to trade on.
-///
-/// The window is the **automatic review interval** of the closed loop and
-/// nothing else: a review is actionable exactly as long as it is still the
-/// current measurement of its loop.  A second, larger window would let a
-/// review that is already overdue still authorize a live trade.
-pub fn max_broadcast_review_age_seconds() -> i64 {
-    review_manager::automatic_review_interval_seconds()
-}
-
 /// How far a review stamp may sit in the future before it is refused.
 ///
 /// A stamp from the future means the clocks disagree. That is not a
@@ -115,14 +101,15 @@ pub struct BroadcastAdmissionContext {
     /// The caller supplies it so that the decision is reproducible and
     /// testable. When absent the current UTC time is used.
     pub now: Option<String>,
-    /// The window a review may be old and still be the current
-    /// measurement of its loop, in seconds.
+    /// The moment the closed loop of the request is scheduled at.
     ///
-    /// The window is the **automatic review interval**, and the interval
-    /// is a parameter that may change while the system runs, so the caller
-    /// reads it from the store the decision is made against.  When absent
-    /// the interval of the process environment is used.
-    pub review_freshness_window_seconds: Option<i64>,
+    /// The moment is the loop's **own** review time point: the helper
+    /// that schedules a loop wrote it, and it already carries whatever
+    /// the review interval is.  The admission therefore compares the
+    /// current time with that moment and never rebuilds an interval of
+    /// its own -- an age counted from the review stamp would count the
+    /// time the review itself took, which is not time the market moved.
+    pub loop_scheduled_at: Option<String>,
 }
 
 /// The identifier of a single admission rule.
@@ -427,33 +414,60 @@ pub fn decide(
     }
 
     // Freshness.
+    //
+    // The question is whether the review is still the **current**
+    // measurement of its closed loop.  The loop answers it with its own
+    // review time point -- the moment it is scheduled at -- so the rule
+    // compares the current time with that moment.  No interval is
+    // rebuilt here: the helper that schedules the loop already folded
+    // the review interval into the moment.
     match parse_timestamp(&facts.reviewed_at) {
         Some(reviewed_at) => {
             let now = parse_timestamp(&decided_at).unwrap_or_else(chrono::Utc::now);
             let age = now.signed_duration_since(reviewed_at).num_seconds();
             decision.review_age_seconds = Some(age);
-            let window = context
-                .review_freshness_window_seconds
-                .unwrap_or_else(max_broadcast_review_age_seconds);
-            if (-MAX_BROADCAST_FUTURE_SKEW_SECONDS..=window).contains(&age) {
-                decision.passed(
-                    AdmissionRule::ReviewFresh,
-                    format!("the review is {age}s old, inside the {window}s window"),
-                );
-            } else if age > window {
+            let ahead = -age;
+            if ahead > MAX_BROADCAST_FUTURE_SKEW_SECONDS {
                 decision.failed(
                     AdmissionRule::ReviewFresh,
-                    format!("the review is {age}s old, past the {window}s window"),
-                );
-            } else {
-                let ahead = age.abs();
-                decision.failed(
                     AdmissionRule::ReviewFresh,
                     format!(
                         "the review stamp is {ahead}s in the future, past the \
                          {MAX_BROADCAST_FUTURE_SKEW_SECONDS}s skew allowance"
                     ),
                 );
+            } else {
+                match context
+                    .loop_scheduled_at
+                    .as_deref()
+                    .and_then(parse_timestamp)
+                {
+                    Some(scheduled) if now < scheduled => {
+                        decision.passed(
+                            AdmissionRule::ReviewFresh,
+                            format!(
+                                "the review is still the current measurement of its loop; \
+                                 the loop is scheduled at {scheduled}"
+                            ),
+                        );
+                    }
+                    Some(scheduled) => {
+                        decision.failed(
+                            AdmissionRule::ReviewFresh,
+                            format!(
+                                "the loop was scheduled at {scheduled}, so its review is \
+                                 no longer the current measurement of the loop"
+                            ),
+                        );
+                    }
+                    None => {
+                        decision.failed(
+                            AdmissionRule::ReviewFresh,
+                            "the loop publishes no review time point, so its review cannot \
+                             be proven to be the current measurement of the loop",
+                        );
+                    }
+                }
             }
         }
         None => decision.failed(
