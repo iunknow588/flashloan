@@ -451,26 +451,26 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
             "closedLoops": {"valid": True},
             "reviews": {"legacy": {"latestReviewAt": "2026-11-10T11:59:30Z",
                                      "stats": {"positive": 0},
-                                     "currentLoopFreshness": {
-                                         "basis": "loop_review_time_point",
+                                     "currentLoopCoverage": {
+                                         "basis": "loop_review_round",
                                          "checkedLoops": 2, "currentLoops": 2,
-                                         "notCurrentLoops": [], "current": True}}},
+                                         "loopsWithoutCurrentMeasurement": [], "current": True}}},
             "broadcast": {"legacy": {"total": 0, "latestAttemptAt": None}},
         }
         status = HEALER.transaction_production_status(layers, "2026-11-10T12:00:00Z")
         self.assertEqual(status["state"], "market_no_executable_profit")
         self.assertTrue(status["healthy"])
 
-        layers["reviews"]["legacy"]["currentLoopFreshness"] = {
-            "basis": "loop_review_time_point", "checkedLoops": 2,
+        layers["reviews"]["legacy"]["currentLoopCoverage"] = {
+            "basis": "loop_review_round", "checkedLoops": 2,
             "currentLoops": 1, "current": False,
-            "notCurrentLoops": [{"loopKey": "loop-1",
+            "loopsWithoutCurrentMeasurement": [{"loopKey": "loop-1",
                                   "reason": "round_not_measured"}]}
         status = HEALER.transaction_production_status(layers, "2026-11-10T12:00:00Z")
         self.assertEqual(status["state"], "review_stalled")
         self.assertFalse(status["healthy"])
-        self.assertEqual(status["reviewFreshnessBasis"], "loop_review_time_point")
-        self.assertEqual(status["reviewNotCurrentLoops"][0]["loopKey"], "loop-1")
+        self.assertEqual(status["reviewCoverageBasis"], "loop_review_round")
+        self.assertEqual(status["loopsWithoutCurrentMeasurement"][0]["loopKey"], "loop-1")
 
     def test_production_status_flags_positive_review_without_transaction_record(self):
         layers = {
@@ -479,10 +479,10 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
             "closedLoops": {"valid": True},
             "reviews": {"legacy": {"latestReviewAt": "2026-11-10T11:59:30Z",
                                      "stats": {"positive": 1},
-                                     "currentLoopFreshness": {
-                                         "basis": "loop_review_time_point",
+                                     "currentLoopCoverage": {
+                                         "basis": "loop_review_round",
                                          "checkedLoops": 1, "currentLoops": 1,
-                                         "notCurrentLoops": [], "current": True}}},
+                                         "loopsWithoutCurrentMeasurement": [], "current": True}}},
             "broadcast": {"legacy": {"total": 0, "latestAttemptAt": None}},
         }
         status = HEALER.transaction_production_status(layers, "2026-11-10T12:00:00Z")
@@ -1945,7 +1945,7 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
             self.assertTrue(any("evidence_missing" != reason for reason in reasons),
                             f"the manager reason was lost: {reasons}")
 
-    def test_the_review_freshness_is_read_from_the_published_measurement_moment(self):
+    def test_the_review_moment_is_read_from_the_published_measurement_moment(self):
         """The Review Manager publishes ``reviewedAt`` and no ``createdAt``.
 
         Reading ``created_at`` alone made every Manager review look
@@ -2838,7 +2838,7 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
         as stale.
 
         The orchestrator therefore has no interval of its own: the
-        freshness of a review is judged by the moments of its loop.
+        coverage of a round is judged by the moments of its loop.
         """
         self.assertFalse(hasattr(HEALER, "REVIEW_FRESHNESS_SECONDS"),
                          "the orchestrator must not keep a window of seconds")
@@ -2970,7 +2970,7 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
         self.assertEqual(walk["refreshes"], 0)
         self.assertEqual([row["loopKey"] for row in walk["loops"]], ["loop-due"])
 
-    def test_the_review_freshness_is_judged_by_the_moments_of_the_loop(self):
+    def test_the_round_coverage_is_judged_by_the_moments_of_the_loop(self):
         """A loop is current when it carries the measurement of its round.
 
         The moments are the loop's own: the moment it is scheduled at and
@@ -3008,19 +3008,19 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
             "loop-6": {"nextReviewAt": HEALER.REVIEW_PENDING_SENTINEL_AT},
         }
         known = {"loop-1", "loop-2", "loop-3", "loop-4", "loop-5", "loop-6"}
-        freshness = HEALER.review_freshness_by_loop(rows, known, schedules)
-        self.assertEqual(freshness["basis"], "loop_review_time_point")
-        self.assertFalse(freshness["current"])
+        coverage = HEALER.review_coverage_by_loop(rows, known, schedules)
+        self.assertEqual(coverage["basis"], "loop_review_round")
+        self.assertFalse(coverage["current"])
         reasons = {item["loopKey"]: item["reason"]
-                   for item in freshness["notCurrentLoops"]}
+                   for item in coverage["loopsWithoutCurrentMeasurement"]}
         self.assertEqual(reasons.get("loop-2"), "round_not_measured")
         self.assertEqual(reasons.get("loop-4"), "no_review_time_point")
         self.assertEqual(reasons.get("loop-5"), "never_measured")
         self.assertNotIn("loop-1", reasons, "a measured round is current")
         self.assertNotIn("loop-3", reasons, "a busy loop is working")
         self.assertNotIn("loop-6", reasons, "a parked loop is working")
-        self.assertEqual(freshness["checkedLoops"], 6)
-        self.assertEqual(freshness["currentLoops"], 3)
+        self.assertEqual(coverage["checkedLoops"], 6)
+        self.assertEqual(coverage["currentLoops"], 3)
 
     def test_the_missing_review_candidates_follow_the_published_schedule(self):
         loop = {"loop_key": "loop-a", "path_text": "ETH -> SPY -> ETH",
@@ -3572,7 +3572,7 @@ class MainnetArbitrageHealerCascadeTests(unittest.TestCase):
                          "a live loop without a current measurement is a gap")
         self.assertEqual(report["legacy"]["currentLoopStats"]["missingCurrentMeasurement"], 1)
         reasons = {item["loopKey"]: item["reason"]
-                   for item in report["legacy"]["currentLoopFreshness"]["notCurrentLoops"]}
+                   for item in report["legacy"]["currentLoopCoverage"]["loopsWithoutCurrentMeasurement"]}
         self.assertEqual(reasons.get("loop-2"), "measured_in_older_generation")
 
     def test_the_cascade_rebuilds_the_direction_layer_before_the_layers_that_read_it(self):

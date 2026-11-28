@@ -63,10 +63,10 @@ def summarize(journal: Path) -> None:
         print(_line("reviews legacy", "total=%s valued=%s missing=%s positive=%s" % (
             reviews.get("total"), reviews.get("valued"),
             reviews.get("missingValue"), reviews.get("positive"))))
-        freshness = reviews.get("currentLoopFreshness") or {}
-        print(_line("loop freshness", "basis=%s checked=%s current=%s notCurrent=%s" % (
-            freshness.get("basis"), freshness.get("checkedLoops"),
-            freshness.get("currentLoops"), freshness.get("notCurrentLoops"))))
+        coverage = reviews.get("currentLoopCoverage") or {}
+        print(_line("loop coverage", "basis=%s checked=%s current=%s without=%s" % (
+            coverage.get("basis"), coverage.get("checkedLoops"),
+            coverage.get("currentLoops"), coverage.get("loopsWithoutCurrentMeasurement"))))
         print(_line("broadcast legacy", "total=%s attempts=%s success=%s failed=%s pending=%s" % (
             broadcast.get("total"), broadcast.get("attempts"),
             broadcast.get("success"), broadcast.get("failed"),

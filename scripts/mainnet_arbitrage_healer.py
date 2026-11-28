@@ -1287,7 +1287,7 @@ def is_review_sentinel(moment: Any) -> bool:
     return text in (REVIEW_PENDING_SENTINEL_AT, BROADCAST_PENDING_SENTINEL_AT)
 
 
-def review_freshness_by_loop(
+def review_coverage_by_loop(
     rows: list[dict[str, Any]],
     known_loops: set[str],
     schedules: dict[str, dict[str, Any]],
@@ -1296,8 +1296,9 @@ def review_freshness_by_loop(
 ) -> dict[str, Any]:
     """Whether every live closed loop carries its current measurement.
 
-    The judgement is made with **moments**, never with an age.  A closed
-    loop publishes the moment it is scheduled at and the moment its round
+    This is the **coverage of the round**, not a freshness window: the
+    judgement is made with **moments**, never with an age.  A closed loop
+    publishes the moment it is scheduled at and the moment its round
     started, and those two moments say whether the measurement the store
     holds is the current one of the loop:
 
@@ -1359,10 +1360,10 @@ def review_freshness_by_loop(
             not_current.append({"loopKey": key, "reason": "round_not_measured"})
             continue
     return {
-        "basis": "loop_review_time_point",
+        "basis": "loop_review_round",
         "checkedLoops": len(known_loops),
         "currentLoops": len(known_loops) - len(not_current),
-        "notCurrentLoops": not_current,
+        "loopsWithoutCurrentMeasurement": not_current,
         "current": not not_current,
     }
 
@@ -3899,7 +3900,7 @@ def audit_reviews(
     # the moment a loop is scheduled at and the moment its round started.
     # No age is counted and no interval is read -- the review cycle of a
     # loop is the round plus the wait, and the wait is not a fault.
-    freshness = review_freshness_by_loop(
+    coverage = review_coverage_by_loop(
         current_rows, known_loops, manager_review_schedules(manager_api),
         stale_generation_loops={review_loop_key(row) for row in stale_generation_rows})
     # A live loop without a review of the current generation is a route
@@ -3913,13 +3914,13 @@ def audit_reviews(
         "manager": {"reviews": len(manager_rows)},
         "legacy": {"windowHours": hours, "stats": stats,
                    "latestReviewAt": newest_review_stamp(rows),
-                   # The newest review of a **live** loop.  The freshness
-                   # of the profit data is a property of the routes that
-                   # are traded now, so a historical review of a loop that
-                   # left the catalog must not make a stale live review
-                   # look fresh.
+                   # The newest review of a **live** loop.  The coverage
+                   # of the round is a property of the routes that are
+                   # traded now, so a historical review of a loop that
+                   # left the catalog must not make an unmeasured live
+                   # route look measured.
                    "currentLoopLatestReviewAt": newest_review_stamp(matched),
-                   "currentLoopFreshness": freshness,
+                   "currentLoopCoverage": coverage,
                    "currentLoopMatched": len(matched), "staleOrUnmatched": len(unmatched),
                    "currentDistinctLoops": len({review_loop_key(row) for row in matched}),
                    "matchedMissingPnl": sum(pnl(row) is None for row in matched),
@@ -4222,14 +4223,16 @@ def transaction_production_status(
             review_age_seconds = max(0.0, (generated_time - review_time).total_seconds())
         except (TypeError, ValueError):
             review_age_seconds = None
-    # The freshness of the reviews is a property of the **closed loops**:
+    # The **coverage of the round** is a property of the **closed loops**:
     # every live loop publishes the moment it is scheduled at and the
     # moment its round started, and those moments say whether the review
     # the store holds is the current one of its loop.  The review layer
     # publishes that judgement; no age is counted here and no interval is
-    # read.
-    freshness = (reviews.get("currentLoopFreshness") or {})
-    review_fresh = bool(freshness.get("current"))
+    # read.  It is a **convergence** reading -- it names the routes the
+    # running round has not measured yet -- and it never gates a
+    # broadcast: a positive profit is broadcast the moment it is measured.
+    coverage = (reviews.get("currentLoopCoverage") or {})
+    round_complete = bool(coverage.get("current"))
     upstream_valid = all((layers.get(name) or {}).get("valid") for name in ("tokens", "pools", "closedLoops"))
     executable_positive = int(stats.get("positive") or 0)
     attempts = int(broadcast.get("total") or 0)
@@ -4238,7 +4241,7 @@ def transaction_production_status(
         state, healthy, reason = "upstream_invalid", False, "token_pool_or_closed_loop_invalid"
     elif best_amount_missing > 0:
         state, healthy, reason = "review_best_amount_missing", False, "review_without_concrete_best_trade_amount"
-    elif not review_fresh:
+    elif not round_complete:
         state, healthy, reason = (
             "review_stalled", False,
             "a_closed_loop_does_not_carry_its_current_measurement")
@@ -4254,8 +4257,8 @@ def transaction_production_status(
         "reason": reason,
         "latestReviewAt": latest_review_at,
         "reviewAgeSeconds": review_age_seconds,
-        "reviewFreshnessBasis": freshness.get("basis"),
-        "reviewNotCurrentLoops": freshness.get("notCurrentLoops") or [],
+        "reviewCoverageBasis": coverage.get("basis"),
+        "loopsWithoutCurrentMeasurement": coverage.get("loopsWithoutCurrentMeasurement") or [],
         "executablePositiveReviews": executable_positive,
         "transactionRecords": attempts,
         "latestAttemptAt": broadcast.get("latestAttemptAt"),
@@ -4466,8 +4469,8 @@ def build_report(
             "database": str(database), "observationStartedAt": observation_started_at(),
             "orchestrationGoal": "continuously_produce_stable_arbitrage_transaction_records_and_analyze_pnl",
             "successCriteria": {
-                "continuousFreshReviews": True,
-                "broadcastOnlyFromFreshProfitableReview": True,
+                "continuousCurrentReviews": True,
+                "broadcastOnlyFromProfitableReview": True,
                 "terminalTransactionRecords": True,
                 "expectedAndGasAdjustedPnlAvailable": True,
             },
@@ -6575,7 +6578,7 @@ def fill_missing_reviews(
     if manager_api and evidence_payloads:
         materialization = materialize_reviews(db, manager_api, evidence_payloads, apply)
     return {"mode": "fill-reviews", "generatedAt": now(), "apply": apply, "dryRun": not apply,
-            "policy": "real-time review first; only fresh positive review may trigger broadcast",
+            "policy": "real-time review first; a positive profitable review triggers a broadcast as it is",
             "candidateCount": len(candidates), "results": results,
             "evidenceCount": len(evidence_payloads),
             "materialization": materialization}
@@ -7533,7 +7536,7 @@ def repair_broadcast_failures(
       pool scope repair owns the actual fix.
     * a **transaction_rejected** attempt is finalized as failed with its
       diagnostic, so the failed attempt stops blocking the queue and the next
-      fresh review can be broadcast.
+      measured review can be broadcast.
     * a **pending** attempt is never touched.
 
     Nothing is written unless ``apply`` is set, and the whole call is

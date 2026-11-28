@@ -196,6 +196,7 @@
 - [x] **J2.4** **编排器（`M-8`）**：策略标签 `fresh_positive_review_only` → **`positive_profit_direct`**；`automaticBroadcastCandidates` 由**硬编码 0** 改为**真实读数**（带可执行判元的正利润复核数）；原因串去掉 “fresh”
 - [x] **J2.5** **★ 同轮修复：运行时忙不再饿死级联**：`busy → continue` 跳过整轮 ⇒ 新增 `run_management_writes()` ／ `busy_management_cycle()`，**忙的分支也跑** `release_abandoned_review_claims` ／ `advance_review_clocks` ／ `walk_review_queue`（日志事件 `management_cycle`）；忙轮次**计入样本**（修 `--max-samples` 死循环）
 - [x] **J2.6** **★ 同轮修复：忙看门狗改为看「库有没有动」**：新增 `review_progress_marker()`（管理器各闭环 `lastReviewedAt` 的最大值）⇒ **库在动** ⇒ 忙窗口重新计时、**不重启**；**库不动**且一直不回答 ⇒ 才重启；`runtime_busy` 事件带 `reviewProgressAt`
+- [x] **J2.7** **★ 报告口径归正（「新鲜度」措辞清零）**：报告头 `successCriteria` 的 `continuousFreshReviews` ／ `broadcastOnlyFromFreshProfitableReview` → `continuousCurrentReviews` ／ **`broadcastOnlyFromProfitableReview`**；`fill_missing_reviews()` 的 `policy` 串「only fresh positive review may trigger broadcast」→「**a positive profitable review triggers a broadcast as it is**」；复核层的**本轮覆盖**判据 `review_freshness_by_loop` ／ `currentLoopFreshness` ／ `reviewFreshnessBasis` ／ `reviewNotCurrentLoops` ／ `basis = loop_review_time_point` → `review_coverage_by_loop` ／ `currentLoopCoverage` ／ `reviewCoverageBasis` ／ `loopsWithoutCurrentMeasurement` ／ `basis = loop_review_round`（**该判据不是门禁**：它答的是「这一轮有没有测到这条闭环」，**不量年龄**、**不读任何间隔**，**不进任何广播判断**）
 
 ### J3. 回归与部署（`D-262` §5）
 
@@ -204,6 +205,7 @@
 - [x] **J3.3** `cargo test --offline`（`flashloan/rs-src`）⇒ **284 passed / 0 failed**（含改写的两个直发用例）
 - [x] **J3.4** `python -m pytest scripts/tests/test_mainnet_arbitrage_healer.py -q` ⇒ **152 passed / 0 failed**（基线 **149** ＋ 新 **3**：无新鲜度窗口 ／ 忙时不饿死管理写入 ／ 看门狗看库不看沉默）
 - [x] **J3.5** **部署闸门（已闭合）**：新 `manager-api`（pid **27124**，**16:44:47**）＋ 新扩展模块 `flashloan_rs.dll`（**16:44:41** 重建）＋ 新自愈器（pid **22936**，**16:44:47**）**同批上线** ⇒ **新旧无中间态**
+- [x] **J3.6** **在产首个自愈轮次（`09:03:50Z`）**：`broadcastPolicy = **positive_profit_direct**`（新策略已在产）；动作 `repair_reviews` ／ `repair_stale_generation_reviews` ／ `fill_current_loop_reviews` ／ `rereview_historical_positive_candidates` ／ `observe_automatic_broadcast`；`manualBroadcastInvoked = false`；生产态 `review_stalled` ＋ `executablePositiveReviews = 0` ＋ `transactionRecords = 0` ＋ `loopsWithoutCurrentMeasurement = 25`（**48 条闭环里 25 条本轮尚未测到**）⇒ 报红的原因是**本轮还没测完**，**不是**「利润过时」；**二进制自证**：`manager-api.exe` 命中 `BC-1.review_clock_consistent`、**不再命中** `BC-1.review_fresh`；`flashloan_rs.dll` 命中 `loopScheduledAt`、**不再命中**旧拒绝串「no longer the current measurement of the loop」
 
 ### J4. 诚实边界（**永久留占位**）
 
