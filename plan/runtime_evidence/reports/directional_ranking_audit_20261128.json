@@ -1,0 +1,325 @@
+{
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "pools": 452,
+  "hops": 108,
+  "ranking": {
+    "groups": 86,
+    "rank1IsTheHighestRate": true,
+    "rankingViolations": [],
+    "ranksAreContinuous": true,
+    "rankShapeViolations": []
+  },
+  "wiring": {
+    "hops": 108,
+    "everyHopUsesItsScopeRank1": true,
+    "violations": []
+  },
+  "pruning": {
+    "rejectedButPricedPools": 78,
+    "noRejectedPoolBeatsTheKeptOne": true,
+    "lostCandidates": []
+  },
+  "triangles": {
+    "edges": 48,
+    "triangles": 8,
+    "positiveTriangles": 2,
+    "positiveTrianglesCovered": 0,
+    "rows": [
+      {
+        "marginalRoundTrip": 1.0112143137262781,
+        "marginalRoundTripPercent": 1.1214313726278125,
+        "tokens": [
+          "MU",
+          "NVDA",
+          "USDG"
+        ],
+        "legs": [
+          {
+            "from": "NVDA",
+            "to": "MU",
+            "rate": 0.2365644831113983,
+            "scope": "candidate_exchange",
+            "fee": 12500,
+            "directionalPoolId": "dpool:v1:robinhood:4663:candidate_exchange:0x7b1c4469fbc25827332bcf7a4c273fcbb5d60815c03e5844c74feb51c2313cc7:1"
+          },
+          {
+            "from": "MU",
+            "to": "USDG",
+            "rate": 642.6317549057047,
+            "scope": "core4",
+            "fee": 10000,
+            "directionalPoolId": "dpool:v1:robinhood:4663:core4:0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659:0"
+          },
+          {
+            "from": "USDG",
+            "to": "NVDA",
+            "rate": 0.006651682093579325,
+            "scope": "core4",
+            "fee": 3000,
+            "directionalPoolId": "dpool:v1:robinhood:4663:core4:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:1"
+          }
+        ],
+        "coveredByAClosedLoop": false
+      },
+      {
+        "marginalRoundTrip": 1.0025430044091168,
+        "marginalRoundTripPercent": 0.25430044091168114,
+        "tokens": [
+          "AMD",
+          "NVDA",
+          "USDG"
+        ],
+        "legs": [
+          {
+            "from": "NVDA",
+            "to": "AMD",
+            "rate": 0.3613208543047978,
+            "scope": "candidate_exchange",
+            "fee": 5000,
+            "directionalPoolId": "dpool:v1:robinhood:4663:candidate_exchange:0x928965e3f578b9825df398cfb31595201b32fc9e58b28ade4b2b48b68ea88e5b:0"
+          },
+          {
+            "from": "AMD",
+            "to": "USDG",
+            "rate": 417.13679294704014,
+            "scope": "core4",
+            "fee": 10000,
+            "directionalPoolId": "dpool:v1:robinhood:4663:core4:0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274:0"
+          },
+          {
+            "from": "USDG",
+            "to": "NVDA",
+            "rate": 0.006651682093579325,
+            "scope": "core4",
+            "fee": 3000,
+            "directionalPoolId": "dpool:v1:robinhood:4663:core4:0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1:1"
+          }
+        ],
+        "coveredByAClosedLoop": false
+      },
+      {
+        "marginalRoundTrip": 0.9990992529158718,
+        "marginalRoundTripPercent": -0.09007470841282395,
+        "tokens": [
+          "AMD",
+          "NVDA",
+          "SPY"
+        ],
+        "legs": [
+          {
+            "from": "AMD",
+            "to": "NVDA",
+            "rate": 2.7391589395280818,
+            "scope": "candidate_exchange",
+            "fee": 5000,
+            "directionalPoolId": "dpool:v1:robinhood:4663:candidate_exchange:0x928965e3f578b9825df398cfb31595201b32fc9e58b28ade4b2b48b68ea88e5b:1"
+          },
+          {
+            "from": "NVDA",
+            "to": "SPY",
+            "rate": 0.20316970017416588,
+            "scope": "candidate_exchange",
+            "fee": 250,
+            "directionalPoolId": "dpool:v1:robinhood:4663:candidate_exchange:0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0:0"
+          },
+          {
+            "from": "SPY",
+            "to": "AMD",
+            "rate": 1.795281111594753,
+            "scope": "candidate_exchange",
+            "fee": 500,
+            "directionalPoolId": "dpool:v1:robinhood:4663:candidate_exchange:0xe6e17efdbdd916526293cf1b509171be4ffb04f47c4a5fe1a7367acdaa6ffd82:1"
+          }
+        ],
+        "coveredByAClosedLoop": true
+      },
+      {
+        "marginalRoundTrip": 0.9984620214535667,
+        "marginalRoundTripPercent": -0.15379785464333384,
+        "tokens": [
+          "ETH",
+          "NVDA",
+          "SPY"
+        ],
+        "legs": [
+          {
+            "from": "ETH",
+            "to": "SPY",
+            "rate": 2.2906019950810923,
+            "scope": "candidate_exchange",
+            "fee": 1000,
+            "directionalPoolId": "dpool:v1:robinhood:4663:candidate_exchange:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1"
+          },
+          {
+            "from": "SPY",
+            "to": "NVDA",
+            "rate": 4.919486967744402,
+            "scope": "candidate_exchange",
+            "fee": 250,
+            "directionalPoolId": "dpool:v1:robinhood:4663:candidate_exchange:0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0:1"
+          },
+          {
+            "from": "NVDA",
+            "to": "ETH",
+            "rate": 0.08860578982135701,
+            "scope": "candidate_exchange",
+            "fee": 500,
+            "directionalPoolId": "dpool:v1:robinhood:4663:candidate_exchange:0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c:0"
+          }
+        ],
+        "coveredByAClosedLoop": true
+      },
+      {
+        "marginalRoundTrip": 0.9982475668451973,
+        "marginalRoundTripPercent": -0.17524331548026684,
+        "tokens": [
+          "ETH",
+          "MU",
+          "SPY"
+        ],
+        "legs": [
+          {
+            "from": "ETH",
+            "to": "SPY",
+            "rate": 2.2906019950810923,
+            "scope": "candidate_exchange",
+            "fee": 1000,
+            "directionalPoolId": "dpool:v1:robinhood:4663:candidate_exchange:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1"
+          },
+          {
+            "from": "SPY",
+            "to": "MU",
+            "rate": 1.1724146041812238,
+            "scope": "candidate_exchange",
+            "fee": 500,
+            "directionalPoolId": "dpool:v1:robinhood:4663:candidate_exchange:0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c:1"
+          },
+          {
+            "from": "MU",
+            "to": "ETH",
+            "rate": 0.37171270559906355,
+            "scope": "candidate_exchange",
+            "fee": 1800,
+            "directionalPoolId": "dpool:v1:robinhood:4663:candidate_exchange:0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237:0"
+          }
+        ],
+        "coveredByAClosedLoop": true
+      },
+      {
+        "marginalRoundTrip": 0.9972884468164074,
+        "marginalRoundTripPercent": -0.2711553183592619,
+        "tokens": [
+          "ETH",
+          "GOOGL",
+          "SPY"
+        ],
+        "legs": [
+          {
+            "from": "ETH",
+            "to": "SPY",
+            "rate": 2.2906019950810923,
+            "scope": "candidate_exchange",
+            "fee": 1000,
+            "directionalPoolId": "dpool:v1:robinhood:4663:candidate_exchange:0x509c6c6826ef06e0e29f24f18d9389533c52358a3b385d99a67a2afbb07f23c6:1"
+          },
+          {
+            "from": "SPY",
+            "to": "GOOGL",
+            "rate": 2.649925992843957,
+            "scope": "candidate_exchange",
+            "fee": 250,
+            "directionalPoolId": "dpool:v1:robinhood:4663:candidate_exchange:0x6d0f67069596c7ef9d1ce6981c1b6dbcd9a91b0c5393aebe9dd07c35e412df30:1"
+          },
+          {
+            "from": "GOOGL",
+            "to": "ETH",
+            "rate": 0.16429994126096192,
+            "scope": "candidate_exchange",
+            "fee": 2100,
+            "directionalPoolId": "dpool:v1:robinhood:4663:candidate_exchange:0xe4d9d8c880cedae4ed7884609969c262cd1138a328e05eca7b32f834e649609d:0"
+          }
+        ],
+        "coveredByAClosedLoop": true
+      },
+      {
+        "marginalRoundTrip": 0.9916238131581698,
+        "marginalRoundTripPercent": -0.8376186841830169,
+        "tokens": [
+          "MU",
+          "NVDA",
+          "SPY"
+        ],
+        "legs": [
+          {
+            "from": "MU",
+            "to": "SPY",
+            "rate": 0.8520745447919448,
+            "scope": "candidate_exchange",
+            "fee": 500,
+            "directionalPoolId": "dpool:v1:robinhood:4663:candidate_exchange:0xcc2a903a8744a65258bb07fbeea553a25410f731c9fef306321d0c176a09542c:0"
+          },
+          {
+            "from": "SPY",
+            "to": "NVDA",
+            "rate": 4.919486967744402,
+            "scope": "candidate_exchange",
+            "fee": 250,
+            "directionalPoolId": "dpool:v1:robinhood:4663:candidate_exchange:0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0:1"
+          },
+          {
+            "from": "NVDA",
+            "to": "MU",
+            "rate": 0.2365644831113983,
+            "scope": "candidate_exchange",
+            "fee": 12500,
+            "directionalPoolId": "dpool:v1:robinhood:4663:candidate_exchange:0x7b1c4469fbc25827332bcf7a4c273fcbb5d60815c03e5844c74feb51c2313cc7:1"
+          }
+        ],
+        "coveredByAClosedLoop": true
+      },
+      {
+        "marginalRoundTrip": 0.9913953333600699,
+        "marginalRoundTripPercent": -0.8604666639930092,
+        "tokens": [
+          "ETH",
+          "MU",
+          "NVDA"
+        ],
+        "legs": [
+          {
+            "from": "NVDA",
+            "to": "MU",
+            "rate": 0.2365644831113983,
+            "scope": "candidate_exchange",
+            "fee": 12500,
+            "directionalPoolId": "dpool:v1:robinhood:4663:candidate_exchange:0x7b1c4469fbc25827332bcf7a4c273fcbb5d60815c03e5844c74feb51c2313cc7:1"
+          },
+          {
+            "from": "MU",
+            "to": "ETH",
+            "rate": 0.37171270559906355,
+            "scope": "candidate_exchange",
+            "fee": 1800,
+            "directionalPoolId": "dpool:v1:robinhood:4663:candidate_exchange:0x0fef17ec9ef628d47aa90990e96aac90f355145cfa601b8b73c4e5d52b166237:0"
+          },
+          {
+            "from": "ETH",
+            "to": "NVDA",
+            "rate": 11.274308709176896,
+            "scope": "candidate_exchange",
+            "fee": 500,
+            "directionalPoolId": "dpool:v1:robinhood:4663:candidate_exchange:0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c:1"
+          }
+        ],
+        "coveredByAClosedLoop": true
+      }
+    ]
+  },
+  "verdict": {
+    "rankingIsSound": true,
+    "everyHopUsesTheRank1Pool": true,
+    "noRejectedPoolBeatsTheKeptOne": true,
+    "positiveTriangles": 2,
+    "positiveTrianglesCovered": 0
+  }
+}

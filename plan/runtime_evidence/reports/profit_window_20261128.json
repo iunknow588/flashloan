@@ -1,0 +1,972 @@
+{
+  "windowMinutes": 10.0,
+  "intervalSeconds": 60.0,
+  "windowStart": "2026-11-28T01:35:41.267889+00:00",
+  "windowEnd": "2026-11-28T01:55:41.279901+00:00",
+  "samples": [
+    {
+      "measuredAt": "2026-11-28T01:45:41.278012+00:00",
+      "windowStart": "2026-11-28T01:35:41.267889+00:00",
+      "reviewsInWindow": 7,
+      "positiveInWindow": 0,
+      "negativeInWindow": 0,
+      "nonPositiveInWindow": 7,
+      "positives": [],
+      "newestReview": {
+        "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000",
+        "anchorSymbol": "MU",
+        "reviewStatus": "not_executable",
+        "signedPnlRaw": "-0x8647c355834d",
+        "signedPnlCurrency": "MU",
+        "reviewedAt": "2026-11-28T01:43:01.069738500+00:00",
+        "singleTick": {
+          "singleTickBestAmountRaw": "0x0",
+          "singleTickProfitable": false,
+          "crossTickStarted": false,
+          "crossTickReason": "single_tick_best_amount_zero",
+          "crossTickBestAmountRaw": "0x0",
+          "crossTickBestAmountBasis": "single_tick_best_amount",
+          "bestAmountSelectionBasis": "native_rust_ladder_no_profitable_size_measured"
+        }
+      },
+      "positiveReviewsAllTime": 7,
+      "positiveReviewsAllTimeRows": [
+        {
+          "loopKey": "0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchorSymbol": "ETH",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x1c95ee1d9",
+          "signedPnlCurrency": "ETH",
+          "reviewedAt": "2026-11-26T19:11:30.182370800+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0xc",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:11:13.083384600+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x1c",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:09:57.782716+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0xc",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:08:56.080225700+00:00"
+        },
+        {
+          "loopKey": "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchorSymbol": "PFE",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x69ed53fc54",
+          "signedPnlCurrency": "PFE",
+          "reviewedAt": "2026-11-26T19:07:50.402444200+00:00"
+        },
+        {
+          "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+          "anchorSymbol": "CRCL",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x3cae6ef8b4",
+          "signedPnlCurrency": "CRCL",
+          "reviewedAt": "2026-11-26T19:07:32.343555600+00:00"
+        },
+        {
+          "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "CRCL",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x3e189c80a9",
+          "signedPnlCurrency": "CRCL",
+          "reviewedAt": "2026-11-26T19:07:22.927260600+00:00"
+        }
+      ],
+      "broadcastAttempts": 0,
+      "totalReviews": 176
+    },
+    {
+      "measuredAt": "2026-11-28T01:46:41.289784+00:00",
+      "windowStart": "2026-11-28T01:35:41.267889+00:00",
+      "reviewsInWindow": 8,
+      "positiveInWindow": 0,
+      "negativeInWindow": 0,
+      "nonPositiveInWindow": 8,
+      "positives": [],
+      "newestReview": {
+        "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x0000000000000000000000000000000000000000",
+        "anchorSymbol": "MU",
+        "reviewStatus": "not_executable",
+        "signedPnlRaw": "-0x2259c5629ccb5",
+        "signedPnlCurrency": "MU",
+        "reviewedAt": "2026-11-28T01:44:48.205729500+00:00",
+        "singleTick": {
+          "singleTickBestAmountRaw": "0x0",
+          "singleTickProfitable": false,
+          "crossTickStarted": false,
+          "crossTickReason": "single_tick_best_amount_zero",
+          "crossTickBestAmountRaw": "0x0",
+          "crossTickBestAmountBasis": "single_tick_best_amount",
+          "bestAmountSelectionBasis": "native_rust_ladder_no_profitable_size_measured"
+        }
+      },
+      "positiveReviewsAllTime": 7,
+      "positiveReviewsAllTimeRows": [
+        {
+          "loopKey": "0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchorSymbol": "ETH",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x1c95ee1d9",
+          "signedPnlCurrency": "ETH",
+          "reviewedAt": "2026-11-26T19:11:30.182370800+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0xc",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:11:13.083384600+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x1c",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:09:57.782716+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0xc",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:08:56.080225700+00:00"
+        },
+        {
+          "loopKey": "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchorSymbol": "PFE",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x69ed53fc54",
+          "signedPnlCurrency": "PFE",
+          "reviewedAt": "2026-11-26T19:07:50.402444200+00:00"
+        },
+        {
+          "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+          "anchorSymbol": "CRCL",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x3cae6ef8b4",
+          "signedPnlCurrency": "CRCL",
+          "reviewedAt": "2026-11-26T19:07:32.343555600+00:00"
+        },
+        {
+          "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "CRCL",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x3e189c80a9",
+          "signedPnlCurrency": "CRCL",
+          "reviewedAt": "2026-11-26T19:07:22.927260600+00:00"
+        }
+      ],
+      "broadcastAttempts": 0,
+      "totalReviews": 176
+    },
+    {
+      "measuredAt": "2026-11-28T01:47:41.301771+00:00",
+      "windowStart": "2026-11-28T01:35:41.267889+00:00",
+      "reviewsInWindow": 9,
+      "positiveInWindow": 0,
+      "negativeInWindow": 0,
+      "nonPositiveInWindow": 9,
+      "positives": [],
+      "newestReview": {
+        "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "anchorSymbol": "MU",
+        "reviewStatus": "not_executable",
+        "signedPnlRaw": "-0x17985af867e85",
+        "signedPnlCurrency": "MU",
+        "reviewedAt": "2026-11-28T01:46:07.575325200+00:00",
+        "singleTick": {
+          "singleTickBestAmountRaw": "0x0",
+          "singleTickProfitable": false,
+          "crossTickStarted": false,
+          "crossTickReason": "single_tick_best_amount_zero",
+          "crossTickBestAmountRaw": "0x0",
+          "crossTickBestAmountBasis": "single_tick_best_amount",
+          "bestAmountSelectionBasis": "native_rust_ladder_no_profitable_size_measured"
+        }
+      },
+      "positiveReviewsAllTime": 7,
+      "positiveReviewsAllTimeRows": [
+        {
+          "loopKey": "0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchorSymbol": "ETH",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x1c95ee1d9",
+          "signedPnlCurrency": "ETH",
+          "reviewedAt": "2026-11-26T19:11:30.182370800+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0xc",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:11:13.083384600+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x1c",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:09:57.782716+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0xc",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:08:56.080225700+00:00"
+        },
+        {
+          "loopKey": "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchorSymbol": "PFE",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x69ed53fc54",
+          "signedPnlCurrency": "PFE",
+          "reviewedAt": "2026-11-26T19:07:50.402444200+00:00"
+        },
+        {
+          "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+          "anchorSymbol": "CRCL",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x3cae6ef8b4",
+          "signedPnlCurrency": "CRCL",
+          "reviewedAt": "2026-11-26T19:07:32.343555600+00:00"
+        },
+        {
+          "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "CRCL",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x3e189c80a9",
+          "signedPnlCurrency": "CRCL",
+          "reviewedAt": "2026-11-26T19:07:22.927260600+00:00"
+        }
+      ],
+      "broadcastAttempts": 0,
+      "totalReviews": 176
+    },
+    {
+      "measuredAt": "2026-11-28T01:48:41.323668+00:00",
+      "windowStart": "2026-11-28T01:35:41.267889+00:00",
+      "reviewsInWindow": 10,
+      "positiveInWindow": 0,
+      "negativeInWindow": 0,
+      "nonPositiveInWindow": 10,
+      "positives": [],
+      "newestReview": {
+        "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+        "anchorSymbol": "SPY",
+        "reviewStatus": "not_executable",
+        "signedPnlRaw": "-0x102a1f032b572",
+        "signedPnlCurrency": "SPY",
+        "reviewedAt": "2026-11-28T01:47:01.022417200+00:00",
+        "singleTick": {
+          "singleTickBestAmountRaw": "0x0",
+          "singleTickProfitable": false,
+          "crossTickStarted": false,
+          "crossTickReason": "single_tick_best_amount_zero",
+          "crossTickBestAmountRaw": "0x0",
+          "crossTickBestAmountBasis": "single_tick_best_amount",
+          "bestAmountSelectionBasis": "native_rust_ladder_no_profitable_size_measured"
+        }
+      },
+      "positiveReviewsAllTime": 7,
+      "positiveReviewsAllTimeRows": [
+        {
+          "loopKey": "0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchorSymbol": "ETH",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x1c95ee1d9",
+          "signedPnlCurrency": "ETH",
+          "reviewedAt": "2026-11-26T19:11:30.182370800+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0xc",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:11:13.083384600+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x1c",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:09:57.782716+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0xc",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:08:56.080225700+00:00"
+        },
+        {
+          "loopKey": "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchorSymbol": "PFE",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x69ed53fc54",
+          "signedPnlCurrency": "PFE",
+          "reviewedAt": "2026-11-26T19:07:50.402444200+00:00"
+        },
+        {
+          "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+          "anchorSymbol": "CRCL",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x3cae6ef8b4",
+          "signedPnlCurrency": "CRCL",
+          "reviewedAt": "2026-11-26T19:07:32.343555600+00:00"
+        },
+        {
+          "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "CRCL",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x3e189c80a9",
+          "signedPnlCurrency": "CRCL",
+          "reviewedAt": "2026-11-26T19:07:22.927260600+00:00"
+        }
+      ],
+      "broadcastAttempts": 0,
+      "totalReviews": 176
+    },
+    {
+      "measuredAt": "2026-11-28T01:49:41.328741+00:00",
+      "windowStart": "2026-11-28T01:35:41.267889+00:00",
+      "reviewsInWindow": 11,
+      "positiveInWindow": 0,
+      "negativeInWindow": 0,
+      "nonPositiveInWindow": 11,
+      "positives": [],
+      "newestReview": {
+        "loopKey": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3:0x0000000000000000000000000000000000000000:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "anchorSymbol": "GOOGL",
+        "reviewStatus": "not_executable",
+        "signedPnlRaw": "-0x37b629badf007",
+        "signedPnlCurrency": "GOOGL",
+        "reviewedAt": "2026-11-28T01:48:30.076733900+00:00",
+        "singleTick": {
+          "singleTickBestAmountRaw": "0x0",
+          "singleTickProfitable": false,
+          "crossTickStarted": false,
+          "crossTickReason": "single_tick_best_amount_zero",
+          "crossTickBestAmountRaw": "0x0",
+          "crossTickBestAmountBasis": "single_tick_best_amount",
+          "bestAmountSelectionBasis": "native_rust_ladder_no_profitable_size_measured"
+        }
+      },
+      "positiveReviewsAllTime": 7,
+      "positiveReviewsAllTimeRows": [
+        {
+          "loopKey": "0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchorSymbol": "ETH",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x1c95ee1d9",
+          "signedPnlCurrency": "ETH",
+          "reviewedAt": "2026-11-26T19:11:30.182370800+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0xc",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:11:13.083384600+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x1c",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:09:57.782716+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0xc",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:08:56.080225700+00:00"
+        },
+        {
+          "loopKey": "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchorSymbol": "PFE",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x69ed53fc54",
+          "signedPnlCurrency": "PFE",
+          "reviewedAt": "2026-11-26T19:07:50.402444200+00:00"
+        },
+        {
+          "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+          "anchorSymbol": "CRCL",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x3cae6ef8b4",
+          "signedPnlCurrency": "CRCL",
+          "reviewedAt": "2026-11-26T19:07:32.343555600+00:00"
+        },
+        {
+          "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "CRCL",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x3e189c80a9",
+          "signedPnlCurrency": "CRCL",
+          "reviewedAt": "2026-11-26T19:07:22.927260600+00:00"
+        }
+      ],
+      "broadcastAttempts": 0,
+      "totalReviews": 176
+    },
+    {
+      "measuredAt": "2026-11-28T01:50:41.336134+00:00",
+      "windowStart": "2026-11-28T01:35:41.267889+00:00",
+      "reviewsInWindow": 12,
+      "positiveInWindow": 0,
+      "negativeInWindow": 0,
+      "nonPositiveInWindow": 12,
+      "positives": [],
+      "newestReview": {
+        "loopKey": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "anchorSymbol": "MU",
+        "reviewStatus": "not_executable",
+        "signedPnlRaw": "-0x52bf8e934a28",
+        "signedPnlCurrency": "MU",
+        "reviewedAt": "2026-11-28T01:49:39.855087600+00:00",
+        "singleTick": {
+          "singleTickBestAmountRaw": "0x0",
+          "singleTickProfitable": false,
+          "crossTickStarted": false,
+          "crossTickReason": "single_tick_best_amount_zero",
+          "crossTickBestAmountRaw": "0x0",
+          "crossTickBestAmountBasis": "single_tick_best_amount",
+          "bestAmountSelectionBasis": "native_rust_ladder_no_profitable_size_measured"
+        }
+      },
+      "positiveReviewsAllTime": 7,
+      "positiveReviewsAllTimeRows": [
+        {
+          "loopKey": "0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchorSymbol": "ETH",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x1c95ee1d9",
+          "signedPnlCurrency": "ETH",
+          "reviewedAt": "2026-11-26T19:11:30.182370800+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0xc",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:11:13.083384600+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x1c",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:09:57.782716+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0xc",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:08:56.080225700+00:00"
+        },
+        {
+          "loopKey": "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchorSymbol": "PFE",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x69ed53fc54",
+          "signedPnlCurrency": "PFE",
+          "reviewedAt": "2026-11-26T19:07:50.402444200+00:00"
+        },
+        {
+          "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+          "anchorSymbol": "CRCL",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x3cae6ef8b4",
+          "signedPnlCurrency": "CRCL",
+          "reviewedAt": "2026-11-26T19:07:32.343555600+00:00"
+        },
+        {
+          "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "CRCL",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x3e189c80a9",
+          "signedPnlCurrency": "CRCL",
+          "reviewedAt": "2026-11-26T19:07:22.927260600+00:00"
+        }
+      ],
+      "broadcastAttempts": 0,
+      "totalReviews": 176
+    },
+    {
+      "measuredAt": "2026-11-28T01:51:41.348380+00:00",
+      "windowStart": "2026-11-28T01:35:41.267889+00:00",
+      "reviewsInWindow": 13,
+      "positiveInWindow": 0,
+      "negativeInWindow": 0,
+      "nonPositiveInWindow": 13,
+      "positives": [],
+      "newestReview": {
+        "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "anchorSymbol": "SPY",
+        "reviewStatus": "not_executable",
+        "signedPnlRaw": "-0x14014e9cc085a",
+        "signedPnlCurrency": "SPY",
+        "reviewedAt": "2026-11-28T01:50:19.593431900+00:00",
+        "singleTick": {
+          "singleTickBestAmountRaw": "0x0",
+          "singleTickProfitable": false,
+          "crossTickStarted": false,
+          "crossTickReason": "single_tick_best_amount_zero",
+          "crossTickBestAmountRaw": "0x0",
+          "crossTickBestAmountBasis": "single_tick_best_amount",
+          "bestAmountSelectionBasis": "native_rust_ladder_no_profitable_size_measured"
+        }
+      },
+      "positiveReviewsAllTime": 7,
+      "positiveReviewsAllTimeRows": [
+        {
+          "loopKey": "0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchorSymbol": "ETH",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x1c95ee1d9",
+          "signedPnlCurrency": "ETH",
+          "reviewedAt": "2026-11-26T19:11:30.182370800+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0xc",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:11:13.083384600+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x1c",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:09:57.782716+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0xc",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:08:56.080225700+00:00"
+        },
+        {
+          "loopKey": "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchorSymbol": "PFE",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x69ed53fc54",
+          "signedPnlCurrency": "PFE",
+          "reviewedAt": "2026-11-26T19:07:50.402444200+00:00"
+        },
+        {
+          "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+          "anchorSymbol": "CRCL",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x3cae6ef8b4",
+          "signedPnlCurrency": "CRCL",
+          "reviewedAt": "2026-11-26T19:07:32.343555600+00:00"
+        },
+        {
+          "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "CRCL",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x3e189c80a9",
+          "signedPnlCurrency": "CRCL",
+          "reviewedAt": "2026-11-26T19:07:22.927260600+00:00"
+        }
+      ],
+      "broadcastAttempts": 0,
+      "totalReviews": 176
+    },
+    {
+      "measuredAt": "2026-11-28T01:52:41.358001+00:00",
+      "windowStart": "2026-11-28T01:35:41.267889+00:00",
+      "reviewsInWindow": 14,
+      "positiveInWindow": 0,
+      "negativeInWindow": 0,
+      "nonPositiveInWindow": 14,
+      "positives": [],
+      "newestReview": {
+        "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000",
+        "anchorSymbol": "SPY",
+        "reviewStatus": "not_executable",
+        "signedPnlRaw": "-0x1c7f280d44a3",
+        "signedPnlCurrency": "SPY",
+        "reviewedAt": "2026-11-28T01:51:19.739060200+00:00",
+        "singleTick": {
+          "singleTickBestAmountRaw": "0x0",
+          "singleTickProfitable": false,
+          "crossTickStarted": false,
+          "crossTickReason": "single_tick_best_amount_zero",
+          "crossTickBestAmountRaw": "0x0",
+          "crossTickBestAmountBasis": "single_tick_best_amount",
+          "bestAmountSelectionBasis": "native_rust_ladder_no_profitable_size_measured"
+        }
+      },
+      "positiveReviewsAllTime": 7,
+      "positiveReviewsAllTimeRows": [
+        {
+          "loopKey": "0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchorSymbol": "ETH",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x1c95ee1d9",
+          "signedPnlCurrency": "ETH",
+          "reviewedAt": "2026-11-26T19:11:30.182370800+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0xc",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:11:13.083384600+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x1c",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:09:57.782716+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0xc",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:08:56.080225700+00:00"
+        },
+        {
+          "loopKey": "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchorSymbol": "PFE",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x69ed53fc54",
+          "signedPnlCurrency": "PFE",
+          "reviewedAt": "2026-11-26T19:07:50.402444200+00:00"
+        },
+        {
+          "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+          "anchorSymbol": "CRCL",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x3cae6ef8b4",
+          "signedPnlCurrency": "CRCL",
+          "reviewedAt": "2026-11-26T19:07:32.343555600+00:00"
+        },
+        {
+          "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "CRCL",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x3e189c80a9",
+          "signedPnlCurrency": "CRCL",
+          "reviewedAt": "2026-11-26T19:07:22.927260600+00:00"
+        }
+      ],
+      "broadcastAttempts": 0,
+      "totalReviews": 176
+    },
+    {
+      "measuredAt": "2026-11-28T01:53:41.381799+00:00",
+      "windowStart": "2026-11-28T01:35:41.267889+00:00",
+      "reviewsInWindow": 15,
+      "positiveInWindow": 0,
+      "negativeInWindow": 0,
+      "nonPositiveInWindow": 15,
+      "positives": [],
+      "newestReview": {
+        "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+        "anchorSymbol": "SPY",
+        "reviewStatus": "not_executable",
+        "signedPnlRaw": "-0x275a6e29f136",
+        "signedPnlCurrency": "SPY",
+        "reviewedAt": "2026-11-28T01:52:08.514438800+00:00",
+        "singleTick": {
+          "singleTickBestAmountRaw": "0x0",
+          "singleTickProfitable": false,
+          "crossTickStarted": false,
+          "crossTickReason": "single_tick_best_amount_zero",
+          "crossTickBestAmountRaw": "0x0",
+          "crossTickBestAmountBasis": "single_tick_best_amount",
+          "bestAmountSelectionBasis": "native_rust_ladder_no_profitable_size_measured"
+        }
+      },
+      "positiveReviewsAllTime": 7,
+      "positiveReviewsAllTimeRows": [
+        {
+          "loopKey": "0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchorSymbol": "ETH",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x1c95ee1d9",
+          "signedPnlCurrency": "ETH",
+          "reviewedAt": "2026-11-26T19:11:30.182370800+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0xc",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:11:13.083384600+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x1c",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:09:57.782716+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0xc",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:08:56.080225700+00:00"
+        },
+        {
+          "loopKey": "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchorSymbol": "PFE",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x69ed53fc54",
+          "signedPnlCurrency": "PFE",
+          "reviewedAt": "2026-11-26T19:07:50.402444200+00:00"
+        },
+        {
+          "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+          "anchorSymbol": "CRCL",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x3cae6ef8b4",
+          "signedPnlCurrency": "CRCL",
+          "reviewedAt": "2026-11-26T19:07:32.343555600+00:00"
+        },
+        {
+          "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "CRCL",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x3e189c80a9",
+          "signedPnlCurrency": "CRCL",
+          "reviewedAt": "2026-11-26T19:07:22.927260600+00:00"
+        }
+      ],
+      "broadcastAttempts": 0,
+      "totalReviews": 176
+    },
+    {
+      "measuredAt": "2026-11-28T01:54:41.406927+00:00",
+      "windowStart": "2026-11-28T01:35:41.267889+00:00",
+      "reviewsInWindow": 16,
+      "positiveInWindow": 0,
+      "negativeInWindow": 0,
+      "nonPositiveInWindow": 16,
+      "positives": [],
+      "newestReview": {
+        "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0x0000000000000000000000000000000000000000:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+        "anchorSymbol": "SPY",
+        "reviewStatus": "not_executable",
+        "signedPnlRaw": "-0x4d6c0049980",
+        "signedPnlCurrency": "SPY",
+        "reviewedAt": "2026-11-28T01:53:15.568137800+00:00",
+        "singleTick": {
+          "singleTickBestAmountRaw": "0x0",
+          "singleTickProfitable": false,
+          "crossTickStarted": false,
+          "crossTickReason": "single_tick_best_amount_zero",
+          "crossTickBestAmountRaw": "0x0",
+          "crossTickBestAmountBasis": "single_tick_best_amount",
+          "bestAmountSelectionBasis": "native_rust_ladder_no_profitable_size_measured"
+        }
+      },
+      "positiveReviewsAllTime": 7,
+      "positiveReviewsAllTimeRows": [
+        {
+          "loopKey": "0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchorSymbol": "ETH",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x1c95ee1d9",
+          "signedPnlCurrency": "ETH",
+          "reviewedAt": "2026-11-26T19:11:30.182370800+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0xc",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:11:13.083384600+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x1c",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:09:57.782716+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0xc",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:08:56.080225700+00:00"
+        },
+        {
+          "loopKey": "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchorSymbol": "PFE",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x69ed53fc54",
+          "signedPnlCurrency": "PFE",
+          "reviewedAt": "2026-11-26T19:07:50.402444200+00:00"
+        },
+        {
+          "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+          "anchorSymbol": "CRCL",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x3cae6ef8b4",
+          "signedPnlCurrency": "CRCL",
+          "reviewedAt": "2026-11-26T19:07:32.343555600+00:00"
+        },
+        {
+          "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "CRCL",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x3e189c80a9",
+          "signedPnlCurrency": "CRCL",
+          "reviewedAt": "2026-11-26T19:07:22.927260600+00:00"
+        }
+      ],
+      "broadcastAttempts": 0,
+      "totalReviews": 176
+    },
+    {
+      "measuredAt": "2026-11-28T01:55:41.278898+00:00",
+      "windowStart": "2026-11-28T01:35:41.267889+00:00",
+      "reviewsInWindow": 17,
+      "positiveInWindow": 0,
+      "negativeInWindow": 0,
+      "nonPositiveInWindow": 17,
+      "positives": [],
+      "newestReview": {
+        "loopKey": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+        "anchorSymbol": "SPY",
+        "reviewStatus": "not_executable",
+        "signedPnlRaw": "-0x1b8462cc81982",
+        "signedPnlCurrency": "SPY",
+        "reviewedAt": "2026-11-28T01:54:42.456882100+00:00",
+        "singleTick": {
+          "singleTickBestAmountRaw": "0x0",
+          "singleTickProfitable": false,
+          "crossTickStarted": false,
+          "crossTickReason": "single_tick_best_amount_zero",
+          "crossTickBestAmountRaw": "0x0",
+          "crossTickBestAmountBasis": "single_tick_best_amount",
+          "bestAmountSelectionBasis": "native_rust_ladder_no_profitable_size_measured"
+        }
+      },
+      "positiveReviewsAllTime": 7,
+      "positiveReviewsAllTimeRows": [
+        {
+          "loopKey": "0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchorSymbol": "ETH",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x1c95ee1d9",
+          "signedPnlCurrency": "ETH",
+          "reviewedAt": "2026-11-26T19:11:30.182370800+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0xc",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:11:13.083384600+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x1c",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:09:57.782716+00:00"
+        },
+        {
+          "loopKey": "0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+          "anchorSymbol": "USDG",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0xc",
+          "signedPnlCurrency": "USDG",
+          "reviewedAt": "2026-11-26T19:08:56.080225700+00:00"
+        },
+        {
+          "loopKey": "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e:0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "anchorSymbol": "PFE",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x69ed53fc54",
+          "signedPnlCurrency": "PFE",
+          "reviewedAt": "2026-11-26T19:07:50.402444200+00:00"
+        },
+        {
+          "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+          "anchorSymbol": "CRCL",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x3cae6ef8b4",
+          "signedPnlCurrency": "CRCL",
+          "reviewedAt": "2026-11-26T19:07:32.343555600+00:00"
+        },
+        {
+          "loopKey": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5:0x5fc5360d0400a0fd4f2af552add042d716f1d168:0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "CRCL",
+          "reviewStatus": "not_executable",
+          "signedPnlRaw": "0x3e189c80a9",
+          "signedPnlCurrency": "CRCL",
+          "reviewedAt": "2026-11-26T19:07:22.927260600+00:00"
+        }
+      ],
+      "broadcastAttempts": 0,
+      "totalReviews": 176
+    }
+  ],
+  "summary": {
+    "reviewsMeasuredInWindow": 132,
+    "positiveInWindow": 0,
+    "negativeInWindow": 0,
+    "anyPositiveAtAll": false,
+    "broadcastAttempts": 0
+  }
+}

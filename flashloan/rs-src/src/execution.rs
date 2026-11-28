@@ -2408,6 +2408,29 @@ fn v4_no_profit_payload(
     payload["attemptedCount"] = json!(merged_attempted_count.unwrap_or_else(|| {
         format!("0x{:x}", merged_attempts.len())
     }));
+    // The ladder's own verdict about the **cross-tick** search travels with
+    // the payload.  The kernel decides whether the cross-tick search starts
+    // **from the single-tick result**, so that verdict is the only record of
+    // the decision: dropping it made every route whose single tick paid at
+    // no size look like a route whose cross-tick search never existed, and
+    // the reader could not tell "the cross tick found nothing" apart from
+    // "the cross tick never ran".  The ceiling travels with it for the
+    // same reason: it is the bound the ladder searched inside.
+    if let Some(ladder_payload) = ladder.as_ref() {
+        if let Some(object) = payload.as_object_mut() {
+            for key in [
+                "crossTickReview",
+                "searchCeilingRaw",
+                "searchCeilingBasis",
+                "singleTickBestAmountRaw",
+                "singleTickBestProfitRaw",
+            ] {
+                if let Some(value) = ladder_payload.get(key).filter(|value| !value.is_null()) {
+                    object.entry(key.to_owned()).or_insert_with(|| value.clone());
+                }
+            }
+        }
+    }
 
     // The ladder is the authority on the best trade amount.  When it ran and
     // produced concrete probe records, the best amount is **measured**, not
@@ -6264,6 +6287,51 @@ mod tests {
             .expect("zero reason")
             .contains("3 size(s)"));
         assert_eq!(payload["reviewFailureKind"], json!("no_profitable_route"));
+    }
+
+    /// The kernel's verdict about the **cross-tick** search must reach the
+    /// payload.  The no-profit path used to drop it, so a route whose single
+    /// tick paid at no size looked like a route whose cross-tick search never
+    /// existed, and a reader could not tell "the cross tick found nothing"
+    /// apart from "the cross tick never ran".
+    #[test]
+    fn the_no_profit_payload_keeps_the_cross_tick_verdict_of_the_ladder() {
+        let ladder = json!({
+            "status": "not_profitable_after_costs",
+            "attemptedCount": "0x3",
+            "searchCeilingRaw": "0x1bc16d674ec80000",
+            "searchCeilingBasis": "folded_single_tick_capacity",
+            "crossTickReview": {
+                "started": false,
+                "reason": "single_tick_best_amount_zero",
+                "singleTickBestAmountRaw": "0x0",
+                "singleTickBestProfitRaw": "0x0"
+            },
+            "attempts": [
+                {"amountRaw": "0x1", "ok": true, "profitable": false, "profitRaw": "-0x2"},
+                {"amountRaw": "0x2", "ok": true, "profitable": false, "profitRaw": "-0x1"},
+            ],
+        });
+        let payload = v4_no_profit_payload(
+            "external_ladder",
+            json!({"ok": false, "error": "NoProfitableRoute"}),
+            None,
+            None,
+            &BigUint::from(1u32),
+            &BigUint::from(1u32),
+            Some(ladder),
+        );
+        assert_eq!(payload["crossTickReview"]["started"], json!(false));
+        assert_eq!(
+            payload["crossTickReview"]["reason"],
+            json!("single_tick_best_amount_zero"),
+            "a single-tick best amount of zero never starts the cross tick"
+        );
+        assert_eq!(payload["searchCeilingRaw"], json!("0x1bc16d674ec80000"));
+        assert_eq!(
+            payload["searchCeilingBasis"],
+            json!("folded_single_tick_capacity")
+        );
     }
 
     /// The measured signed loss of the `ArbitrageNotProfitable` revert must

@@ -990,11 +990,13 @@ fn static_preview(route: &Value, measured_at: &str, decimals: Option<i64>) -> Va
         "searchCeilingRaw": route
             .get("ladder")
             .and_then(|ladder| ladder.get("searchCeilingRaw"))
+            .or_else(|| route.get("searchCeilingRaw"))
             .cloned()
             .unwrap_or(Value::Null),
         "searchCeilingBasis": route
             .get("ladder")
             .and_then(|ladder| ladder.get("searchCeilingBasis"))
+            .or_else(|| route.get("searchCeilingBasis"))
             .cloned()
             .unwrap_or(Value::Null),
         // The amount the route was measured at, and the ladder it was
@@ -1016,6 +1018,14 @@ fn static_preview(route: &Value, measured_at: &str, decimals: Option<i64>) -> Va
 fn best_amount_calculation(route: &Value, decimals: Option<i64>) -> Value {
     let ladder = amount_ladder(route, decimals);
     let best_amount = route.get("bestAmount").cloned().unwrap_or(Value::Null);
+    // The single-tick search and the cross-tick search are two different
+    // measurements, and only the first one produced the amount above.  The
+    // cross-tick search is started by the kernel **only** when the
+    // single-tick search found a profitable size, so a route that paid at
+    // no size has no cross-tick result at all.  The evidence below states
+    // the two searches separately, so a reader never has to guess which one
+    // a number belongs to.
+    let tick = tick_search_evidence(route);
     let confirmed = route
         .get("bestAmountConfirmed")
         .and_then(Value::as_bool)
@@ -1125,7 +1135,198 @@ fn best_amount_calculation(route: &Value, decimals: Option<i64>) -> Value {
         "bestAmountMissingReason": missing_reason.unwrap_or(Value::Null),
         "probeCount": ladder.len(),
         "probeRecords": ladder,
+        // The single-tick result.  A measured zero is a **measurement**
+        // ("no size of the single-tick domain paid"), never a missing
+        // amount.
+        "singleTickBestAmountRaw": tick.single_tick_best_amount_raw,
+        "singleTickProfitable": tick.single_tick_profitable,
+        // The cross-tick result.  When the cross-tick search did not run,
+        // its best amount is the **single-tick** one: the cross-tick search
+        // has no own answer, and the reader learns from the single-tick
+        // amount alone that the single tick paid nothing.  The reason says
+        // why the search was not started.
+        "crossTickStarted": tick.cross_tick_started,
+        "crossTickReason": tick.cross_tick_reason,
+        "crossTickBestAmountRaw": tick.cross_tick_best_amount_raw,
+        "crossTickBestAmountBasis": tick.cross_tick_best_amount_basis,
+        "crossTickStatus": tick.cross_tick_status,
+        "crossTickReview": tick.cross_tick_review,
+        "crossTickSearch": tick.cross_tick_search,
+        "searchMode": tick.search_mode,
     })
+}
+
+/// The single-tick and the cross-tick measurement of one route.
+///
+/// The kernel measures a route with two searches.  The **single tick**
+/// search starts at the amount the single-tick capacity produces and
+/// searches inside the folded single-tick capacity.  The **cross tick**
+/// search continues from the single-tick optimum and searches inside the
+/// folded depth capacity, and it is only started when the single-tick
+/// search found a profitable size: a single-tick best amount of zero never
+/// starts it (`single_tick_best_amount_zero`).
+///
+/// The two searches are therefore two different measurements, and a review
+/// that published only one number mixed them.  A measured single-tick zero
+/// used to be compared with the single-tick start as if it were an amount,
+/// and the comparison answered "no" for a route that had never produced a
+/// trade amount at all.  The evidence below keeps the two apart:
+///
+/// * `single_tick_best_amount_raw` is the single-tick answer.  It is the
+///   measured zero `0x0` when the ladder priced the route and no size paid,
+///   and it is null when the ladder never ran at all.
+/// * `single_tick_profitable` says whether the single-tick search paid.
+/// * `cross_tick_started` says whether the cross-tick search ran, and
+///   `cross_tick_reason` says why it did not.
+/// * `cross_tick_best_amount_raw` is the cross-tick answer when the search
+///   ran, and the **single-tick** answer when it did not, with
+///   `cross_tick_best_amount_basis` naming which of the two it is.
+struct TickSearchEvidence {
+    search_mode: Value,
+    single_tick_best_amount_raw: Value,
+    single_tick_profitable: bool,
+    cross_tick_started: Option<bool>,
+    cross_tick_reason: Value,
+    cross_tick_best_amount_raw: Value,
+    cross_tick_best_amount_basis: Value,
+    cross_tick_status: Value,
+    cross_tick_review: Value,
+    cross_tick_search: Value,
+}
+
+/// Read the single-tick and the cross-tick measurement of one route.
+fn tick_search_evidence(route: &Value) -> TickSearchEvidence {
+    let ladder = route.get("ladder").filter(|value| value.is_object());
+    // The cross-tick verdict is published by the kernel on the ladder
+    // payload; the flat shape stays a fallback for a route that carries it
+    // on the route itself.
+    let cross_tick_review = ladder
+        .and_then(|payload| payload.get("crossTickReview"))
+        .filter(|value| value.is_object())
+        .or_else(|| route.get("crossTickReview").filter(|value| value.is_object()))
+        .cloned()
+        .unwrap_or(Value::Null);
+    let search_mode = ladder
+        .and_then(|payload| payload.get("searchMode"))
+        .filter(|value| !value.is_null())
+        .cloned()
+        .or_else(|| route.get("searchMode").filter(|value| !value.is_null()).cloned())
+        .unwrap_or(Value::Null);
+    let selection_basis = route
+        .get("bestAmountSelectionBasis")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let measured = route
+        .get("bestAmountMeasured")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let probes = route.get("attempts").and_then(Value::as_array);
+    let probe_count = probes.map(|rows| rows.len()).unwrap_or(0);
+    let profitable_probe = probes
+        .map(|rows| {
+            rows.iter()
+                .any(|row| row.get("profitable").and_then(Value::as_bool) == Some(true))
+        })
+        .unwrap_or(false);
+    let single_tick_profitable =
+        profitable_probe || selection_basis == "native_rust_ladder_profitable_probe";
+    let single_tick_best_amount_raw = if single_tick_profitable {
+        route
+            .get("bestAmount")
+            .filter(|value| !value.is_null())
+            .cloned()
+            .or_else(|| {
+                ladder
+                    .and_then(|payload| payload.get("singleTickBestAmountRaw"))
+                    .filter(|value| !value.is_null())
+                    .cloned()
+            })
+            .unwrap_or(Value::Null)
+    } else if measured || probe_count > 0 {
+        // The ladder priced the route and no size paid: a **measured zero**.
+        json!("0x0")
+    } else {
+        // The ladder never ran, so there is no single-tick answer at all.
+        Value::Null
+    };
+    // The kernel's verdict is the only record of the decision, so an absent
+    // verdict is **unknown** and never a "did not start".
+    let cross_tick_started = cross_tick_review.get("started").and_then(Value::as_bool);
+    let cross_tick_reason = cross_tick_review
+        .get("reason")
+        .filter(|value| !value.is_null())
+        .cloned()
+        .unwrap_or(Value::Null);
+    let cross_tick_search = cross_tick_review
+        .get("search")
+        .filter(|value| value.is_object())
+        .cloned();
+    let (cross_tick_best_amount_raw, cross_tick_best_amount_basis, cross_tick_status) =
+        if cross_tick_started == Some(true) {
+            let amount = cross_tick_search
+                .as_ref()
+                .and_then(|search| search.get("bestAmount").filter(|value| !value.is_null()))
+                .or_else(|| {
+                    cross_tick_search
+                        .as_ref()
+                        .and_then(|search| search.get("selectedAmountRaw"))
+                        .filter(|value| !value.is_null())
+                })
+                .cloned()
+                .unwrap_or(Value::Null);
+            (
+                amount,
+                json!("cross_tick_search"),
+                cross_tick_search
+                    .as_ref()
+                    .and_then(|search| search.get("status").cloned())
+                    .unwrap_or(Value::Null),
+            )
+        } else {
+            // The cross-tick search was not started, so it has no own
+            // answer.  The cross-tick best amount is the single-tick one,
+            // and the reason says why the search never ran.
+            (
+                single_tick_best_amount_raw.clone(),
+                json!("single_tick_best_amount"),
+                Value::Null,
+            )
+        };
+    // The published cross-tick verdict carries the seed, the capacity and
+    // the single-tick numbers, but not the whole search payload: the search
+    // is published as its own summary.
+    let mut published_review = cross_tick_review.clone();
+    if let Some(object) = published_review.as_object_mut() {
+        object.remove("search");
+    }
+    let cross_tick_search_summary = cross_tick_search.as_ref().map(|search| {
+        json!({
+            "status": search.get("status").cloned().unwrap_or(Value::Null),
+            "searchMode": search.get("searchMode").cloned().unwrap_or(Value::Null),
+            "selectedAmountRaw": search.get("selectedAmountRaw").cloned().unwrap_or(Value::Null),
+            "selectedProfitRaw": search.get("selectedProfitRaw").cloned().unwrap_or(Value::Null),
+            "initialAmountRaw": search.get("initialAmountRaw").cloned().unwrap_or(Value::Null),
+            "searchCeilingRaw": search.get("searchCeilingRaw").cloned().unwrap_or(Value::Null),
+            "probeCount": search
+                .get("attempts")
+                .and_then(Value::as_array)
+                .map(|rows| rows.len())
+                .unwrap_or(0),
+            "attempts": search.get("attempts").cloned().unwrap_or_else(|| json!([])),
+        })
+    });
+    TickSearchEvidence {
+        search_mode,
+        single_tick_best_amount_raw,
+        single_tick_profitable,
+        cross_tick_started,
+        cross_tick_reason,
+        cross_tick_best_amount_raw,
+        cross_tick_best_amount_basis,
+        cross_tick_status,
+        cross_tick_review: published_review,
+        cross_tick_search: cross_tick_search_summary.unwrap_or(Value::Null),
+    }
 }
 
 /// The measured amount ladder of one route.
@@ -2508,5 +2709,179 @@ mod tests {
             .collect();
         assert_eq!(loop_keys.len(), 1, "only the published loop has a review row");
         assert!(loop_keys[0].eq_ignore_ascii_case(LOOP_KEY));
+    }
+
+    /// **D-244**: the published review keeps the single-tick and the
+    /// cross-tick measurement apart.
+    ///
+    /// A route whose ladder priced several sizes and paid at none of them
+    /// has a **measured** single-tick zero, and the kernel never starts the
+    /// cross-tick search for it.  The review says so, and it writes the
+    /// single-tick amount into the cross-tick best amount, so a reader can
+    /// tell from the amount alone that the single tick paid nothing.
+    #[test]
+    fn a_route_that_pays_at_no_size_publishes_the_two_searches_apart() {
+        let mut payload = route(LOOP_KEY);
+        payload["status"] = json!("not_profitable_after_costs");
+        payload["runArbitrage"] = json!({
+            "ok": false,
+            "executable": false,
+            "error": "NoProfitableRoute"
+        });
+        payload["attempts"] = json!([
+            {"amountRaw": "0x64", "ok": false, "profitable": false, "profitRaw": "-0x1"},
+            {"amountRaw": "0x32", "ok": false, "profitable": false, "profitRaw": "-0x1"}
+        ]);
+        payload["bestAmount"] = json!("0x0");
+        payload["bestAmountConfirmed"] = json!(true);
+        payload["bestAmountMissing"] = json!(false);
+        payload["bestAmountMeasured"] = json!(true);
+        payload["bestAmountSelectionBasis"] =
+            json!("native_rust_ladder_no_profitable_size_measured");
+        payload["ladder"] = json!({
+            "searchMode": "external_ladder",
+            "attempts": [],
+            "crossTickReview": {
+                "started": false,
+                "reason": "single_tick_best_amount_zero",
+                "singleTickBestAmountRaw": "0x0",
+                "singleTickBestProfitRaw": "0x0"
+            }
+        });
+        let evidence = route_evidence(
+            &payload,
+            LOOP_KEY,
+            &catalog(),
+            None,
+            &|_| Some(18),
+            "2026-11-28T00:00:00Z",
+        );
+        let calculation = evidence
+            .static_preview
+            .get("bestAmountCalculation")
+            .expect("the amount evidence is published");
+        assert_eq!(
+            calculation
+                .get("singleTickBestAmountRaw")
+                .and_then(Value::as_str),
+            Some("0x0"),
+            "the single tick paid at no size"
+        );
+        assert_eq!(
+            calculation.get("singleTickProfitable").and_then(Value::as_bool),
+            Some(false)
+        );
+        assert_eq!(
+            calculation.get("crossTickStarted").and_then(Value::as_bool),
+            Some(false),
+            "a single-tick best amount of zero never starts the cross tick"
+        );
+        assert_eq!(
+            calculation.get("crossTickReason").and_then(Value::as_str),
+            Some("single_tick_best_amount_zero")
+        );
+        assert_eq!(
+            calculation
+                .get("crossTickBestAmountRaw")
+                .and_then(Value::as_str),
+            Some("0x0"),
+            "the cross-tick best amount is the single-tick one when the search never ran"
+        );
+        assert_eq!(
+            calculation
+                .get("crossTickBestAmountBasis")
+                .and_then(Value::as_str),
+            Some("single_tick_best_amount")
+        );
+    }
+
+    /// **D-244**: a route whose single tick paid publishes the cross-tick
+    /// result of its own.
+    ///
+    /// The cross-tick search is a second measurement, and its answer is the
+    /// one the cross-tick best amount carries.  The basis says which search
+    /// the number belongs to, so a measured zero of the cross-tick search is
+    /// never read as a zero of the single tick.
+    #[test]
+    fn a_route_whose_single_tick_paid_publishes_the_cross_tick_result() {
+        let mut payload = route(LOOP_KEY);
+        payload["attempts"] = json!([
+            {"amountRaw": "0x64", "ok": true, "profitable": true, "profitRaw": "0x2"}
+        ]);
+        payload["bestAmount"] = json!("0x64");
+        payload["bestAmountConfirmed"] = json!(true);
+        payload["bestAmountMissing"] = json!(false);
+        payload["bestAmountMeasured"] = json!(true);
+        payload["bestAmountSelectionBasis"] = json!("native_rust_ladder_profitable_probe");
+        payload["ladder"] = json!({
+            "searchMode": "external_ladder",
+            "singleTickBestAmountRaw": "0x64",
+            "attempts": [],
+            "crossTickReview": {
+                "started": true,
+                "reason": "single_tick_profit_below_threshold",
+                "seedAmountRaw": "0x64",
+                "capacityRaw": "0xc8",
+                "search": {
+                    "status": "not_profitable_after_costs",
+                    "searchMode": "cross_tick",
+                    "selectedAmountRaw": "0x0",
+                    "attempts": [
+                        {"amountRaw": "0x64", "ok": false, "profitable": false}
+                    ]
+                }
+            }
+        });
+        let evidence = route_evidence(
+            &payload,
+            LOOP_KEY,
+            &catalog(),
+            None,
+            &|_| Some(18),
+            "2026-11-28T00:00:00Z",
+        );
+        let calculation = evidence
+            .static_preview
+            .get("bestAmountCalculation")
+            .expect("the amount evidence is published");
+        assert_eq!(
+            calculation.get("singleTickProfitable").and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            calculation
+                .get("singleTickBestAmountRaw")
+                .and_then(Value::as_str),
+            Some("0x64")
+        );
+        assert_eq!(
+            calculation.get("crossTickStarted").and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            calculation.get("crossTickReason").and_then(Value::as_str),
+            Some("single_tick_profit_below_threshold")
+        );
+        assert_eq!(
+            calculation
+                .get("crossTickBestAmountRaw")
+                .and_then(Value::as_str),
+            Some("0x0"),
+            "the cross-tick search paid at no size of its own domain"
+        );
+        assert_eq!(
+            calculation
+                .get("crossTickBestAmountBasis")
+                .and_then(Value::as_str),
+            Some("cross_tick_search")
+        );
+        assert_eq!(
+            calculation
+                .get("crossTickSearch")
+                .and_then(|search| search.get("probeCount"))
+                .and_then(Value::as_u64),
+            Some(1),
+            "the cross-tick measurement travels with the review"
+        );
     }
 }

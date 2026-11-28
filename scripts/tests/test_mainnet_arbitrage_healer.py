@@ -1817,6 +1817,52 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
             self.assertEqual(report["bestAmount"]["missing"], 0)
             self.assertEqual(report["bestAmount"]["confirmed"], 1)
 
+    def test_the_single_tick_statistic_counts_the_routes_that_paid_at_no_size(self):
+        """The report counts the single-tick failures on their own.
+
+        The comparison alone cannot say **why** the tick search found no
+        size above the start: a route whose single tick paid at no size has
+        no cross-tick search at all, and a route whose cross tick found
+        nothing has one.  The statistic therefore counts the single-tick
+        failures separately, so the two are never mixed.
+        """
+        payload = self.best_amount_payload(best_amount="0x0", confirmed=True,
+                                           missing=False, probe_rows=[])
+        payload["bestAmountCalculation"].update({
+            "bestAmountRaw": "0x0",
+            "initialAmountRaw": "0x64",
+            "bestAmountMeasured": True,
+            "bestAmountSelectionBasis":
+                "native_rust_ladder_no_profitable_size_measured",
+            "singleTickBestAmountRaw": "0x0",
+            "singleTickProfitable": False,
+            "crossTickStarted": False,
+            "crossTickReason": "single_tick_best_amount_zero",
+            "crossTickBestAmountRaw": "0x0",
+            "crossTickBestAmountBasis": "single_tick_best_amount",
+        })
+        with tempfile.TemporaryDirectory() as directory:
+            database = self.best_amount_database(directory, payload,
+                                                 selected_profit_amount=None)
+            reviews, loops, broadcasts = self.published_manager(
+                reviews=self.published_review_rows(database),
+                loops=self.published_loop_rows(database),
+            )
+            with reviews, loops, broadcasts, \
+                    mock.patch.object(HEALER, "observation_started_at",
+                                      return_value="2026-11-10T00:00:00Z"):
+                report = HEALER.audit_reviews(database, 24)
+        tick = report["tickAmount"]
+        self.assertEqual(tick["inspected"], 1)
+        self.assertEqual(tick["singleTickUnprofitable"], 1)
+        self.assertEqual(tick["crossTickNotStarted"], 1)
+        self.assertEqual(tick["compared"], 0,
+                         "a route without a trade amount is not compared")
+        self.assertEqual(tick["bestAboveSingleTickStart"], 0)
+        self.assertEqual(tick["bestNotAboveSingleTickStart"], 0)
+        self.assertEqual(tick["verdicts"],
+                         {"single_tick_unprofitable_cross_tick_not_started": 1})
+
     def test_a_manager_review_keeps_its_real_missing_reason(self):
         """The Manager library stores the reason in review_status/review_reason.
 
@@ -2864,7 +2910,7 @@ class MainnetArbitrageHealerCascadeTests(unittest.TestCase):
     # The tick amount against the single-tick start
     # ------------------------------------------------------------------
 
-    def _tick_review(self, best, initial, probes):
+    def _tick_review(self, best, initial, probes, **extra):
         """Build a review row that carries a measured amount ladder."""
         calculation = {
             "method": "native_rust_review_ladder",
@@ -2874,6 +2920,7 @@ class MainnetArbitrageHealerCascadeTests(unittest.TestCase):
             "probeCount": len(probes),
             "bestAmountLadderStatus": "not_profitable_after_costs",
         }
+        calculation.update(extra)
         return {
             "loop_key": "loop-1",
             "reviewed_at": "2026-11-27T23:10:49Z",
@@ -2898,9 +2945,15 @@ class MainnetArbitrageHealerCascadeTests(unittest.TestCase):
         """
         bounds = {"singleTickCapacityRaw": "0xc8", "crossTickCapacityRaw": "0x12c"}
         below = HEALER.tick_amount_comparison(
-            self._tick_review("0x0", "0x64", ["0x64", "0xc8"]), bounds)
+            self._tick_review("0x40", "0x64", ["0x40", "0x64"],
+                              bestAmountSelectionBasis="native_rust_ladder_profitable_probe",
+                              singleTickProfitable=True,
+                              singleTickBestAmountRaw="0x40",
+                              crossTickStarted=True,
+                              crossTickBestAmountRaw="0x40",
+                              crossTickBestAmountBasis="cross_tick_search"), bounds)
         self.assertFalse(below["bestGreaterThanInitial"],
-                         "a best amount of zero is not above the start")
+                         "a best amount below the start is what the search found")
         self.assertEqual(below["verdict"],
                          "best_not_above_start_executable_domain_covered")
         self.assertFalse(below["gap"],
@@ -2910,10 +2963,94 @@ class MainnetArbitrageHealerCascadeTests(unittest.TestCase):
                         "the depth ceiling is above the executable ceiling")
 
         above = HEALER.tick_amount_comparison(
-            self._tick_review("0x12c", "0x64", ["0x64", "0xc8", "0x12c"]), bounds)
+            self._tick_review("0x12c", "0x64", ["0x64", "0xc8", "0x12c"],
+                              bestAmountSelectionBasis="native_rust_ladder_profitable_probe",
+                              singleTickProfitable=True,
+                              singleTickBestAmountRaw="0x12c",
+                              crossTickStarted=True,
+                              crossTickBestAmountRaw="0x12c",
+                              crossTickBestAmountBasis="cross_tick_search"), bounds)
         self.assertTrue(above["bestGreaterThanInitial"],
                         "a best amount above the start is the answer the user asked for")
         self.assertEqual(above["verdict"], "best_above_single_tick_start")
+
+    def test_a_single_tick_that_pays_at_no_size_is_counted_on_its_own(self):
+        """A single tick that paid at no size has no cross-tick search.
+
+        The kernel never starts the cross-tick search for a single-tick best
+        amount of zero, so the route has **no** trade amount at all: the
+        measured zero is not compared with the single-tick start, and the
+        route is counted on its own instead.
+        """
+        comparison = HEALER.tick_amount_comparison(
+            self._tick_review("0x0", "0x64", ["0x64", "0x32"],
+                              bestAmountSelectionBasis="native_rust_ladder_no_profitable_size_measured",
+                              bestAmountMeasured=True,
+                              singleTickProfitable=False,
+                              singleTickBestAmountRaw="0x0",
+                              crossTickStarted=False,
+                              crossTickReason="single_tick_best_amount_zero",
+                              crossTickBestAmountRaw="0x0",
+                              crossTickBestAmountBasis="single_tick_best_amount"), {})
+        self.assertTrue(comparison["singleTickUnprofitable"])
+        self.assertFalse(comparison["singleTickProfitable"])
+        self.assertFalse(comparison["crossTickStarted"],
+                         "a single-tick best amount of zero never starts the cross tick")
+        self.assertEqual(comparison["crossTickReason"],
+                         "single_tick_best_amount_zero")
+        self.assertEqual(comparison["crossTickBestAmountRaw"], "0x0",
+                         "the cross-tick best amount is the single-tick one")
+        self.assertEqual(comparison["crossTickBestAmountBasis"],
+                         "single_tick_best_amount")
+        self.assertIsNone(comparison["bestGreaterThanInitial"],
+                          "a measured zero is no trade amount to compare")
+        self.assertFalse(comparison["applicable"])
+        self.assertEqual(comparison["verdict"],
+                         "single_tick_unprofitable_cross_tick_not_started")
+
+    def test_a_review_without_the_published_searches_is_read_from_its_own_ladder(self):
+        """A review that predates the published searches is still read.
+
+        The kernel states the single-tick result in the selection basis of
+        the ladder, so a review that carries only that basis is read the
+        same way: the single tick paid at no size, and the cross tick was
+        therefore never started for it.
+        """
+        comparison = HEALER.tick_amount_comparison(
+            self._tick_review("0x0", "0x64", ["0x64", "0x32"],
+                              bestAmountSelectionBasis="native_rust_ladder_no_profitable_size_measured",
+                              bestAmountMeasured=True), {})
+        self.assertTrue(comparison["singleTickUnprofitable"])
+        self.assertFalse(comparison["crossTickStarted"])
+        self.assertEqual(comparison["crossTickReason"],
+                         "single_tick_best_amount_zero")
+        self.assertEqual(comparison["crossTickBestAmountRaw"], "0x0")
+        self.assertIsNone(comparison["bestGreaterThanInitial"])
+
+    def test_a_cross_tick_that_pays_at_no_size_is_not_a_single_tick_failure(self):
+        """The cross tick may fail where the single tick paid.
+
+        The single tick paid and the cross tick found no size of its own,
+        so the comparison is decidable and the route is **not** counted as
+        a single-tick failure.
+        """
+        comparison = HEALER.tick_amount_comparison(
+            self._tick_review("0x0", "0x64", ["0x64"],
+                              bestAmountSelectionBasis="native_rust_ladder_profitable_probe",
+                              bestAmountMeasured=True,
+                              singleTickProfitable=True,
+                              singleTickBestAmountRaw="0x64",
+                              crossTickStarted=True,
+                              crossTickReason="single_tick_profit_below_threshold",
+                              crossTickBestAmountRaw="0x0",
+                              crossTickBestAmountBasis="cross_tick_search"),
+            {"singleTickCapacityRaw": "0xc8", "crossTickCapacityRaw": "0x12c"})
+        self.assertFalse(comparison["singleTickUnprofitable"])
+        self.assertTrue(comparison["crossTickStarted"])
+        self.assertFalse(comparison["bestGreaterThanInitial"],
+                         "the tick search found no size above the start")
+        self.assertEqual(comparison["verdict"],
+                         "best_not_above_start_executable_domain_covered")
 
     def test_an_executable_size_that_was_never_searched_is_a_gap(self):
         """A ladder that stopped below the executable ceiling is a gap.
@@ -3095,6 +3232,43 @@ class MainnetArbitrageHealerCascadeTests(unittest.TestCase):
         reasons = {item["loopKey"]: item["reason"]
                    for item in report["legacy"]["currentLoopFreshness"]["notCurrentLoops"]}
         self.assertEqual(reasons.get("loop-2"), "measured_in_older_generation")
+
+    def test_the_cascade_rebuilds_the_direction_layer_before_the_layers_that_read_it(self):
+        # The candidate edge layer and the candidate exchange layer publish
+        # the direction layer's ranking.  A cascade that rebuilds them
+        # before the direction layer publishes the ranking of the previous
+        # scope, and every pair whose pool became active in the newer scope
+        # is published with an empty recommendation set.  The closed loop
+        # then reads that empty set as "this market has no candidate" and
+        # skips the token -- the way USDG lost every first and third hop.
+        calls = []
+
+        def fake_post(base, path, body):
+            calls.append((path, dict(body)))
+            return {"ok": True, "status": 200, "body": "{}"}
+
+        with mock.patch.object(HEALER, "api_post", side_effect=fake_post):
+            HEALER.repair_downstream_cascade("http://127.0.0.1:8091", True)
+
+        paths = [path for path, _body in calls]
+        self.assertEqual(paths, [
+            "/v1/directional-pools/rebuild",
+            "/v1/candidate-edge-pools/rebuild",
+            "/v1/candidate-exchange-pools/rebuild",
+            "/v1/closed-loops/rebuild",
+        ])
+        directional = paths.index("/v1/directional-pools/rebuild")
+        for reader in ("/v1/candidate-edge-pools/rebuild",
+                       "/v1/candidate-exchange-pools/rebuild"):
+            self.assertLess(directional, paths.index(reader),
+                            "a layer that publishes the direction layer's ranking "
+                            "must not be rebuilt before the direction layer")
+        self.assertEqual(paths[-1], "/v1/closed-loops/rebuild")
+        directional_bodies = [body for path, body in calls
+                              if path == "/v1/directional-pools/rebuild"]
+        self.assertEqual(len(directional_bodies), 1)
+        self.assertEqual(directional_bodies[0].get("scopeKey"), HEALER.SCOPE)
+        self.assertFalse(directional_bodies[0]["dryRun"])
 
 
 if __name__ == "__main__":

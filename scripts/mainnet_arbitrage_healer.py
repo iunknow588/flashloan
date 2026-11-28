@@ -1489,6 +1489,16 @@ def tick_amount_comparison(
     search never found a size above the single-tick start, and the negative
     result has to be read against the domain that was actually searched.
 
+    The two searches are two different measurements, and a route that paid
+    at no size has **no** cross-tick result at all: the kernel never starts
+    the cross-tick search for a single-tick best amount of zero.  The
+    review therefore publishes the cross-tick best amount as the
+    **single-tick** one when the cross-tick search was not started, and the
+    comparison reads that field: a tick-computed best amount of zero says
+    that the single tick paid nothing, and no further computation follows
+    from it.  Such a route is counted on its own, and it is not compared
+    with the single-tick start: there is no trade amount to compare.
+
     The answer is published with the numbers it was derived from, so a
     reader can check it without re-running the search.
     """
@@ -1498,11 +1508,26 @@ def tick_amount_comparison(
     best_raw = calculation.get("bestAmountRaw") or calculation.get("bestAmount")
     initial_raw = (calculation.get("initialAmountRaw")
                    or calculation.get("initialProbeAmount"))
-    best = _raw_amount(best_raw)
     initial = _raw_amount(initial_raw)
     single_tick = _raw_amount(bound.get("singleTickCapacityRaw"))
     cross_tick = _raw_amount(bound.get("crossTickCapacityRaw"))
     probes = calculation.get("probeRecords") or calculation.get("probe_records") or []
+    # The single tick and the cross tick are two measurements, and the
+    # review publishes both.  The cross-tick best amount carries the
+    # **single-tick** amount when the cross-tick search was not started, so
+    # the tick-computed best amount is the cross-tick one whenever the
+    # cross tick ran, and the single-tick one otherwise.
+    single_tick_raw = calculation.get("singleTickBestAmountRaw") or best_raw
+    cross_tick_raw = calculation.get("crossTickBestAmountRaw") or single_tick_raw
+    single_tick_paid = _single_tick_paid(calculation, probes)
+    cross_tick_reason = calculation.get("crossTickReason")
+    cross_tick_started = calculation.get("crossTickStarted")
+    if single_tick_paid is False:
+        # A single-tick best amount of zero never starts the cross tick:
+        # the kernel's own rule, not a conclusion of this report.
+        cross_tick_started = False
+        cross_tick_reason = cross_tick_reason or "single_tick_best_amount_zero"
+    best = _raw_amount(cross_tick_raw)
     probed = sorted(
         value for value in (_raw_amount(item.get("amountRaw")) for item in probes
                             if isinstance(item, dict)) if value is not None
@@ -1513,7 +1538,13 @@ def tick_amount_comparison(
     searched_ceiling = probed[-1] if probed else None
     value = pnl(row)
     expected_profit = None if value is None else float(value.get("amount"))
-    greater = None if best is None or initial is None else best > initial
+    # The comparison is only decidable when the tick search found a size at
+    # all.  A single tick that paid at no size has **no** trade amount, so
+    # comparing its measured zero with the start would answer a question
+    # nobody asked: the route is counted on its own instead.
+    single_tick_unprofitable = single_tick_paid is False
+    greater = (None if best is None or initial is None
+               else best > initial) if not single_tick_unprofitable else None
     # The executable domain is the single-tick capacity: the Review Manager
     # rejects a final input above it.  A size that is executable but was
     # never probed is a **gap**; a size that is not executable cannot hide a
@@ -1535,7 +1566,9 @@ def tick_amount_comparison(
     if shortfall is not None:
         unsearched_executable = shortfall > 1
     gap = bool(unsearched_executable)
-    if greater is None:
+    if single_tick_unprofitable:
+        verdict = "single_tick_unprofitable_cross_tick_not_started"
+    elif greater is None:
         verdict = "tick_amount_unknown"
     elif greater:
         verdict = "best_above_single_tick_start"
@@ -1553,8 +1586,19 @@ def tick_amount_comparison(
         "anchorSymbol": bound.get("anchorSymbol"),
         "status": calculation.get("bestAmountLadderStatus"),
         "bestAmountRaw": best_raw,
+        # The two searches, kept apart.  The cross-tick best amount carries
+        # the single-tick amount when the cross-tick search was not started,
+        # and the basis says which of the two the number is.
+        "singleTickBestAmountRaw": single_tick_raw,
+        "singleTickProfitable": single_tick_paid,
+        "singleTickUnprofitable": single_tick_unprofitable,
+        "crossTickBestAmountRaw": cross_tick_raw,
+        "crossTickBestAmountBasis": calculation.get("crossTickBestAmountBasis"),
+        "crossTickStarted": cross_tick_started,
+        "crossTickReason": cross_tick_reason,
         "initialAmountRaw": initial_raw,
         "bestGreaterThanInitial": greater,
+        "applicable": not single_tick_unprofitable,
         "probeCount": len(probes),
         "smallestProbedRaw": probed[0] if probed else None,
         "largestProbedRaw": searched_ceiling,
@@ -1574,6 +1618,37 @@ def tick_amount_comparison(
         "verdict": verdict,
         "gap": gap,
     }
+
+
+def _single_tick_paid(calculation: dict[str, Any],
+                      probes: list[Any]) -> bool | None:
+    """Say whether the single-tick search found a profitable size.
+
+    ``True`` means the single tick paid, ``False`` means it paid at no
+    size, and ``None`` means the review does not say.  The kernel owns the
+    answer: it measures the ladder and states whether any size paid, and a
+    review that predates that field can still be read from the selection
+    basis and from the probe records themselves.
+    """
+    published = calculation.get("singleTickProfitable")
+    if isinstance(published, bool):
+        return published
+    basis = str(calculation.get("bestAmountSelectionBasis") or "").strip()
+    if basis == "native_rust_ladder_profitable_probe":
+        return True
+    if basis == "native_rust_ladder_no_profitable_size_measured":
+        return False
+    if str(calculation.get("crossTickReason") or "").strip() \
+            == "single_tick_best_amount_zero":
+        return False
+    profitable = [row for row in probes
+                  if isinstance(row, dict) and row.get("profitable") is True]
+    if profitable:
+        return True
+    if calculation.get("bestAmountMeasured"):
+        # The ladder ran and no size paid.
+        return False
+    return None
 
 
 def audit_database_baseline(db: Path, tools: Path) -> dict[str, Any]:
@@ -3488,6 +3563,17 @@ def audit_reviews(
     for item in tick_amounts:
         tick_verdicts[item["verdict"]] = tick_verdicts.get(item["verdict"], 0) + 1
     tick_gaps = [item for item in tick_amounts if item["gap"]]
+    # A route whose single tick paid at no size is counted on its own: the
+    # kernel never starts the cross-tick search for it, so there is no
+    # trade amount to compare with the single-tick start, and the negative
+    # expectation is a **measured** conclusion of the single tick.
+    tick_single_unprofitable = [item for item in tick_amounts
+                                 if item["singleTickUnprofitable"]]
+    tick_cross_not_started = [item for item in tick_amounts
+                              if item["crossTickStarted"] is False]
+    tick_comparable = [item for item in tick_amounts
+                       if item["applicable"]
+                       and item["bestGreaterThanInitial"] is not None]
     # The review layer judges the reviews of the **current** closed-loop
     # library.  A review of a loop that no longer exists describes a route
     # the system already stopped trading: it is history, not a live defect,
@@ -3625,7 +3711,12 @@ def audit_reviews(
         # whole domain a trade could be executed in?
         "tickAmount": {
             "code": TICK_AMOUNT_GAP_CODE if tick_gaps else None,
-            "compared": len(tick_amounts),
+            "inspected": len(tick_amounts),
+            "compared": len(tick_comparable),
+            # The single tick paid at no size: the cross-tick search was
+            # never started for it, so no further computation follows.
+            "singleTickUnprofitable": len(tick_single_unprofitable),
+            "crossTickNotStarted": len(tick_cross_not_started),
             "nonPositive": sum(1 for item in tick_amounts
                                if item["expectedProfit"] is not None
                                and item["expectedProfit"] <= 0),
@@ -3634,13 +3725,16 @@ def audit_reviews(
             "bestNotAboveSingleTickStart": sum(1 for item in tick_amounts
                                                 if item["bestGreaterThanInitial"] is False),
             "unknown": sum(1 for item in tick_amounts
-                            if item["bestGreaterThanInitial"] is None),
+                            if item["applicable"]
+                            and item["bestGreaterThanInitial"] is None),
             "executableSizeUnsearched": len(tick_gaps),
             "verdicts": tick_verdicts,
             "reason": "a route whose expected profit is not positive is only a fact "
                       "about the sizes that were searched; the comparison states "
                       "whether the tick search ever beat the single-tick start and "
-                      "whether an executable size was left unmeasured",
+                      "whether an executable size was left unmeasured; a route whose "
+                      "single tick paid at no size has no cross-tick search at all "
+                      "and is counted on its own",
             "gaps": tick_gaps[:10],
         },
         "missingReasons": [{"reason": key, "count": value}
@@ -4227,7 +4321,13 @@ def pnl_snapshot(
         # the snapshot because a negative expectation is only a fact about
         # the sizes that were searched.
         "tickAmount": {
+            "inspected": tick_amount.get("inspected", 0),
             "compared": tick_amount.get("compared", 0),
+            # The routes whose single tick paid at no size: the cross tick
+            # was never started for them, so they carry no further
+            # computation.
+            "singleTickUnprofitable": tick_amount.get("singleTickUnprofitable", 0),
+            "crossTickNotStarted": tick_amount.get("crossTickNotStarted", 0),
             "nonPositive": tick_amount.get("nonPositive", 0),
             "bestAboveSingleTickStart": tick_amount.get("bestAboveSingleTickStart", 0),
             "bestNotAboveSingleTickStart": tick_amount.get("bestNotAboveSingleTickStart", 0),
@@ -4307,6 +4407,7 @@ def append_pnl_snapshot(
         f"execPositive={reviews.get('executablePositive')} "
         f"tickBestAboveStart={tick_amount.get('bestAboveSingleTickStart')} "
         f"tickNotAbove={tick_amount.get('bestNotAboveSingleTickStart')} "
+        f"tickSingleUnprofitable={tick_amount.get('singleTickUnprofitable')} "
         f"tickUnsearched={tick_amount.get('executableSizeUnsearched')} "
         f"genCurrent={generation.get('currentGeneration')} "
         f"genStale={generation.get('staleGeneration')} "
@@ -4809,10 +4910,20 @@ def scope_expected_modes(baseline: dict[str, Any]) -> dict[str, str]:
 #: repair invalidates them all.  The rebuild order is a **hard
 #: constraint**: every layer reads the version and the checksum of the
 #: layer above it.
+#:
+#: The direction layer comes **first**.  The candidate edge layer and the
+#: candidate exchange layer both publish the direction layer's ranking, so
+#: a rebuild that runs them before the direction layer publishes the
+#: ranking of the **previous** scope: a pool that became active in the
+#: newer scope has no rank in that ranking, and its pair is published
+#: with an empty recommendation set.  The closed loop reads that empty
+#: set as "this market has no candidate" and skips the token, even though
+#: the scope carries a usable pool for it.  That is how USDG lost every
+#: first and third hop on 2026-11-27.
 MANAGER_REBUILD_CHAIN = (
+    ("directionalPools", "/v1/directional-pools/rebuild"),
     ("candidateEdge", "/v1/candidate-edge-pools/rebuild"),
     ("candidateExchange", "/v1/candidate-exchange-pools/rebuild"),
-    ("directionalPools", "/v1/directional-pools/rebuild"),
     ("closedLoops", "/v1/closed-loops/rebuild"),
 )
 

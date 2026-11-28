@@ -92,3 +92,70 @@
 - [ ] **G4.2** **不放宽任何门禁**：「没有正利润复核 ⇒ 不广播」的口径**未变**；广播 attempts 仍为 **0**（**市场条件**，无正利润复核）
 - [ ] **G4.3** **不伪造**：本轮**未填任何盈亏**、**未填 0**、**未删任何历史复核行**、**未改任何历史代次**
 - [ ] **G4.4** **不预判**：这 7 条路由**重测之后**是否有盈亏由**链上事实**决定，**不预判**
+
+## H. 单 tick 与跨 tick 两个测量的分离发布（**2026-11-28 · `D-244`**）
+
+### H1. 用户口径与落地
+
+- [x] **H1.1** **用户口径**：「**单tick 如果不盈利，应该单独列出来，因为单tick 不盈利，也不需要计算跨tick 了……把跨tick 最佳交易量写成单tick 就可以，就可以判断出来是单tick没有盈利了**」＋「**无需单独考虑，但是统计的时候，要统计出来**」
+- [x] **H1.2** **内核事实（只读取证）**：跨 tick 的**种子就是单 tick 最优金额**；**单 tick 最优为零 ⇒ 绝不启动跨 tick**（`cross_tick_init.rs` 的 `single_tick_best_amount_zero`）⇒「跨 tick 最佳交易量 < 单 tick 交易量」**结构上不可能**
+- [x] **H1.3** **发布层（`M-13` · `review_publish.rs`）**：发布 `singleTickBestAmountRaw` ／ `singleTickProfitable` ／ `crossTickStarted` ／ `crossTickReason` ／ **`crossTickBestAmountRaw`**（**跨 tick 未启动 ＝ 单 tick 的值**）／ `crossTickBestAmountBasis` ／ `crossTickStatus` ／ `crossTickReview` ／ `crossTickSearch` ／ `searchMode`；**只发布内核已测到的事实，不发明数字**
+- [x] **H1.4** **自愈器（`M-8`）**：新增 `_single_tick_paid()`（发布字段 → 选择基线 → 探针记录 → `bestAmountMeasured`；**读不到 ＝ `None`**）；`tick_amount_comparison()` 的比较对象改用**跨 tick 最佳交易量**（未启动时**就是单 tick 的值**）；**单 tick 不盈利 ⇒ 不比较**（`bestGreaterThanInitial = null`、`applicable = false`、结论 `single_tick_unprofitable_cross_tick_not_started`）
+- [x] **H1.5** **统计分开计数**：`tickAmount` 区块新增 **`singleTickUnprofitable`** ／ **`crossTickNotStarted`** ／ `inspected`；`compared` 改为**真正比较过的条数**；`unknown` 只算「既不是单 tick 不盈利、又读不到数」的；`pnl_snapshot()` 同步（含日志行 `tickSingleUnprofitable=`）
+- [x] **H1.6** **常驻 worker 语义查清（回答用户）**：**一个 group 一条线程**、**按需 spawn**、**空闲 ≥ 60 s 且无 stored command 会退出**（**不是**「永不退出」）；group 全集**每轮重建**；请求自带 group ⇒ 不在全集 ＝ **404**、组忙 ＝ **409**；「**注册入口**」是**按当前路由预热一条常驻线程**，不是「每请求都要注册」；manager 读失败会被**误报成 404**
+
+### H2. 回归
+
+- [x] **H2.1** `cargo test --offline --lib review_publish`（`flashloan/rs-src`）⇒ **22 passed / 0 failed**（新增 **2** 条）
+- [x] **H2.2** `python -m pytest scripts/tests/test_mainnet_arbitrage_healer.py -q` ⇒ **136 passed / 0 failed**（基线 **132** ＋ 新 **4**）
+- [x] **H2.3** `python -m pytest flashloan/app_runtime/tests/unit/test_mainnet_arbitrage_healer_repair_chain.py -q` ⇒ **44 passed / 0 failed**
+
+### H3. 部署与在产读数
+
+- [x] **H3.1** **先停后建**：停 healer（**24988**）与运行时（**17364**）⇒ `cargo build --offline --release` **1 min 08 s** ⇒ 新 DLL `rs-src\target\release\flashloan_rs.dll`（**18 672 640 B**，09:14:31）
+- [x] **H3.2** **再起**：healer 以**新代码**重启（**25308**）⇒ 运行时由 healer 拉起（**25848**，09:14:49）⇒ `/healthz` ＝ `{"status":"ok"}`；进程内加载的模块 ＝ **新 DLL**（**18 672 640 B**）
+- [x] **H3.3** **在产复核行带上了两个测量**：新代次复核的 `static_preview.bestAmountCalculation` 里出现 `singleTickBestAmountRaw` ／ `singleTickProfitable` ／ `crossTickStarted` ／ `crossTickReason` ／ **`crossTickBestAmountRaw`** ／ `crossTickBestAmountBasis`（读数见 `D-244` §7）
+- [x] **H3.4** **在产统计**：healer 报告的 `tickAmount` 区块给出 `singleTickUnprofitable` ／ `crossTickNotStarted` ／ `compared` ／ `bestAboveSingleTickStart` ／ `bestNotAboveSingleTickStart`（读数见 `D-244` §7）
+
+### H4. 诚实边界（**永久留占位**）
+
+- [ ] **H4.1** **不伪造**：本轮**未填任何盈亏**、**未填 0**、**未删任何历史复核行**、**未改任何历史代次**
+- [ ] **H4.2** **不放宽任何门禁**：「没有正利润复核 ⇒ 不广播」的口径**未变**；广播 attempts 仍为 **0**（**市场条件**）
+- [ ] **H4.3** **不预判**：重测之后某条路由是否有盈亏，由**链上事实**决定，**不预判**
+- [ ] **H4.4** **不代运行时关闭**：常驻 worker 的 404／409／超时属**运行时侧**；自愈器只**如实记录并重试**
+
+## I. 单 tick 全不盈利的成因审查与 USDG 闭环缺口（**2026-11-28 · `D-245`**）
+
+### I1. 观察与审查读数（只读）
+
+- [x] **I1.1** **十分钟在产观察**（`plan/runtime_evidence/reports/profit_window_20261128.json`，窗口 `01:35:41Z → 01:55:41Z`）：窗口内测得复核 **132** 条、**正利润 0**、**广播尝试 0**；每分钟最新复核均 `singleTickProfitable=false` / `crossTickStarted=false` / `crossTickReason=single_tick_best_amount_zero`；历史 7 条正利润复核均为 2026-11-26 的**陈旧代次**（`not_executable`）⇒ 广播策略 `fresh_positive_review_only` 正确拒播
+- [x] **I1.2** **候选池与排序审查（0 违例）**（`audit_directional_ranking_20261128.py`）：排名组 **86**、`rank1IsTheHighestRate=true`、`rankingViolations=[]`、`ranksAreContinuous=true`；接线跳 **108**、`everyHopUsesTheRank1Pool=true`；剪枝已测价被拒池 **78**、`noRejectedPoolBeatsTheKeptOne=true`、`lostCandidates=[]` ⇒ **排序本身无错**
+- [x] **I1.3** **正反两向费率自洽**：58 个双向已测价池，`rate(in→out)·rate(out→in)` 与 `(1−fee)²` 最大偏差 **0.063%** ⇒ **无方向性定价错误**
+- [x] **I1.4** **x-y-z-x 与 x-z-y-x 对比（用户指定重点）**：每个已建三角形的两个朝向都建了，费率相同、边际率不同（ETH-MU-SPY −0.1752% vs −0.4941%；AMD-NVDA-SPY −0.0901% vs −1.0902%；MU-NVDA-SPY −0.8376% vs −1.8720%；ETH-NVDA-SPY −0.1538% vs −0.2032%）
+- [x] **I1.5** **速率图上仅有的两条净正三角形**：`NVDA→MU→USDG→NVDA` **+1.1214%**（费率合计 2.55%）与 `NVDA→AMD→USDG→NVDA` **+0.2543%**（1.80%），**闭环覆盖 0/2** ⇒ **两条都含 USDG**（⇒ 覆盖缺口恰好吃掉了仅有的两条净正路线）
+- [x] **I1.6** **USDG 本身健康**：USDG 在 `token_core` + `token_extension` 双库且 admitted；core4 作用域有 **5 个 active 池**（费率 0.24%～1.0%，deep/medium，`materialized_at = 2026-11-27T22:15:13.977846900Z`）；方向层 core4 对这 5 个池**两个方向都是 rank 1 / active**；当前方向层覆盖 core4 **24/24** 活跃交易对（**0 漏排**）⇒ **不是代币问题，也不是池子问题**
+- [x] **I1.7** **断点在候选边层**：`manager_dex_candidate_anchor_tokens` 的 8 条 USDG 行 `yc/zc_primary_pool_id = NULL`；`manager_dex_candidate_pool_pairs` 的 8 条 USDG 行主池 `NULL`；`manager_dex_candidate_pool_recommendations` **USDG 行数 0**（全表 104 行）；`manager_v4_closed_loop_skipped_tokens` **8 条**（`no_completing_first_hop` × 4 ＋ `no_completing_third_hop` × 4）；36 条闭环的路径符号**只含 ETH/SPY/NVDA/MU/GOOGL/AMD，USDG 零出现**
+- [x] **I1.8** **★ 因果链（物化时刻逐条对齐）**：作用域 core4 重建 `22:15:13.979` → 候选边层 `22:17:32.402` → 观察层 `22:17:32.582` → **方向层 `22:17:33.011`（晚 0.609 s）** → 闭环层 `22:18:01.477` ⇒ **候选边层与观察层读的都是上一轮的方向快照**；该顺序与自愈器写死的 `MANAGER_REBUILD_CHAIN`（candidateEdge → candidateExchange → directionalPools → closedLoops）**逐字一致**
+- [x] **I1.9** **代码层证据**：`candidate_edge_pool_manager::read_directional_ranks` 与 `candidate_exchange_pool_manager::read_directional_ranks` 都从方向层读排名；`validate_expected_upstream` **只校验** `pool_scope_checksum` 与代币库版本/校验和 ⇒ **方向层落后一代无人能看见**；`manager_dex_candidate_library_state` **不记录**方向层版本 ⇒ 闭环层自检（`directional_pool_version=54` ＋ `candidate_edge_version=17` 都「当前」）为绿 ⇒ **陈旧的是「候选边层用的那份方向排名」这一派生数据，它没有版本号**
+
+### I2. 修复与开放项
+
+- [x] **I2.1** **重建链顺序修正（`M-8` · `scripts/mainnet_arbitrage_healer.py`）**：`MANAGER_REBUILD_CHAIN` 改为 **方向层 → 候选边层 → 候选交换层 → 闭环层**，并在注释里写明「消费方读生产方的排名，这是硬约束」；新增回归测试锁死顺序（`test_the_cascade_rebuilds_the_direction_layer_before_the_layers_that_read_it`）
+- [x] **I2.2** **候选边层的时序守卫（`M-1` · `candidate_edge_pool_manager`）**：新增 `CandidateEdgeError::DirectionalLayerStale` —— 物化前读方向层状态（`manager_v4_directional_pool_library_state`），若方向层物化时刻**早于**作用域 `last_rebuilt_at` 则**写入前拒绝发布**（把静默丢失变成响亮失败）；**不引入新表/新列/新迁移**；没有方向层状态的库保持原行为
+- [ ] **I2.3** **生产数据修复（待执行）**：顺序修正后的级联一次即可补回 USDG（`directionalPools` → `candidateEdge` → `candidateExchange` → `closedLoops`）；**前置条件**：USDG 两条腿的价格读取时刻为 `2026-11-27T22:03:52Z`（约 12 小时前），**应先刷新作用域的链上价格再走级联**，否则新闭环会带着陈旧价进入复核
+- [ ] **I2.4** **内核复核给出两条净正三角形的真实盈亏**：+1.1214% / +0.2543% 只是**边际速率读数**，必须由内核复核实测后判定 ⇒ **不预判**
+- [ ] **I2.5** **同源第二面：`candidate_exchange` 作用域的方向层仍早于它的作用域**（version 50，生成于 `2026-11-27T15:07:56Z` < 作用域 `22:16:02`），该作用域有 **5 个「有池无排名」**的活跃交易对 ⇒ 本轮未修（该作用域的行不在交易路径上），登记为开放项
+- [ ] **I2.6** **4 个只读审计/校验脚本因迁移 018 之后的表结构失配而失败**（`verify_optimal_pool_view_20261125.py`、`verify_task150_pool_set_20261121.py`、`audit_directional_hop_resolution_20261125.py`、`audit_directional_invariants_20261125.py`：`no such column: direction_key / pool_ids_json / base_pool_id`）⇒ 需按当前表结构重写，**不为了通过校验而改表**
+
+### I3. 回归
+
+- [x] **I3.1** `cargo test --offline -p candidate-edge-pool-manager`（`flashloan/tools`）⇒ **17 passed / 0 failed**（基线 **15** ＋ 新 **2**：方向层早于作用域 ⇒ 拒绝且不写库／方向层晚于作用域 ⇒ 正常发布）
+- [x] **I3.2** `python -m pytest scripts/tests/test_mainnet_arbitrage_healer.py -q` ⇒ **137 passed / 0 failed**（基线 **136** ＋ 新 **1**）
+- [x] **I3.3** `python -m pytest flashloan/app_runtime/tests/unit/test_mainnet_arbitrage_healer_repair_chain.py -q` ⇒ **44 passed / 0 failed**
+
+### I4. 诚实边界（**永久留占位**）
+
+- [ ] **I4.1** **不伪造**：本轮**未填任何盈亏**、**未填 0**、**未删任何历史复核行**、**未改任何历史代次**
+- [ ] **I4.2** **不放宽任何门禁**：广播 attempts 仍为 **0**（**市场条件**，无正利润复核）；「持续产生链上广播交易」**仍未达成**
+- [ ] **I4.3** **不预判**：新闭环与两条净正三角形是否有盈亏由**链上事实**决定，**不预判**
+- [ ] **I4.4** **不代运行时关闭**：3 条 NVDA 陈旧代次路由仍需运行时**按当前路由重新注册常驻 worker**（404／409／超时属运行时侧）

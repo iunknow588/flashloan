@@ -2808,6 +2808,11 @@ fn map_candidate_command_error(error: CandidateEdgeError) -> RuntimeCoreError {
     let (code, http_status) = match &error {
         CandidateEdgeError::InvalidRequest(_) => ("INVALID_REQUEST", 400),
         CandidateEdgeError::ExpectedUpstreamMismatch { .. } => ("UPSTREAM_VERSION_CHANGED", 409),
+        // The direction layer the candidate edge layer publishes was
+        // materialized from an older pool scope.  The caller has to
+        // rebuild the direction layer first; the conflict is reported
+        // instead of an empty recommendation set being published.
+        CandidateEdgeError::DirectionalLayerStale { .. } => ("DIRECTIONAL_LAYER_STALE", 409),
         CandidateEdgeError::IdempotencyKeyReused { .. } => ("IDEMPOTENCY_KEY_REUSED", 409),
         CandidateEdgeError::MissingPoolScope
         | CandidateEdgeError::MissingCoreLibraryState

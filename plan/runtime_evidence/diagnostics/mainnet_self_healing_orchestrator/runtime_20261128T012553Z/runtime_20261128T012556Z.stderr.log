@@ -1,0 +1,108 @@
+runtime env: profile=v4_dex dex_only=true active=4663/robinhood kv=E:\2026OPC大赛\flashLoan\flashloan\db\local_store_4663.sqlite3 dex_default=4663
+runtime file import skipped: directional migration incomplete: META: expected 0 directions, found 2
+non-DEX background disabled by runtime profile v4_dex
+V4 maintenance workers running: ['v4_broadcast_execution_worker', 'v4_candidate_yc_zc_worker', 'v4_closed_loop_worker', 'v4_dex_overview_worker', 'v4_directional_pool_worker', 'v4_market_observation_worker', 'v4_onchain_review_worker', 'v4_pool_liquidity_worker']
+BNB shared market collector disabled by FLASHLOAN_BNB_SHARED_DATABASE
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.8:5000
+Press CTRL+C to quit
+127.0.0.1 - - [28/Nov/2026 09:26:15] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:26:15] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:26:18] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'blissful-billowing-pine.robinhood-mainnet.quiknode.pro'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'blissful-billowing-pine.robinhood-mainnet.quiknode.pro'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'blissful-billowing-pine.robinhood-mainnet.quiknode.pro'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'blissful-billowing-pine.robinhood-mainnet.quiknode.pro'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [28/Nov/2026 09:28:03] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:28:03] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:28:13] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [28/Nov/2026 09:28:13] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [28/Nov/2026 09:28:13] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [28/Nov/2026 09:28:13] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [28/Nov/2026 09:28:13] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [28/Nov/2026 09:28:19] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:28:20] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:28:20] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:28:20] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:28:20] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:28:24] "POST /api/dex/closed-loop-groups/amd|nvda|spy/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:28:24] "POST /api/dex/closed-loop-groups/nvda|spy|amd/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:28:24] "POST /api/dex/closed-loop-groups/nvda|eth|mu/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:28:24] "POST /api/dex/closed-loop-groups/spy|eth|googl/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:28:29] "POST /api/dex/closed-loop-groups/googl|eth|spy/refresh?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:34:35] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:34:35] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [28/Nov/2026 09:34:35] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [28/Nov/2026 09:34:35] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [28/Nov/2026 09:35:25] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:36:15] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:37:05] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:37:55] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:38:45] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:39:35] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:40:25] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:41:15] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:41:37] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:41:37] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:41:37] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:41:37] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:41:37] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:41:37] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:41:37] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:41:37] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:41:37] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:42:05] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:42:55] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:43:01] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:43:45] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:44:35] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:45:25] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:46:15] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:48:05] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:48:06] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'blissful-billowing-pine.robinhood-mainnet.quiknode.pro'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'blissful-billowing-pine.robinhood-mainnet.quiknode.pro'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'blissful-billowing-pine.robinhood-mainnet.quiknode.pro'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'blissful-billowing-pine.robinhood-mainnet.quiknode.pro'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [28/Nov/2026 09:48:55] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:49:40] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:49:45] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:50:35] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:52:24] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:53:10] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:53:10] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:53:10] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:53:10] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:53:10] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:53:10] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:53:10] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:53:11] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:53:14] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:53:54] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:54:04] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:55:47] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:56:52] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:57:42] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:58:32] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 09:59:50] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 10:00:55] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 10:00:57] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 10:00:57] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 10:00:57] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 10:00:57] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 10:00:57] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 10:01:45] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 10:02:36] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 10:03:41] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 10:04:31] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 10:05:21] "GET /healthz HTTP/1.1" 200 -

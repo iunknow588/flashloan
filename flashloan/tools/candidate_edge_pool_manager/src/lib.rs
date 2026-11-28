@@ -20,6 +20,7 @@ const MAX_RECOMMENDATIONS_PER_HOP: usize = 5;
 /// from here, so the candidate universe and the closed loop cannot drift
 /// apart.
 const DIRECTIONAL_POOL_TABLE: &str = "manager_v4_directional_exchange_pools";
+const DIRECTIONAL_POOL_STATE_TABLE: &str = "manager_v4_directional_pool_library_state";
 
 /// The stable wire label for the version 2 directional ranking.
 ///
@@ -71,6 +72,22 @@ pub enum CandidateEdgeError {
         expected: String,
         actual: String,
     },
+    /// The direction layer was materialized from an **older** pool scope
+    /// than the scope this materialization reads.
+    ///
+    /// The candidate layer publishes the direction layer's ranking, so a
+    /// direction layer that predates the scope ranks an older pool set: a
+    /// pool that became active in the newer scope has no rank in it, and
+    /// the pair of that pool is published with an **empty** recommendation
+    /// set.  The closed loop reads that empty set as "this market has no
+    /// candidate" and skips the token, even though the scope carries a
+    /// usable pool for it.
+    DirectionalLayerStale {
+        scope_key: String,
+        scope_rebuilt_at: String,
+        directional_pool_version: i64,
+        directional_pool_generated_at: String,
+    },
     IdempotencyKeyReused {
         idempotency_key: String,
         existing_request_id: String,
@@ -111,6 +128,18 @@ impl fmt::Display for CandidateEdgeError {
             } => write!(
                 formatter,
                 "upstream {field} changed: expected {expected}, actual {actual}"
+            ),
+            Self::DirectionalLayerStale {
+                scope_key,
+                scope_rebuilt_at,
+                directional_pool_version,
+                directional_pool_generated_at,
+            } => write!(
+                formatter,
+                "directional pool layer of scope {scope_key} is stale: it was materialized \
+                 at {directional_pool_generated_at} (version {directional_pool_version}), \
+                 before the pool scope was rebuilt at {scope_rebuilt_at}; rebuild the \
+                 directional pools before the candidate edge layer"
             ),
             Self::IdempotencyKeyReused {
                 idempotency_key,
@@ -539,6 +568,12 @@ struct ScopePool {
 
 struct CandidateInput {
     pool_scope_checksum: String,
+    /// When the pool scope was rebuilt last.
+    ///
+    /// The candidate layer is materialized **from** the scope, so the
+    /// direction layer it reads has to be newer than this moment: a
+    /// direction layer that predates the scope ranks an older pool set.
+    pool_scope_rebuilt_at: Option<String>,
     library_versions: BTreeMap<String, i64>,
     library_checksums: BTreeMap<String, String>,
     catalog: BTreeMap<String, CatalogToken>,
@@ -552,6 +587,16 @@ struct CandidateInput {
     /// layer did not rank is **not** a candidate -- an unpriced pool was
     /// never a candidate of its group.
     directional_ranks: BTreeMap<(String, String, String), Option<i64>>,
+}
+
+/// The state of the direction layer of one scope.
+///
+/// The candidate layer publishes the direction layer's ranking, so the
+/// state is what says **which** ranking the candidate layer consumed.
+#[derive(Debug, Clone)]
+struct DirectionalLayerState {
+    directional_pool_version: i64,
+    generated_at: String,
 }
 
 /// The ranking of the pools of one direction, as the direction layer
@@ -686,6 +731,13 @@ fn materialize_on_connection(
     }
 
     let input = read_candidate_input(connection, network, chain_id)?;
+    // The candidate layer publishes the direction layer's ranking, so the
+    // direction layer has to be newer than the scope it materializes
+    // from.  A stale direction layer is refused **before** anything is
+    // written: publishing its ranking would drop the pairs whose pools
+    // became active in the newer scope.
+    let directional_state = read_directional_layer_state(connection, network, chain_id)?;
+    validate_directional_layer_freshness(&input, directional_state.as_ref())?;
     if let Some((request, _)) = prepared_write.as_ref() {
         validate_expected_upstream(&request.expected_upstream, &input)?;
     }
@@ -911,14 +963,22 @@ fn read_candidate_input(
 
     let pool_scope = connection
         .query_row(
-            "SELECT materialized_checksum, enabled
+            "SELECT materialized_checksum, enabled, last_rebuilt_at
              FROM pool_scope_config
              WHERE network = ?1 AND chain_id = ?2 AND scope_key = ?3",
             params![network, chain_id, SCOPE_KEY],
-            |row| Ok((row.get(0)?, row.get::<_, i64>(1)? != 0)),
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get::<_, i64>(1)? != 0,
+                    row.get::<_, Option<String>>(2)?,
+                ))
+            },
         )
         .optional()?;
-    let Some((pool_scope_checksum, enabled)): Option<(String, bool)> = pool_scope else {
+    let Some((pool_scope_checksum, enabled, pool_scope_rebuilt_at)):
+        Option<(String, bool, Option<String>)> = pool_scope
+    else {
         let visible_scope_count: i64 =
             connection.query_row("SELECT COUNT(*) FROM pool_scope_config", [], |row| {
                 row.get(0)
@@ -1024,6 +1084,7 @@ fn read_candidate_input(
 
     Ok(CandidateInput {
         pool_scope_checksum,
+        pool_scope_rebuilt_at,
         library_versions,
         library_checksums,
         catalog,
@@ -1092,6 +1153,93 @@ fn read_directional_ranks(
         ranks.insert((pair_key_id, base_pool_id, direction_key), rank);
     }
     Ok(ranks)
+}
+
+/// Read the state of the direction layer of this scope.
+///
+/// A store that does not carry the state table yet has **no** direction
+/// layer state: the candidate layer then has no ranking to read and
+/// publishes no recommendation, rather than publishing one of its own.
+fn read_directional_layer_state(
+    connection: &Connection,
+    network: &str,
+    chain_id: i64,
+) -> Result<Option<DirectionalLayerState>, CandidateEdgeError> {
+    let table_exists: bool = connection.query_row(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
+        params![DIRECTIONAL_POOL_STATE_TABLE],
+        |row| row.get::<_, i64>(0),
+    )? > 0;
+    if !table_exists {
+        return Ok(None);
+    }
+    let state = connection
+        .query_row(
+            "SELECT directional_pool_version, generated_at
+             FROM manager_v4_directional_pool_library_state
+             WHERE network = ?1 AND chain_id = ?2 AND protocol = ?3 AND scope_key = ?4",
+            params![network, chain_id, PROTOCOL, SCOPE_KEY],
+            |row| {
+                Ok(DirectionalLayerState {
+                    directional_pool_version: row.get(0)?,
+                    generated_at: row.get(1)?,
+                })
+            },
+        )
+        .optional()?;
+    Ok(state)
+}
+
+/// The direction layer must be materialized **after** the pool scope.
+///
+/// The candidate layer publishes the direction layer's ranking, and the
+/// direction layer ranks the pools of the scope it was materialized from.
+/// A direction layer that is older than the scope therefore ranks an
+/// older pool set: a pool that became active in the newer scope has no
+/// rank in it, and the pair of that pool is published with an **empty**
+/// recommendation set.  The closed loop reads that empty set as "this
+/// market has no candidate" and skips the token, even though the scope
+/// carries a usable pool for it.
+///
+/// The guard turns that silent loss into a refusal to publish: the
+/// direction layer has to be rebuilt before the candidate edge layer.
+fn validate_directional_layer_freshness(
+    input: &CandidateInput,
+    state: Option<&DirectionalLayerState>,
+) -> Result<(), CandidateEdgeError> {
+    let (Some(state), Some(scope_rebuilt_at)) = (state, input.pool_scope_rebuilt_at.as_deref())
+    else {
+        // A store without a direction layer has no ranking to publish, and
+        // a store without a scope timestamp cannot be compared.  Both are
+        // reported by the materialization result, not by an error.
+        return Ok(());
+    };
+    let (Some(scope_time), Some(directional_time)) = (
+        parse_timestamp(scope_rebuilt_at),
+        parse_timestamp(&state.generated_at),
+    ) else {
+        // A timestamp the store cannot parse is not a verdict: the layer
+        // publishes what it read, and the audit reports the ambiguity.
+        return Ok(());
+    };
+    if directional_time >= scope_time {
+        return Ok(());
+    }
+    Err(CandidateEdgeError::DirectionalLayerStale {
+        scope_key: SCOPE_KEY.to_owned(),
+        scope_rebuilt_at: scope_rebuilt_at.to_owned(),
+        directional_pool_version: state.directional_pool_version,
+        directional_pool_generated_at: state.generated_at.clone(),
+    })
+}
+
+/// The moment a stored timestamp names.
+///
+/// The store writes RFC 3339 timestamps with an offset; a timestamp the
+/// store wrote in another shape is not comparable and is reported as
+/// such by the caller.
+fn parse_timestamp(value: &str) -> Option<chrono::DateTime<chrono::FixedOffset>> {
+    chrono::DateTime::parse_from_rfc3339(value).ok()
 }
 
 /// Whether a table carries a column.
@@ -3459,6 +3607,29 @@ mod tests {
             .unwrap();
     }
 
+    /// Insert the state of the direction layer.
+    ///
+    /// The state carries the moment the direction layer was materialized:
+    /// the candidate layer refuses to publish a ranking that predates the
+    /// pool scope it materializes from.
+    fn insert_directional_layer_state(connection: &Connection, version: i64, generated_at: &str) {
+        connection
+            .execute(
+                "INSERT INTO manager_v4_directional_pool_library_state (
+                    network, chain_id, protocol, scope_key, directional_pool_version,
+                    materialized_checksum, pool_scope_version, pool_scope_checksum,
+                    snapshot_checksum, library_versions_json, library_checksums_json,
+                    base_pool_count, directional_pool_count, direction0_count,
+                    direction1_count, eligible_pair_count, measured_capacity_count,
+                    measured_output_count, excluded_pool_count, generated_at, updated_at
+                 ) VALUES (?1, ?2, 'uniswap_v4', 'core4', ?3, 'sha256:directional',
+                           1, 'sha256:pool-fixture', 'sha256:snapshot', '{}', '{}',
+                           1, 1, 1, 1, 1, 1, 1, 0, ?4, ?4)",
+                params![NETWORK, CHAIN_ID, version, generated_at],
+            )
+            .unwrap();
+    }
+
     fn replace_with_legacy_candidate_schema(connection: &Connection) {
         connection
             .execute_batch(
@@ -4347,6 +4518,79 @@ mod tests {
             )
             .unwrap();
         assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn a_directional_layer_older_than_the_scope_is_refused_before_writing() {
+        // The scope was rebuilt on 2026-11-04; the direction layer was
+        // materialized a day earlier, so it ranks the pool set of the
+        // **older** scope.  Publishing its ranking would publish the pairs
+        // of the pools that became active in the newer scope with an
+        // empty recommendation set.
+        let (_directory, database) = database();
+        let connection = Connection::open(&database).unwrap();
+        insert_scope_pool(
+            &connection,
+            "pool-usdg-ta",
+            USDG,
+            TA,
+            "active",
+            500,
+            None,
+            Some(0.1),
+        );
+        insert_directional_pool(&connection, "pool-usdg-ta", USDG, TA, 0, Some(1));
+        insert_directional_pool(&connection, "pool-usdg-ta", USDG, TA, 1, Some(1));
+        insert_directional_layer_state(&connection, 7, "2026-11-03T00:00:00Z");
+        drop(connection);
+
+        let error = materialize_candidate_edges(&database, NETWORK, CHAIN_ID, true).unwrap_err();
+        match error {
+            CandidateEdgeError::DirectionalLayerStale {
+                scope_key,
+                scope_rebuilt_at,
+                directional_pool_version,
+                directional_pool_generated_at,
+            } => {
+                assert_eq!(scope_key, "core4");
+                assert_eq!(scope_rebuilt_at, "2026-11-04T00:00:00Z");
+                assert_eq!(directional_pool_version, 7);
+                assert_eq!(directional_pool_generated_at, "2026-11-03T00:00:00Z");
+            }
+            other => panic!("unexpected error: {other}"),
+        }
+        let connection = Connection::open(database).unwrap();
+        let count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM manager_dex_candidate_pool_recommendations",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn a_directional_layer_newer_than_the_scope_is_published() {
+        let (_directory, database) = database();
+        let connection = Connection::open(&database).unwrap();
+        insert_scope_pool(
+            &connection,
+            "pool-usdg-ta",
+            USDG,
+            TA,
+            "active",
+            500,
+            None,
+            Some(0.1),
+        );
+        insert_directional_pool(&connection, "pool-usdg-ta", USDG, TA, 0, Some(1));
+        insert_directional_pool(&connection, "pool-usdg-ta", USDG, TA, 1, Some(1));
+        insert_directional_layer_state(&connection, 8, "2026-11-05T00:00:00Z");
+        drop(connection);
+
+        let result = materialize_candidate_edges(&database, NETWORK, CHAIN_ID, true).unwrap();
+        assert_eq!(result.recommendation_count, 2);
     }
 
     #[test]
