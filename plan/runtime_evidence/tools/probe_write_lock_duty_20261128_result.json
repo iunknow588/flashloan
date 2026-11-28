@@ -1,0 +1,11 @@
+{
+  "seconds": 8.0,
+  "attempts": 189938,
+  "freeSamples": 0,
+  "lockedSamples": 189938,
+  "freeRatio": 0.0,
+  "attemptsPerSecond": 23742.2,
+  "longestFreeWindowSeconds": 0.0,
+  "medianFreeWindowSeconds": 0.0,
+  "firstFreeAtSeconds": null
+}

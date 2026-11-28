@@ -31,7 +31,15 @@ if (Test-Path -LiteralPath $binary) {
     Write-Output "the old binary is kept: $backup"
 }
 Copy-Item -LiteralPath $built -Destination $binary -Force
-$hash = (Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash
+# The hash is **evidence**, not a step: a session without `Get-FileHash`
+# must not abort the deployment **after** the old process was stopped and
+# the new binary was put in place.  That order leaves the service down
+# with nothing to start it again, so the hash is read when it can be read
+# and the deployment carries on either way.
+$hash = 'unavailable'
+if (Get-Command Get-FileHash -ErrorAction SilentlyContinue) {
+    try { $hash = (Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash } catch { $hash = 'unavailable' }
+}
 Write-Output ("the new binary is in place: {0} bytes sha256={1}" -f (Get-Item -LiteralPath $binary).Length, $hash)
 
 $starter = Join-Path $repo 'plan\runtime_evidence\tools\start_manager_api_4663_20261127.ps1'

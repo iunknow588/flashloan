@@ -154,3 +154,78 @@ C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connection
 127.0.0.1 - - [28/Nov/2026 17:15:26] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
 127.0.0.1 - - [28/Nov/2026 17:15:56] "GET /healthz HTTP/1.1" 200 -
 127.0.0.1 - - [28/Nov/2026 17:16:17] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:18:39] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+closed-loop runtime state sync failed: database is locked
+Traceback (most recent call last):
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\dex_opportunity_scanner_rust_mixin.py", line 1739, in _record_native_worker_results
+    closed_loop_consumer.record_state_from_attempts(database_by_chain, attempts)
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_consumer.py", line 661, in record_state_from_attempts
+    mark_group_submitted(
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_consumer.py", line 121, in mark_group_submitted
+    return upsert_loop_state(
+           ^^^^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_state_machine.py", line 769, in upsert_loop_state
+    execute(
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 91, in execute
+    return _with_busy_retry(_run)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 77, in _with_busy_retry
+    raise last_error
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 69, in _with_busy_retry
+    return operation()
+           ^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 85, in _run
+    with _write_transaction(connection) as handle:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\ProgramData\Miniconda3\Lib\contextlib.py", line 137, in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 53, in _write_transaction
+    connection.execute("BEGIN IMMEDIATE")
+sqlite3.OperationalError: database is locked
+127.0.0.1 - - [28/Nov/2026 17:20:11] "GET /healthz HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'robinhood-rpc.publicnode.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [28/Nov/2026 17:21:49] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:23:41] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:25:16] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:25:16] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:25:16] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:25:45] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:29:17] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:29:46] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:33:55] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:36:13] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:36:17] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:38:08] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:38:09] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:38:09] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'blissful-billowing-pine.robinhood-mainnet.quiknode.pro'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'blissful-billowing-pine.robinhood-mainnet.quiknode.pro'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'blissful-billowing-pine.robinhood-mainnet.quiknode.pro'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connectionpool.py:1100: InsecureRequestWarning: Unverified HTTPS request is being made to host 'blissful-billowing-pine.robinhood-mainnet.quiknode.pro'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+127.0.0.1 - - [28/Nov/2026 17:40:46] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:41:44] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:43:12] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:45:52] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:45:52] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:45:52] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:45:52] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:46:21] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:48:03] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:48:50] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:50:36] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:50:39] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:50:39] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:50:39] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 17:50:41] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -

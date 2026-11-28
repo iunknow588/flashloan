@@ -1,0 +1,29 @@
+{
+  "baseline": {
+    "samples": 3,
+    "locked": 3,
+    "free": 0,
+    "errors": [
+      "database is locked",
+      "database is locked",
+      "database is locked"
+    ]
+  },
+  "candidates": [
+    {
+      "pid": 22816,
+      "paused": true,
+      "whilePaused": {
+        "samples": 3,
+        "locked": 3,
+        "free": 0,
+        "errors": [
+          "database is locked",
+          "database is locked",
+          "database is locked"
+        ]
+      },
+      "resumed": true
+    }
+  ]
+}

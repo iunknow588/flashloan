@@ -1,0 +1,19 @@
+{
+  "seconds": 120.093,
+  "samples": 542,
+  "walResets": 0,
+  "writeTransactions": 1,
+  "writeTransactionsPerMinute": 0.5,
+  "commitAtSeconds": [
+    24.546,
+    83.921
+  ],
+  "commitGapsSeconds": [
+    59.375
+  ],
+  "pageSize": 4096,
+  "walFrames": 1012,
+  "walCommitFrames": 109,
+  "walBytes": 4169472,
+  "note": "the wal holds the transactions since the last checkpoint"
+}

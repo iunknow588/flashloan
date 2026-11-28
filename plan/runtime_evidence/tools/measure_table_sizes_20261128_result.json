@@ -1,0 +1,184 @@
+{
+  "pageSize": 4096,
+  "fileBytes": 20223115264,
+  "objects": [
+    {
+      "pages": 77547,
+      "overflowPages": 4644650,
+      "rows": 125314,
+      "firstPage": 73,
+      "lastPage": 4937259,
+      "name": "cow_execution_reviews",
+      "type": "table",
+      "bytes": 317632512,
+      "bytesWithOverflow": 19342118912
+    },
+    {
+      "pages": 4900,
+      "overflowPages": 104089,
+      "rows": 6068,
+      "firstPage": 2,
+      "lastPage": 180430,
+      "name": "kv_entries",
+      "type": "table",
+      "bytes": 20070400,
+      "bytesWithOverflow": 446418944
+    },
+    {
+      "pages": 15600,
+      "overflowPages": 63540,
+      "rows": 22736,
+      "firstPage": 483,
+      "lastPage": 4937275,
+      "name": "manager_write_requests",
+      "type": "table",
+      "bytes": 63897600,
+      "bytesWithOverflow": 324157440
+    },
+    {
+      "pages": 1005,
+      "overflowPages": 0,
+      "rows": 2550,
+      "firstPage": 32,
+      "lastPage": 773449,
+      "name": "v4_exchange_pools",
+      "type": "table",
+      "bytes": 4116480,
+      "bytesWithOverflow": 4116480
+    },
+    {
+      "pages": 983,
+      "overflowPages": 0,
+      "rows": 4619,
+      "firstPage": 17,
+      "lastPage": 498426,
+      "name": "chain_tokens",
+      "type": "table",
+      "bytes": 4026368,
+      "bytesWithOverflow": 4026368
+    },
+    {
+      "pages": 738,
+      "overflowPages": 0,
+      "rows": 2486,
+      "firstPage": 35,
+      "lastPage": 4356788,
+      "name": "v4_exchange_pool_liquidity_snapshots",
+      "type": "table",
+      "bytes": 3022848,
+      "bytesWithOverflow": 3022848
+    },
+    {
+      "pages": 118,
+      "overflowPages": 189,
+      "rows": 176,
+      "firstPage": 212437,
+      "lastPage": 4937034,
+      "name": "manager_v4_reviews",
+      "type": "table",
+      "bytes": 483328,
+      "bytesWithOverflow": 1257472
+    },
+    {
+      "pages": 162,
+      "overflowPages": 0,
+      "rows": 804,
+      "firstPage": 966,
+      "lastPage": 4934671,
+      "name": "manager_dex_candidate_abnormal_pools",
+      "type": "table",
+      "bytes": 663552,
+      "bytesWithOverflow": 663552
+    },
+    {
+      "pages": 157,
+      "overflowPages": 0,
+      "rows": 464,
+      "firstPage": 785844,
+      "lastPage": 4934662,
+      "name": "manager_v4_directional_exchange_pools",
+      "type": "table",
+      "bytes": 643072,
+      "bytesWithOverflow": 643072
+    },
+    {
+      "pages": 150,
+      "overflowPages": 0,
+      "rows": 434,
+      "firstPage": 15489,
+      "lastPage": 4931375,
+      "name": "v4_exchange_pools_core4",
+      "type": "table",
+      "bytes": 614400,
+      "bytesWithOverflow": 614400
+    },
+    {
+      "pages": 142,
+      "overflowPages": 0,
+      "rows": 846,
+      "firstPage": 614334,
+      "lastPage": 4932455,
+      "name": "manager_market_observation_abnormal_intermediate_pools",
+      "type": "table",
+      "bytes": 581632,
+      "bytesWithOverflow": 581632
+    },
+    {
+      "pages": 140,
+      "overflowPages": 0,
+      "rows": 434,
+      "firstPage": 11111,
+      "lastPage": 4930025,
+      "name": "v4_exchange_pools_candidate_exchange",
+      "type": "table",
+      "bytes": 573440,
+      "bytesWithOverflow": 573440
+    },
+    {
+      "pages": 95,
+      "overflowPages": 0,
+      "rows": 939,
+      "firstPage": 614502,
+      "lastPage": 4934664,
+      "name": "manager_market_observation_liquidity_snapshots",
+      "type": "table",
+      "bytes": 389120,
+      "bytesWithOverflow": 389120
+    },
+    {
+      "pages": 92,
+      "overflowPages": 0,
+      "rows": 806,
+      "firstPage": 63,
+      "lastPage": 4911775,
+      "name": "dex_candidate_abnormal_pool_pairs",
+      "type": "table",
+      "bytes": 376832,
+      "bytesWithOverflow": 376832
+    },
+    {
+      "pages": 86,
+      "overflowPages": 0,
+      "rows": 2550,
+      "firstPage": 1235446,
+      "lastPage": 3367058,
+      "name": "v4_exchange_pool_recent_swap_activity",
+      "type": "table",
+      "bytes": 352256,
+      "bytesWithOverflow": 352256
+    },
+    {
+      "pages": 65,
+      "overflowPages": 0,
+      "rows": 281,
+      "firstPage": 51,
+      "lastPage": 4888399,
+      "name": "market_observation_liquidity_snapshots",
+      "type": "table",
+      "bytes": 266240,
+      "bytesWithOverflow": 266240
+    }
+  ],
+  "measuredBytes": 20132782080,
+  "objectCount": 233
+}

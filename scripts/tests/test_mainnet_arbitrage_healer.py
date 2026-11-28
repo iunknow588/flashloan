@@ -237,6 +237,29 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
         self.assertEqual(stats["positiveAmount"], 1)
         self.assertEqual(stats["positive"], 0)
 
+    def test_review_status_counts_separates_a_measured_loss_from_a_failed_review(self):
+        # The contract priced the route and rejected it because the round
+        # trip does not pay: the round **measured** it, and the market's
+        # answer is the reading.  Counting it as a failed review would say
+        # the opposite, and it would hide the measured loss of the window
+        # from the profit statistics.
+        measured_loss = {"review_status": "completed",
+                         "signed_pnl_amount": -2.5, "signed_pnl_currency": "SPY"}
+        measured_profit = {"review_status": "completed",
+                           "signed_pnl_amount": 1.5, "signed_pnl_currency": "SPY"}
+        failed = {"review_status": "not_executable"}
+        incomplete = {"review_status": "data_incomplete"}
+        counts = HEALER.review_status_counts([measured_loss, measured_profit,
+                                              failed, incomplete])
+        self.assertEqual(counts["completed"], 2)
+        self.assertEqual(counts["completedNoProfit"], 1)
+        self.assertEqual(counts["completedWithProfit"], 1)
+        self.assertEqual(counts["measuredNotProfitable"], 1)
+        self.assertEqual(counts["not_executable"], 1)
+        self.assertEqual(counts["data_incomplete"], 1)
+        self.assertEqual(counts["failed"], 0)
+        self.assertEqual(counts["other"], 0)
+
     def test_missing_pnl_classification_marks_rpc_retryable(self):
         self.assertEqual(
             HEALER.missing_pnl_classification("eth_call RPC request failed"),

@@ -2319,6 +2319,40 @@ def pnl_stats(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "maximum": max(values) if values else None, "byCurrency": currencies}
 
 
+def review_status_counts(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """How the reviews of a window split by the verdict they carry.
+
+    The **status** answers a different question than the profit: it says
+    whether the round could read the route at all.  A route the contract
+    priced and rejected because the round trip does not pay after costs is
+    a **measured** result -- the market said no and the money did not come
+    back -- so it is counted as a measurement and not as a failure.
+
+    Counting it as "not executable" said the route could not be traded,
+    which is the opposite of what happened, and it hid every measured loss
+    of the window from the profit statistics.
+    """
+    counts = {"completed": 0, "completedWithProfit": 0, "completedNoProfit": 0,
+              "not_executable": 0, "data_incomplete": 0, "failed": 0, "other": 0}
+    for row in rows:
+        status = str(row.get("review_status") or "").strip()
+        if status == "completed":
+            counts["completed"] += 1
+            signed = pnl(row)
+            if signed is not None and float(signed["amount"]) > 0:
+                counts["completedWithProfit"] += 1
+            else:
+                counts["completedNoProfit"] += 1
+        elif status in ("not_executable", "data_incomplete", "failed"):
+            counts[status] += 1
+        else:
+            counts["other"] += 1
+    # The name the operator reads: the routes the round **measured** and
+    # the market refused to pay for.
+    counts["measuredNotProfitable"] = counts["completedNoProfit"]
+    return counts
+
+
 #: The four token libraries the healer audits. A library table that does not
 #: exist in this store is reported as absent rather than raising: the
 #: libraries are materialized independently, so a chain can legitimately own
@@ -3911,7 +3945,11 @@ def audit_reviews(
                                or loops_without_current_review))
     return {"valid": bool(manager_rows) and current_missing_pnl == 0
             and current_best_amount_missing == 0 and not generation_gap,
-        "manager": {"reviews": len(manager_rows)},
+        # The verdicts the Manager library carries, split by what they
+        # mean: a route the round measured and the market refused to pay
+        # for is a measurement, not a failure of the review.
+        "manager": {"reviews": len(manager_rows),
+                    "statusCounts": review_status_counts(manager_rows)},
         "legacy": {"windowHours": hours, "stats": stats,
                    "latestReviewAt": newest_review_stamp(rows),
                    # The newest review of a **live** loop.  The coverage
@@ -4571,6 +4609,8 @@ def pnl_snapshot(
 ) -> dict[str, Any]:
     """Build a read-only PnL snapshot without inventing realized values."""
     reviews = ((report.get("layers") or {}).get("reviews") or {}).get("legacy") or {}
+    status_counts = (((report.get("layers") or {}).get("reviews") or {})
+                     .get("manager") or {}).get("statusCounts") or {}
     best_amount = ((report.get("layers") or {}).get("reviews") or {}).get("bestAmount") or {}
     tick_amount = ((report.get("layers") or {}).get("reviews") or {}).get("tickAmount") or {}
     generation = ((report.get("layers") or {}).get("reviews") or {}).get("generation") or {}
@@ -4612,6 +4652,9 @@ def pnl_snapshot(
             "matchedMissingPnl": reviews.get("matchedMissingPnl", 0),
             "bestAmountMissing": best_amount.get("missing", 0),
             "bestAmountConfirmed": best_amount.get("confirmed", 0),
+            # The verdicts of the Manager library: how many routes the
+            # round **measured** and how many it could not read at all.
+            "statusCounts": status_counts,
         },
         # The tick-amount comparison of the live routes.  It travels with
         # the snapshot because a negative expectation is only a fact about

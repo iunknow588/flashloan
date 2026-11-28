@@ -3085,6 +3085,70 @@ fn ladder_unmeasured_reason(static_preview: &serde_json::Value) -> String {
         .unwrap_or_else(|| "unknown".to_owned())
 }
 
+/// Whether the rejection the contract gave is its **profitability
+/// verdict**.
+///
+/// The contract prices a route, runs it, and rejects it with
+/// ``NoProfitableRoute()`` when the round trip does not pay after costs.
+/// That rejection carries the exact loss of the size the contract tried,
+/// so the measurement **succeeded**: the route was executable and the
+/// market's answer is "it does not pay".
+///
+/// A rejection of any other shape -- an RPC that failed, a pool that could
+/// not be read -- carries no market answer, and a review cannot read one
+/// out of it.
+fn rejection_is_profitability_verdict(run: &RunArbitrageEvidence) -> bool {
+    if run
+        .raw
+        .get("noProfitableRoute")
+        .and_then(|value| value.as_bool())
+        == Some(true)
+    {
+        return true;
+    }
+    if run
+        .raw
+        .get("arbitrageNotProfitable")
+        .map(|value| !value.is_null())
+        .unwrap_or(false)
+    {
+        return true;
+    }
+    run.raw
+        .get("error")
+        .and_then(|value| value.as_str())
+        .map(|text| text.contains("NoProfitableRoute"))
+        .unwrap_or(false)
+}
+
+/// The short kind of the rejection the run evidence carries.
+fn rejection_kind(run: &RunArbitrageEvidence) -> String {
+    run.raw
+        .get("error")
+        .and_then(|value| value.as_str())
+        .map(|text| text.trim().to_owned())
+        .filter(|text| !text.is_empty())
+        .unwrap_or_else(|| "unknown".to_owned())
+}
+
+/// The reason a measured route is not the closed loop it was filed under.
+///
+/// A hop that published **no** pool option cannot be confirmed, and a
+/// pool outside the published options is a pool the route invented.  The
+/// two are reported apart: the first is a gap in the catalog, the second
+/// is a foreign pool.
+fn identity_gate_reason(
+    hop_without_options: Option<usize>,
+    pool_outside_options: Option<&(usize, String)>,
+) -> Option<String> {
+    if let Some(hop_index) = hop_without_options {
+        return Some(format!("loop_options_unavailable:hop_{hop_index}"));
+    }
+    pool_outside_options.map(|(hop_index, pool_id)| {
+        format!("pool_not_in_loop_options:hop_{hop_index}:{}", pool_id.trim())
+    })
+}
+
 fn build_review_rows(
     input: &ReviewInput,
     evidence: &[ReviewEvidenceInput],
@@ -3325,6 +3389,12 @@ fn build_review_rows(
         } else {
             hop_sqrt_price_limits
         };
+        // The identity of the route is judged **once**, for every arm of
+        // the verdict: a route that traded a pool the closed loop never
+        // published is not the closed loop, and no measurement of it may
+        // confirm the loop -- whatever the money did.
+        let identity_reason =
+            identity_gate_reason(hop_without_options, pool_outside_options.as_ref());
         let (review_status, review_reason) = match run_arbitrage {
             None => {
                 insert_synthetic_missing_diagnostic(
@@ -3354,26 +3424,9 @@ fn build_review_rows(
                     // published for that hop, so the route is not the
                     // closed loop: the review may not confirm it and it
                     // may never be broadcast.
-                    (_, _) if hop_without_options.is_some() => (
+                    (_, _) if identity_reason.is_some() => (
                         "not_executable",
-                        Some(format!(
-                            "loop_options_unavailable:hop_{}",
-                            hop_without_options.unwrap_or_default()
-                        )),
-                    ),
-                    (_, _) if pool_outside_options.is_some() => (
-                        "not_executable",
-                        Some(format!(
-                            "pool_not_in_loop_options:hop_{}:{}",
-                            pool_outside_options
-                                .as_ref()
-                                .map(|(hop_index, _)| *hop_index)
-                                .unwrap_or_default(),
-                            pool_outside_options
-                                .as_ref()
-                                .map(|(_, pool_id)| pool_id.trim().to_owned())
-                                .unwrap_or_default()
-                        )),
+                        identity_reason.clone(),
                     ),
                     (Some(verdict), _) => (
                         "not_executable",
@@ -3415,13 +3468,66 @@ fn build_review_rows(
                     (_, _) => ("completed", None),
                 }
             }
+            // The contract priced the route and rejected it because the
+            // round trip does not pay after costs.
+            //
+            // The route **was** executable -- the contract reached its own
+            // profitability check -- and the rejection carries the exact
+            // loss of the size it tried, so the measurement **succeeded**
+            // and its verdict is the market's.
+            //
+            // Filing this as "not executable" said the opposite of what
+            // happened: it said the route could not be traded, when in
+            // fact it was traded and it lost.  The loss is the reading the
+            // review has to publish, so the row is **completed** with the
+            // market's verdict, and the profit statistics of the round can
+            // count it.
+            Some(run)
+                if !run.ok && run.executable && rejection_is_profitability_verdict(&run) =>
+            {
+                match identity_reason.clone() {
+                    Some(reason) => ("not_executable", Some(reason)),
+                    // A route the ladder never probed has no measured best
+                    // amount, so the round has no complete reading of it.
+                    None if !ladder_measured(&static_preview) => (
+                        "data_incomplete",
+                        Some(format!(
+                            "ladder_not_measured:{}",
+                            ladder_unmeasured_reason(&static_preview)
+                        )),
+                    ),
+                    // A positive reading next to a profitability verdict is
+                    // a contradiction the review cannot resolve: the
+                    // contract says the route does not pay and the ladder
+                    // says it does.  The row is filed as a failed review so
+                    // the round measures it again, and it never becomes a
+                    // broadcast request.
+                    None if signed_pnl.as_ref().is_some_and(|pnl| pnl.amount > 0.0) => (
+                        "not_executable",
+                        Some("measured_profit_contradicts_contract_verdict".to_owned()),
+                    ),
+                    None => (
+                        "completed",
+                        Some(format!(
+                            "measured_not_profitable:{}",
+                            rejection_kind(&run)
+                        )),
+                    ),
+                }
+            }
+            // The route was rejected and the contract never called it
+            // executable either: the call reached no market answer, so the
+            // review has no reading to publish.
             Some(run) if !run.ok => (
                 "not_executable",
-                Some("runArbitrage returned ok=false".to_owned()),
+                Some(format!(
+                    "runArbitrage rejected the route and reported it as not executable:{}",
+                    rejection_kind(&run)
+                )),
             ),
             Some(_) => (
                 "not_executable",
-                Some("runArbitrage returned executable=false".to_owned()),
+                Some("runArbitrage reported the route as not executable".to_owned()),
             ),
         };
 
@@ -6162,6 +6268,43 @@ mod tests {
         }
     }
 
+    /// A route the contract priced and rejected because the round trip does
+    /// not pay after costs.
+    ///
+    /// The evidence carries the shape the kernel publishes for that path:
+    /// the call reverted with ``NoProfitableRoute``, the route is
+    /// executable, and the contract returned the exact loss of the size it
+    /// tried.
+    fn measured_loss_evidence(ladder_measured: bool) -> ReviewEvidenceInput {
+        let mut item = evidence(Some(signed_pnl(-3.5)), false, true, Vec::new());
+        if let Some(run) = item.run_arbitrage.as_mut() {
+            run.raw.insert(
+                "error".to_owned(),
+                serde_json::Value::String("NoProfitableRoute".to_owned()),
+            );
+            run.raw.insert(
+                "noProfitableRoute".to_owned(),
+                serde_json::Value::Bool(true),
+            );
+            run.raw.insert(
+                "arbitrageNotProfitable".to_owned(),
+                serde_json::json!({
+                    "profitDeltaRaw": "-0x1f8947da1a0a1",
+                    "receivedRaw": "0xd535365fd99d90",
+                    "requiredRaw": "0xd72dcadd7b3e31",
+                }),
+            );
+        }
+        if !ladder_measured {
+            item.static_preview["bestAmountCalculation"] = serde_json::json!({
+                "bestAmountLadderStatus": "single_tick_capacity_below_min_probe",
+                "bestAmountMeasured": false,
+                "probeCount": 0,
+            });
+        }
+        item
+    }
+
     fn expected(path: &std::path::Path) -> ExpectedUpstream {
         let status = super::read_review_status(path, NETWORK, CHAIN_ID).unwrap();
         let closed = closed_loop_manager::read_closed_loop_status(path, NETWORK, CHAIN_ID).unwrap();
@@ -7204,6 +7347,101 @@ mod tests {
             .as_deref()
             .unwrap_or_default()
             .starts_with("ladder_not_measured:"));
+    }
+
+    /// A route the contract priced and rejected because it does not pay is
+    /// a **measured** result: the round traded it, the money did not come
+    /// back, and the review has to publish that reading.
+    ///
+    /// Filing it as "not executable" said the route could not be traded,
+    /// and it hid every measured loss of the round from the profit
+    /// statistics of the run.
+    #[test]
+    fn a_contract_rejection_with_a_measured_loss_is_a_completed_review() {
+        let (_directory, path) = database();
+        let mut fresh = measured_loss_evidence(true);
+        fresh.reviewed_at = Some(chrono::Utc::now().to_rfc3339());
+        let result = run_reviews(&path, NETWORK, CHAIN_ID, vec![fresh], true).unwrap();
+        assert_eq!(result.completed_count, 1);
+        assert_eq!(result.not_executable_count, 0);
+        assert_eq!(result.data_incomplete_count, 0);
+        assert_eq!(result.broadcast_request_count, 0);
+        let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        assert_eq!(snapshot.reviews[0].review_status, "completed");
+        assert_eq!(snapshot.reviews[0].page_category, "confirmed_no_profit");
+        assert_eq!(
+            snapshot.reviews[0].review_reason.as_deref(),
+            Some("measured_not_profitable:NoProfitableRoute")
+        );
+        assert!(snapshot.reviews[0].signed_pnl.is_some());
+    }
+
+    /// A rejection the ladder never probed is still an incomplete
+    /// measurement: the round knows the route does not pay at the size it
+    /// tried, and it does not know whether another size would.
+    #[test]
+    fn a_contract_rejection_without_a_measured_ladder_is_data_incomplete() {
+        let (_directory, path) = database();
+        let mut fresh = measured_loss_evidence(false);
+        fresh.reviewed_at = Some(chrono::Utc::now().to_rfc3339());
+        let result = run_reviews(&path, NETWORK, CHAIN_ID, vec![fresh], true).unwrap();
+        assert_eq!(result.completed_count, 0);
+        assert_eq!(result.not_executable_count, 0);
+        assert_eq!(result.data_incomplete_count, 1);
+        assert_eq!(result.broadcast_request_count, 0);
+        let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        assert_eq!(snapshot.reviews[0].review_status, "data_incomplete");
+        assert!(snapshot.reviews[0]
+            .review_reason
+            .as_deref()
+            .unwrap_or_default()
+            .starts_with("ladder_not_measured:"));
+    }
+
+    /// A rejection that is not the contract's profitability verdict carries
+    /// no market answer, so the review has no reading to publish.
+    #[test]
+    fn a_rejection_that_is_not_a_profitability_verdict_stays_not_executable() {
+        let (_directory, path) = database();
+        let mut fresh = evidence(Some(signed_pnl(-3.5)), false, false, Vec::new());
+        if let Some(run) = fresh.run_arbitrage.as_mut() {
+            run.raw.insert(
+                "error".to_owned(),
+                serde_json::Value::String("execution reverted".to_owned()),
+            );
+        }
+        fresh.reviewed_at = Some(chrono::Utc::now().to_rfc3339());
+        let result = run_reviews(&path, NETWORK, CHAIN_ID, vec![fresh], true).unwrap();
+        assert_eq!(result.completed_count, 0);
+        assert_eq!(result.not_executable_count, 1);
+        assert_eq!(result.broadcast_request_count, 0);
+        let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        assert_eq!(snapshot.reviews[0].review_status, "not_executable");
+        assert_eq!(snapshot.reviews[0].page_category, "review_failed");
+        assert!(snapshot.reviews[0]
+            .review_reason
+            .as_deref()
+            .unwrap_or_default()
+            .starts_with("runArbitrage rejected the route and reported it as not executable:"));
+    }
+
+    /// A route the contract never ran is not executable either, whatever
+    /// the measurement beside it says.
+    #[test]
+    fn a_route_the_contract_never_ran_is_not_executable() {
+        let (_directory, path) = database();
+        let mut fresh = evidence(Some(signed_pnl(-3.5)), true, false, Vec::new());
+        fresh.reviewed_at = Some(chrono::Utc::now().to_rfc3339());
+        let result = run_reviews(&path, NETWORK, CHAIN_ID, vec![fresh], true).unwrap();
+        assert_eq!(result.completed_count, 0);
+        assert_eq!(result.not_executable_count, 1);
+        assert_eq!(result.broadcast_request_count, 0);
+        let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        assert_eq!(snapshot.reviews[0].review_status, "not_executable");
+        assert_eq!(
+            snapshot.reviews[0].review_reason.as_deref(),
+            Some("runArbitrage reported the route as not executable")
+        );
     }
 
     #[test]

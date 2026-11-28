@@ -214,3 +214,41 @@
 - [ ] **J4.2** **不放宽任何门禁**：只删了「新鲜度」这一道**本来就不应该存在**的门；其余门禁**一条不少**（复核完成 ＋ 正盈亏 ＋ 三跳价格限 ＋ 三跳确认池 ＋ `BC-2` 链/账户/额度/窗口 ＋ 路线必须交易复核确认的池）
 - [ ] **J4.3** **广播 attempts 仍为 0**（**市场条件**）：库里 `completed` 的复核是 **0** 条，那 **7** 条正利润复核的状态是 `not_executable` ⇒ **本轮改动不会凭空产生广播**；它改变的是「一旦出现一条『完成 ＋ 可执行 ＋ 正盈利』的复核，就**立即**发出广播指令」
 - [ ] **J4.4** **不代运行时关闭**：写锁根治（`I2.7`）与热路径搬库**未实施**；`broadcast_pending` 同源墓碑（`I2.13`）**未修**；**19 GB** 主库体积构成**未查明**（不 `VACUUM`、不删文件）
+
+## K. 复核状态语义归正（**2026-11-28 · `D-263`**）
+
+### K1. 缺陷取证（**只读 · 代码自证 · `D-263` §2**）
+
+- [x] **K1.1** **★ `ok=false` 被当成「测量失败」**：复核层 `build_review_rows` 的 `Some(run) if !run.ok` 一支**不看 `executable`**、**不看回滚原因** ⇒ 「**可成交但亏钱**」与「**跑不了**」被并成 `not_executable`，理由串写「`runArbitrage returned ok=false`」（读起来像测量失败）
+- [x] **K1.2** **★ 在产读数（`manager_v4_reviews`，只读对表）**：`not_executable` **150**（含 **7** 条正盈亏）／ `data_incomplete` **26** ／ **`completed` 0**；理由码 `runArbitrage returned ok=false` **128**（其中 **126** 条是 `ok=false ∧ executable=true`）／ `executable=false` **15** ／ `signed PnL is missing or incomplete` **13** ／ `loop_options_unavailable:hop_N` **7**
+- [x] **K1.3** **★ 样本原文（实测）**：最新一条 `run_arbitrage_json` ＝ `{"ok":false,"executable":true,"error":"NoProfitableRoute","revertSelector":"0x16301234","noProfitableRoute":true,"arbitrageNotProfitable":{received<required},"signedPnl":-5.54791623303329e-4 SPY}` ⇒ **路线可成交**、合约回滚说了「不赚钱」、并回传了**确切亏损**
+- [x] **K1.4** **★ 阶梯量过**：126 条里 **121** 条 `bestAmountMeasured=1` ／ `probeCount` **1–21** ／ `bestAmountLadderStatus=not_profitable_after_costs`；只有 **5** 条 `single_tick_capacity_below_min_probe`（阶梯确实没跑起来）
+- [x] **K1.5** **★ 后果**：①「持续观察统计套利交易 盈亏情况」读不出「测到了什么」（统计说「128 条不可成交」，事实是「128 条成交了、钱没回来」）；② 编排器以为这 128 条**测量坏了**，去追一个**根本没坏**的测量；③ 广播门禁的输入被自己判没了（库里 `completed` ＝ **0** 条）
+
+### K2. 修复（复核层 ＋ 编排器 · `D-263` §3）
+
+- [x] **K2.1** **复核层（`M-6`）**：新增 `rejection_is_profitability_verdict` ／ `rejection_kind` ／ `identity_gate_reason`；`¬ok ∧ executable ∧ 盈利判定` ⇒ **`completed` ＋ `measured_not_profitable:<kind>`**（⇒ 页面积分类 `confirmed_no_profit`，**盈亏统计第一次读得出「测到了什么」**）
+- [x] **K2.2** **★ 阶梯闸门在新支上依然生效**：`¬ok ∧ executable ∧ 盈利判定` ＋ 阶梯没量 ⇒ `data_incomplete` ＋ `ladder_not_measured:*`（**量级不足仍是量级不足**，不得冒充「量过了」）
+- [x] **K2.3** **★ 矛盾情形 fail-closed**：`¬ok ∧ executable ∧ 盈利判定` ＋ 实测为**正** ⇒ `not_executable` ＋ `measured_profit_contradicts_contract_verdict`（合约说不赚钱、阶梯说赚钱 ⇒ 复核无法裁定 ⇒ 复测，**不得**进广播请求）
+- [x] **K2.4** **★ 身份闸门优先且只判一次**：`hop_without_options` ／ `pool_outside_options` 两段重复 `format!` 收成 `identity_gate_reason()`，**先于**盈利判定支生效（路线不是闭环 ⇒ 无论钱怎样都不得确认）
+- [x] **K2.5** **★ 两条回退支的理由串归正**：`¬ok ∧ ¬executable` ⇒ `runArbitrage rejected the route and reported it as not executable:<kind>`；`ok ∧ ¬executable` ⇒ `runArbitrage reported the route as not executable`（旧的 `runArbitrage returned ok=false` **把两类事实并成了一类**，措辞也读起来像测量失败）
+- [x] **K2.6** **★ 不新增状态值**：`review_status` 的取值集合被数据库 CHECK 约束、API 参数校验、页面积分类、广播准入事实、界面读面、Python 侧统计**共同依赖**（`completed / data_incomplete / not_executable / failed`）⇒ 本轮用**既有词汇**表达新语义（`completed` ＝ 测到了；`data_incomplete` ＝ 没测到；`not_executable` ＝ 跑不了）
+- [x] **K2.7** **★ 广播门禁一条没松**：复核层生成广播请求的条件**未变**（`completed` ＋ 正盈亏 ＋ 三跳价格限 ＋ 三跳确认池 ＋ 时刻可用），而盈利判定这一支的实测值**必为负** ⇒ **不会**产生广播请求；广播层 `BC-1.run_ok` **仍在**（`ok=false` 的运行永远过不了准入）；`review_round_outcome` 只在「`completed` ＋ 正盈亏」时停驻闭环 ⇒ 本轮这些行**照旧**排队复核
+- [x] **K2.8** **编排器（`M-8`）**：新增 `review_status_counts()`（`completed` ／ `completedWithProfit` ／ `completedNoProfit` ／ **`measuredNotProfitable`** ／ `not_executable` ／ `data_incomplete` ／ `failed`），挂在 `layers.reviews.manager.statusCounts`，随 `pnl_snapshot` 的 `reviews.statusCounts` 落进观察文件 ⇒ **「测到了多少 ／ 赚了多少 ／ 亏了多少」三件事分开读**
+
+### K3. 回归与部署（`D-263` §5）
+
+- [x] **K3.1** `cargo test --offline -p review-manager` ⇒ **182 passed / 0 failed**（基线 **178** ＋ 新 **4**：盈利判定＋实测亏损 ⇒ `completed` ／ 盈利判定＋阶梯没量 ⇒ `data_incomplete` ／ 非盈利判定的回滚 ⇒ 仍 `not_executable` ／ 合约没跑成 ⇒ `not_executable`）
+- [x] **K3.2** `cargo test --offline --workspace`（`flashloan/tools`）⇒ **14 个套件全绿 / 0 failed**（含 `review-manager` **182**、`manager-api` **35**、`closed-loop-manager` **79**、`broadcast-manager` **44**）
+- [x] **K3.3** `python -m pytest scripts/tests/test_mainnet_arbitrage_healer.py -q` ⇒ **153 passed / 0 failed**（基线 **152** ＋ 新 **1**）
+- [x] **K3.4** `python -m pytest flashloan/app_runtime/tests/unit/test_mainnet_arbitrage_healer_repair_chain.py -q` ⇒ **44 passed / 0 failed**
+- [x] **K3.5** **★ 部署闸门（三件同批 · 新旧无中间态）**：新 `manager-api` ＋ 新扩展模块 `flashloan_rs.dll` ＋ 新自愈器**同批上线**。**★ 部署范围的一处更正**：复核行**不只**由 `manager-api` 落库 —— 运行时的 `review_publish.rs` 在发布测量时**进程内**调用 `review_manager::run_reviews_write`，而扩展模块**内嵌**复核库 crate ⇒ **运行中的运行时仍在用旧代码写复核行**（实测：部署后仍出现 `updated_at = 09:52:32Z` ＋ 旧理由串 `runArbitrage returned ok=false` 的行）⇒ 必须**重建扩展 ＋ 重启运行时**
+- [x] **K3.6** **在产读数**：见 `D-263` §5.2（**2026-11-28 18:49 实测**）—— `completed` **0 → 28**（同一语句的一次快照），这 28 条**全部**是 `measured_not_profitable:NoProfitableRoute`、**全部带确切的负盈亏数值**（`signed_pnl_source = native_rust_ladder`，`-3.26e-2` ～ `-6.18e-15`）、**一条都不缺数值**；`not_executable` **121**（其中 **106** 条是 **2026-11-26** 的旧理由串存量行，新代码**一次也没再写过**旧串）、`data_incomplete` **27**；**广播请求仍为 0**（被改判的行实测值全为负 ⇒ 不生成广播请求）
+
+### K4. 诚实边界（**永久留占位**）
+
+- [ ] **K4.1** **不伪造**：本轮**未填任何盈亏**、**未填 0**、**未删任何历史复核行**、**未改任何历史代次**、**未手工写生产库**
+- [ ] **K4.2** **不放宽任何门禁**：只把「**可成交但不盈利**」从「**不可成交**」里**分出来**；广播准入的每一道（`completed` ＋ 正盈亏 ＋ 三跳价格限 ＋ 三跳确认池 ＋ `BC-1.run_ok` ＋ `BC-2` 链/账户/额度/窗口 ＋ 路线必须交易复核确认的池）**都在原位**
+- [ ] **K4.3** **广播 attempts 仍为 0**（**市场条件**）：被改判的那些行实测值**全为负** ⇒ 本轮改动**不会**凭空产生广播
+- [ ] **K4.4** **那 7 条正盈亏复核的状态未变**：它们的阻断理由是**闭环目录没有给那一跳发布池选项**（`loop_options_unavailable:hop_N`，**身份问题**），与本轮的语义归正**无关**；该缺口另有登记（`D-228`）
+- [ ] **K4.5** **不代运行时关闭**：写锁根治（`I2.7`）、热路径搬库、`broadcast_pending` 同源墓碑（`I2.13`）、**19 GB** 主库体积构成**均未实施**

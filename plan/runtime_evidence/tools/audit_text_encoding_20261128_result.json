@@ -1,0 +1,17 @@
+{
+  "tool": "audit_text_encoding_20261128",
+  "design": "UTF-8 no BOM, LF line endings",
+  "scannedTextFiles": 10,
+  "worktreeLineEndings": {
+    "lf": 9,
+    "mixed": 1
+  },
+  "indexLineEndings": {
+    "i/lf": 10
+  },
+  "filesWithBom": [],
+  "indexExceptions": [],
+  "worktreeCrlfCount": 0,
+  "worktreeCrlfSample": [],
+  "scope": "changed-only"
+}
