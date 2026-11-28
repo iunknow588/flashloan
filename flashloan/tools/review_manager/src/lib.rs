@@ -1987,8 +1987,18 @@ fn stale_loops(
         // A loop that is busy -- it is being measured right now, or it
         // waits for the receipt of its trade -- is not quiet: the round
         // that is running will publish a measurement of its own, and a
-        // trade that waits for its receipt has already been made.
-        if closed_loop_manager::is_review_sentinel(next_review_at) {
+        // trade that waits for its receipt has already been made.  The
+        // **state** of the loop says so: a claim keeps the moment the
+        // loop was scheduled at, so the marker is not there to be read.
+        if closed_loop_manager::is_review_sentinel(next_review_at)
+            || schedule.is_some_and(|state| {
+                matches!(
+                    state.runtime_status.trim(),
+                    closed_loop_manager::RUNTIME_STATUS_REVIEW_PENDING
+                        | closed_loop_manager::RUNTIME_STATUS_BROADCAST_PENDING
+                )
+            })
+        {
             continue;
         }
         // The round of the loop started after the measurement the store

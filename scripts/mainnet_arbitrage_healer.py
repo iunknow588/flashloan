@@ -589,16 +589,57 @@ def due_review_queue(manager_api: str | None,
     return {"ok": bool(response.get("ok")) and "loops" in data,
             "dueCount": int(data.get("dueCount") or 0),
             "waitingCount": int(data.get("waitingCount") or 0),
-            "loops": [row for row in loops if isinstance(row, dict)]}
+            "loops": [row for row in loops if isinstance(row, dict)],
+            "walkStoppedAt": data.get("walkStoppedAt"),
+            "walkStoppedReason": data.get("walkStoppedReason"),
+            "queueNeedsRefresh": bool(data.get("queueNeedsRefresh")),
+            "restartFromHead": bool(data.get("restartFromHead"))}
 
 
-# A review claim parks its loop at the review sentinel until the round it
-# started lands, and a parked loop is never due again and never claimed
-# again.  Only the healer takes a claim, so a claim that is older than
-# this window belongs to a healer that is gone, and the loop it parked
-# has to be given back.  The window is far longer than a round of the
-# review takes, so a round that is still running is never mistaken for an
-# abandoned one.
+# The number of times the queue is read again in one round of the review
+# when the walk stopped.  The queue is dynamic, so the walk has to start
+# again from the head -- but a queue whose head never comes due must not
+# hold the main thread of the review for ever, so the number is bounded.
+REVIEW_QUEUE_REFRESH_LIMIT = 3
+
+
+def walk_review_queue(manager_api: str | None,
+                      chain_id: int | None = None,
+                      limit: int = REVIEW_QUEUE_REFRESH_LIMIT
+                      ) -> dict[str, Any]:
+    """The walk of the main thread of the review over the queue.
+
+    The queue is **dynamic**: the moments it is ordered by are written
+    while it is read, so a walk that stopped at a loop whose moment has
+    not come says nothing about the work behind it.  The queue is
+    therefore read again and the walk starts again from the head -- the
+    main thread never waits on the entry it stopped at.
+
+    A manual review lands in the same queue: it makes the loop due at
+    once, and the loop is picked up from the head of the queue that was
+    read again.
+
+    The number of reads is bounded, and the answer says how many reads
+    were needed, so a queue that never comes due is visible instead of
+    silent.
+    """
+    queue = due_review_queue(manager_api, chain_id)
+    refreshes = 0
+    while bool(queue.get("queueNeedsRefresh")) and refreshes < int(limit):
+        queue = due_review_queue(manager_api, chain_id)
+        refreshes += 1
+    return {"ok": bool(queue.get("ok")),
+            "queue": queue,
+            "loops": list(queue.get("loops") or []),
+            "refreshes": refreshes}
+
+
+# A review claim takes the loop until the round it started lands, and a
+# taken loop is never due again and never claimed again.  Only the healer
+# takes a claim, so a claim that is older than this window belongs to a
+# healer that is gone, and the loop it took has to be given back.  The
+# window is far longer than a round of the review takes, so a round that is
+# still running is never mistaken for an abandoned one.
 REVIEW_CLAIM_STALE_SECONDS = 45 * 60
 # The moment a parked loop carries.  It is a moment far in the future, so
 # a loop that waits for it waits for good.
@@ -688,12 +729,11 @@ def release_review_claim(manager_api: str | None,
                          ) -> dict[str, Any]:
     """Give a review claim back when the round it started never ran.
 
-    A claim parks the loop at the review sentinel, and a parked loop is
-    never claimed again and never becomes due again: the clock advance
-    skips the sentinel, and a claim refuses a parked loop.  A round that
-    never started therefore bricks the loop for good -- its review stays
-    on an older generation and the broadcast gate never sees a fresh
-    profit from it.
+    A claim takes the loop: the loop waits for the round that is running
+    and it is not claimed a second time.  The claim does **not** rewrite
+    the review moment of the loop, so the loop keeps its place in the
+    queue and a round that never started does not brick it: the loop is
+    due again the moment the claim is given back.
 
     The moment the round started is the token of the claim.  The dry run
     of a claim reads that moment back without touching the loop, so a
@@ -709,9 +749,15 @@ def release_review_claim(manager_api: str | None,
     payload = response_payload(probe)
     data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
     parked_since = str(data.get("reviewCycleStartedAt") or "")
-    parked_until = str(data.get("nextReviewAt") or "")
-    if not parked_since or parked_until != REVIEW_PENDING_SENTINEL_AT:
-        return {"ok": True, "released": False, "reason": "loop_is_not_parked"}
+    parked_status = str(data.get("runtimeStatus") or "")
+    if not parked_since or parked_status != "review_pending":
+        # The loop is not occupied.  A loop whose round is running is the
+        # only occupied one, and the **state** of the loop says so: the
+        # schedule of the loop is not read for it, because the claim keeps
+        # the moment the loop was scheduled at.
+        return {"ok": True, "released": False,
+                "reason": "loop_is_not_parked",
+                "runtimeStatus": parked_status}
     ours = str((claim or {}).get("reviewCycleStartedAt") or "")
     stale = review_claim_is_stale(parked_since, stale_seconds)
     if not ((ours and parked_since == ours) or stale):
@@ -735,20 +781,19 @@ def release_abandoned_review_claims(db: Path,
                                      ) -> dict[str, Any]:
     """Give back the review claims that no round will ever land.
 
-    A claim parks its loop at the review sentinel, and a parked loop is
-    never due again and never claimable again, so a claim whose round
-    never started bricks the loop.  Only the healer takes a claim, so a
-    claim that is older than the stale window belongs to a healer that is
-    gone: its loops are given back, they become due again, and the next
-    round can measure them.
+    A claim takes the loop: the loop waits for the round that is running
+    and it is not due again while that round runs.  Only the healer takes
+    a claim, so a claim that is older than the stale window belongs to a
+    healer that is gone: its loops are given back, they become due again,
+    and the next round can measure them.
     """
     parked = all_rows(
         db,
         "SELECT loop_key AS loopKey,"
         "       review_cycle_started_at AS claimStartedAt"
         "  FROM manager_v4_closed_loop_runtime_state"
-        " WHERE runtime_status = 'review_pending' AND next_review_at = ?1",
-        (REVIEW_PENDING_SENTINEL_AT,),
+        " WHERE runtime_status = 'review_pending'",
+        (),
     )
     released: list[str] = []
     kept: list[str] = []
@@ -1212,9 +1257,13 @@ def review_freshness_by_loop(
                       else "never_measured")
             not_current.append({"loopKey": key, "reason": reason})
             continue
-        if is_review_sentinel(due_at):
+        if is_review_sentinel(due_at) or str(
+                schedule.get("runtimeStatus") or "") in {
+                "review_pending", "broadcast_pending"}:
             # The loop is being measured right now, or it waits for the
-            # receipt of its trade: it is working, not quiet.
+            # receipt of its trade: it is working, not quiet.  The state
+            # of the loop says so: a claim keeps the moment the loop was
+            # scheduled at, so the marker is not there to be read.
             continue
         cycle = _parse_moment(schedule.get("reviewCycleStartedAt"))
         if cycle is not None and measured < cycle:
@@ -8184,11 +8233,10 @@ def supervise(
                     continue
 
             try:
-                # A claim that no round will ever land parks its loop at
-                # the review sentinel, and a parked loop never becomes due
-                # again.  The claims of a healer that is gone are given
-                # back first, so the loops they parked can be measured in
-                # this round.
+                # A claim that no round will ever land takes its loop, and
+                # a busy loop is never due again.  The claims of a healer
+                # that is gone are given back first, so the loops they
+                # took can be measured in this round.
                 released_claims = release_abandoned_review_claims(
                     db, manager_api, apply)
                 # The closed loop runs a **review clock**: the loop starts
@@ -8199,9 +8247,16 @@ def supervise(
                 clock_outcome = advance_review_clocks(manager_api)
                 # The queue of the due loops is the work list of the main
                 # thread of the review: every loop whose review time point
-                # has come, ordered by that time point.
-                due_queue = due_review_queue(manager_api)
-                due_loops = list(due_queue.get("loops") or [])
+                # has come, ordered by that time point.  The queue is
+                # **dynamic**: the moments it is ordered by are written
+                # while it is read, so a walk that stopped at a loop whose
+                # moment has not come says nothing about the work behind
+                # it.  The queue is read again and the walk starts again
+                # from the head -- the main thread never waits on the
+                # entry it stopped at.
+                walk = walk_review_queue(manager_api)
+                due_queue = walk.get("queue") or {}
+                due_loops = list(walk.get("loops") or [])
                 before = build_report(db, hours, tools, manager_api)
                 actions = healing_actions(before)
                 outcomes: list[dict[str, Any]] = [
@@ -8213,7 +8268,12 @@ def supervise(
                                 "count": len(due_loops),
                                 "dueCount": int(due_queue.get("dueCount") or 0),
                                 "waitingCount": int(due_queue.get("waitingCount") or 0),
-                                "loops": [row.get("loopKey") for row in due_loops]}}
+                                "loops": [row.get("loopKey") for row in due_loops],
+                                "walkStoppedAt": due_queue.get("walkStoppedAt"),
+                                "walkStoppedReason": due_queue.get("walkStoppedReason"),
+                                "queueNeedsRefresh": bool(due_queue.get("queueNeedsRefresh")),
+                                "restartFromHead": bool(due_queue.get("restartFromHead")),
+                                "queueRefreshes": int(walk.get("refreshes") or 0)}}
                 ]
                 # GAP-E: the upstream gate covers the layers that must be
                 # sound before a review can be trusted. The broadcast layer

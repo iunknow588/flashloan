@@ -1636,6 +1636,7 @@ async fn begin_closed_loop_review_cycle(
                 .and_then(|clock| clock.review_cycle_started_at.clone()),
             next_review_at: clock.as_ref().and_then(|clock| clock.next_review_at.clone()),
             review_wait_seconds: clock.as_ref().and_then(|clock| clock.review_wait_seconds),
+            runtime_status: clock.as_ref().map(|clock| clock.runtime_status.clone()),
         },
         Some(request_id.as_str()),
     )
@@ -3915,6 +3916,14 @@ struct ClosedLoopReviewCycleResponse {
     next_review_at: Option<String>,
     /// The seconds the loop waits before it is due again.
     review_wait_seconds: Option<i64>,
+    /// The state the loop is in.
+    ///
+    /// The state says whether the loop is **busy**: a loop whose round is
+    /// running is `review_pending`, and it is that state -- not a marker
+    /// in the schedule -- that says the loop is occupied.  The answer is
+    /// what lets a caller give an occupied loop back without having to
+    /// read the schedule.
+    runtime_status: Option<String>,
 }
 
 /// The closed loops of a scope that are due for a round of the review.
@@ -3963,6 +3972,31 @@ struct ClosedLoopReviewDueResponse {
     /// A resident answer was served without reading the loops of the
     /// scope again; a fresh answer read them from the store.
     queue_resident: bool,
+    /// The loop the walk over the queue stopped at.
+    ///
+    /// The walk stops at the first entry that cannot be worked now: the
+    /// moment of that loop has not come, or it is parked at a marker and
+    /// has no moment at all.  The answer is `None` when the whole queue
+    /// was walked.
+    walk_stopped_at: Option<String>,
+    /// Why the walk stopped: `not_due` or `parked`.
+    walk_stopped_reason: Option<String>,
+    /// Whether the consumer has to read the queue again.
+    ///
+    /// The queue is **dynamic**: the moments it orders by are written
+    /// while it is read, so a walk that stopped says nothing about the
+    /// work behind the stop.  The consumer reads the queue again and
+    /// starts again from the head -- it never waits on the entry it
+    /// stopped at.
+    queue_needs_refresh: bool,
+    /// Whether the consumer has to start the walk again from the head.
+    ///
+    /// The answer is the one the queue is read for: a manual review
+    /// moves a loop to the head of the queue, and a loop that was
+    /// measured moves the moment of the loop behind it.  The walk
+    /// therefore starts again from the head every time the queue is read
+    /// again.
+    restart_from_head: bool,
 }
 
 /// The review clocks of a scope, after they were advanced.
@@ -4038,6 +4072,7 @@ async fn list_due_closed_loop_reviews(
         Err(error) => return failure(closed_loop_failure(error, query.chain_id, stage)),
     };
     let now = chrono::Utc::now().timestamp();
+    let walk = resident.queue.walk(now);
     let loops = due_review_loops_from_queue(&resident.queue, now);
     // The whole queue of the scope: the entries are ordered by the
     // moment the loops are scheduled at, and a parked loop is in it as
@@ -4060,6 +4095,10 @@ async fn list_due_closed_loop_reviews(
             queue: queue.entries,
             queue_scan_cost: scan_cost,
             queue_resident: is_resident,
+            walk_stopped_at: walk.stopped_at.clone(),
+            walk_stopped_reason: walk.stopped_reason.clone(),
+            queue_needs_refresh: walk.needs_refresh(),
+            restart_from_head: walk.needs_refresh(),
         },
     )
 }
@@ -7605,6 +7644,19 @@ mod tests {
             first_value["data"]["queueResident"], false,
             "the first answer reads the loops of the scope",
         );
+        assert_eq!(
+            first_value["data"]["walkStoppedAt"], "loop-waits",
+            "the walk stops at the first loop whose moment has not come",
+        );
+        assert_eq!(first_value["data"]["walkStoppedReason"], "not_due");
+        assert_eq!(
+            first_value["data"]["queueNeedsRefresh"], true,
+            "the queue is dynamic: a walk that stopped has to read it again",
+        );
+        assert_eq!(
+            first_value["data"]["restartFromHead"], true,
+            "the walk starts again from the head, it never waits on the entry it stopped at",
+        );
 
         let second = app
             .clone()
@@ -7655,5 +7707,49 @@ mod tests {
             "a write that changed the store throws the resident copy away",
         );
         assert_eq!(third_value["data"]["dueCount"], 0);
+    }
+
+    #[tokio::test]
+    async fn the_review_due_endpoint_reports_a_parked_loop_as_the_stop() {
+        // A loop that is parked at a marker has no scheduled review at
+        // all, so the walk stops there.  The stop is reported, so the
+        // consumer knows it has to read the queue again -- the walk never
+        // waits on the parked loop.
+        let (_directory, state, path) = temporary_state();
+        {
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute(
+                    "INSERT INTO manager_v4_closed_loop_runtime_state (
+                         network, chain_id, protocol, scope_key, loop_key,
+                         runtime_status, status_reason, review_generation,
+                         review_required, last_rebuilt_at, updated_at,
+                         last_reviewed_at, next_review_at, review_cycle_started_at
+                     ) VALUES ('robinhood', 4663, 'uniswap_v4', 'core4', 'loop-parked',
+                             'review_pending', 'fixture', 0, 0, 'fixture',
+                             '2026-11-27T00:00:00+00:00', NULL,
+                             '2036-06-06T06:06:00+00:00', NULL)",
+                    rusqlite::params![],
+                )
+                .unwrap();
+        }
+        let app = app_with_state(state.clone());
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/closed-loops/review-due?chainId=4663")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let value = response_json(response).await;
+        assert_eq!(value["data"]["dueCount"], 0);
+        assert_eq!(value["data"]["walkStoppedAt"], "loop-parked");
+        assert_eq!(value["data"]["walkStoppedReason"], "parked");
+        assert_eq!(value["data"]["queueNeedsRefresh"], true);
+        assert_eq!(value["data"]["restartFromHead"], true);
     }
 }

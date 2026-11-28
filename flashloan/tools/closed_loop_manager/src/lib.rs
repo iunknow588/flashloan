@@ -4564,6 +4564,16 @@ fn read_parameter_seconds(
 /// the same loop at the same time.  A loop that still waits for its
 /// clock is not claimed either -- it is not due.
 ///
+/// **The claim does not rewrite the review moment of the loop.**  The
+/// moment the loop is scheduled at is the moment the queue orders it by,
+/// and the queue is read again and again: a claim that replaced that
+/// moment with a marker took the loop out of the queue for good.  The
+/// clock advance skips a marker, the claim refuses a marked loop, and
+/// only the measurement of a round that never ran brought it back -- so
+/// a loop whose round did not land waited for ever.  The busy state of a
+/// loop is carried by its state, and the moment the loop was scheduled at
+/// stays the moment it was scheduled at.
+///
 /// The answer tells whether the round was started: `false` means the
 /// loop was not due, or that it is already being measured.
 pub fn begin_review_cycle_on_connection(
@@ -4594,12 +4604,6 @@ pub fn begin_review_cycle_on_connection(
         // The loop traded and waits for the receipt of its transaction.
         return Ok(false);
     }
-    if due_at.as_deref().is_some_and(is_review_sentinel) {
-        // The loop is parked at a sentinel: it is either being measured
-        // or it waits for the receipt of its trade.  Either way it has
-        // no round to start, whatever its state says.
-        return Ok(false);
-    }
     if status == RUNTIME_STATUS_RETIRED {
         return Ok(false);
     }
@@ -4611,6 +4615,16 @@ pub fn begin_review_cycle_on_connection(
         }
     }
     let now = chrono::Utc::now();
+    // The review moment of the loop is **kept**: the queue still knows
+    // when the loop was scheduled at, so a loop that is busy is a loop
+    // whose moment has come and whose round is running -- not a loop
+    // that vanished from the queue.  A loop whose moment was lost (it was
+    // never measured, or an older version parked it at a marker) is due
+    // at once, and the moment it is given is the moment of the claim.
+    let next_review_at = match due_at.as_deref() {
+        Some(moment) if !is_review_sentinel(moment) => moment.to_owned(),
+        _ => now.to_rfc3339(),
+    };
     let updated = connection.execute(
         "UPDATE manager_v4_closed_loop_runtime_state
             SET runtime_status = ?5, status_reason = ?6,
@@ -4626,7 +4640,7 @@ pub fn begin_review_cycle_on_connection(
             RUNTIME_STATUS_REVIEW_PENDING,
             reason,
             now.to_rfc3339(),
-            REVIEW_PENDING_SENTINEL_AT,
+            next_review_at,
             now.to_rfc3339(),
             loop_key
         ],
@@ -4925,9 +4939,13 @@ pub fn advance_review_clock_on_connection(
         // is no wait to publish.
         return Ok(0);
     }
-    if status != RUNTIME_STATUS_COOLDOWN && status != RUNTIME_STATUS_REVIEW_PENDING {
+    if status != RUNTIME_STATUS_COOLDOWN {
         // A loop that does not wait has no clock to advance: it is due
-        // already, or it was never measured.
+        // already, it was never measured, or it is **busy** -- its round
+        // is running.  A busy loop keeps its claim: the clock of a loop
+        // that is being measured is not the clock of the queue, and
+        // clearing the claim here would let a second worker measure the
+        // same loop while the first one is still running.
         return Ok(0);
     }
     let remaining = due_at
@@ -5242,10 +5260,16 @@ pub struct ReviewSlot {
     /// The moment the loop is scheduled at, in seconds since the epoch.
     ///
     /// A loop that is **busy** -- it is being measured, or it waits for
-    /// the receipt of its trade -- carries the largest value there is, so
-    /// it sorts **last** for ever.  The marker it carries in the store is
-    /// a date, but the queue does not count on the date: the date only
-    /// says which of the two busy situations the loop is in.
+    /// the receipt of its trade -- and that carries **no** scheduled
+    /// review at all, carries the largest value there is, so it sorts
+    /// **last** for ever.  The marker it carries in the store is a date,
+    /// but the queue does not count on the date: the date only says which
+    /// of the two busy situations the loop is in.
+    ///
+    /// A loop that is **being measured** keeps the moment it was
+    /// scheduled at, so it sorts by the moment it became due.  It is not
+    /// work -- its state says so -- but it must not hide the loops behind
+    /// it, and it must not lose the moment that orders it.
     ///
     /// A loop that was never measured carries the smallest value there
     /// is, so it is **due at once**: a loop that has no review time point
@@ -5257,11 +5281,50 @@ pub struct ReviewSlot {
     ///
     /// The moment is **not** the moment the loop is scheduled at: it is
     /// the moment the round that is running (or that ran) began.  The
-    /// sentinel that parks a busy loop replaces the scheduled moment, so
-    /// without this the queue would erase the trace of a round that
-    /// started and never ended -- and a watchdog that has to find such a
-    /// round would have nothing to look at.
+    /// state of a busy loop says that it is busy, so without this the
+    /// queue would erase the trace of a round that started and never
+    /// ended -- and a watchdog that has to find such a round would have
+    /// nothing to look at.
     pub review_cycle_started_at: Option<String>,
+}
+
+/// One walk over the review queue.
+///
+/// The walk is the way the main thread of the review reads the queue: it
+/// goes from the head of the queue to the first entry that cannot be
+/// worked now, and it reports **where it stopped**.
+///
+/// The queue is **dynamic**: the moments it orders by are written while
+/// it is read -- every measurement moves the moment of its loop -- so a
+/// walk that stopped at an entry that is not due says nothing about the
+/// work behind it.  The consumer therefore reads the queue again and
+/// starts again from the head; it never waits on the entry it stopped at.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ReviewWalk<'a> {
+    /// The entries that are due, in the order of the queue.
+    pub due: Vec<&'a ReviewSlot>,
+    /// The loop the walk stopped at.
+    ///
+    /// It is the first entry that cannot be worked now: its moment has
+    /// not come yet, or it is parked at a marker and has no moment at
+    /// all.  A loop that is **busy** -- it is being measured right now --
+    /// is not a stop: the loops behind it are due and have to be worked.
+    pub stopped_at: Option<String>,
+    /// Why the walk stopped: `not_due` or `parked`.
+    pub stopped_reason: Option<String>,
+    /// The number of entries the walk touched.
+    pub scan_cost: usize,
+}
+
+impl<'a> ReviewWalk<'a> {
+    /// Whether the consumer has to read the queue again.
+    ///
+    /// The answer is `true` when the walk stopped: the queue is dynamic,
+    /// so the moments behind the stop may have changed, and the walk has
+    /// to start again from the head.
+    pub fn needs_refresh(&self) -> bool {
+        self.stopped_at.is_some()
+    }
 }
 
 /// The review queue of a scope.
@@ -5335,32 +5398,73 @@ impl ReviewQueue {
             .filter_map(|(_, loop_key)| self.slots.get(loop_key))
     }
 
+    /// The walk over the queue at the given moment.
+    ///
+    /// The walk goes from the head of the queue to the first entry that
+    /// cannot be worked now, and it says where it stopped:
+    ///
+    /// * an entry whose moment has **not** come is a stop: the queue is
+    ///   ordered, so nothing behind it is due either;
+    /// * an entry that is **parked** at a marker is a stop as well: it
+    ///   has no scheduled review at all;
+    /// * an entry that is **busy** -- it is being measured right now, or
+    ///   it waits for the receipt of its trade -- is not a stop: it is
+    ///   not work, but the loops behind it are due and have to be worked,
+    ///   so the walk goes on.
+    ///
+    /// A walk that stopped is not the end of the work: the queue is
+    /// dynamic, so the consumer reads it again and starts again from the
+    /// head.  See [`ReviewWalk::needs_refresh`].
+    pub fn walk(&self, now_epoch: i64) -> ReviewWalk<'_> {
+        let mut due = Vec::new();
+        let mut stopped_at = None;
+        let mut stopped_reason = None;
+        let mut scan_cost = 0usize;
+        for (moment, loop_key) in &self.order {
+            let Some(slot) = self.slots.get(loop_key) else {
+                continue;
+            };
+            scan_cost += 1;
+            if slot.is_sentinel {
+                // The loop is parked at a marker: it has no scheduled
+                // review, so it is never due, whatever its state says.
+                stopped_at = Some(slot.loop_key.clone());
+                stopped_reason = Some("parked".to_owned());
+                break;
+            }
+            if *moment > now_epoch {
+                // The queue is ordered, so nothing behind this entry
+                // is due either.  The moment of this entry has not come
+                // yet: the walk stops here, the consumer reads the queue
+                // again and starts again from the head.
+                stopped_at = Some(slot.loop_key.clone());
+                stopped_reason = Some("not_due".to_owned());
+                break;
+            }
+            if !is_claimable_status(&slot.runtime_status) {
+                // A parked loop is busy -- it is being measured, or it
+                // waits for the receipt of its trade -- and a loop that
+                // may not start a round is not work.  It does not stop
+                // the walk: the loops behind it are due.
+                continue;
+            }
+            due.push(slot);
+        }
+        ReviewWalk {
+            due,
+            stopped_at,
+            stopped_reason,
+            scan_cost,
+        }
+    }
+
     /// The loops that are due at the given moment.
     ///
     /// The walk stops at the **first** entry that is not due: the queue
     /// is ordered, so nothing behind it is due either.  A loop that has
     /// no scheduled review is never due, whatever its marker says.
     pub fn due_entries(&self, now_epoch: i64) -> Vec<&ReviewSlot> {
-        let mut due = Vec::new();
-        for (moment, loop_key) in &self.order {
-            let Some(slot) = self.slots.get(loop_key) else {
-                continue;
-            };
-            if *moment > now_epoch {
-                // The queue is ordered, so nothing behind this entry
-                // is due either.
-                break;
-            }
-            if slot.is_sentinel || !is_claimable_status(&slot.runtime_status) {
-                // A parked loop is busy -- it is being measured, or it
-                // waits for the receipt of its trade -- and a loop that
-                // may not start a round is not work: neither of them
-                // is due.
-                continue;
-            }
-            due.push(slot);
-        }
-        due
+        self.walk(now_epoch).due
     }
 
     /// Take the loops that are due at the given moment out of the queue.
@@ -5582,14 +5686,7 @@ pub fn due_review_loops_from_queue(
 /// stopped at the first entry that is not due touched the due entries and
 /// one more.
 pub fn review_queue_scan_cost(queue: &ReviewQueue, now_epoch: i64) -> usize {
-    let mut touched = 0usize;
-    for (moment, _) in &queue.order {
-        touched += 1;
-        if *moment > now_epoch {
-            break;
-        }
-    }
-    touched
+    queue.walk(now_epoch).scan_cost
 }
 
 /// One entry of the review queue, as an operator sees it.
@@ -5661,9 +5758,12 @@ pub fn review_queue_view(queue: &ReviewQueue, now_epoch: i64) -> ClosedLoopRevie
         })
         .collect();
     let due_count = queue.due_entries(now_epoch).len();
-    // The first entry that is not parked is the next loop that is due: a
-    // parked loop sorts last, so it never hides a loop that is due.
-    let next = queue.iter().find(|slot| !slot.is_sentinel);
+    // The first entry that may start a round is the next loop the main
+    // thread works on.  A loop that is parked sorts last and a loop that
+    // is busy is not work, so neither of them hides a loop that is due.
+    let next = queue
+        .iter()
+        .find(|slot| !slot.is_sentinel && is_claimable_status(&slot.runtime_status));
     let (next_due_at, next_due_in_seconds) = match next {
         Some(slot) => (
             slot.due_at.clone(),
@@ -6897,6 +6997,7 @@ mod tests {
         BROADCAST_PENDING_SENTINEL_AT, BROADCAST_PENDING_SENTINEL_EPOCH,
         RUNTIME_STATUS_COOLDOWN, RUNTIME_STATUS_REVIEW_PENDING,
         RUNTIME_STATUS_BROADCAST_PENDING,
+        RUNTIME_STATUS_READY_FOR_REVIEW,
         ReviewQueue, ReviewSlot, moment_epoch,
         read_review_queue, load_review_queue_on_connection, read_review_queue_view,
         count_waiting_review_loops, read_due_review_loops, RUNTIME_STATUS_RETIRED,
@@ -8664,18 +8765,30 @@ mod tests {
         }
     }
 
-    /// A loop that is being measured is parked at the review sentinel.
+    /// A claim takes the loop and keeps the moment it was scheduled at.
     ///
-    /// The loop has no scheduled review while its round runs, so the
-    /// queue must not offer it again.  The marker says the loop is busy,
-    /// and the state of the loop says which busy it is.
+    /// The moment is what the queue orders the loop by, and the queue is
+    /// read again and again: a claim that replaced the moment with a
+    /// marker took the loop out of the queue for good, and only the
+    /// measurement of a round that never ran brought it back.  The busy
+    /// state of the loop is carried by its state.
     #[test]
-    fn a_claimed_loop_is_parked_at_the_review_sentinel() {
+    fn a_claim_keeps_the_review_moment_of_the_loop() {
         let (_directory, path) = database();
         materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
         let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
         let loop_key = snapshot.loops[0].loop_key.clone();
         let connection = Connection::open(&path).unwrap();
+        // The loop is due: the moment it was scheduled at has come.
+        connection
+            .execute(
+                "UPDATE manager_v4_closed_loop_runtime_state
+                    SET runtime_status = 'ready_for_review',
+                        next_review_at = '2026-11-27T00:00:00+00:00'
+                  WHERE network = ?1 AND chain_id = ?2 AND loop_key = ?3",
+                params![NETWORK, CHAIN_ID, loop_key],
+            )
+            .unwrap();
         assert!(begin_review_cycle_on_connection(
             &connection,
             NETWORK,
@@ -8686,7 +8799,16 @@ mod tests {
         .unwrap());
         let (status, due_at, cycle_started_at) = runtime_state_of(&connection, &loop_key);
         assert_eq!(status, RUNTIME_STATUS_REVIEW_PENDING);
-        assert_eq!(due_at.as_deref(), Some(REVIEW_PENDING_SENTINEL_AT));
+        assert_eq!(
+            due_at.as_deref(),
+            Some("2026-11-27T00:00:00+00:00"),
+            "the claim keeps the moment the loop was scheduled at",
+        );
+        assert_ne!(
+            due_at.as_deref(),
+            Some(REVIEW_PENDING_SENTINEL_AT),
+            "a claim does not park the loop at a marker: the marker took it out of the queue",
+        );
         assert!(cycle_started_at.is_some(), "the round keeps its start moment");
         // The loop is not claimed a second time while its round runs.
         assert!(!begin_review_cycle_on_connection(
@@ -8850,6 +8972,172 @@ mod tests {
         assert_eq!(due, vec!["loop-a", "loop-b"]);
     }
 
+    /// The walk says where it stopped, and the consumer is told to read
+    /// the queue again.
+    ///
+    /// The queue is dynamic: the moments it orders by are written while
+    /// it is read, so a walk that stopped says nothing about the work
+    /// behind the stop.  The consumer reads the queue again and starts
+    /// again from the head -- it never waits on the entry it stopped at.
+    #[test]
+    fn the_walk_says_where_it_stopped() {
+        let mut queue = ReviewQueue::default();
+        queue.insert(review_slot("loop-a", Some("2026-11-27T00:10:00+00:00"), false));
+        queue.insert(review_slot("loop-b", Some("2026-11-27T00:20:00+00:00"), false));
+        let now = moment_epoch("2026-11-27T00:15:00+00:00").unwrap();
+        let walk = queue.walk(now);
+        assert_eq!(walk.stopped_at.as_deref(), Some("loop-b"));
+        assert_eq!(walk.stopped_reason.as_deref(), Some("not_due"));
+        assert_eq!(walk.scan_cost, 2);
+        assert!(
+            walk.needs_refresh(),
+            "the queue is read again and the walk starts again from the head",
+        );
+    }
+
+    /// A loop that is parked at a marker stops the walk as well.
+    ///
+    /// The marker is a moment far in the future, so the loop has no
+    /// scheduled review at all: it is not due, and the walk stops there.
+    #[test]
+    fn a_parked_loop_stops_the_walk() {
+        let mut queue = ReviewQueue::default();
+        queue.insert(review_slot(
+            "loop-a",
+            Some(BROADCAST_PENDING_SENTINEL_AT),
+            true,
+        ));
+        let now = moment_epoch("2026-11-27T00:15:00+00:00").unwrap();
+        let walk = queue.walk(now);
+        assert_eq!(walk.stopped_at.as_deref(), Some("loop-a"));
+        assert_eq!(walk.stopped_reason.as_deref(), Some("parked"));
+        assert!(walk.due.is_empty());
+    }
+
+    /// A busy loop does not stop the walk.
+    ///
+    /// A loop that is being measured right now is not work, but it must
+    /// not hide the loops behind it: they are due and have to be measured.
+    #[test]
+    fn a_busy_loop_does_not_stop_the_walk() {
+        let mut queue = ReviewQueue::default();
+        queue.insert(review_slot("loop-a", Some("2026-11-27T00:10:00+00:00"), false));
+        let mut busy = review_slot("loop-b", Some("2026-11-27T00:12:00+00:00"), false);
+        busy.runtime_status = RUNTIME_STATUS_REVIEW_PENDING.to_owned();
+        queue.insert(busy);
+        queue.insert(review_slot("loop-c", Some("2026-11-27T00:14:00+00:00"), false));
+        let now = moment_epoch("2026-11-27T00:20:00+00:00").unwrap();
+        let walk = queue.walk(now);
+        let due: Vec<&str> = walk.due.iter().map(|slot| slot.loop_key.as_str()).collect();
+        assert_eq!(
+            due,
+            vec!["loop-a", "loop-c"],
+            "a busy loop is not work, but it does not stop the walk",
+        );
+        assert_eq!(walk.stopped_at.as_deref(), None);
+    }
+
+    /// A loop whose claim is given back is due again at once.
+    ///
+    /// The claim is what took the loop out of the queue, so the moment
+    /// the claim is given back the loop is due again: no repair, no
+    /// migration, no waiting for a measurement that may never come.
+    #[test]
+    fn a_loop_whose_claim_is_given_back_is_due_again_at_once() {
+        let (_directory, path) = database();
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let loop_key = snapshot.loops[0].loop_key.clone();
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute(
+                "UPDATE manager_v4_closed_loop_runtime_state
+                    SET runtime_status = 'ready_for_review',
+                        next_review_at = '2026-11-27T00:00:00+00:00'
+                  WHERE network = ?1 AND chain_id = ?2 AND loop_key = ?3",
+                params![NETWORK, CHAIN_ID, loop_key],
+            )
+            .unwrap();
+        assert!(begin_review_cycle_on_connection(
+            &connection,
+            NETWORK,
+            CHAIN_ID,
+            &loop_key,
+            "review_round_started",
+        )
+        .unwrap());
+        // The claim is given back: the loop waits for nothing and the next
+        // round may start at once.
+        assert!(mark_review_required_on_connection(
+            &connection,
+            NETWORK,
+            CHAIN_ID,
+            &loop_key,
+        )
+        .unwrap());
+        let (status, due_at, _) = runtime_state_of(&connection, &loop_key);
+        assert_eq!(status, RUNTIME_STATUS_READY_FOR_REVIEW);
+        assert_ne!(
+            due_at.as_deref(),
+            Some(REVIEW_PENDING_SENTINEL_AT),
+            "a loop that was given back is not parked at a marker any more",
+        );
+        assert!(begin_review_cycle_on_connection(
+            &connection,
+            NETWORK,
+            CHAIN_ID,
+            &loop_key,
+            "review_round_started",
+        )
+        .unwrap());
+    }
+
+    /// The clock advance does not clear a claim.
+    ///
+    /// The claim is the lock of the loop: an advance that cleared it
+    /// would let a second worker measure the same loop while the first
+    /// one is still running.
+    #[test]
+    fn the_clock_advance_does_not_clear_a_claim() {
+        let (_directory, path) = database();
+        materialize_closed_loops(&path, NETWORK, CHAIN_ID, true).unwrap();
+        let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
+        let loop_key = snapshot.loops[0].loop_key.clone();
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute(
+                "UPDATE manager_v4_closed_loop_runtime_state
+                    SET runtime_status = 'ready_for_review',
+                        next_review_at = '2026-11-27T00:00:00+00:00'
+                  WHERE network = ?1 AND chain_id = ?2 AND loop_key = ?3",
+                params![NETWORK, CHAIN_ID, loop_key],
+            )
+            .unwrap();
+        assert!(begin_review_cycle_on_connection(
+            &connection,
+            NETWORK,
+            CHAIN_ID,
+            &loop_key,
+            "review_round_started",
+        )
+        .unwrap());
+        assert_eq!(
+            advance_review_clock_on_connection(&connection, NETWORK, CHAIN_ID, &loop_key)
+                .unwrap(),
+            0,
+            "a busy loop has no clock to advance",
+        );
+        let (status, _, cycle_started_at) = runtime_state_of(&connection, &loop_key);
+        assert_eq!(
+            status, RUNTIME_STATUS_REVIEW_PENDING,
+            "the advance does not clear the claim of the loop",
+        );
+        assert!(
+            cycle_started_at.is_some(),
+            "the round that is running keeps its start moment",
+        );
+    }
+
     /// A sentinel is never due.
     #[test]
     fn a_sentinel_is_never_due() {
@@ -8889,6 +9177,16 @@ mod tests {
         let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
         let loop_key = snapshot.loops[0].loop_key.clone();
         let connection = Connection::open(&path).unwrap();
+        // The loop is scheduled at a moment of its own, so the claim has
+        // a moment to keep.
+        connection
+            .execute(
+                "UPDATE manager_v4_closed_loop_runtime_state
+                    SET next_review_at = '2026-01-01T00:00:00+00:00'
+                  WHERE network = ?1 AND chain_id = ?2 AND loop_key = ?3",
+                params![NETWORK, CHAIN_ID, loop_key],
+            )
+            .unwrap();
         assert!(begin_review_cycle_on_connection(
             &connection,
             NETWORK,
@@ -8899,9 +9197,17 @@ mod tests {
         .unwrap());
         let queue = load_review_queue_on_connection(&connection, NETWORK, CHAIN_ID).unwrap();
         let entry = queue.get(&loop_key).unwrap();
-        assert!(entry.is_sentinel);
-        assert_eq!(entry.due_epoch, i64::MAX);
-        assert_eq!(entry.due_at.as_deref(), Some(REVIEW_PENDING_SENTINEL_AT));
+        assert!(
+            !entry.is_sentinel,
+            "the claim does not park the loop at a marker: the queue would lose the loop",
+        );
+        assert_eq!(entry.runtime_status, RUNTIME_STATUS_REVIEW_PENDING);
+        assert_ne!(entry.due_epoch, i64::MAX);
+        assert_eq!(
+            entry.due_at.as_deref(),
+            Some("2026-01-01T00:00:00+00:00"),
+            "the claim keeps the moment the loop was scheduled at",
+        );
         assert!(queue
             .due_entries(i64::MAX)
             .iter()
@@ -9207,6 +9513,14 @@ mod tests {
         let snapshot = read_closed_loop_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
         let loop_key = snapshot.loops[0].loop_key.clone();
         let connection = Connection::open(&path).unwrap();
+        connection
+            .execute(
+                "UPDATE manager_v4_closed_loop_runtime_state
+                    SET next_review_at = '2026-01-01T00:00:00+00:00'
+                  WHERE network = ?1 AND chain_id = ?2 AND loop_key = ?3",
+                params![NETWORK, CHAIN_ID, loop_key],
+            )
+            .unwrap();
         assert!(begin_review_cycle_on_connection(
             &connection,
             NETWORK,
@@ -9217,15 +9531,18 @@ mod tests {
         .unwrap());
         let view = read_review_queue_view(&path, NETWORK, CHAIN_ID).unwrap();
         assert_eq!(view.length, 1);
-        assert_eq!(view.due_count, 0, "a parked loop is never due");
+        assert_eq!(view.due_count, 0, "a busy loop is not work");
         assert_eq!(view.waiting_count, 1);
         assert_eq!(view.next_due_in_seconds, 0);
         assert_eq!(view.next_due_at.as_deref(), None);
         let entry = &view.entries[0];
         assert_eq!(entry.loop_key, loop_key);
         assert_eq!(entry.runtime_status, RUNTIME_STATUS_REVIEW_PENDING);
-        assert!(entry.is_sentinel);
-        assert_eq!(entry.next_review_at.as_deref(), Some(REVIEW_PENDING_SENTINEL_AT));
+        assert!(
+            !entry.is_sentinel,
+            "the claim does not park the loop at a marker",
+        );
+        assert_ne!(entry.next_review_at.as_deref(), Some(REVIEW_PENDING_SENTINEL_AT));
         assert_eq!(entry.review_wait_seconds, 0);
     }
     /// The interval is a parameter, so it is read from the store the

@@ -2696,11 +2696,16 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
     def test_a_claim_of_a_round_that_never_started_is_given_back(self):
         """A claim that parks a loop has to go back when the round fails.
 
-        The claim parks the loop at the review sentinel until the round
-        lands, and a parked loop is never due again and never claimed
-        again.  When the runtime refuses the review and the worker cannot
-        be registered, the round never starts -- so the claim has to be
-        given back, or the loop is bricked for good.
+        The claim takes the loop until the round lands, and a busy loop is
+        neither due nor claimed again.  When the runtime refuses the
+        review and the worker cannot be registered, the round never
+        starts -- so the claim has to be given back, or the loop is
+        bricked for good.
+
+        The busy state of a loop is read from the **state** of the loop,
+        not from the moment it is scheduled at: the claim keeps the moment
+        the loop was scheduled at, so the loop keeps its place in the
+        queue and it is due again the moment the claim is given back.
         """
         claim = {"ok": True, "claimed": True,
                  "reviewCycleStartedAt": "2026-11-28T05:00:00+00:00"}
@@ -2711,6 +2716,7 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
                 return {"ok": True, "status": 200, "body": json.dumps({
                     "ok": True,
                     "data": {"claimed": False,
+                             "runtimeStatus": "review_pending",
                              "reviewCycleStartedAt": "2026-11-28T05:00:00+00:00",
                              "nextReviewAt": HEALER.REVIEW_PENDING_SENTINEL_AT}})}
             if path.endswith("/review-request"):
@@ -2741,16 +2747,22 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
         The moment the round started is the token of the claim.  A parked
         loop whose claim belongs to another round is left alone, so a
         round that is still running is never disturbed.
+
+        The moments are counted from **now**, so the case does not turn
+        into an abandoned claim when the suite runs hours later.
         """
+        recent = dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=5)
+        ours_moment = dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=10)
         claim = {"ok": True, "claimed": True,
-                 "reviewCycleStartedAt": "2026-11-28T05:00:00+00:00"}
+                 "reviewCycleStartedAt": ours_moment.isoformat()}
 
         def fake_post(base, path, body, *args, **kwargs):
             if path.endswith("/review-cycle"):
                 return {"ok": True, "status": 200, "body": json.dumps({
                     "ok": True,
                     "data": {"claimed": False,
-                             "reviewCycleStartedAt": "2026-11-28T05:30:00+00:00",
+                             "runtimeStatus": "review_pending",
+                             "reviewCycleStartedAt": recent.isoformat(),
                              "nextReviewAt": HEALER.REVIEW_PENDING_SENTINEL_AT}})}
             if path.endswith("/review-request"):
                 raise AssertionError("a claim of another round must not be given back")
@@ -2777,10 +2789,12 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
     def test_an_abandoned_claim_is_given_back_by_the_sweep(self):
         """A claim of a healer that is gone is given back by the sweep.
 
-        The claim parks the loop at the review sentinel, and a parked loop
-        is never due again.  A claim that is older than the stale window
-        cannot land any more, so the loop it parked is given back and can
-        be measured again.
+        The claim takes the loop, and a busy loop is never due again.  A
+        claim that is older than the stale window cannot land any more, so
+        the loop it took is given back and can be measured again.
+
+        The sweep finds the busy loops by their **state**, so a loop that
+        was parked before the state was written down is still found.
         """
         old = (dt.datetime.now(dt.timezone.utc)
                - dt.timedelta(seconds=HEALER.REVIEW_CLAIM_STALE_SECONDS + 60))
@@ -2795,6 +2809,7 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
                 return {"ok": True, "status": 200, "body": json.dumps({
                     "ok": True,
                     "data": {"claimed": False,
+                             "runtimeStatus": "review_pending",
                              "reviewCycleStartedAt": old.isoformat(),
                              "nextReviewAt": HEALER.REVIEW_PENDING_SENTINEL_AT}})}
             if path.endswith("/review-request"):
@@ -2835,6 +2850,75 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
         self.assertNotIn("CLOSED_LOOP_REVIEW_INTERVAL_SECONDS", source,
                          "the orchestrator must not read the interval parameter")
 
+    def test_the_queue_answer_says_where_the_walk_stopped(self):
+        """The queue answer carries the place the walk stopped at.
+
+        The moments the queue is ordered by are written while it is read,
+        so a walk that stopped says nothing about the work behind it.  The
+        answer therefore says where the walk stopped, why it stopped and
+        that the consumer has to read the queue again.
+        """
+        payload = {"ok": True, "status": 200, "payload": {"ok": True, "data": {
+            "dueCount": 0, "waitingCount": 1, "loops": [],
+            "walkStoppedAt": "loop-waits", "walkStoppedReason": "not_due",
+            "queueNeedsRefresh": True, "restartFromHead": True}}}
+        with mock.patch.object(HEALER, "api_get_transient", return_value=payload):
+            queue = HEALER.due_review_queue("http://manager")
+        self.assertEqual(queue["walkStoppedAt"], "loop-waits")
+        self.assertEqual(queue["walkStoppedReason"], "not_due")
+        self.assertTrue(queue["queueNeedsRefresh"])
+        self.assertTrue(queue["restartFromHead"])
+
+    def test_the_walk_reads_the_queue_again_and_starts_from_the_head(self):
+        """A walk that stopped reads the queue again and starts again.
+
+        The queue is dynamic, so the main thread of the review never
+        waits on the entry it stopped at: it reads the queue again and
+        starts again from the head, where a manual review that made a
+        loop due at once is waiting.
+
+        The number of reads is bounded, so a queue whose head never comes
+        due cannot hold the main thread for ever.
+        """
+        reads: list[str] = []
+
+        def fake_get(base, path, timeout=5, **kwargs):
+            reads.append(path)
+            return {"ok": True, "status": 200, "payload": {"ok": True, "data": {
+                "dueCount": 0, "waitingCount": 1, "loops": [],
+                "walkStoppedAt": "loop-waits", "walkStoppedReason": "not_due",
+                "queueNeedsRefresh": True, "restartFromHead": True}}}
+
+        with mock.patch.object(HEALER, "api_get_transient", side_effect=fake_get):
+            walk = HEALER.walk_review_queue("http://manager")
+        self.assertEqual(len(reads), 4,
+                         "the queue is read once and then again after every stop")
+        self.assertEqual(walk["refreshes"], 3)
+        self.assertEqual(walk["queue"]["walkStoppedAt"], "loop-waits")
+        self.assertEqual(walk["loops"], [])
+
+    def test_a_walk_that_did_not_stop_reads_the_queue_once(self):
+        """A walk that walked the whole queue reads the queue once.
+
+        Nothing changed while the queue was read, so the main thread has
+        no reason to read it again -- and the answer says so.
+        """
+        reads: list[str] = []
+
+        def fake_get(base, path, timeout=5, **kwargs):
+            reads.append(path)
+            return {"ok": True, "status": 200, "payload": {"ok": True, "data": {
+                "dueCount": 1, "waitingCount": 0,
+                "loops": [{"loopKey": "loop-due"}],
+                "walkStoppedAt": None, "walkStoppedReason": None,
+                "queueNeedsRefresh": False, "restartFromHead": False}}}
+
+        with mock.patch.object(HEALER, "api_get_transient", side_effect=fake_get):
+            walk = HEALER.walk_review_queue("http://manager")
+        self.assertEqual(len(reads), 1)
+        self.assertEqual(walk["refreshes"], 0)
+        self.assertEqual([row["loopKey"] for row in walk["loops"]], ["loop-due"])
+
     def test_the_review_freshness_is_judged_by_the_moments_of_the_loop(self):
         """A loop is current when it carries the measurement of its round.
 
@@ -2848,7 +2932,8 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
         """
         rows = [{"loop_key": "loop-1", "reviewed_at": "2026-11-10T12:00:00Z"},
                 {"loop_key": "loop-2", "reviewed_at": "2026-11-10T12:00:00Z"},
-                {"loop_key": "loop-3", "reviewed_at": "2026-11-10T12:00:00Z"}]
+                {"loop_key": "loop-3", "reviewed_at": "2026-11-10T12:00:00Z"},
+                {"loop_key": "loop-6", "reviewed_at": "2026-11-10T12:00:00Z"}]
         schedules = {
             # Measured inside the round that is running: current.
             "loop-1": {"nextReviewAt": "2026-11-10T12:00:00Z",
@@ -2857,14 +2942,21 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
             # measured yet.
             "loop-2": {"nextReviewAt": "2026-11-10T12:00:00Z",
                        "reviewCycleStartedAt": "2026-11-10T13:00:00Z"},
-            # Busy: it is being measured right now, so it is working.
-            "loop-3": {"nextReviewAt": HEALER.REVIEW_PENDING_SENTINEL_AT},
+            # Busy: it is being measured right now, so it is working.  The
+            # state of the loop says so -- the claim keeps the moment the
+            # loop was scheduled at, so the marker is not there to be read.
+            "loop-3": {"nextReviewAt": "2026-11-10T12:00:00Z",
+                       "runtimeStatus": "review_pending"},
             # No review time point at all: nothing to compare with.
             "loop-4": {},
             # A schedule, but no measurement was ever published.
             "loop-5": {"nextReviewAt": "2026-11-10T12:00:00Z"},
+            # A loop that was parked before the state was written down:
+            # the marker is all that is left of its schedule, and it is
+            # still busy.
+            "loop-6": {"nextReviewAt": HEALER.REVIEW_PENDING_SENTINEL_AT},
         }
-        known = {"loop-1", "loop-2", "loop-3", "loop-4", "loop-5"}
+        known = {"loop-1", "loop-2", "loop-3", "loop-4", "loop-5", "loop-6"}
         freshness = HEALER.review_freshness_by_loop(rows, known, schedules)
         self.assertEqual(freshness["basis"], "loop_review_time_point")
         self.assertFalse(freshness["current"])
@@ -2875,8 +2967,9 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
         self.assertEqual(reasons.get("loop-5"), "never_measured")
         self.assertNotIn("loop-1", reasons, "a measured round is current")
         self.assertNotIn("loop-3", reasons, "a busy loop is working")
-        self.assertEqual(freshness["checkedLoops"], 5)
-        self.assertEqual(freshness["currentLoops"], 2)
+        self.assertNotIn("loop-6", reasons, "a parked loop is working")
+        self.assertEqual(freshness["checkedLoops"], 6)
+        self.assertEqual(freshness["currentLoops"], 3)
 
     def test_the_missing_review_candidates_follow_the_published_schedule(self):
         loop = {"loop_key": "loop-a", "path_text": "ETH -> SPY -> ETH",
