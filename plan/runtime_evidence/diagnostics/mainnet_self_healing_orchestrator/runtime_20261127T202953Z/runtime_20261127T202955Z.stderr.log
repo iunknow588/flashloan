@@ -696,3 +696,4 @@ sqlite3.OperationalError: database is locked
 127.0.0.1 - - [28/Nov/2026 08:12:59] "GET /healthz HTTP/1.1" 200 -
 127.0.0.1 - - [28/Nov/2026 08:14:07] "GET /healthz HTTP/1.1" 200 -
 127.0.0.1 - - [28/Nov/2026 08:14:08] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 08:14:57] "GET /healthz HTTP/1.1" 200 -
