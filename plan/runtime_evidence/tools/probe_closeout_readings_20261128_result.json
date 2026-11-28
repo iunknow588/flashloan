@@ -1,0 +1,209 @@
+{
+  "db": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "samples": [
+    {
+      "loopStatus": [
+        {
+          "status": "active",
+          "n": 48
+        }
+      ],
+      "closedLoopLibrary": [
+        {
+          "network": "robinhood",
+          "chain_id": 4663,
+          "protocol": "uniswap_v4",
+          "scope_key": "core4",
+          "review_version": 22727,
+          "materialized_checksum": "sha256:7bb1257a3e7ba67a43c8f3a6679734d264ea2117ea3b5bf5ccc438c2c686209e",
+          "closed_loop_version": 73,
+          "closed_loop_checksum": "sha256:b8c5de069f064cc263d984cb0509dd75066b131c21feb87ee639d8c037f5dd67",
+          "candidate_edge_version": 18,
+          "candidate_edge_checksum": "sha256:21b942287e1145f0d4d9751a219d48879e832a153466a7932794a25343d678ba",
+          "observation_version": 21,
+          "observation_checksum": "sha256:cbe68565e9e98dac79c71db411ba97bb8f3d2c41d952505c3f75ff4459ed5917",
+          "pool_scope_checksum": "sha256:9ec36f1a16a12620a7d211efb70fcd20c53f393e14b6f8e2c308807404ea7b97",
+          "library_versions_json": "{\"core\":1,\"stocks\":1}",
+          "library_checksums_json": "{\"core\":\"sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452\",\"stocks\":\"sha256:a7752808e288c80f4445b912f7d5883bd23577f6fa53a352d093c6683801cb2e\"}",
+          "loop_count": 48,
+          "reviewed_count": 176,
+          "completed_count": 43,
+          "data_incomplete_count": 17,
+          "not_executable_count": 116,
+          "failed_count": 0,
+          "broadcast_request_count": 0,
+          "generated_at": "2026-11-28T12:07:27.704156500+00:00",
+          "updated_at": "2026-11-28T12:07:27.704156500+00:00"
+        }
+      ],
+      "generation": 73,
+      "reviewStatusByGeneration": [
+        {
+          "closed_loop_version": 73,
+          "review_status": "completed",
+          "n": 29,
+          "null_pnl": 0
+        },
+        {
+          "closed_loop_version": 73,
+          "review_status": "not_executable",
+          "n": 1,
+          "null_pnl": 0
+        },
+        {
+          "closed_loop_version": 72,
+          "review_status": "completed",
+          "n": 5,
+          "null_pnl": 0
+        },
+        {
+          "closed_loop_version": 67,
+          "review_status": "not_executable",
+          "n": 2,
+          "null_pnl": 0
+        },
+        {
+          "closed_loop_version": 54,
+          "review_status": "not_executable",
+          "n": 4,
+          "null_pnl": 0
+        },
+        {
+          "closed_loop_version": 54,
+          "review_status": "completed",
+          "n": 3,
+          "null_pnl": 0
+        },
+        {
+          "closed_loop_version": 53,
+          "review_status": "not_executable",
+          "n": 109,
+          "null_pnl": 0
+        },
+        {
+          "closed_loop_version": 53,
+          "review_status": "data_incomplete",
+          "n": 17,
+          "null_pnl": 17
+        },
+        {
+          "closed_loop_version": 53,
+          "review_status": "completed",
+          "n": 6,
+          "null_pnl": 0
+        }
+      ],
+      "reviewsInGeneration": 30,
+      "reviewPnlInGeneration": [
+        {
+          "review_status": "completed",
+          "n": 29,
+          "null_pnl": 0,
+          "positive": 0,
+          "negative": 29
+        },
+        {
+          "review_status": "not_executable",
+          "n": 1,
+          "null_pnl": 0,
+          "positive": 0,
+          "negative": 1
+        }
+      ],
+      "reviewFreshness": [
+        {
+          "max_reviewed_at": "2026-11-28T12:06:47.403650500+00:00",
+          "max_updated_at": "2026-11-28T12:07:27.704156500+00:00",
+          "max_created_at": "2026-11-28T12:07:27.704156500+00:00",
+          "n": 176
+        }
+      ],
+      "runtimeState": [
+        {
+          "state": "execution_not_requested",
+          "n": 21
+        },
+        {
+          "state": "offchain_estimate",
+          "n": 11
+        }
+      ],
+      "runtimeGeneration": [
+        {
+          "generation": 840,
+          "n": 1
+        },
+        {
+          "generation": 836,
+          "n": 1
+        },
+        {
+          "generation": 834,
+          "n": 1
+        },
+        {
+          "generation": 829,
+          "n": 1
+        },
+        {
+          "generation": 828,
+          "n": 1
+        },
+        {
+          "generation": 815,
+          "n": 1
+        },
+        {
+          "generation": 810,
+          "n": 1
+        },
+        {
+          "generation": 808,
+          "n": 1
+        }
+      ],
+      "runtimeFreshness": [
+        {
+          "max_updated_at": "2026-11-28T12:06:02Z",
+          "max_heartbeat_at": null,
+          "max_persisted_at": null,
+          "max_finished_at": "2026-11-28T11:35:17Z"
+        }
+      ],
+      "runtimeErrors": [
+        {
+          "last_error": "execution_not_requested",
+          "n": 21
+        }
+      ],
+      "workerCoverage": [
+        {
+          "active_loops": 48,
+          "with_state": 28
+        }
+      ],
+      "staleStateRows": 4,
+      "usdgCoverage": [
+        {
+          "usdg_loops": 12,
+          "with_state": 0
+        }
+      ],
+      "broadcastRequests": 0,
+      "executionAttempts": 0,
+      "manager_broadcast_library_state": 0,
+      "manager_v4_review_diagnostics": 49,
+      "errorIsolation": [
+        {
+          "disposition": "CLOSE_AND_QUARANTINE",
+          "n": 10
+        },
+        {
+          "disposition": "DESIGN_BLOCKED",
+          "n": 4
+        }
+      ],
+      "sampledAt": "2026-11-28T20:08:00+0800"
+    }
+  ]
+}

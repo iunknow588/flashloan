@@ -6,10 +6,10 @@
 
 ## A. 取证（**先测，再改**）
 
-- [ ] **A1** **19** 条缺行**逐条归因表**：当前代次、审计流代次、`data_incomplete` 成因、是否在 active 目录里
-- [ ] **A2** 确认「测了但没落本代次行」的**条数**（基线：`missingRowButAuditedToday = 18`、`measuredForThisGenerationButNoRow = 0`、`missingRowNeverAudited = 0`）
-- [ ] **A3** `not_executable` **135** 条 `runArbitrage ok=false` 的**基线读数**入报告
-- [ ] **A4** 基线：代次覆盖 **29 / 48**；`nullPnl = 0`、`positivePnl = 0`；`completed` **0** 行
+- [x] **A1** **19** 条缺行**逐条归因表**：当前代次、审计流代次、`data_incomplete` 成因、是否在 active 目录里　**（🟢 已闭合 · `D-266` 第十八轮 · 2026-11-28 20:05 只读实测 · 探针 `probe_review_gap_attribution_20261128.py`）**：缺行 **18** 条（不是 19）—— 逐条归因：**全部仍在 active 目录**（48 条 active 目录里 **30** 条有本代次复核行、**18** 条没有）；当前代次 **73** ／ 审计流代次 **53**（**11** 条）／**54**（**4** 条）／**72**（**3** 条）；**审计流里「本代次（73）」的行数逐条为 0** ⇒ **不是「测了但没落库」**，而是**这些闭环本代次压根没被推进**（与 `T-核.09` 的 worker 覆盖 **28–29 / 48** 同源）；它们上一代的行：**14** 条 `completed`（`measured_not_profitable:NoProfitableRoute`）＋ **4** 条 `data_incomplete`（`not_reviewed_since:…`，**盈亏缺值**）
+- [x] **A2** 确认「测了但没落本代次行」的**条数**（基线：`missingRowButAuditedToday = 18`、`measuredForThisGenerationButNoRow = 0`、`missingRowNeverAudited = 0`）　**（🟢 已闭合 · `D-266` 第十八轮 · 2026-11-28 20:05 复测）**：**实测 `measuredForThisGenerationButNoRow` = 0、`missingRowNeverAudited` = 0、`missingRowButAuditedToday` = 18** ⇒ **基线 18 / 0 / 0 逐项复现**；「测了但没落本代次行」的条数 **= 0**（`audit_review_coverage_vs_audit_stream_20261128.py`）—— 18 条缺行的真实成因见 `A1`：**本代次没被推进**
+- [x] **A3** `not_executable` **135** 条 `runArbitrage ok=false` 的**基线读数**入报告　**（🟢 已闭合 · `D-266` 第十八轮 · 2026-11-28 20:05 只读实测 · 探针 `probe_review_gap_attribution_20261128.py`）**：全表 **176** 行按代次分布 —— **53**：132 行（`not_executable` **109** ／ `data_incomplete` **17** ／ `completed` **6**；`ok=false` **125** ／ `ok=true` **7**）、**54**：7 行（`ok=false` **7**）、**67**：2 行（`ok=true` **2**）、**72**：5 行（`ok=false` **5**）、**73**：30 行（`ok=false` **29** ／ `ok=true` **1**）⇒ **`not_executable` 合计 116 条**（原记 135 是 **11-26** 的旧值）、**`ok=false` 合计 166 条**；**逐条归因**归 `B6`，本框只登记基线
+- [x] **A4** 基线：代次覆盖 **29 / 48**；`nullPnl = 0`、`positivePnl = 0`；`completed` **0** 行　**（🟢 已闭合 · `D-266` 第十八轮 · 2026-11-28 20:05 只读实测 · 基线随实测更新）**：本代次（**73**）**30** 条复核行（`completed` **29** ／ `not_executable` **1**）、**缺盈亏数值 0 条**、**正盈亏 0 条**（全部为负 —— `measured_not_profitable`）；代次覆盖 **30 / 48**（缺口 **18** 条，见 `A1`）；**原记的 `completed = 0 行` 是 11-26 的旧值** ⇒ 一并订正；**全表正盈亏 7 条全部在代次 53**（`not_executable` ／ `loop_options_unavailable:hop_N`），**不在当前 48 条 active 目录里**
 
 ## B. 施工（**每步一个框** · 含 `T-复编储.01` 的归并项）
 
