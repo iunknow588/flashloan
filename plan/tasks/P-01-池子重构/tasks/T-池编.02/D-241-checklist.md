@@ -178,4 +178,36 @@
 - [ ] **I4.2** **不放宽任何门禁**：广播 attempts 仍为 **0**（**市场条件**，无正利润复核）；「持续产生链上广播交易」**仍未达成**
 - [ ] **I4.3** **不预判**：新闭环与两条净正三角形是否有盈亏由**链上事实**决定，**不预判**
 - [ ] **I4.4** **不代运行时关闭（★ 本轮已更正归因）**：常驻 worker 仍需运行时**按当前路由重新注册** —— 规模已量化：管理器 **48** 条 active 闭环里 **21 条没有常驻 worker**（含**全部 12 条 USDG 闭环**）；**原归因（运行时的闭环目录从它自己的表构建）不成立** —— 运行时自己的 `v4_closed_loops` 里 USDG 行 **0**，运行时却已有活着的 USDG worker ⇒ **worker 注册读的是管理器的闭环视图**（`manager_view("closed_loops")` → `manager_v4_closed_loops`），与运行时自己的陈旧表无关（详见 `D-245` §7.8）；**真实成因**是提交爬坡 + 扫描周期 + 忙时刷新被拒 ⇒ **已由 I4.5 修复并投产**；本条保留的是**运行时自己那张陈旧表**（`v4_closed_loops` **32** 行 / `2026-11-27T00:39:35Z`、`dex_candidate_pool_recommendations` **76** 行、`market_observation_yz_pairs` **142** 行）与运行时同步口 `POST /api/dex-pools/candidates/refresh?full=1&dry_run=false` 的 **403**（候选边层写入被运行时侧权限拒绝）⇒ 仍需运行时侧处理，**不代运行时关闭**
-- [x] **I4.5** **★ 常驻 worker 覆盖的真实修复（本轮新发现并修复 · `D-245` §7.8）**：实测扫描快照里运行时**常驻 worker 只有 13 条**（已发布 **48** 条）⇒ 三条叠加：① **提交爬坡**（运行时默认每轮扫描只接纳 **16** 个新常驻组，`DEX_CLOSED_LOOP_MAX_NEW_GROUPS_PER_SCAN` 未设时的默认）；② **一轮扫描 ≈ 269 s**（实测 **269.373 s**）；③ **后台扫描提交期间手动刷新被拒**（`closed_loop_submission_busy`，`retryable: true`），自愈器此前**不重试**，只能等下一轮（≈18 分钟）。修复：自愈器拉起运行时时设 **`DEX_CLOSED_LOOP_MAX_NEW_GROUPS_PER_SCAN=0`**（运行时自己文档化的「零等待、一轮接纳全部」开关；**常驻上限**与**复核并发**仍是上限）＋ 自愈器对忙答复做**有界重试**（3 次 / 10 s / 20 s 退避，其余答复不重试）⇒ 回归 **140 passed / 0**（基线 **138** ＋ 新 **2**）；投产：新自愈器随即对 USDG 路线发出刷新（`amd\|nvda\|usdg`、`mu\|nvda\|usdg`、`nvda\|usdg\|mu`、`nvda\|usdg\|amd`、`usdg\|mu\|nvda`，全部 HTTP 200）
+
+## J. 广播策略改为正向盈利直发（**2026-11-28 · `D-262`**）
+
+### J1. 缺陷取证（**只读 · 代码自证 · `D-262` §2**）
+
+- [x] **J1.1** **★ 旧门禁量的不是「测量有多旧」**：广播层 `AdmissionRule::ReviewFresh`（码 `BC-1.review_fresh`）的判据是「**当前时刻 `<` 闭环的下一次复核时刻**」⇒ 它回答的是「闭环到期了没」，**测量有多旧从未被量过**
+- [x] **J1.2** **★ 双向都判错**：闭环到期（**待测的常态**）⇒ **刚测完**的复核被判「不是当前测量」；闭环停在广播哨兵（2035-05-05）⇒ `now < scheduled` 恒成立 ⇒ **两天前的复核也算「新鲜」**
+- [x] **J1.3** **★ 复核→广播是同一线程的一次迭代**：链上测量 → `review_publish_block` → `wake_broadcast_with_review_proof` → 签名 → `eth_sendRawTransaction`；**中间没有任何时刻比较** ⇒ 「复核结束到广播开始」在物理上**不可能过时**
+- [x] **J1.4** **在产 7 条正利润复核被拒的真实原因**：它们的闭环**已离开目录**（`manager_v4_closed_loop_runtime_state` 的 `next_review_at = null` ＋ `runtime_status = null`）⇒ **与新鲜度无关**
+
+### J2. 修复（三层 ＋ 编排器 · `D-262` §3）
+
+- [x] **J2.1** **复核层（`M-6`）**：`review_is_current_for_automatic_broadcast(reviewed_at, round, published)` → **`review_stamp_is_usable(reviewed_at)`**（只判「时刻**可读**」且「**不在未来**」）；`read_loop_review_moments` ／ `LoopReviewMoments` ／ `build_review_rows` 的 `loop_moments` 参数整条删除；请求生成条件**不变**（`completed` ＋ 正 PnL ＋ 三跳价格限 ＋ 三跳确认池 ＋ 时刻可用）
+- [x] **J2.2** **广播层（`M-7`）**：规则码 `BC-1.review_fresh` → **`BC-1.review_clock_consistent`**；**删掉** `now < loop_scheduled_at` 这个比较；闭环的下一次复核时刻随决策记录为**描述字段** `loop_scheduled_at`（**不再拒绝发送**）；**保留**「未来时刻」的拒绝（时钟不一致 ≠ 测量）
+- [x] **J2.3** **运行时直发路径（`M-13`）**：`worker_pool::wake_broadcast_with_review_proof` 删掉 `loop_review_moment` 的两个拒绝分支（「闭环没有复核时刻」＋「闭环已到时刻」）；该值保留为**描述字段** `loopScheduledAt`；**保留**的拒绝：`run_ok` ／ `run_executable` ／ `completed` ／ 正盈亏 ／ 三条价格限 ／ **路线必须交易复核确认的池**
+- [x] **J2.4** **编排器（`M-8`）**：策略标签 `fresh_positive_review_only` → **`positive_profit_direct`**；`automaticBroadcastCandidates` 由**硬编码 0** 改为**真实读数**（带可执行判元的正利润复核数）；原因串去掉 “fresh”
+- [x] **J2.5** **★ 同轮修复：运行时忙不再饿死级联**：`busy → continue` 跳过整轮 ⇒ 新增 `run_management_writes()` ／ `busy_management_cycle()`，**忙的分支也跑** `release_abandoned_review_claims` ／ `advance_review_clocks` ／ `walk_review_queue`（日志事件 `management_cycle`）；忙轮次**计入样本**（修 `--max-samples` 死循环）
+- [x] **J2.6** **★ 同轮修复：忙看门狗改为看「库有没有动」**：新增 `review_progress_marker()`（管理器各闭环 `lastReviewedAt` 的最大值）⇒ **库在动** ⇒ 忙窗口重新计时、**不重启**；**库不动**且一直不回答 ⇒ 才重启；`runtime_busy` 事件带 `reviewProgressAt`
+
+### J3. 回归与部署（`D-262` §5）
+
+- [x] **J3.1** `cargo test --offline -p broadcast-manager` ⇒ **44 passed / 0 failed**（含改写的 N-6 ＋ 新增的「未来时刻仍被拒」）
+- [x] **J3.2** `cargo test --offline -p review-manager` ⇒ **178 passed / 0 failed**（含改写的「当前轮次」用例）
+- [x] **J3.3** `cargo test --offline`（`flashloan/rs-src`）⇒ **284 passed / 0 failed**（含改写的两个直发用例）
+- [x] **J3.4** `python -m pytest scripts/tests/test_mainnet_arbitrage_healer.py -q` ⇒ **152 passed / 0 failed**（基线 **149** ＋ 新 **3**：无新鲜度窗口 ／ 忙时不饿死管理写入 ／ 看门狗看库不看沉默）
+- [x] **J3.5** **部署闸门（已闭合）**：新 `manager-api`（pid **27124**，**16:44:47**）＋ 新扩展模块 `flashloan_rs.dll`（**16:44:41** 重建）＋ 新自愈器（pid **22936**，**16:44:47**）**同批上线** ⇒ **新旧无中间态**
+
+### J4. 诚实边界（**永久留占位**）
+
+- [ ] **J4.1** **不伪造**：本轮**未填任何盈亏**、**未填 0**、**未删任何历史复核行**、**未改任何历史代次**
+- [ ] **J4.2** **不放宽任何门禁**：只删了「新鲜度」这一道**本来就不应该存在**的门；其余门禁**一条不少**（复核完成 ＋ 正盈亏 ＋ 三跳价格限 ＋ 三跳确认池 ＋ `BC-2` 链/账户/额度/窗口 ＋ 路线必须交易复核确认的池）
+- [ ] **J4.3** **广播 attempts 仍为 0**（**市场条件**）：库里 `completed` 的复核是 **0** 条，那 **7** 条正利润复核的状态是 `not_executable` ⇒ **本轮改动不会凭空产生广播**；它改变的是「一旦出现一条『完成 ＋ 可执行 ＋ 正盈利』的复核，就**立即**发出广播指令」
+- [ ] **J4.4** **不代运行时关闭**：写锁根治（`I2.7`）与热路径搬库**未实施**；`broadcast_pending` 同源墓碑（`I2.13`）**未修**；**19 GB** 主库体积构成**未查明**（不 `VACUUM`、不删文件）

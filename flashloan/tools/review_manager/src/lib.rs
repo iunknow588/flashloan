@@ -97,29 +97,19 @@ const LIVE_POOL_STATE_TIMEOUT_SECONDS: u64 = 20;
 
 const MAX_AUTOMATIC_BROADCAST_FUTURE_SKEW_SECONDS: i64 = 30;
 
-/// Whether a measurement is the **current** one of its closed loop.
+/// Whether the stamp of a review is a usable measurement moment.
 ///
-/// The question is answered by **moments**, never by an age.  The
-/// review interval says how long a loop waits before it is measured
-/// again, and that number belongs to the helper that schedules the loop
-/// -- nobody else needs it, and nobody else may rebuild it here: an age
-/// counted from the measurement would count the **time the review
-/// itself took**, and a review that took a minute to measure would look
-/// older than a review that took a second, although both are the
-/// current measurement of their loop.
+/// The broadcast policy has **no freshness window**: a positive profit
+/// is broadcast the moment it is measured, because the measurement and
+/// the send are one continuous action.  So the only thing the stamp has
+/// to answer is whether it is a moment at all.
 ///
-/// A measurement belongs to the round that is running now, and the round
-/// starts at ``review_cycle_started_at``.  So the measurement is current
-/// exactly when it was taken at or after that moment.  A loop that
-/// publishes no round start -- nobody claimed the round -- is answered
-/// by the row the store already holds: a measurement that is not newer
-/// than the published one carries nothing new, so it cannot be the
-/// current measurement of its loop.
-fn review_is_current_for_automatic_broadcast(
-    reviewed_at: &str,
-    round_started_at: Option<&str>,
-    published_reviewed_at: Option<&str>,
-) -> bool {
+/// A stamp that cannot be read is not a moment, and a stamp that claims
+/// to lie in the **future** is a disagreement between the clocks rather
+/// than a measurement -- the round it belongs to cannot have happened
+/// yet.  A stamp in the past is a measurement: it is the moment the
+/// profit was known, and the send follows it directly.
+fn review_stamp_is_usable(reviewed_at: &str) -> bool {
     let Ok(reviewed_at) = chrono::DateTime::parse_from_rfc3339(reviewed_at.trim()) else {
         return false;
     };
@@ -133,70 +123,7 @@ fn review_is_current_for_automatic_broadcast(
     if ahead_seconds > MAX_AUTOMATIC_BROADCAST_FUTURE_SKEW_SECONDS {
         return false;
     }
-    if let Some(round_started_at) = round_started_at
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
-    {
-        return reviewed_at >= round_started_at.with_timezone(&chrono::Utc);
-    }
-    match published_reviewed_at
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
-    {
-        Some(published) => reviewed_at > published.with_timezone(&chrono::Utc),
-        None => true,
-    }
-}
-
-/// The moments of one closed loop that say whether a measurement is its
-/// current one.
-///
-/// The moments are the loop's own: the start of the round that is
-/// running and the moment the store published the last review.  Both
-/// are read, never computed -- no interval is rebuilt here.
-#[derive(Debug, Clone, Default)]
-struct LoopReviewMoments {
-    /// The moment the round of the review of the loop started.
-    round_started_at: Option<String>,
-    /// The moment the review the store already holds was measured.
-    published_reviewed_at: Option<String>,
-}
-
-/// The moments of every closed loop of a scope, read from the store.
-///
-/// The round start comes from the review queue of the scope -- the queue
-/// holds the moment the round that is running now began, beside the
-/// moment the loop is scheduled at -- and the published measurement comes
-/// from the reviews the store already holds.  Both are **read**: the
-/// review interval is not rebuilt here, because it has already been
-/// folded into the moment the loop is scheduled at.
-fn read_loop_review_moments(
-    connection: &Connection,
-    network: &str,
-    chain_id: i64,
-    stored: &BTreeMap<String, ReviewContentProjection>,
-) -> Result<BTreeMap<String, LoopReviewMoments>, ReviewError> {
-    let queue = closed_loop_manager::load_review_queue_on_connection(connection, network, chain_id)
-        .map_err(|error| ReviewError::ClosedLoopRead(error.to_string()))?;
-    let mut moments = BTreeMap::new();
-    for slot in queue.iter() {
-        let key = slot.loop_key.trim().to_lowercase();
-        if key.is_empty() {
-            continue;
-        }
-        moments.insert(
-            key.clone(),
-            LoopReviewMoments {
-                round_started_at: slot.review_cycle_started_at.clone(),
-                published_reviewed_at: stored
-                    .get(&key)
-                    .map(|projection| projection.reviewed_at.clone()),
-            },
-        );
-    }
-    Ok(moments)
+    true
 }
 
 #[derive(Debug)]
@@ -1132,13 +1059,7 @@ fn run_on_connection(
     // was not measured in this pass keeps the review it already has, and a
     // loop that was measured again carries its newest measurement.
     let stored = read_stored_review_projections(connection, network, chain_id)?;
-    // The moments that say whether a measurement is the current one of its
-    // loop: the start of the round that is running now, and the moment
-    // the store published the last review.  Both are the loop's own
-    // moments -- the review interval is not read here, because it has
-    // already been folded into the moment the loop is scheduled at.
-    let loop_moments = read_loop_review_moments(connection, network, chain_id, &stored)?;
-    let desired = build_review_rows(&input, evidence, &loop_moments)?;
+    let desired = build_review_rows(&input, evidence)?;
     let previous = read_status_on_connection(connection, network, chain_id)?;
     let accumulated =
         accumulate_review_state(connection, network, chain_id, &stored, &desired)?;
@@ -3167,7 +3088,6 @@ fn ladder_unmeasured_reason(static_preview: &serde_json::Value) -> String {
 fn build_review_rows(
     input: &ReviewInput,
     evidence: &[ReviewEvidenceInput],
-    loop_moments: &BTreeMap<String, LoopReviewMoments>,
 ) -> Result<DesiredReviewData, ReviewError> {
     // The evidence is indexed by the **exact published loop key**. One
     // measurement belongs to the closed loop it names; a rotation names a
@@ -3576,20 +3496,16 @@ fn build_review_rows(
             // Manager has no way to measure it again.
             closed_loop_identity: item.closed_loop_identity.clone(),
         };
-        // The measurement is the current one of its loop exactly when it
-        // belongs to the round that is running now.  The moments that say
-        // so are the loop's own: the start of the round and the moment the
-        // store published the last review.  No interval is read here.
-        let moments = loop_moments.get(&closed_loop.loop_key.trim().to_lowercase());
-        let fresh_for_automatic_broadcast = review_is_current_for_automatic_broadcast(
-            &row.reviewed_at,
-            moments.and_then(|moments| moments.round_started_at.as_deref()),
-            moments.and_then(|moments| moments.published_reviewed_at.as_deref()),
-        );
+        // The broadcast policy has **no freshness window**: a positive
+        // profit is broadcast the moment it is measured.  The only
+        // question the stamp has to answer is whether it is a usable
+        // moment at all -- a stamp that cannot be read, or one that
+        // claims to lie in the future, is not a measurement.
+        let stamp_is_usable = review_stamp_is_usable(&row.reviewed_at);
         if review_status == "completed" {
             if let Some(pnl) = &row.signed_pnl {
                 if pnl.amount > 0.0
-                    && fresh_for_automatic_broadcast
+                    && stamp_is_usable
                     && row.hop_sqrt_price_limits.len() == 3
                     // The broadcast trades the pools the review confirmed,
                     // so a request without a confirmed pool per hop is
@@ -3636,7 +3552,9 @@ fn build_review_rows(
                         "positive review confirmed no pool for every hop and cannot trigger automatic broadcast"
                             .to_owned()
                     } else {
-                        "positive review is stale and cannot trigger automatic broadcast".to_owned()
+                        "positive review carries no usable measurement moment and cannot \
+                         trigger automatic broadcast"
+                            .to_owned()
                     });
                 }
             }
@@ -7314,13 +7232,13 @@ mod tests {
     }
 
     #[test]
-    fn a_positive_review_outside_the_current_round_never_generates_automatic_broadcast_request() {
-        // The measurement of the fixture belongs to a round that ended
-        // long ago: the round that is running now started in 2026, so a
-        // measurement of 2020 is not the measurement of this round -- it
-        // is the measurement of a round that is over.  A profit that was
-        // found in a round that is over may not be traded: the market has
-        // moved on since it was measured.
+    fn a_positive_review_generates_a_broadcast_request_whatever_round_it_belongs_to() {
+        // The broadcast policy has **no freshness window**: the
+        // measurement and the send are one continuous action, so the
+        // profit that was measured is the profit that is traded.  The
+        // moment the loop is scheduled at and the moment its round
+        // started say nothing about the age of the measurement, and they
+        // are not read here any more.
         let (_directory, path) = database();
         let mut old = evidence(Some(signed_pnl(12.5)), true, true, Vec::new());
         old.reviewed_at = Some("2020-01-01T00:00:00Z".to_owned());
@@ -7333,14 +7251,12 @@ mod tests {
         )
         .unwrap();
         assert_eq!(result.completed_count, 1);
-        assert_eq!(result.broadcast_request_count, 0);
+        assert_eq!(result.broadcast_request_count, 1);
         let snapshot = read_review_snapshot(&path, NETWORK, CHAIN_ID, None, 100).unwrap();
         assert_eq!(snapshot.reviews[0].review_status, "completed");
-        assert_eq!(
-            snapshot.reviews[0].review_reason.as_deref(),
-            Some("positive review is stale and cannot trigger automatic broadcast")
-        );
-        assert!(snapshot.broadcast_requests.is_empty());
+        assert_eq!(snapshot.broadcast_requests.len(), 1);
+        assert_eq!(snapshot.broadcast_requests[0].request_status, "generated");
+        assert_eq!(snapshot.broadcast_requests[0].signed_pnl.amount, 12.5);
     }
 
     #[test]

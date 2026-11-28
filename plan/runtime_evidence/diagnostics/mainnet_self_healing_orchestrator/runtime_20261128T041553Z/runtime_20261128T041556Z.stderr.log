@@ -708,3 +708,50 @@ C:\Users\iunkn\AppData\Roaming\Python\Python312\site-packages\urllib3\connection
 127.0.0.1 - - [28/Nov/2026 15:56:22] "GET /healthz HTTP/1.1" 200 -
 127.0.0.1 - - [28/Nov/2026 15:56:24] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
 127.0.0.1 - - [28/Nov/2026 15:56:24] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 15:57:31] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 15:58:37] "GET /healthz HTTP/1.1" 200 -
+closed-loop runtime state sync failed: database is locked
+Traceback (most recent call last):
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\dex_opportunity_scanner_rust_mixin.py", line 1739, in _record_native_worker_results
+    closed_loop_consumer.record_state_from_attempts(database_by_chain, attempts)
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_consumer.py", line 678, in record_state_from_attempts
+    claimed = machine.claim(
+              ^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_object.py", line 833, in claim
+    row = _sm.claim_loop(
+          ^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_state_machine.py", line 930, in claim_loop
+    changed = execute(
+              ^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 91, in execute
+    return _with_busy_retry(_run)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 77, in _with_busy_retry
+    raise last_error
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 69, in _with_busy_retry
+    return operation()
+           ^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 85, in _run
+    with _write_transaction(connection) as handle:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\PROGRAMDATA\MINICONDA3\Lib\contextlib.py", line 137, in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 53, in _write_transaction
+    connection.execute("BEGIN IMMEDIATE")
+sqlite3.OperationalError: database is locked
+127.0.0.1 - - [28/Nov/2026 15:59:00] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 15:59:00] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 15:59:00] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 15:59:27] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 16:00:17] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 16:09:44] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 16:09:44] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 16:09:44] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 16:09:44] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 16:10:49] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 16:11:28] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 16:11:31] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 16:11:31] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 16:12:18] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 16:13:08] "GET /healthz HTTP/1.1" 200 -

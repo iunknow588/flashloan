@@ -32,10 +32,11 @@ $env:REVIEW_MANAGER_AUTHORITY = 'manager'
 $env:BROADCAST_MANAGER_AUTHORITY = 'manager'
 $env:COMPOSITE_MANAGER_AUTHORITY = 'manager'
 $env:DIRECTIONAL_POOL_MANAGER_AUTHORITY = 'manager'
-# A closed loop is measured once a minute, so the review that the broadcast
-# gate reads is never older than the two minutes the gate accepts.  The
-# value is the store's default; it is named here so the cadence of the
-# running system is visible in one place.
+# A closed loop is measured once a minute.  This is the **cadence of the
+# measurement**, not a window the broadcast gate accepts: the broadcast
+# policy has no freshness window (the measurement and the send are one
+# continuous action).  The value is the store's default; it is named here
+# so the cadence of the running system is visible in one place.
 $env:CLOSED_LOOP_REVIEW_INTERVAL_SECONDS = '60'
 
 $stdout = Join-Path $logDir 'manager_api_stdout_20261127.log'

@@ -528,6 +528,26 @@ def manager_review_schedules(manager_api: str | None) -> dict[str, dict[str, Any
     return schedules
 
 
+def review_progress_marker(manager_api: str | None) -> str | None:
+    """The moment the newest measurement of the library was taken.
+
+    The runtime measures the routes, and every measurement that lands
+    moves this moment.  It is therefore the **progress signal** of a
+    runtime that does not answer its liveness probe: a runtime that is
+    busy **and** moving is measuring a round, and a runtime that is busy
+    **and** no longer moving is wedged.
+
+    The marker is read from the **manager**, not from the runtime: the
+    manager is not the process under measurement, so asking it is cheap
+    and it does not add load to the runtime that is busy.
+    """
+    schedules = manager_review_schedules(manager_api)
+    stamps = [str(row.get("lastReviewedAt") or "").strip()
+              for row in schedules.values()]
+    stamps = [stamp for stamp in stamps if stamp]
+    return max(stamps) if stamps else None
+
+
 def advance_review_clocks(manager_api: str | None,
                           chain_id: int | None = None) -> dict[str, Any]:
     """Advance the review clock of every closed loop of the scope.
@@ -779,6 +799,68 @@ def release_review_claim(manager_api: str | None,
             else "the_release_was_refused",
             "parkedSince": parked_since, "stale": stale,
             "status": release.get("status")}
+
+
+def run_management_writes(db: Path,
+                          manager_api: str | None,
+                          apply: bool) -> dict[str, Any]:
+    """The writes of a healing cycle that do not need the runtime.
+
+    Three writes keep the closed-loop library moving, and none of them
+    needs the runtime to be idle:
+
+    * a claim that no round will ever land takes its loop, so the loops
+      a healer that is gone took are given back and become due again;
+    * the closed loops run a **review clock**, and advancing the clocks
+      is what turns a clock that ran out into the review state, so the
+      next round of the review starts;
+    * the queue of the due loops is the work list of the main thread of
+      the review, and the queue is **dynamic**: the moments it is
+      ordered by are written while it is read, so the queue is read
+      again and the walk starts again from the head -- the main thread
+      never waits on the entry it stopped at.
+
+    All three are written to the closed-loop library, not to the
+    runtime.  A runtime that is busy with a review round therefore must
+    not starve them: the cascade lost exactly these writes when it
+    skipped the whole round on a busy runtime.
+    """
+    released_claims = release_abandoned_review_claims(db, manager_api, apply)
+    clock_outcome = advance_review_clocks(manager_api)
+    walk = walk_review_queue(manager_api)
+    return {"release_abandoned_review_claims": released_claims,
+            "advance_review_clocks": clock_outcome,
+            "walk": walk}
+
+
+def busy_management_cycle(db: Path,
+                           manager_api: str | None,
+                           apply: bool,
+                           busy_seconds: float) -> dict[str, Any]:
+    """The management writes of a cycle whose runtime is busy.
+
+    A busy runtime does not stop the **management** writes: the claims of
+    a healer that is gone are given back, the review clocks advance and
+    the due queue is refreshed and walked from its head.  None of these
+    needs the runtime to be idle -- they are writes to the closed-loop
+    library -- and skipping them on a busy runtime starved the cascade of
+    exactly the writes that keep it alive.
+
+    The event says what the writes did, so a journal that holds nothing
+    but ``runtime_busy`` lines still shows that the library moved.
+    """
+    management = run_management_writes(db, manager_api, apply)
+    queue = management["walk"].get("queue") or {}
+    return {"event": "management_cycle",
+            "busySeconds": round(busy_seconds, 1),
+            "runtimeBusy": True,
+            "releasedClaims": management["release_abandoned_review_claims"],
+            "reviewClocks": management["advance_review_clocks"],
+            "dueQueue": {"count": len(management["walk"].get("loops") or []),
+                         "dueCount": int(queue.get("dueCount") or 0),
+                         "waitingCount": int(queue.get("waitingCount") or 0),
+                         "walkStoppedReason": queue.get("walkStoppedReason"),
+                         "restartFromHead": bool(queue.get("restartFromHead"))}}
 
 
 def release_abandoned_review_claims(db: Path,
@@ -4109,8 +4191,13 @@ def audit_broadcast(
         "outcomes": outcome_counts,
         "historicalPositiveReviewsInWindow": positive_count,
         "historicalPositiveReviewsSource": "manager_library",
-        "automaticBroadcastCandidates": 0,
-        "automaticBroadcastPolicy": "fresh_positive_review_only"}
+        # The broadcast policy has **no freshness window**: a positive
+        # profit is broadcast the moment it is measured, because the
+        # measurement and the send are one continuous action.  The
+        # candidates are the positive reviews that carry an executable
+        # verdict -- they are the ones that drive a broadcast.
+        "automaticBroadcastCandidates": positive_count,
+        "automaticBroadcastPolicy": "positive_profit_direct"}
 
 
 def transaction_production_status(
@@ -4156,7 +4243,7 @@ def transaction_production_status(
             "review_stalled", False,
             "a_closed_loop_does_not_carry_its_current_measurement")
     elif executable_positive <= 0:
-        state, healthy, reason = "market_no_executable_profit", True, "fresh_reviews_have_no_executable_positive_pnl"
+        state, healthy, reason = "market_no_executable_profit", True, "reviews_have_no_executable_positive_pnl"
     elif attempts <= 0:
         state, healthy, reason = "profitable_review_waiting_for_broadcast", False, "positive_review_exists_without_transaction_record"
     else:
@@ -8164,6 +8251,7 @@ def supervise(
     # the busy window: a runtime that stays silent for longer than the
     # window has stopped making progress and may be restarted.
     busy_since: float | None = None
+    busy_progress: str | None = None
     # The attempts this supervisor already finalized. The set makes the
     # broadcast repair idempotent across cycles: an attempt that was closed
     # in an earlier cycle is not closed again, and it never blocks the
@@ -8208,19 +8296,39 @@ def supervise(
                 # The runtime is alive and busy.  A review round takes far
                 # longer than the liveness probe, so a late answer is the
                 # normal case and not a defect.  The runtime is kept as long
-                # as it keeps answering; only a runtime that stays silent
-                # beyond the busy window is treated as wedged.
+                # as it keeps answering **or** as long as the library keeps
+                # moving: a runtime that measures routes does not answer the
+                # probe while it measures, and a runtime that is silent
+                # *and* stops landing measurements is wedged.
                 busy_since = busy_since if busy_since is not None else time.monotonic()
+                progress = review_progress_marker(manager_api)
+                if progress is not None and progress != busy_progress:
+                    # The library moved while the runtime was busy: the
+                    # runtime is measuring, so the busy window starts
+                    # again.  The watchdog then fires only after a window
+                    # in which **nothing** moved.
+                    busy_progress = progress
+                    busy_since = time.monotonic()
                 busy_seconds = time.monotonic() - busy_since
                 append_event({"event": "runtime_busy", "busySeconds": round(busy_seconds, 1),
+                              "reviewProgressAt": busy_progress,
                               "health": health})
                 if busy_seconds <= RUNTIME_BUSY_RESTART_SECONDS:
+                    append_event(busy_management_cycle(db, manager_api, apply,
+                                                       busy_seconds))
+                    # A busy round is a supervisor sample too: the
+                    # management writes ran, and the journal says so.
+                    # Without the counter the ``--max-samples`` bound
+                    # could never be reached by a runtime that stays
+                    # busy, and the supervisor would poll for ever.
+                    sample += 1
                     time.sleep(min(max(1, interval), 30))
                     continue
                 health = {"ok": False, "stage": "busy_timeout",
                           "busySeconds": round(busy_seconds, 1), "health": health}
             else:
                 busy_since = None
+                busy_progress = None
             if not health.get("ok"):
                 append_event({"event": "runtime_unhealthy", "health": health,
                               "returncode": process.poll() if process is not None else None})
@@ -8240,28 +8348,13 @@ def supervise(
                     continue
 
             try:
-                # A claim that no round will ever land takes its loop, and
-                # a busy loop is never due again.  The claims of a healer
-                # that is gone are given back first, so the loops they
-                # took can be measured in this round.
-                released_claims = release_abandoned_review_claims(
-                    db, manager_api, apply)
-                # The closed loop runs a **review clock**: the loop starts
-                # the clock when it has been dealt with and the clock runs
-                # until the loop is due again.  Advancing the clocks is
-                # what turns a clock that ran out into the review state, so
-                # the next round of the review starts.
-                clock_outcome = advance_review_clocks(manager_api)
-                # The queue of the due loops is the work list of the main
-                # thread of the review: every loop whose review time point
-                # has come, ordered by that time point.  The queue is
-                # **dynamic**: the moments it is ordered by are written
-                # while it is read, so a walk that stopped at a loop whose
-                # moment has not come says nothing about the work behind
-                # it.  The queue is read again and the walk starts again
-                # from the head -- the main thread never waits on the
-                # entry it stopped at.
-                walk = walk_review_queue(manager_api)
+                # The three writes that keep the closed-loop library
+                # moving.  They do not need the runtime to be idle, and
+                # they run in the busy branch of the loop as well.
+                management = run_management_writes(db, manager_api, apply)
+                released_claims = management["release_abandoned_review_claims"]
+                clock_outcome = management["advance_review_clocks"]
+                walk = management["walk"]
                 due_queue = walk.get("queue") or {}
                 due_loops = list(walk.get("loops") or [])
                 before = build_report(db, hours, tools, manager_api)
@@ -8429,7 +8522,7 @@ def supervise(
                     "after": after,
                     "cascadeBefore": before_status,
                     "cascadeAfter": after_status,
-                    "broadcastPolicy": "fresh_positive_review_only",
+                    "broadcastPolicy": "positive_profit_direct",
                     "manualBroadcastInvoked": False,
                 })
                 print(

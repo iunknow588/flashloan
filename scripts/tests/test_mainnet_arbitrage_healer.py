@@ -3642,5 +3642,81 @@ class MainnetArbitrageHealerCascadeTests(unittest.TestCase):
         self.assertEqual(closed_loop[0], "/v1/closed-loops/rebuild")
 
 
+    def test_the_broadcast_policy_has_no_freshness_window(self):
+        # The broadcast policy: a positive profit is broadcast the moment
+        # it is measured, because the measurement and the send are one
+        # continuous action.  There is no freshness window any more, so
+        # the candidates are the positive reviews that carry an
+        # executable verdict -- the age of the review is not consulted.
+        reviews = [
+            {"loop_key": "loop-a", "reviewed_at": "2026-11-26T10:00:00Z",
+             "signed_pnl_amount": 1.25, "signed_pnl_currency": "ETH",
+             "signed_pnl_raw": "0x1", "review_status": "completed",
+             "run_arbitrage": {"ok": True, "executable": True}},
+            # A positive review whose route was not executable names an
+            # opportunity that could not be traded, so it is not a
+            # candidate.
+            {"loop_key": "loop-b", "reviewed_at": "2026-11-26T10:00:00Z",
+             "signed_pnl_amount": 4.0, "signed_pnl_currency": "ETH",
+             "signed_pnl_raw": "0x4", "review_status": "not_executable",
+             "run_arbitrage": {"ok": True, "executable": False}},
+        ]
+        with mock.patch.object(HEALER, "manager_read_broadcasts",
+                               return_value={"status": {}, "attempts": []}), \
+                mock.patch.object(HEALER, "all_rows", return_value=[]):
+            layer = HEALER.audit_broadcast(Path("unused.sqlite3"), 24,
+                                           "http://127.0.0.1:8091",
+                                           manager_reviews=reviews)
+        self.assertEqual(layer["automaticBroadcastPolicy"], "positive_profit_direct")
+        self.assertEqual(layer["automaticBroadcastCandidates"], 1)
+        self.assertEqual(layer["historicalPositiveReviewsInWindow"], 1)
+
+    def test_a_busy_runtime_does_not_starve_the_management_writes(self):
+        # The claims of a healer that is gone are given back, the review
+        # clocks advance and the due queue is refreshed -- none of these
+        # needs the runtime to be idle.  The cascade used to skip the whole
+        # round on a busy runtime, which starved exactly these writes, so
+        # a runtime that is always busy left the library untouched.
+        with mock.patch.object(HEALER, "release_abandoned_review_claims",
+                               return_value={"ok": True, "released": 2}) as released, \
+                mock.patch.object(HEALER, "advance_review_clocks",
+                                  return_value={"ok": True, "advanced": 3}) as clocks, \
+                mock.patch.object(HEALER, "walk_review_queue",
+                                  return_value={"queue": {"ok": True, "dueCount": 5,
+                                                           "walkStoppedReason": "not_due"},
+                                                "loops": [{"loopKey": "loop-a"}],
+                                                "refreshes": 1}) as walk:
+            event = HEALER.busy_management_cycle(Path("unused.sqlite3"),
+                                                 "http://127.0.0.1:8091", True,
+                                                 42.0)
+        released.assert_called_once()
+        clocks.assert_called_once()
+        walk.assert_called_once()
+        self.assertEqual(event["event"], "management_cycle")
+        self.assertTrue(event["runtimeBusy"])
+        self.assertEqual(event["releasedClaims"]["released"], 2)
+        self.assertEqual(event["reviewClocks"]["advanced"], 3)
+        self.assertEqual(event["dueQueue"]["dueCount"], 5)
+        self.assertEqual(event["dueQueue"]["walkStoppedReason"], "not_due")
+
+    def test_the_busy_watchdog_watches_the_library_and_not_the_silence(self):
+        # A runtime that measures routes does not answer its liveness
+        # probe while it measures.  The watchdog therefore watches the
+        # **library**: every measurement that lands moves the marker, and
+        # a runtime that is busy and still moving is measuring a round,
+        # not wedged.  The marker is read from the manager, because the
+        # manager is not the process under measurement.
+        with mock.patch.object(HEALER, "manager_review_schedules",
+                               return_value={"loop-a": {"lastReviewedAt": "2026-11-28T08:00:00Z"},
+                                             "loop-b": {"lastReviewedAt": "2026-11-28T07:00:00Z"},
+                                             "loop-c": {"lastReviewedAt": None}}):
+            self.assertEqual(HEALER.review_progress_marker("http://127.0.0.1:8091"),
+                             "2026-11-28T08:00:00Z")
+        with mock.patch.object(HEALER, "manager_review_schedules",
+                               return_value={"loop-a": {"lastReviewedAt": None}}):
+            self.assertIsNone(HEALER.review_progress_marker("http://127.0.0.1:8091"))
+        self.assertIsNone(HEALER.review_progress_marker(None))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -3987,12 +3987,16 @@ mod tests {
         assert_no_attempt(&path);
     }
 
-    /// N-6: a review older than the freshness window refuses the
-    /// broadcast. The loop that has reached its own review time point no
-    /// longer carries the review the store holds: the measurement belongs
-    /// to the round that is over, and the next round is due.
+    /// N-6: a positive review is broadcast even when the loop has
+    /// reached its own review time point.
+    ///
+    /// There is **no freshness window**: the measurement and the send are
+    /// one continuous action, so the profit that was measured is the
+    /// profit that is traded.  The moment the loop is scheduled at
+    /// travels with the decision as a description of when the loop will
+    /// be measured again.
     #[test]
-    fn n6_stale_review_refuses_the_broadcast() {
+    fn n6_a_positive_review_is_broadcast_when_the_loop_reached_its_review_time_point() {
         let (_directory, path) = database();
         set_review_facts(
             &path,
@@ -4001,19 +4005,17 @@ mod tests {
             REVIEWED_AT,
         );
         // The loop was scheduled **before** the decision: it has reached
-        // its review time point, so its review is not the current
-        // measurement of the loop any more.
+        // its review time point, and the round that measured the profit
+        // has ended.  The profit is broadcast anyway.
         set_loop_schedule(&path, "2026-11-04T00:59:59Z");
-        let error = submit_attempts(&path, vec![attempt(None, 42)], true)
-            .expect_err("a review of a loop that reached its review time point must be refused");
-        assert_refused_with(&error, "BC-1.review_fresh");
-        assert_no_attempt(&path);
+        submit_attempts(&path, vec![attempt(None, 42)], true)
+            .expect("a positive measurement is broadcast as it is");
     }
 
     /// A review is admitted while the loop has not reached its own review
-    /// time point -- and the **age** of the review is not consulted: a
-    /// measurement of a day ago is still the current measurement of a loop
-    /// that waits for its next round.
+    /// time point -- and the **age** of the review is not consulted either:
+    /// a measurement of a day ago is broadcast as it is, because the send
+    /// follows the measurement directly.
     #[test]
     fn a_review_of_a_loop_that_waits_for_its_next_round_is_admitted() {
         let (_directory, path) = database();
@@ -4027,6 +4029,25 @@ mod tests {
         );
         submit_attempts(&path, vec![attempt(None, 42)], true)
             .expect("the current measurement of a waiting loop must be admitted");
+    }
+
+    /// A stamp that claims to lie in the **future** is a disagreement
+    /// between the clocks, not a measurement, and it is refused -- even
+    /// though the profit it carries is positive.
+    #[test]
+    fn a_review_stamped_in_the_future_is_refused() {
+        let (_directory, path) = database();
+        let ahead = (chrono::Utc::now() + chrono::Duration::seconds(600)).to_rfc3339();
+        set_review_facts(
+            &path,
+            "completed",
+            "{\"ok\":true,\"executable\":true}",
+            &ahead,
+        );
+        let error = submit_attempts(&path, vec![attempt(None, 42)], true)
+            .expect_err("a stamp that lies in the future is not a measurement");
+        assert_refused_with(&error, "BC-1.review_clock_consistent");
+        assert_no_attempt(&path);
     }
 
     /// A missing run verdict is **not** a pass.
@@ -4061,13 +4082,13 @@ mod tests {
         assert_no_attempt(&path);
     }
 
-    /// P-1: a measured, positive and fresh review is admitted, and the
-    /// attempt carries the nine `BC-5` fields.
+    /// P-1: a measured, positive review is admitted, and the attempt
+    /// carries the nine `BC-5` fields.
     #[test]
-    fn p1_a_positive_fresh_review_carries_the_nine_audit_fields() {
+    fn p1_a_positive_review_carries_the_nine_audit_fields() {
         let (_directory, path) = database();
         submit_attempts(&path, vec![attempt(None, 42)], true)
-            .expect("a positive fresh review must be admitted");
+            .expect("a positive review must be admitted");
 
         let connection = Connection::open(&path).unwrap();
         // The attempt id is derived from the scope, the loop, the review

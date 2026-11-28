@@ -5003,14 +5003,18 @@ fn loop_review_moment(
 /// list on every route and refused every broadcast — no matter how
 /// profitable the review had measured it to be.
 ///
-/// The request must also be the **current** measurement of its closed
-/// loop.  The request table is a snapshot that carries the previous
-/// generation's requests forward, and a carried request names an
-/// opportunity the market does not hold any more: it may not be
-/// broadcast a second time.  Whether a request is still current is not
-/// a question about the age of the review -- it is a question about the
-/// closed loop the request belongs to, and the loop answers it with its
-/// own review time point.
+/// There is **no freshness window** here.  The measurement and the send
+/// are one continuous action: the profit that was measured is the profit
+/// that is traded, so a request is never refused because the loop it
+/// belongs to has reached its next review time point.  The moment the
+/// loop is scheduled at travels with the outcome as a description of
+/// when the loop will be measured again.
+///
+/// What still guards the send is the **proof** the review published: the
+/// three per-hop price limits, the completed and executable verdict, the
+/// measured profit, and the pools the review confirmed.  A route that
+/// trades other pools than the ones the review measured is refused, so a
+/// broadcast always trades what was proven.
 fn wake_broadcast_with_review_proof(
     inner: &PoolInner,
     command: &SubmitCommand,
@@ -5124,47 +5128,17 @@ fn wake_broadcast_with_review_proof(
             ),
         });
     }
-    // The request has to be the current measurement of its closed loop.
-    // The loop answers that with its **own** review time point, so the
-    // question is a comparison of two moments: the current time and the
-    // moment the loop is scheduled at.
+    // The broadcast is issued the moment the profit is measured: the
+    // measurement and the send are one continuous action, so there is
+    // **no freshness window** here.  A request is not refused because
+    // the loop it belongs to has reached its next review time point --
+    // the profit that was measured is the profit that is traded.
     //
-    // A loop that is scheduled in the future is still waiting for its
-    // own review, so the request is the measurement of the round that is
-    // running or that has just ended.  A loop whose scheduled moment has
-    // passed has moved on: its round ended, the next one is due, and a
-    // request carried forward from the finished round names an
-    // opportunity the market does not hold any more.
-    //
-    // A loop that publishes no review time point at all cannot be shown
-    // to be current either, and a broadcast that cannot be proven is not
-    // sent.
-    let Some(scheduled_at) =
-        loop_review_moment(&database_path, &network, chain_id, &loop_key)
-    else {
-        return json!({
-            "enqueued": false,
-            "reason": "the closed loop publishes no review time point",
-        });
-    };
-    let Some(scheduled) = chrono::DateTime::parse_from_rfc3339(&scheduled_at)
-        .ok()
-        .map(|value| value.with_timezone(&chrono::Utc))
-    else {
-        return json!({
-            "enqueued": false,
-            "reason": "the closed loop publishes a review time point that cannot be read",
-        });
-    };
-    if now >= scheduled {
-        return json!({
-            "enqueued": false,
-            "reason": format!(
-                "the closed loop was scheduled at {scheduled_at}, so this request is no \
-                 longer the current measurement of the loop"
-            ),
-        });
-    }
+    // The moment the loop is scheduled at is still read, because it says
+    // when the loop will be measured again and the trail is better for
+    // carrying it.  It never refuses the send.
+    let loop_scheduled_at =
+        loop_review_moment(&database_path, &network, chain_id, &loop_key);
     // The proof travels with the payload: the three limits the review
     // proved, the facts the reviewer judged the route by, and the key of
     // the closed loop the broadcast belongs to.
@@ -5205,6 +5179,7 @@ fn wake_broadcast_with_review_proof(
     outcome["closedLoopKey"] = json!(request.loop_key);
     outcome["hopSqrtPriceLimits"] = json!(request.hop_sqrt_price_limits);
     outcome["reviewAgeSeconds"] = json!(age);
+    outcome["loopScheduledAt"] = json!(loop_scheduled_at);
     outcome
 }
 
@@ -8294,12 +8269,15 @@ mod tests {
         );
     }
 
-    /// A request whose closed loop has moved on names an opportunity the
-    /// market does not hold any more: the round it was measured in ended,
-    /// the loop is waiting for the next one, and the request may not be
-    /// broadcast a second time.
+    /// A request whose closed loop has moved on is broadcast anyway.
+    ///
+    /// The broadcast policy has **no freshness window**: the measurement
+    /// and the send are one continuous action, so the profit that was
+    /// measured is the profit that is traded.  The moment the loop is
+    /// scheduled at travels with the outcome as a description, and it
+    /// never refuses the send.
     #[test]
-    fn a_request_of_a_loop_that_moved_on_is_not_broadcast_again() {
+    fn a_request_of_a_loop_that_moved_on_is_broadcast() {
         let directory = tempfile::tempdir().expect("the fixture directory is created");
         let reviewed_at = chrono::Utc::now().to_rfc3339();
         // The loop was scheduled a minute ago, so its own round is over.
@@ -8310,14 +8288,17 @@ mod tests {
         let command = broadcast_test_command(&database_path);
         let mut payload = broadcast_test_payload();
         let wake = wake_broadcast_with_review_proof(&inner, &command, &mut payload);
-        assert_eq!(wake["enqueued"], json!(false), "{wake}");
-        assert!(
-            wake["reason"]
-                .as_str()
-                .unwrap_or_default()
-                .contains("no longer the current measurement"),
+        // The proof of the review travelled with the payload, so the
+        // request was used: the loop's own schedule does not refuse it.
+        assert_eq!(payload["closedLoopKey"], json!(BROADCAST_LOOP_KEY), "{wake}");
+        assert_eq!(
+            payload["hopSqrtPriceLimits"],
+            json!(["100", "200", "300"]),
             "{wake}"
         );
+        // The moment the loop is scheduled at travels with the outcome as
+        // a description of when it will be measured again.
+        assert_eq!(wake["loopScheduledAt"], json!(scheduled_at), "{wake}");
     }
 
     /// A review that took a long time is still the current measurement of
@@ -8343,11 +8324,15 @@ mod tests {
         assert_eq!(payload["closedLoopKey"], json!(BROADCAST_LOOP_KEY), "{wake}");
     }
 
-    /// A request whose loop publishes no review time point at all cannot
-    /// be shown to be the current measurement of that loop, and a
-    /// broadcast that cannot be proven is not sent.
+    /// A request whose loop publishes no review time point at all is
+    /// broadcast as well.
+    ///
+    /// The loop's own schedule does not gate the send: the profit was
+    /// measured, and the measurement and the send are one continuous
+    /// action.  What is proved -- the price limits, the executable
+    /// verdict, the measured profit and the confirmed pools -- still is.
     #[test]
-    fn a_request_of_a_loop_without_a_review_time_point_is_not_broadcast() {
+    fn a_request_of_a_loop_without_a_review_time_point_is_broadcast() {
         let directory = tempfile::tempdir().expect("the fixture directory is created");
         let reviewed_at = chrono::Utc::now().to_rfc3339();
         let database_path = store_with_published_request(directory.path(), &reviewed_at);
@@ -8367,14 +8352,8 @@ mod tests {
         let command = broadcast_test_command(&database_path);
         let mut payload = broadcast_test_payload();
         let wake = wake_broadcast_with_review_proof(&inner, &command, &mut payload);
-        assert_eq!(wake["enqueued"], json!(false), "{wake}");
-        assert!(
-            wake["reason"]
-                .as_str()
-                .unwrap_or_default()
-                .contains("no review time point"),
-            "{wake}"
-        );
+        assert_eq!(payload["closedLoopKey"], json!(BROADCAST_LOOP_KEY), "{wake}");
+        assert!(wake["loopScheduledAt"].is_null(), "{wake}");
     }
 
     /// The route the broadcast is about to trade must be the route the

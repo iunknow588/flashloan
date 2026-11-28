@@ -23,8 +23,16 @@
 //! 1. the review measured the loop and it completed (`run.ok`),
 //! 2. the route was executable (`run.executable`),
 //! 3. the signed PnL is **measured** and strictly positive,
-//! 4. the review is **fresh** (inside the freshness window),
+//! 4. the review stamp is **clock-consistent** -- it is a readable
+//!    moment that does not lie in the future,
 //! 5. the evidence is complete (the review row is present).
+//!
+//! There is **no freshness window**.  A broadcast is issued the moment
+//! a positive profit has been measured, and the measurement and the
+//! send are one continuous action: a review does not go stale while it
+//! waits to be executed.  The moment the loop is scheduled at is still
+//! recorded next to the decision, so the trail says when the loop will
+//! be measured again -- but it never refuses the send.
 //!
 //! `BC-2` adds the runtime guardrails: chain, account, limit and time
 //! window. These are **automatic** — a missing chain or account refuses
@@ -105,10 +113,11 @@ pub struct BroadcastAdmissionContext {
     ///
     /// The moment is the loop's **own** review time point: the helper
     /// that schedules a loop wrote it, and it already carries whatever
-    /// the review interval is.  The admission therefore compares the
-    /// current time with that moment and never rebuilds an interval of
-    /// its own -- an age counted from the review stamp would count the
-    /// time the review itself took, which is not time the market moved.
+    /// the review interval is.  The admission does **not** compare it
+    /// with the current time: there is no freshness window, and a
+    /// positive measurement is broadcast as it is.  The value travels
+    /// with the decision as a description of when the loop will be
+    /// measured again.
     pub loop_scheduled_at: Option<String>,
 }
 
@@ -126,8 +135,12 @@ pub enum AdmissionRule {
     PnlMeasured,
     /// The signed PnL was strictly positive.
     PnlPositive,
-    /// The review is inside the freshness window.
-    ReviewFresh,
+    /// The review stamp is a readable moment that is not in the future.
+    ///
+    /// There is **no** freshness window: the measurement and the send
+    /// are one continuous action, so a review does not age out between
+    /// them.
+    ReviewClockConsistent,
     /// The review row and its evidence are present.
     EvidenceComplete,
     /// The request carries complete per-hop price limits.
@@ -151,7 +164,7 @@ impl AdmissionRule {
             Self::RunExecutable => "BC-1.run_executable",
             Self::PnlMeasured => "BC-1.pnl_measured",
             Self::PnlPositive => "BC-1.pnl_positive",
-            Self::ReviewFresh => "BC-1.review_fresh",
+            Self::ReviewClockConsistent => "BC-1.review_clock_consistent",
             Self::EvidenceComplete => "BC-1.evidence_complete",
             Self::PriceLimitsComplete => "BC-1.price_limits_complete",
             Self::ChainMatches => "BC-2.chain_matches",
@@ -194,6 +207,13 @@ pub struct AdmissionDecision {
     /// `None` means the age could not be computed — the stamp was
     /// missing or unparsable. That is **not** zero.
     pub review_age_seconds: Option<i64>,
+    /// The moment the closed loop of the request is scheduled at.
+    ///
+    /// The value is **descriptive**: it says when the loop will be
+    /// measured again.  It never refuses the send -- a positive
+    /// measurement is broadcast as it is, because the measurement and
+    /// the send are one continuous action.
+    pub loop_scheduled_at: Option<String>,
     /// The amount the request would move, in anchor-token raw units.
     pub amount_raw: Option<u128>,
     /// The time the decision was made at.
@@ -314,6 +334,7 @@ pub fn decide(
         checks: Vec::new(),
         failed_rules: Vec::new(),
         review_age_seconds: None,
+        loop_scheduled_at: context.loop_scheduled_at.clone(),
         amount_raw: context.amount_raw,
         decided_at: decided_at.clone(),
     };
@@ -413,14 +434,18 @@ pub fn decide(
         ),
     }
 
-    // Freshness.
+    // Clock consistency.
     //
-    // The question is whether the review is still the **current**
-    // measurement of its closed loop.  The loop answers it with its own
-    // review time point -- the moment it is scheduled at -- so the rule
-    // compares the current time with that moment.  No interval is
-    // rebuilt here: the helper that schedules the loop already folded
-    // the review interval into the moment.
+    // There is **no freshness window** here.  A broadcast is issued the
+    // moment a positive profit has been measured, and the measurement
+    // and the send are one continuous action, so a review does not age
+    // out between them.  What is still refused is a stamp that cannot
+    // be read at all, and a stamp that claims to lie in the **future**:
+    // that is a disagreement between the clocks, not a measurement.
+    //
+    // The moment the loop is scheduled at is read, but it is only
+    // **descriptive**: it travels with the decision so that the trail
+    // says when the loop will be measured again.
     match parse_timestamp(&facts.reviewed_at) {
         Some(reviewed_at) => {
             let now = parse_timestamp(&decided_at).unwrap_or_else(chrono::Utc::now);
@@ -429,48 +454,25 @@ pub fn decide(
             let ahead = -age;
             if ahead > MAX_BROADCAST_FUTURE_SKEW_SECONDS {
                 decision.failed(
-                    AdmissionRule::ReviewFresh,
+                    AdmissionRule::ReviewClockConsistent,
                     format!(
                         "the review stamp is {ahead}s in the future, past the \
                          {MAX_BROADCAST_FUTURE_SKEW_SECONDS}s skew allowance"
                     ),
                 );
             } else {
-                match context
-                    .loop_scheduled_at
-                    .as_deref()
-                    .and_then(parse_timestamp)
-                {
-                    Some(scheduled) if now < scheduled => {
-                        decision.passed(
-                            AdmissionRule::ReviewFresh,
-                            format!(
-                                "the review is still the current measurement of its loop; \
-                                 the loop is scheduled at {scheduled}"
-                            ),
-                        );
-                    }
-                    Some(scheduled) => {
-                        decision.failed(
-                            AdmissionRule::ReviewFresh,
-                            format!(
-                                "the loop was scheduled at {scheduled}, so its review is \
-                                 no longer the current measurement of the loop"
-                            ),
-                        );
-                    }
-                    None => {
-                        decision.failed(
-                            AdmissionRule::ReviewFresh,
-                            "the loop publishes no review time point, so its review cannot \
-                             be proven to be the current measurement of the loop",
-                        );
-                    }
-                }
+                decision.passed(
+                    AdmissionRule::ReviewClockConsistent,
+                    format!(
+                        "the review stamp is readable and {age}s old; a positive \
+                         measurement is broadcast as it is, and there is no freshness \
+                         window"
+                    ),
+                );
             }
         }
         None => decision.failed(
-            AdmissionRule::ReviewFresh,
+            AdmissionRule::ReviewClockConsistent,
             "the review stamp is missing or not an RFC 3339 timestamp",
         ),
     }
