@@ -3974,13 +3974,23 @@ struct ClosedLoopReviewDueResponse {
     queue_resident: bool,
     /// The loop the walk over the queue stopped at.
     ///
-    /// The walk stops at the first entry that cannot be worked now: the
-    /// moment of that loop has not come, or it is parked at a marker and
-    /// has no moment at all.  The answer is `None` when the whole queue
-    /// was walked.
+    /// The walk stops at the first entry that cannot be worked now: **the
+    /// review time point of that loop has not come**.  A loop that is
+    /// parked at a marker has no time point of its own, so it stops the
+    /// walk for that same reason -- a marker is never an end of the walk
+    /// of its own.  The answer is `None` when the whole queue was walked.
     walk_stopped_at: Option<String>,
-    /// Why the walk stopped: `not_due` or `parked`.
+    /// Why the walk stopped.
+    ///
+    /// The walk stops for **one** reason only: `not_due` -- the review
+    /// time point of the entry it stopped at has not come.
     walk_stopped_reason: Option<String>,
+    /// Whether the loop the walk stopped at carries a marker.
+    ///
+    /// The flag **describes** the one stop: the loop has no review time
+    /// point at all, so the time point of its review has not come.  It is
+    /// not a second reason of the walk.
+    walk_stopped_at_is_sentinel: bool,
     /// Whether the consumer has to read the queue again.
     ///
     /// The queue is **dynamic**: the moments it orders by are written
@@ -4097,6 +4107,7 @@ async fn list_due_closed_loop_reviews(
             queue_resident: is_resident,
             walk_stopped_at: walk.stopped_at.clone(),
             walk_stopped_reason: walk.stopped_reason.clone(),
+            walk_stopped_at_is_sentinel: walk.stopped_at_is_sentinel,
             queue_needs_refresh: walk.needs_refresh(),
             restart_from_head: walk.needs_refresh(),
         },
@@ -7650,6 +7661,10 @@ mod tests {
         );
         assert_eq!(first_value["data"]["walkStoppedReason"], "not_due");
         assert_eq!(
+            first_value["data"]["walkStoppedAtIsSentinel"], false,
+            "the loop the walk stopped at waits for its review: it carries no marker",
+        );
+        assert_eq!(
             first_value["data"]["queueNeedsRefresh"], true,
             "the queue is dynamic: a walk that stopped has to read it again",
         );
@@ -7712,9 +7727,11 @@ mod tests {
     #[tokio::test]
     async fn the_review_due_endpoint_reports_a_parked_loop_as_the_stop() {
         // A loop that is parked at a marker has no scheduled review at
-        // all, so the walk stops there.  The stop is reported, so the
-        // consumer knows it has to read the queue again -- the walk never
-        // waits on the parked loop.
+        // all, so the time point of its review has not come and the walk
+        // stops there.  The stop is reported for the one reason there
+        // is, and the marker is described beside it -- the consumer knows
+        // it has to read the queue again, and the walk never waits on the
+        // parked loop.
         let (_directory, state, path) = temporary_state();
         {
             let connection = Connection::open(&path).unwrap();
@@ -7748,7 +7765,14 @@ mod tests {
         let value = response_json(response).await;
         assert_eq!(value["data"]["dueCount"], 0);
         assert_eq!(value["data"]["walkStoppedAt"], "loop-parked");
-        assert_eq!(value["data"]["walkStoppedReason"], "parked");
+        assert_eq!(
+            value["data"]["walkStoppedReason"], "not_due",
+            "the marker is not a reason of its own: the review time point of the loop has not come",
+        );
+        assert_eq!(
+            value["data"]["walkStoppedAtIsSentinel"], true,
+            "the stop is described: the loop carries no time point of its own",
+        );
         assert_eq!(value["data"]["queueNeedsRefresh"], true);
         assert_eq!(value["data"]["restartFromHead"], true);
     }

@@ -592,6 +592,7 @@ def due_review_queue(manager_api: str | None,
             "loops": [row for row in loops if isinstance(row, dict)],
             "walkStoppedAt": data.get("walkStoppedAt"),
             "walkStoppedReason": data.get("walkStoppedReason"),
+            "walkStoppedAtIsSentinel": bool(data.get("walkStoppedAtIsSentinel")),
             "queueNeedsRefresh": bool(data.get("queueNeedsRefresh")),
             "restartFromHead": bool(data.get("restartFromHead"))}
 
@@ -614,6 +615,12 @@ def walk_review_queue(manager_api: str | None,
     not come says nothing about the work behind it.  The queue is
     therefore read again and the walk starts again from the head -- the
     main thread never waits on the entry it stopped at.
+
+    The walk stops for **one** reason only: the review time point of the
+    entry it stopped at has not come.  A loop that is parked at a marker
+    carries no time point of its own, so it stops the walk for that same
+    reason -- the marker is never an end of the walk of its own, and it
+    never hides an entry that is due behind it.
 
     A manual review lands in the same queue: it makes the loop due at
     once, and the loop is picked up from the head of the queue that was
@@ -8271,6 +8278,7 @@ def supervise(
                                 "loops": [row.get("loopKey") for row in due_loops],
                                 "walkStoppedAt": due_queue.get("walkStoppedAt"),
                                 "walkStoppedReason": due_queue.get("walkStoppedReason"),
+                                "walkStoppedAtIsSentinel": bool(due_queue.get("walkStoppedAtIsSentinel")),
                                 "queueNeedsRefresh": bool(due_queue.get("queueNeedsRefresh")),
                                 "restartFromHead": bool(due_queue.get("restartFromHead")),
                                 "queueRefreshes": int(walk.get("refreshes") or 0)}}

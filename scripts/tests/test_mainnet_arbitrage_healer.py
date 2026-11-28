@@ -2897,6 +2897,57 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
         self.assertEqual(walk["queue"]["walkStoppedAt"], "loop-waits")
         self.assertEqual(walk["loops"], [])
 
+    def test_the_walk_stops_for_one_reason_only(self):
+        """A marker is not an end of the walk of its own.
+
+        The walk ends at the first entry whose review time point has not
+        come.  A loop that is parked at a marker carries no time point of
+        its own, so it ends the walk for that same reason -- the marker is
+        described beside the stop, never a second reason of its own.
+
+        The rule is the user's: "不一定是读到哨兵，有可能是读到到一个未到点的闭环，
+        不能使用哨兵作为循环结束的条件"。
+        """
+        payload = {"ok": True, "status": 200, "payload": {"ok": True, "data": {
+            "dueCount": 0, "waitingCount": 1, "loops": [],
+            "walkStoppedAt": "loop-parked", "walkStoppedReason": "not_due",
+            "walkStoppedAtIsSentinel": True,
+            "queueNeedsRefresh": True, "restartFromHead": True}}}
+        with mock.patch.object(HEALER, "api_get_transient", return_value=payload):
+            queue = HEALER.due_review_queue("http://manager")
+        self.assertEqual(queue["walkStoppedReason"], "not_due",
+                         "the marker is not a reason of its own")
+        self.assertTrue(queue["walkStoppedAtIsSentinel"],
+                        "the stop is described, so an operator can tell it apart")
+        source = Path(HEALER.__file__).read_text(encoding="utf-8")
+        without_the_counter = source.replace('"parked": len(parked)', '')
+        self.assertNotIn('"parked"', without_the_counter,
+                         "the orchestrator must not treat a marker as an end of the walk")
+
+    def test_a_stop_at_a_parked_loop_reads_the_queue_again(self):
+        """A walk that stopped at a parked loop reads the queue again.
+
+        The stop is the one stop -- the review time point has not come --
+        so the queue is read again and the walk starts again from the
+        head, whatever kind of entry the walk stopped at.
+        """
+        reads: list[str] = []
+
+        def fake_get(base, path, timeout=5, **kwargs):
+            reads.append(path)
+            return {"ok": True, "status": 200, "payload": {"ok": True, "data": {
+                "dueCount": 0, "waitingCount": 1, "loops": [],
+                "walkStoppedAt": "loop-parked", "walkStoppedReason": "not_due",
+                "walkStoppedAtIsSentinel": True,
+                "queueNeedsRefresh": True, "restartFromHead": True}}}
+
+        with mock.patch.object(HEALER, "api_get_transient", side_effect=fake_get):
+            walk = HEALER.walk_review_queue("http://manager")
+        self.assertEqual(len(reads), 4,
+                         "the queue is read once and then again after every stop")
+        self.assertEqual(walk["refreshes"], 3)
+        self.assertTrue(walk["queue"]["walkStoppedAtIsSentinel"])
+
     def test_a_walk_that_did_not_stop_reads_the_queue_once(self):
         """A walk that walked the whole queue reads the queue once.
 

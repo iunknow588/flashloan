@@ -5276,6 +5276,13 @@ pub struct ReviewSlot {
     /// must not stay in the queue for ever.
     pub due_epoch: i64,
     /// Whether the loop has no scheduled review at all.
+    ///
+    /// The marker means one thing and one thing only: the loop is **not
+    /// to be reviewed for now** -- its review time is very long.  It
+    /// carries no meaning of its own: which of the two busy situations
+    /// the loop is in is told by the state of the loop, and when the loop
+    /// is to be reviewed again is told by the moment the store writes
+    /// back.
     pub is_sentinel: bool,
     /// The moment the round of the review of the loop started.
     ///
@@ -5305,13 +5312,29 @@ pub struct ReviewWalk<'a> {
     pub due: Vec<&'a ReviewSlot>,
     /// The loop the walk stopped at.
     ///
-    /// It is the first entry that cannot be worked now: its moment has
-    /// not come yet, or it is parked at a marker and has no moment at
-    /// all.  A loop that is **busy** -- it is being measured right now --
-    /// is not a stop: the loops behind it are due and have to be worked.
+    /// It is the first entry that cannot be worked now: **the moment of
+    /// its review has not come yet**.  A loop that is parked at a marker
+    /// has no moment of its review at all, so it is the same stop -- a
+    /// marker is **not** a second, independent end of the walk.
+    ///
+    /// A loop that is **busy** -- it is being measured right now -- is
+    /// not a stop: the loops behind it are due and have to be worked.
     pub stopped_at: Option<String>,
-    /// Why the walk stopped: `not_due` or `parked`.
+    /// Why the walk stopped.
+    ///
+    /// The walk stops for **one** reason only: `not_due` -- the review
+    /// time point of the entry it stopped at has not come.  A loop that
+    /// carries a marker has no review time point at all, so it stops the
+    /// walk for that same reason; it does not stop it for a reason of
+    /// its own.
     pub stopped_reason: Option<String>,
+    /// Whether the entry the walk stopped at carries a marker.
+    ///
+    /// This is a **description** of the one stop, not a second reason:
+    /// the walk stopped because the review time point of that entry has
+    /// not come, and this flag says that the entry has no time point at
+    /// all.
+    pub stopped_at_is_sentinel: bool,
     /// The number of entries the walk touched.
     pub scan_cost: usize,
 }
@@ -5403,10 +5426,12 @@ impl ReviewQueue {
     /// The walk goes from the head of the queue to the first entry that
     /// cannot be worked now, and it says where it stopped:
     ///
-    /// * an entry whose moment has **not** come is a stop: the queue is
-    ///   ordered, so nothing behind it is due either;
-    /// * an entry that is **parked** at a marker is a stop as well: it
-    ///   has no scheduled review at all;
+    /// * an entry whose **review time point has not come** is a stop and
+    ///   the **only** stop: the queue is ordered, so nothing behind it
+    ///   is due either.  A loop that is parked at a marker has no
+    ///   scheduled review at all -- its time point has not come, it has
+    ///   never been set -- so it stops the walk for that one reason as
+    ///   well.  A marker is never an end of the walk of its own;
     /// * an entry that is **busy** -- it is being measured right now, or
     ///   it waits for the receipt of its trade -- is not a stop: it is
     ///   not work, but the loops behind it are due and have to be worked,
@@ -5419,26 +5444,40 @@ impl ReviewQueue {
         let mut due = Vec::new();
         let mut stopped_at = None;
         let mut stopped_reason = None;
+        let mut stopped_at_is_sentinel = false;
         let mut scan_cost = 0usize;
         for (moment, loop_key) in &self.order {
             let Some(slot) = self.slots.get(loop_key) else {
                 continue;
             };
             scan_cost += 1;
-            if slot.is_sentinel {
-                // The loop is parked at a marker: it has no scheduled
-                // review, so it is never due, whatever its state says.
-                stopped_at = Some(slot.loop_key.clone());
-                stopped_reason = Some("parked".to_owned());
-                break;
-            }
-            if *moment > now_epoch {
+            if slot.is_sentinel || *moment > now_epoch {
                 // The queue is ordered, so nothing behind this entry
-                // is due either.  The moment of this entry has not come
-                // yet: the walk stops here, the consumer reads the queue
-                // again and starts again from the head.
+                // is due either.  The review time point of this entry
+                // has not come yet: the walk stops here, the consumer
+                // reads the queue again and starts again from the head.
+                //
+                // A loop that is parked at a marker lands here as well:
+                // it carries no time point of its own, so the time point
+                // of its review has not come.  The marker is not a stop
+                // of its own -- it is this one stop, described.  The
+                // marker is **never due**: it has no time point, so no
+                // moment makes it work.
+                //
+                // The two halves of the test are read separately on
+                // purpose.  `now_epoch` is a **clock**: the moment the
+                // review runs at, never larger than the clock allows.
+                // `i64::MAX` is not a clock at all -- it is the marker
+                // the queue gives a loop that is not to be reviewed for
+                // now, so it sorts last (see `ReviewQueue::insert`).
+                // Its review time is very long -- that is all the marker
+                // means -- so a loop that carries it is **never due**,
+                // whatever the clock says: the rule is stated here
+                // instead of falling out of the comparison with the
+                // marker.
                 stopped_at = Some(slot.loop_key.clone());
                 stopped_reason = Some("not_due".to_owned());
+                stopped_at_is_sentinel = slot.is_sentinel;
                 break;
             }
             if !is_claimable_status(&slot.runtime_status) {
@@ -5454,6 +5493,7 @@ impl ReviewQueue {
             due,
             stopped_at,
             stopped_reason,
+            stopped_at_is_sentinel,
             scan_cost,
         }
     }
@@ -8995,10 +9035,12 @@ mod tests {
         );
     }
 
-    /// A loop that is parked at a marker stops the walk as well.
+    /// A loop that is parked at a marker stops the walk as well -- for
+    /// the **one** reason the walk stops.
     ///
     /// The marker is a moment far in the future, so the loop has no
-    /// scheduled review at all: it is not due, and the walk stops there.
+    /// scheduled review at all: its review time point has not come, so
+    /// the walk stops there.  The marker is **not** a reason of its own.
     #[test]
     fn a_parked_loop_stops_the_walk() {
         let mut queue = ReviewQueue::default();
@@ -9010,8 +9052,45 @@ mod tests {
         let now = moment_epoch("2026-11-27T00:15:00+00:00").unwrap();
         let walk = queue.walk(now);
         assert_eq!(walk.stopped_at.as_deref(), Some("loop-a"));
-        assert_eq!(walk.stopped_reason.as_deref(), Some("parked"));
+        assert_eq!(
+            walk.stopped_reason.as_deref(),
+            Some("not_due"),
+            "a marker is not a reason of its own: the review time point of the loop has not come"
+        );
+        assert!(
+            walk.stopped_at_is_sentinel,
+            "the stop is described, so an operator can tell a parked loop from a loop that waits"
+        );
         assert!(walk.due.is_empty());
+    }
+
+    /// A marker is never the end of the walk of its own.
+    ///
+    /// The walk ends at the **first** entry whose review time point has
+    /// not come -- whatever that entry is.  A loop that waits for its
+    /// review is such an entry, so the walk stops there and the loop
+    /// that is parked behind it is never reached: the marker cannot end
+    /// the walk before the time point that has not come.
+    #[test]
+    fn a_marker_never_ends_the_walk_before_a_time_point_that_has_not_come() {
+        let mut queue = ReviewQueue::default();
+        queue.insert(review_slot("loop-due", Some("2026-11-27T00:10:00+00:00"), false));
+        queue.insert(review_slot("loop-waiting", Some("2026-11-27T00:20:00+00:00"), false));
+        queue.insert(review_slot("loop-parked", Some(BROADCAST_PENDING_SENTINEL_AT), true));
+        let now = moment_epoch("2026-11-27T00:15:00+00:00").unwrap();
+        let walk = queue.walk(now);
+        assert_eq!(walk.stopped_at.as_deref(), Some("loop-waiting"));
+        assert_eq!(walk.stopped_reason.as_deref(), Some("not_due"));
+        assert!(
+            !walk.stopped_at_is_sentinel,
+            "the walk stopped at the loop whose time point has not come, not at the marker behind it"
+        );
+        assert_eq!(
+            walk.due.iter().map(|slot| slot.loop_key.as_str()).collect::<Vec<_>>(),
+            vec!["loop-due"],
+            "the loop behind the stop is not due either: the queue is ordered"
+        );
+        assert!(walk.needs_refresh());
     }
 
     /// A busy loop does not stop the walk.
@@ -9139,6 +9218,12 @@ mod tests {
     }
 
     /// A sentinel is never due.
+    ///
+    /// The moment the walk is given here is the **largest one there is**:
+    /// the test asks what happens when the clock stands still at the end
+    /// of time.  The marker means "this loop is not to be reviewed for
+    /// now" -- its review time is very long -- so even at the largest
+    /// moment it is not due.
     #[test]
     fn a_sentinel_is_never_due() {
         let mut queue = ReviewQueue::default();

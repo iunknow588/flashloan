@@ -86,6 +86,7 @@ data_info/_build/
 flashloan/rs-src/target/
 flashloan/tools/**/target/
 flashloan/tools/target/
+flashloan/tools/target-hotfix/
 # Vendored third-party toolkits live outside the repository.
 runtime/
 runtime/external/
