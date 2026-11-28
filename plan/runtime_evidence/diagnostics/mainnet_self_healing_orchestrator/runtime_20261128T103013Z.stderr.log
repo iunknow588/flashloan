@@ -117,3 +117,56 @@ sqlite3.OperationalError: database is locked
 127.0.0.1 - - [28/Nov/2026 19:10:13] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
 127.0.0.1 - - [28/Nov/2026 19:10:14] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
 127.0.0.1 - - [28/Nov/2026 19:10:14] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+closed-loop runtime state sync failed: database is locked
+Traceback (most recent call last):
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\dex_opportunity_scanner_rust_mixin.py", line 1739, in _record_native_worker_results
+    closed_loop_consumer.record_state_from_attempts(database_by_chain, attempts)
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_consumer.py", line 691, in record_state_from_attempts
+    completed = machine.complete(
+                ^^^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_object.py", line 854, in complete
+    row = _sm.complete_loop(
+          ^^^^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\dex\runtime\closed_loop_state_machine.py", line 1204, in complete_loop
+    changed = execute(
+              ^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 91, in execute
+    return _with_busy_retry(_run)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 77, in _with_busy_retry
+    raise last_error
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 69, in _with_busy_retry
+    return operation()
+           ^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 85, in _run
+    with _write_transaction(connection) as handle:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\PROGRAMDATA\MINICONDA3\Lib\contextlib.py", line 137, in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src\core\db\storage_business_io.py", line 53, in _write_transaction
+    connection.execute("BEGIN IMMEDIATE")
+sqlite3.OperationalError: database is locked
+127.0.0.1 - - [28/Nov/2026 19:29:35] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [28/Nov/2026 19:29:35] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [28/Nov/2026 19:29:35] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [28/Nov/2026 19:29:35] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [28/Nov/2026 19:31:55] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 19:35:05] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [28/Nov/2026 19:35:05] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 19:35:05] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [28/Nov/2026 19:35:06] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 409 -
+127.0.0.1 - - [28/Nov/2026 19:35:06] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [28/Nov/2026 19:35:06] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [28/Nov/2026 19:35:06] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 19:35:06] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [28/Nov/2026 19:35:06] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 404 -
+127.0.0.1 - - [28/Nov/2026 19:35:06] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 19:35:06] "POST /api/dex/closed-loop-groups/manual-review?chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 19:35:32] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 19:37:12] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 19:52:08] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 19:52:08] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 19:53:50] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 19:53:51] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Nov/2026 19:53:51] "GET /api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1 HTTP/1.1" 200 -

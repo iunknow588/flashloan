@@ -1,19 +1,19 @@
 {
-  "walBytes": 3988192,
+  "walBytes": 4169472,
   "pageSize": 4096,
-  "watchedSeconds": 3.0,
-  "frames": 968,
+  "watchedSeconds": 20.0,
+  "frames": 1012,
   "openFrames": 0,
   "openPages": [],
   "openRootPages": {},
   "walRootPages": {
-    "kv_meta": 8,
-    "dex_candidate_abnormal_pools": 9,
-    "dex_candidate_pools": 8,
-    "manager_review_library_state": 15,
-    "manager_v4_reviews": 13,
-    "manager_v4_review_diagnostics": 3,
-    "sqlite_sequence": 1
+    "dex_candidate_pools": 10,
+    "dex_candidate_abnormal_pools": 6,
+    "manager_review_library_state": 29,
+    "manager_v4_reviews": 27,
+    "kv_meta": 16,
+    "manager_v4_review_diagnostics": 5,
+    "manager_write_requests": 1
   },
   "unmappedOpenPages": []
 }

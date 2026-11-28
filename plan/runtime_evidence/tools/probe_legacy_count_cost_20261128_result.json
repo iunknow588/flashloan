@@ -1,0 +1,45 @@
+{
+  "tool": "probe_legacy_count_cost_20261128",
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "statement": "SELECT COUNT(*) FROM cow_execution_reviews WHERE network = ? AND chain_id = ?",
+  "network": "robinhood",
+  "chainId": 4663,
+  "tableExists": 1,
+  "queryPlan": [
+    {
+      "id": 3,
+      "parent": 0,
+      "notused": 0,
+      "detail": "SEARCH cow_execution_reviews USING COVERING INDEX idx_cow_execution_reviews_scope_profit_source_created (network=? AND chain_id=?)"
+    }
+  ],
+  "indexes": [
+    {
+      "name": "sqlite_autoindex_cow_execution_reviews_1",
+      "sql": null
+    },
+    {
+      "name": "idx_cow_execution_reviews_scope_created",
+      "sql": "CREATE INDEX idx_cow_execution_reviews_scope_created ON cow_execution_reviews(network, chain_id, category, created_at DESC)"
+    },
+    {
+      "name": "idx_cow_execution_reviews_market_created",
+      "sql": "CREATE INDEX idx_cow_execution_reviews_market_created ON cow_execution_reviews(market_id, created_at DESC)"
+    },
+    {
+      "name": "idx_cow_execution_reviews_scope_created_v2",
+      "sql": "CREATE INDEX idx_cow_execution_reviews_scope_created_v2 ON cow_execution_reviews(network, chain_id, created_at DESC)"
+    },
+    {
+      "name": "idx_cow_execution_reviews_scope_profit_source_created",
+      "sql": "CREATE INDEX idx_cow_execution_reviews_scope_profit_source_created ON cow_execution_reviews(network, chain_id, selected_profit_source, created_at DESC)"
+    }
+  ],
+  "measurement": {
+    "count": 125317,
+    "elapsedSeconds": 0.406,
+    "abortedByBudget": false,
+    "progressSteps": 37,
+    "error": null
+  }
+}

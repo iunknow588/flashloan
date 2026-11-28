@@ -1,0 +1,222 @@
+{
+  "tool": "probe_runtime_thread_duty_20261128",
+  "pid": 27892,
+  "samples": 40,
+  "intervalSeconds": 1.5,
+  "elapsedSeconds": 68.5,
+  "threads": {
+    "MainThread": {
+      "topFrames": [
+        {
+          "frame": "_select (selectors.py:314)",
+          "samples": 40,
+          "duty": 1.0
+        }
+      ]
+    },
+    "dex-opportunity-scanner": {
+      "topFrames": [
+        {
+          "frame": "_write_transaction (core\\db\\storage_business_io.py:53)",
+          "samples": 32,
+          "duty": 0.8
+        },
+        {
+          "frame": "submit_group (rust_closed_loop.py:4113)",
+          "samples": 7,
+          "duty": 0.175
+        },
+        {
+          "frame": "_with_busy_retry (core\\db\\storage_business_io.py:75)",
+          "samples": 1,
+          "duty": 0.025
+        }
+      ]
+    },
+    "dex-closed-loop-watchdog": {
+      "topFrames": [
+        {
+          "frame": "_write_transaction (core\\db\\storage_business_io.py:53)",
+          "samples": 33,
+          "duty": 0.825
+        },
+        {
+          "frame": "connect (core\\db\\database.py:58)",
+          "samples": 7,
+          "duty": 0.175
+        }
+      ]
+    },
+    "v4-maintenance-v4_pool_liquidity_worker": {
+      "topFrames": [
+        {
+          "frame": "_write_transaction (core\\db\\storage_business_io.py:53)",
+          "samples": 40,
+          "duty": 1.0
+        }
+      ]
+    },
+    "v4-maintenance-v4_candidate_yc_zc_worker": {
+      "topFrames": [
+        {
+          "frame": "_run_one (v4_maintenance_workers.py:1230)",
+          "samples": 40,
+          "duty": 1.0
+        }
+      ]
+    },
+    "v4-maintenance-v4_market_observation_worker": {
+      "topFrames": [
+        {
+          "frame": "_run_one (v4_maintenance_workers.py:1230)",
+          "samples": 40,
+          "duty": 1.0
+        }
+      ]
+    },
+    "v4-maintenance-v4_directional_pool_worker": {
+      "topFrames": [
+        {
+          "frame": "_run_one (v4_maintenance_workers.py:1230)",
+          "samples": 40,
+          "duty": 1.0
+        }
+      ]
+    },
+    "v4-maintenance-v4_dex_overview_worker": {
+      "topFrames": [
+        {
+          "frame": "wait (threading.py:359)",
+          "samples": 40,
+          "duty": 1.0
+        }
+      ]
+    },
+    "v4-maintenance-v4_closed_loop_worker": {
+      "topFrames": [
+        {
+          "frame": "_run_one (v4_maintenance_workers.py:1230)",
+          "samples": 40,
+          "duty": 1.0
+        }
+      ]
+    },
+    "v4-maintenance-v4_onchain_review_worker": {
+      "topFrames": [
+        {
+          "frame": "_run_one (v4_maintenance_workers.py:1230)",
+          "samples": 40,
+          "duty": 1.0
+        }
+      ]
+    },
+    "v4-maintenance-v4_broadcast_execution_worker": {
+      "topFrames": [
+        {
+          "frame": "_run_one (v4_maintenance_workers.py:1230)",
+          "samples": 40,
+          "duty": 1.0
+        }
+      ]
+    },
+    "Thread-64 (process_request_thread)": {
+      "topFrames": [
+        {
+          "frame": "native_worker_status (rust_closed_loop.py:734)",
+          "samples": 40,
+          "duty": 1.0
+        }
+      ]
+    },
+    "Thread-65 (process_request_thread)": {
+      "topFrames": [
+        {
+          "frame": "native_worker_status (rust_closed_loop.py:734)",
+          "samples": 40,
+          "duty": 1.0
+        }
+      ]
+    },
+    "Thread-66 (process_request_thread)": {
+      "topFrames": [
+        {
+          "frame": "native_worker_status (rust_closed_loop.py:734)",
+          "samples": 40,
+          "duty": 1.0
+        }
+      ]
+    },
+    "Thread-67 (process_request_thread)": {
+      "topFrames": [
+        {
+          "frame": "native_worker_status (rust_closed_loop.py:734)",
+          "samples": 40,
+          "duty": 1.0
+        }
+      ]
+    },
+    "Thread-68 (process_request_thread)": {
+      "topFrames": [
+        {
+          "frame": "native_worker_status (rust_closed_loop.py:734)",
+          "samples": 40,
+          "duty": 1.0
+        }
+      ]
+    },
+    "Thread-69 (process_request_thread)": {
+      "topFrames": [
+        {
+          "frame": "native_worker_status (rust_closed_loop.py:734)",
+          "samples": 40,
+          "duty": 1.0
+        }
+      ]
+    },
+    "Thread-70 (process_request_thread)": {
+      "topFrames": [
+        {
+          "frame": "native_worker_status (rust_closed_loop.py:734)",
+          "samples": 40,
+          "duty": 1.0
+        }
+      ]
+    },
+    "Thread-71 (process_request_thread)": {
+      "topFrames": [
+        {
+          "frame": "native_worker_status (rust_closed_loop.py:734)",
+          "samples": 40,
+          "duty": 1.0
+        }
+      ]
+    },
+    "Thread-72 (process_request_thread)": {
+      "topFrames": [
+        {
+          "frame": "native_worker_status (rust_closed_loop.py:734)",
+          "samples": 40,
+          "duty": 1.0
+        }
+      ]
+    },
+    "Thread-73 (process_request_thread)": {
+      "topFrames": [
+        {
+          "frame": "native_worker_status (rust_closed_loop.py:734)",
+          "samples": 40,
+          "duty": 1.0
+        }
+      ]
+    },
+    "Thread-75 (process_request_thread)": {
+      "topFrames": [
+        {
+          "frame": "native_worker_status (rust_closed_loop.py:734)",
+          "samples": 40,
+          "duty": 1.0
+        }
+      ]
+    }
+  }
+}

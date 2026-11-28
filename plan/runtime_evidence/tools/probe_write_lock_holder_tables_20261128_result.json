@@ -1,0 +1,8 @@
+{
+  "tool": "probe_write_lock_holder_tables_20261128",
+  "database": "E:\\2026OPC大赛\\flashLoan\\flashloan\\db\\local_store_4663.sqlite3",
+  "watchedSeconds": 150.0,
+  "interiorPagesKnown": 1069,
+  "transactions": [],
+  "note": "every entry is one write transaction that the wal shows; the frames after the last commit frame are the pages it wrote"
+}
