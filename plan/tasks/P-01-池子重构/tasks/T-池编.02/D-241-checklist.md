@@ -206,6 +206,7 @@
 - [x] **J3.4** `python -m pytest scripts/tests/test_mainnet_arbitrage_healer.py -q` ⇒ **152 passed / 0 failed**（基线 **149** ＋ 新 **3**：无新鲜度窗口 ／ 忙时不饿死管理写入 ／ 看门狗看库不看沉默）
 - [x] **J3.5** **部署闸门（已闭合）**：新 `manager-api`（pid **27124**，**16:44:47**）＋ 新扩展模块 `flashloan_rs.dll`（**16:44:41** 重建）＋ 新自愈器（pid **22936**，**16:44:47**）**同批上线** ⇒ **新旧无中间态**
 - [x] **J3.6** **在产首个自愈轮次（`09:03:50Z`）**：`broadcastPolicy = **positive_profit_direct**`（新策略已在产）；动作 `repair_reviews` ／ `repair_stale_generation_reviews` ／ `fill_current_loop_reviews` ／ `rereview_historical_positive_candidates` ／ `observe_automatic_broadcast`；`manualBroadcastInvoked = false`；生产态 `review_stalled` ＋ `executablePositiveReviews = 0` ＋ `transactionRecords = 0` ＋ `loopsWithoutCurrentMeasurement = 25`（**48 条闭环里 25 条本轮尚未测到**）⇒ 报红的原因是**本轮还没测完**，**不是**「利润过时」；**二进制自证**：`manager-api.exe` 命中 `BC-1.review_clock_consistent`、**不再命中** `BC-1.review_fresh`；`flashloan_rs.dll` 命中 `loopScheduledAt`、**不再命中**旧拒绝串「no longer the current measurement of the loop」
+- [x] **J3.7** **在产忙分支与看门狗（`09:14:38Z` – `09:15:26Z`）**：新自愈器（pid **8300**，**09:13:57Z** 启动）**接管**在产运行时（pid **12864**，`runtime_adopted`）⇒ `runtime_busy` 事件带 **`reviewProgressAt = 09:13:34Z`**（**库在动** ⇒ 忙窗口重新计时、**不重启**）＋ **`management_cycle` 事件落地**（`releasedClaims = {ok, released 0}` ／ `reviewClocks = {ok, status 200, dueCount 7, attempts 1}` ／ `dueQueue = {count 47, dueCount 47, waitingCount 1, restartFromHead true}`）⇒ **忙的时候三个管理写入照样跑**（旧行为：整轮跳过）
 
 ### J4. 诚实边界（**永久留占位**）
 
