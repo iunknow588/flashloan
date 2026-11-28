@@ -1008,6 +1008,7 @@ def review_freshness_by_loop(
     known_loops: set[str],
     schedules: dict[str, dict[str, Any]],
     reference: dt.datetime | None = None,
+    stale_generation_loops: set[str] | None = None,
 ) -> dict[str, Any]:
     """Whether every live closed loop carries its current measurement.
 
@@ -1028,9 +1029,16 @@ def review_freshness_by_loop(
     A loop that waits its turn in the queue keeps the measurement it has:
     the cycle of a loop is the round plus the wait, and the wait is not a
     fault of the loop.
+
+    The measurement of a loop is only the measurement of that loop when
+    it was measured against the **current** structure.  A loop whose
+    review carries an older generation is therefore not current, however
+    recent the row is: the round it belongs to measured a different
+    library.
     """
     if reference is None:
         reference = dt.datetime.now(dt.timezone.utc)
+    stale = {key for key in (stale_generation_loops or set()) if key}
     newest: dict[str, dt.datetime] = {}
     for row in rows:
         key = review_loop_key(row)
@@ -1050,7 +1058,9 @@ def review_freshness_by_loop(
             not_current.append({"loopKey": key, "reason": "no_review_time_point"})
             continue
         if measured is None:
-            not_current.append({"loopKey": key, "reason": "never_measured"})
+            reason = ("measured_in_older_generation" if key in stale
+                      else "never_measured")
+            not_current.append({"loopKey": key, "reason": reason})
             continue
         if is_review_sentinel(due_at):
             # The loop is being measured right now, or it waits for the
@@ -1138,6 +1148,18 @@ BEST_AMOUNT_LADDER_INCOMPLETE_CODE = "best_amount_ladder_incomplete"
 # measurement gap, and it must never be dispatched to the review manager as a
 # missing amount to repair.
 BEST_AMOUNT_NO_PROFITABLE_SIZE_CODE = "no_profitable_size_measured"
+
+# The tick-computed best amount never rose above the single-tick start **and**
+# an executable size was left unmeasured.  The route then carries a negative
+# expectation that does not cover the whole executable domain, so the review
+# has to be measured again before the route may be called unprofitable.
+TICK_AMOUNT_GAP_CODE = "tick_amount_executable_size_unsearched"
+
+# A live closed loop whose review carries an **older** upstream generation.
+# The loop exists and its review looks complete, but the measurement was
+# taken against a structure that has been rebuilt since, so the route has no
+# measurement of the current structure at all.
+REVIEW_GENERATION_STALE_CODE = "review_generation_stale"
 
 # Minimum number of probe records a completed best-trade-amount ladder must
 # produce. A single record means the amount ladder never expanded: the reported
@@ -1395,6 +1417,162 @@ def best_amount_state(row: dict[str, Any]) -> dict[str, Any]:
         "reviewFailureKind": review_failure_kind,
         "reviewFailureDetail": review_failure_detail,
         "confirmationReason": confirmation_reason,
+    }
+
+
+def closed_loop_amount_bounds(
+    manager_api: str | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Return the amount bounds every live closed loop publishes.
+
+    Two bounds matter for the size of a trade:
+
+    * the **single-tick capacity** is the folded capacity of the path inside
+      its tick ranges.  It is the bound the Review Manager enforces, so a
+      trade above it is rejected as
+      ``final_input_exceeds_single_tick_capacity`` and can never be
+      broadcast;
+    * the **depth capacity** is the folded liquidity of the path.  It is the
+      ceiling of the cross-tick continuation, and it can be larger than the
+      single-tick capacity.
+
+    Both are published by the closed-loop Manager, so the reader never
+    computes them.  They are also read through the **manager API**: the
+    closed-loop library is a table the manager owns, and the healer never
+    selects from a manager-owned table with SQL.
+    """
+    bounds: dict[str, dict[str, Any]] = {}
+    for row in manager_read_closed_loops(manager_api).get("loops") or []:
+        key = str(row.get("loopKey") or "")
+        if not key:
+            continue
+        bounds[key] = {
+            "anchorSymbol": row.get("anchorSymbol"),
+            "singleTickCapacityRaw": row.get("singleTickCapacityAnchorRaw"),
+            "crossTickCapacityRaw": row.get("crossTickCapacityAnchorRaw"),
+            "borrowTokenDecimals": row.get("borrowTokenDecimals"),
+        }
+    return bounds
+
+
+def _raw_amount(value: Any) -> int | None:
+    """Return a raw integer amount, or ``None`` when it is not published."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        if text.startswith(("0x", "0X")):
+            return int(text, 16)
+        return int(text)
+    except ValueError:
+        return None
+
+
+def tick_amount_comparison(
+    row: dict[str, Any],
+    bounds: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Compare the tick-computed best amount with the single-tick start.
+
+    The kernel measures a route with two searches.  The **single tick**
+    search starts at the amount the single-tick capacity produces and
+    searches inside the folded single-tick capacity.  The **cross tick**
+    search continues from the single-tick optimum and is bounded by the
+    folded depth capacity instead, so it explores a domain that can be
+    larger than the one the single-tick search covered.
+
+    A route whose expected profit is not positive therefore raises the
+    question the two searches alone do not answer: **was the tick-computed
+    best amount ever above the single-tick start?**  When it was not, the
+    search never found a size above the single-tick start, and the negative
+    result has to be read against the domain that was actually searched.
+
+    The answer is published with the numbers it was derived from, so a
+    reader can check it without re-running the search.
+    """
+    payloads = review_payloads(row)
+    calculation = _best_amount_calculation(payloads)
+    bound = bounds or {}
+    best_raw = calculation.get("bestAmountRaw") or calculation.get("bestAmount")
+    initial_raw = (calculation.get("initialAmountRaw")
+                   or calculation.get("initialProbeAmount"))
+    best = _raw_amount(best_raw)
+    initial = _raw_amount(initial_raw)
+    single_tick = _raw_amount(bound.get("singleTickCapacityRaw"))
+    cross_tick = _raw_amount(bound.get("crossTickCapacityRaw"))
+    probes = calculation.get("probeRecords") or calculation.get("probe_records") or []
+    probed = sorted(
+        value for value in (_raw_amount(item.get("amountRaw")) for item in probes
+                            if isinstance(item, dict)) if value is not None
+    )
+    # The ladder searched inside the single-tick capacity, so the largest
+    # probed size is the ceiling of the domain that was covered.  A ladder
+    # that never probed anything has no ceiling at all.
+    searched_ceiling = probed[-1] if probed else None
+    value = pnl(row)
+    expected_profit = None if value is None else float(value.get("amount"))
+    greater = None if best is None or initial is None else best > initial
+    # The executable domain is the single-tick capacity: the Review Manager
+    # rejects a final input above it.  A size that is executable but was
+    # never probed is a **gap**; a size that is not executable cannot hide a
+    # trade, so it is reported as such and never as a gap.
+    executable_ceiling = single_tick
+    # The ladder climbs from its start by doubling, so the size above the
+    # start it probes is twice that start and the domain it covers reaches
+    # min(2 * start, ceiling).  The start is the amount the single-tick
+    # capacity produces and it is floored, so the doubling step can land one
+    # raw unit below the ceiling.  That single unit is the ladder's own
+    # integer rounding and not an unmeasured size; a wider band is a real
+    # gap, and the route has to be measured again.
+    ladder_reach = None
+    shortfall = None
+    if initial is not None and executable_ceiling is not None:
+        ladder_reach = min(2 * initial, executable_ceiling)
+        shortfall = executable_ceiling - ladder_reach
+    unsearched_executable = None
+    if shortfall is not None:
+        unsearched_executable = shortfall > 1
+    gap = bool(unsearched_executable)
+    if greater is None:
+        verdict = "tick_amount_unknown"
+    elif greater:
+        verdict = "best_above_single_tick_start"
+    elif executable_ceiling is None:
+        # The ceiling of the executable domain is not published, so the
+        # search cannot be said to have covered it -- and it cannot be
+        # said to have left a size out of it either.
+        verdict = "best_not_above_start_executable_domain_unknown"
+    elif gap:
+        verdict = "best_not_above_start_and_executable_size_unsearched"
+    else:
+        verdict = "best_not_above_start_executable_domain_covered"
+    return {
+        "loopKey": review_loop_key(row),
+        "anchorSymbol": bound.get("anchorSymbol"),
+        "status": calculation.get("bestAmountLadderStatus"),
+        "bestAmountRaw": best_raw,
+        "initialAmountRaw": initial_raw,
+        "bestGreaterThanInitial": greater,
+        "probeCount": len(probes),
+        "smallestProbedRaw": probed[0] if probed else None,
+        "largestProbedRaw": searched_ceiling,
+        "searchedCeilingRaw": searched_ceiling,
+        "ladderUpwardReachRaw": ladder_reach,
+        "executableCeilingRaw": bound.get("singleTickCapacityRaw"),
+        "executableCeilingShortfallRaw": shortfall,
+        "executableCeilingShortfallBps": (
+            None if shortfall is None or not executable_ceiling
+            else round(shortfall * 10000.0 / float(executable_ceiling), 9)),
+        "crossTickCeilingRaw": bound.get("crossTickCapacityRaw"),
+        "crossTickCeilingAboveExecutable": (
+            None if cross_tick is None or executable_ceiling is None
+            else cross_tick > executable_ceiling),
+        "unsearchedExecutableSize": unsearched_executable,
+        "expectedProfit": expected_profit,
+        "verdict": verdict,
+        "gap": gap,
     }
 
 
@@ -3088,6 +3266,114 @@ def receipt_realized_token_delta(
     return net_raw / (10 ** decimals), None
 
 
+#: The upstream generation a review has to carry to belong to the current
+#: structure.  Every manager stamps a review with the generation it was
+#: materialized under, so a review that carries another generation describes
+#: a route that was measured before the current library existed.
+REVIEW_GENERATION_FIELDS = (
+    ("closedLoopVersion", "closed_loop_version"),
+    ("closedLoopChecksum", "closed_loop_checksum"),
+    ("candidateEdgeVersion", "candidate_edge_version"),
+    ("candidateEdgeChecksum", "candidate_edge_checksum"),
+    ("observationVersion", "observation_version"),
+    ("observationChecksum", "observation_checksum"),
+    ("poolScopeChecksum", "pool_scope_checksum"),
+)
+
+
+def current_generation(manager_api: str | None) -> dict[str, Any]:
+    """Return the upstream generation the closed-loop Manager publishes.
+
+    The generation belongs to the **closed-loop Manager**, so it is read
+    through the manager API.  It is the fingerprint of the structure a
+    review has to be measured against: the version and the checksum of the
+    closed-loop library, of the candidate-edge layer and of the
+    observation layer, and the checksum of the pool scope.
+
+    An empty result means the generation could not be read.  A caller then
+    cannot judge a review, and it says so instead of guessing.
+    """
+    status = manager_read_closed_loops(manager_api).get("status") or {}
+    if not status:
+        return {}
+    generation = {
+        "closedLoopVersion": status.get("closedLoopVersion"),
+        "closedLoopChecksum": status.get("materializedChecksum"),
+        "candidateEdgeVersion": status.get("candidateEdgeVersion"),
+        "candidateEdgeChecksum": status.get("candidateEdgeChecksum"),
+        "observationVersion": status.get("observationVersion"),
+        "observationChecksum": status.get("observationChecksum"),
+        "poolScopeChecksum": status.get("poolScopeChecksum"),
+    }
+    if not any(generation.get(key) not in (None, "") for key, _ in REVIEW_GENERATION_FIELDS):
+        return {}
+    return generation
+
+
+def _generation_value_equal(left: Any, right: Any) -> bool:
+    """Compare two generation values without changing what they mean.
+
+    A version is a number and a checksum is a string, so both are read as
+    the text they are written as.  An absent value never equals a present
+    one: a review that does not name the generation it was measured under
+    cannot be proven to belong to it.
+    """
+    if left is None or right is None:
+        return False
+    left_text = str(left).strip()
+    right_text = str(right).strip()
+    if not left_text or not right_text:
+        return False
+    return left_text == right_text
+
+
+def review_generation_status(
+    row: dict[str, Any],
+    generation: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Whether a review belongs to the current upstream generation.
+
+    A review is **current** when it carries the generation of the
+    closed-loop library, the candidate-edge layer, the observation layer
+    and the pool scope that the managers publish right now.  It is
+    **stale** when it carries another generation: the loop may still
+    exist, but the measurement was taken against a structure that has
+    been rebuilt since, so it cannot prove anything about the route now.
+
+    A review that names no generation at all is **unknown**: it cannot be
+    proven current and it cannot be proven stale.  An unknown review is
+    never counted as a current measurement.
+    """
+    generation = generation or {}
+    if not generation:
+        return {"state": "unknown", "reason": "generation_not_readable",
+                "mismatches": [], "missing": []}
+    mismatches: list[dict[str, Any]] = []
+    missing: list[str] = []
+    named = 0
+    for key, row_key in REVIEW_GENERATION_FIELDS:
+        expected = generation.get(key)
+        actual = row.get(row_key)
+        if actual is None or str(actual).strip() == "":
+            missing.append(key)
+            continue
+        named += 1
+        if not _generation_value_equal(actual, expected):
+            mismatches.append({"field": key, "review": actual,
+                                "current": expected})
+    if named == 0:
+        return {"state": "unknown", "reason": "review_names_no_generation",
+                "mismatches": [], "missing": missing}
+    if mismatches:
+        return {"state": "stale", "reason": "generation_mismatch",
+                "mismatches": mismatches, "missing": missing}
+    if missing:
+        return {"state": "unknown", "reason": "review_names_an_incomplete_generation",
+                "mismatches": [], "missing": missing}
+    return {"state": "current", "reason": "generation_matches",
+            "mismatches": [], "missing": []}
+
+
 def audit_reviews(
     db: Path,
     hours: int,
@@ -3103,6 +3389,38 @@ def audit_reviews(
     }
     matched = [row for row in rows if review_loop_key(row) in known_loops]
     unmatched = [row for row in rows if review_loop_key(row) not in known_loops]
+    # The generation of the structure a review was measured under.  A
+    # review of a loop that still exists but carries an **older**
+    # generation describes a route that was measured before the library was
+    # rebuilt, so it cannot prove anything about the route now.  The
+    # healer matched a review to a live loop by its loop key alone, so
+    # those reviews were counted as the current measurement of the loop
+    # and the layer reported a route as measured that had never been
+    # measured against the current pools.
+    generation = current_generation(manager_api)
+    generation_readable = bool(generation)
+    generation_states = {
+        id(row): review_generation_status(row, generation) for row in rows
+    }
+    generation_rows = [
+        (row, generation_states[id(row)]) for row in matched
+    ]
+    current_generation_rows = [row for row, state in generation_rows
+                               if state["state"] == "current"]
+    stale_generation_rows = [row for row, state in generation_rows
+                             if state["state"] == "stale"]
+    unknown_generation_rows = [row for row, state in generation_rows
+                               if state["state"] == "unknown"]
+    # The live loops that carry no review of the current generation.  A
+    # loop whose only review was measured against an older structure has to
+    # be measured again: it is a route without a current measurement, and
+    # it is counted as one.
+    current_generation_loops = {
+        review_loop_key(row) for row in current_generation_rows
+        if review_loop_key(row)
+    }
+    loops_without_current_review = sorted(
+        known_loops - current_generation_loops)
     best_amount_failures = []
     best_amount_failure_reasons: dict[str, int] = {}
     ladder_incomplete_count = 0
@@ -3120,6 +3438,7 @@ def audit_reviews(
                 "reviewId": row.get("id"),
                 "loopKey": review_loop_key(row),
                 "currentLoop": review_loop_key(row) in known_loops,
+                "generation": generation_states.get(id(row), {}).get("state"),
                 "reason": reason,
                 "status": amount_state["status"],
                 "reviewFailureKind": amount_state["reviewFailureKind"],
@@ -3146,7 +3465,29 @@ def audit_reviews(
                 entry["sampleReviewIds"].append(row.get("id"))
     stats = pnl_stats(rows)
     best_amount_missing_count = len(best_amount_failures)
-    best_amount_missing_current = sum(1 for item in best_amount_failures if item["currentLoop"])
+    best_amount_missing_current = sum(
+        1 for item in best_amount_failures
+        if item["currentLoop"]
+        and (item["generation"] == "current"
+             or (not generation_readable and item["generation"] == "unknown")))
+    # The tick-amount comparison.  A route whose expected profit is not
+    # positive is only a fact about the sizes that were **searched**, so the
+    # review layer publishes the comparison next to it: the tick-computed
+    # best amount, the single-tick start it has to beat, and the ceiling of
+    # the domain the search covered.
+    amount_bounds = closed_loop_amount_bounds(manager_api)
+    # The comparison is made over the reviews of the **current**
+    # generation only.  The best amount of a review that was measured
+    # against an older structure describes sizes of an older pool set, so
+    # comparing it with the ceiling of the current scope would answer a
+    # question nobody asked.
+    tick_amounts = [tick_amount_comparison(row, amount_bounds.get(review_loop_key(row)))
+                    for row in (current_generation_rows if generation_readable
+                                else matched)]
+    tick_verdicts: dict[str, int] = {}
+    for item in tick_amounts:
+        tick_verdicts[item["verdict"]] = tick_verdicts.get(item["verdict"], 0) + 1
+    tick_gaps = [item for item in tick_amounts if item["gap"]]
     # The review layer judges the reviews of the **current** closed-loop
     # library.  A review of a loop that no longer exists describes a route
     # the system already stopped trading: it is history, not a live defect,
@@ -3163,7 +3504,17 @@ def audit_reviews(
     # The counted numbers stay over the whole window, so the report still
     # shows how much history the store holds; only the *verdict* is scoped
     # to the loops that are live right now.
-    current_rows = matched
+    #
+    # The verdict is scoped one step further: a live loop is only covered
+    # by a review of the **current** generation.  A review of an older
+    # generation is a measurement of an older structure, so the loop it
+    # names has no current measurement at all and is counted as one.
+    # A manager that publishes **no** generation cannot tell a current
+    # review from an older one.  The layer then keeps the reviews of the
+    # live loops it has and says that the generation could not be read,
+    # instead of emptying the live set and declaring every route
+    # unmeasured.
+    current_rows = current_generation_rows if generation_readable else matched
     current_stats = pnl_stats(current_rows)
     current_missing_pnl = sum(1 for row in current_rows if pnl(row) is None)
     current_best_amount_missing = best_amount_missing_current
@@ -3175,9 +3526,16 @@ def audit_reviews(
     # No age is counted and no interval is read -- the review cycle of a
     # loop is the round plus the wait, and the wait is not a fault.
     freshness = review_freshness_by_loop(
-        current_rows, known_loops, manager_review_schedules(manager_api))
+        current_rows, known_loops, manager_review_schedules(manager_api),
+        stale_generation_loops={review_loop_key(row) for row in stale_generation_rows})
+    # A live loop without a review of the current generation is a route
+    # that was never measured against the current structure.  It is a
+    # missing measurement, so the layer cannot be valid while it exists.
+    generation_gap = bool(generation_readable
+                          and (stale_generation_rows or unknown_generation_rows
+                               or loops_without_current_review))
     return {"valid": bool(manager_rows) and current_missing_pnl == 0
-            and current_best_amount_missing == 0,
+            and current_best_amount_missing == 0 and not generation_gap,
         "manager": {"reviews": len(manager_rows)},
         "legacy": {"windowHours": hours, "stats": stats,
                    "latestReviewAt": newest_review_stamp(rows),
@@ -3201,6 +3559,11 @@ def audit_reviews(
                        "total": len(current_rows),
                        "valued": len(current_rows) - current_missing_pnl,
                        "missingValue": current_missing_pnl,
+                       "staleGeneration": len(stale_generation_rows),
+                       "unknownGeneration": len(unknown_generation_rows),
+                       "loopsWithoutCurrentReview": len(loops_without_current_review),
+                       "missingCurrentMeasurement": (current_missing_pnl
+                                                     + len(loops_without_current_review)),
                        "bestAmountConfirmed": current_best_amount_confirmed,
                        "bestAmountMissing": current_best_amount_missing,
                        "positive": current_stats.get("positive"),
@@ -3208,6 +3571,35 @@ def audit_reviews(
                        "nonPositive": current_stats.get("nonPositive"),
                        "sum": current_stats.get("sum"),
                    }},
+        # The generation a review was measured under.  A review of a live
+        # loop that carries an older generation is not the measurement of
+        # that loop: the structure it was measured against has been
+        # rebuilt since.  The block names the fields that differ, so the
+        # gap can be read without re-running the comparison.
+        "generation": {
+            "code": REVIEW_GENERATION_STALE_CODE if generation_gap else None,
+            "readable": generation_readable,
+            "current": generation or None,
+            "matched": len(matched),
+            "currentGeneration": len(current_generation_rows),
+            "staleGeneration": len(stale_generation_rows),
+            "unknownGeneration": len(unknown_generation_rows),
+            "loopsWithoutCurrentReview": len(loops_without_current_review),
+            "staleLoops": [
+                {"loopKey": review_loop_key(row),
+                 "anchorSymbol": row.get("anchor_symbol") or row.get("anchorSymbol"),
+                 "pathText": row.get("path_text") or row.get("pathText"),
+                 "reviewedAt": row.get("reviewed_at") or row.get("reviewedAt"),
+                 "mismatches": generation_states.get(id(row), {}).get("mismatches", []),
+                 "missing": generation_states.get(id(row), {}).get("missing", [])}
+                for row in stale_generation_rows[:20]
+            ],
+            "loopsWithoutCurrentReviewKeys": loops_without_current_review[:20],
+            "reason": "a live loop is only covered by a review that carries the "
+                      "generation of the current closed-loop library, the current "
+                      "candidate edge, the current observation layer and the current "
+                      "pool scope; a review of an older generation has to be measured again",
+        },
         "bestAmount": {
             "code": BEST_AMOUNT_MISSING_CODE if best_amount_missing_current else None,
             "missing": best_amount_missing_count,
@@ -3226,6 +3618,30 @@ def audit_reviews(
                         sorted(best_amount_failure_reasons.items(),
                                key=lambda item: item[1], reverse=True)[:10]],
             "samples": best_amount_failures[:10],
+        },
+        # The tick-amount comparison of the live routes.  It answers the
+        # question a negative profit raises on its own: did the search ever
+        # find a size **above** the single-tick start, and did it cover the
+        # whole domain a trade could be executed in?
+        "tickAmount": {
+            "code": TICK_AMOUNT_GAP_CODE if tick_gaps else None,
+            "compared": len(tick_amounts),
+            "nonPositive": sum(1 for item in tick_amounts
+                               if item["expectedProfit"] is not None
+                               and item["expectedProfit"] <= 0),
+            "bestAboveSingleTickStart": sum(1 for item in tick_amounts
+                                             if item["bestGreaterThanInitial"] is True),
+            "bestNotAboveSingleTickStart": sum(1 for item in tick_amounts
+                                                if item["bestGreaterThanInitial"] is False),
+            "unknown": sum(1 for item in tick_amounts
+                            if item["bestGreaterThanInitial"] is None),
+            "executableSizeUnsearched": len(tick_gaps),
+            "verdicts": tick_verdicts,
+            "reason": "a route whose expected profit is not positive is only a fact "
+                      "about the sizes that were searched; the comparison states "
+                      "whether the tick search ever beat the single-tick start and "
+                      "whether an executable size was left unmeasured",
+            "gaps": tick_gaps[:10],
         },
         "missingReasons": [{"reason": key, "count": value}
                            for key, value in sorted(reasons.items(), key=lambda item: item[1], reverse=True)[:10]],
@@ -3766,6 +4182,8 @@ def pnl_snapshot(
     """Build a read-only PnL snapshot without inventing realized values."""
     reviews = ((report.get("layers") or {}).get("reviews") or {}).get("legacy") or {}
     best_amount = ((report.get("layers") or {}).get("reviews") or {}).get("bestAmount") or {}
+    tick_amount = ((report.get("layers") or {}).get("reviews") or {}).get("tickAmount") or {}
+    generation = ((report.get("layers") or {}).get("reviews") or {}).get("generation") or {}
     broadcast = ((report.get("layers") or {}).get("broadcast") or {})
     legacy = broadcast.get("legacy") or {}
     profit = broadcast.get("profitAnalysis") or {}
@@ -3805,6 +4223,29 @@ def pnl_snapshot(
             "bestAmountMissing": best_amount.get("missing", 0),
             "bestAmountConfirmed": best_amount.get("confirmed", 0),
         },
+        # The tick-amount comparison of the live routes.  It travels with
+        # the snapshot because a negative expectation is only a fact about
+        # the sizes that were searched.
+        "tickAmount": {
+            "compared": tick_amount.get("compared", 0),
+            "nonPositive": tick_amount.get("nonPositive", 0),
+            "bestAboveSingleTickStart": tick_amount.get("bestAboveSingleTickStart", 0),
+            "bestNotAboveSingleTickStart": tick_amount.get("bestNotAboveSingleTickStart", 0),
+            "unknown": tick_amount.get("unknown", 0),
+            "executableSizeUnsearched": tick_amount.get("executableSizeUnsearched", 0),
+            "verdicts": tick_amount.get("verdicts") or {},
+        },
+        # The generation the live reviews were measured under.  It travels
+        # with the snapshot because a review of an older generation is not
+        # a measurement of the current structure, and a snapshot that only
+        # counted reviews would call such a route measured.
+        "generation": {
+            "readable": generation.get("readable"),
+            "currentGeneration": generation.get("currentGeneration", 0),
+            "staleGeneration": generation.get("staleGeneration", 0),
+            "unknownGeneration": generation.get("unknownGeneration", 0),
+            "loopsWithoutCurrentReview": generation.get("loopsWithoutCurrentReview", 0),
+        },
         "broadcast": {
             "attempts": legacy.get("total", 0),
             "outcomes": broadcast.get("outcomes") or {},
@@ -3835,6 +4276,8 @@ def pnl_snapshot(
             "realizedPnl is derived from confirmed receipt transfers only",
             "missing values are reported as missing and never replaced with zero",
             "a review without a concrete best trade amount is an upstream review failure and is fail-closed",
+            "the tick-amount comparison states whether the tick search ever beat the single-tick start and whether an executable size was left unmeasured",
+            "a live loop is only measured by a review that carries the current upstream generation",
         ],
     }
 
@@ -3844,11 +4287,17 @@ def append_pnl_snapshot(
     pnl_jsonl: Path,
     pnl_log: Path,
 ) -> None:
-    with pnl_jsonl.open("a", encoding="utf-8") as handle:
+    # Every file this healer writes is UTF-8 without BOM and LF, so the
+    # evidence a reader opens has the same bytes on every platform.  The
+    # newline is therefore stated explicitly: the default of a text file
+    # on Windows would translate every line ending into CRLF.
+    with pnl_jsonl.open("a", encoding="utf-8", newline="\n") as handle:
         handle.write(json.dumps(snapshot, ensure_ascii=False, default=str) + "\n")
     expected = snapshot.get("expectedPnl") or {}
     realized = snapshot.get("realizedPnl") or {}
     reviews = snapshot.get("reviews") or {}
+    tick_amount = snapshot.get("tickAmount") or {}
+    generation = snapshot.get("generation") or {}
     broadcast = snapshot.get("broadcast") or {}
     outcomes = broadcast.get("outcomes") or {}
     line = (
@@ -3856,6 +4305,12 @@ def append_pnl_snapshot(
         f"elapsedMin={round(float(snapshot.get('elapsedSeconds') or 0) / 60.0, 1)} "
         f"reviews={reviews.get('total')} valued={reviews.get('withValue')} missing={reviews.get('missingValue')} "
         f"execPositive={reviews.get('executablePositive')} "
+        f"tickBestAboveStart={tick_amount.get('bestAboveSingleTickStart')} "
+        f"tickNotAbove={tick_amount.get('bestNotAboveSingleTickStart')} "
+        f"tickUnsearched={tick_amount.get('executableSizeUnsearched')} "
+        f"genCurrent={generation.get('currentGeneration')} "
+        f"genStale={generation.get('staleGeneration')} "
+        f"genUncovered={generation.get('loopsWithoutCurrentReview')} "
         f"signed={reviews.get('signedPnlByCurrency')} "
         f"attempts={broadcast.get('attempts')} success={outcomes.get('success', 0)} "
         f"failed={outcomes.get('failed', 0)} pending={outcomes.get('pending', 0)} "
@@ -3864,7 +4319,7 @@ def append_pnl_snapshot(
         f"realized={realized.get('byCurrency')} realizedAvailable={realized.get('available')} "
         f"state={(snapshot.get('production') or {}).get('state')}"
     )
-    with pnl_log.open("a", encoding="utf-8") as handle:
+    with pnl_log.open("a", encoding="utf-8", newline="\n") as handle:
         handle.write(line + "\n")
 
 
@@ -4200,6 +4655,17 @@ def healing_actions(report: dict[str, Any]) -> list[str]:
     current_stats = (reviews.get("legacy") or {}).get("currentLoopStats") or {}
     if not reviews.get("valid") or int(current_stats.get("missingValue") or 0) > 0:
         actions.append("repair_reviews")
+    # A live loop whose review carries an **older** upstream generation is
+    # a route that was never measured against the current structure.  The
+    # review layer reports it as a gap, and the gap is closed by measuring
+    # the route again -- through the review path, never through the
+    # broadcast path.
+    generation = reviews.get("generation") or {}
+    if generation.get("readable") and (
+            int(generation.get("staleGeneration") or 0) > 0
+            or int(generation.get("unknownGeneration") or 0) > 0
+            or int(generation.get("loopsWithoutCurrentReview") or 0) > 0):
+        actions.append("repair_stale_generation_reviews")
     # The broadcast layer is only repaired when the review layer above it is
     # already sound **and** produced a positive net result. A failed attempt
     # without an executable positive review is either a market outcome or a
@@ -4211,6 +4677,15 @@ def healing_actions(report: dict[str, Any]) -> list[str]:
     positive_reviews = int(current_stats.get("positive") or 0) > 0
     if int(outcomes.get("failed") or 0) > 0 and reviews_sound and positive_reviews:
         actions.append("repair_broadcast_failures")
+    # A route whose expected profit is not positive is only a fact about the
+    # sizes that were searched.  When the tick-computed best amount never
+    # rose above the single-tick start **and** an executable size was left
+    # unmeasured, the route has to be measured again before it may be called
+    # unprofitable.  The re-measurement is a fresh review request, so it
+    # travels through the review path and never through the broadcast path.
+    tick_amount = reviews.get("tickAmount") or {}
+    if int(tick_amount.get("executableSizeUnsearched") or 0) > 0:
+        actions.append("repair_tick_amount")
     actions.append("fill_current_loop_reviews")
     actions.append("rereview_historical_positive_candidates")
     actions.append("observe_automatic_broadcast")
@@ -4972,6 +5447,23 @@ def stored_review_evidence(
             "diagnostics": [],
             "reviewedAt": str(row.get("reviewedAt") or "").strip() or now(),
         }
+        # The generation the measurement was made under travels with the
+        # evidence.  The Review Manager files a review under the generation
+        # its evidence names, and falls back to the generation it reads
+        # when the evidence names none.  A stored review that names no
+        # generation was therefore **relabelled** with whatever generation
+        # happened to be current when it was written back, so an old
+        # measurement started to look like a fresh one.  The generation is
+        # copied forward unchanged, and the review keeps the age it has.
+        generation_evidence = {
+            key: row.get(key)
+            for key in ("closedLoopVersion", "closedLoopChecksum",
+                        "candidateEdgeVersion", "candidateEdgeChecksum",
+                        "observationVersion", "observationChecksum")
+            if row.get(key) is not None and str(row.get(key)).strip()
+        }
+        if generation_evidence:
+            stored_evidence["closedLoopGeneration"] = generation_evidence
         # A stored review carries the identity it was measured under, and
         # the identity is published by the Review Manager.  It is copied
         # forward unchanged so a re-submission never downgrades a known
@@ -5599,6 +6091,204 @@ def fill_missing_reviews(
         materialization = materialize_reviews(db, manager_api, evidence_payloads, apply)
     return {"mode": "fill-reviews", "generatedAt": now(), "apply": apply, "dryRun": not apply,
             "policy": "real-time review first; only fresh positive review may trigger broadcast",
+            "candidateCount": len(candidates), "results": results,
+            "evidenceCount": len(evidence_payloads),
+            "materialization": materialization}
+
+
+def remeasure_unsearched_tick_amount(
+    db: Path,
+    runtime_api: str,
+    apply: bool,
+    limit: int,
+    manager_api: str | None = None,
+) -> dict[str, Any]:
+    """Measure the routes whose executable size was never searched again.
+
+    A route whose expected profit is not positive is only a fact about the
+    sizes that were searched.  When the tick-computed best amount never rose
+    above the single-tick start **and** the ladder stopped below the
+    executable ceiling, the route carries a negative expectation that does
+    not cover the whole executable domain.  Such a route is measured again
+    before it is called unprofitable.
+
+    The measurement travels through the review path, so the broadcast path
+    is never touched by this repair.
+    """
+    bounds = closed_loop_amount_bounds(manager_api)
+    generation = current_generation(manager_api)
+    gaps: list[str] = []
+    for row in review_rows(db, 24 * 365, None, manager_api):
+        loop_key = review_loop_key(row)
+        if not loop_key or loop_key in gaps:
+            continue
+        # Only a review of the **current** generation describes the sizes
+        # of the current pools.  The best amount of an older review is a
+        # measurement of an older scope, so comparing it with the ceiling
+        # of the current scope would report a gap that does not exist.
+        if review_generation_status(row, generation)["state"] != "current":
+            continue
+        if tick_amount_comparison(row, bounds.get(loop_key))["gap"]:
+            gaps.append(loop_key)
+    loops = {row["loop_key"]: row for row in manager_loop_rows(manager_api)}
+    candidates = []
+    for loop_key in gaps:
+        loop = loops.get(loop_key)
+        if loop is None:
+            continue
+        candidates.append({"loopKey": loop_key, "path": loop["path_text"],
+                           "routeSymbols": json.loads(loop["path_symbols_json"]),
+                           "routeAddresses": json.loads(loop["path_addresses_json"])})
+    candidates = candidates[:limit]
+    results = []
+    evidence_payloads: list[dict[str, Any]] = []
+    triggered = _trigger_live_reviews(db, runtime_api, candidates, apply, manager_api)
+    collected = collect_completed_reviews(db, candidates) if triggered else {}
+    for candidate, response in triggered:
+        if response.get("completedReview") is None:
+            response["completedReview"] = collected.get(
+                str(candidate.get("loopKey") or "").strip())
+        evidence = live_review_evidence(response, candidate)
+        if evidence:
+            evidence_payloads.append(evidence)
+        results.append({**candidate, "liveReviewRequest": response,
+                        "evidenceCaptured": bool(evidence)})
+    materialization = None
+    if manager_api and evidence_payloads:
+        materialization = materialize_reviews(db, manager_api, evidence_payloads, apply)
+    return {"mode": "remeasure-tick-amount", "generatedAt": now(), "apply": apply,
+            "dryRun": not apply,
+            "policy": "a route whose executable size was never searched is measured "
+                      "again before it is called unprofitable",
+            "gapCount": len(gaps), "candidateCount": len(candidates),
+            "results": results, "evidenceCount": len(evidence_payloads),
+            "materialization": materialization}
+
+
+def stale_generation_review_candidates(
+    db: Path,
+    limit: int,
+    excluded_loop_keys: set[str] | None = None,
+    manager_api: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return the live loops whose review belongs to an older generation.
+
+    A live loop is covered by a review that carries the generation of the
+    current closed-loop library, the current candidate edge, the current
+    observation layer and the current pool scope.  A review that carries
+    another generation was measured against a structure that has been
+    rebuilt since, so the route has no measurement of the current
+    structure and it has to be measured again.
+
+    The loop catalog is the authority on which loops exist, so a loop the
+    catalog no longer publishes is never a candidate.
+    """
+    excluded = excluded_loop_keys or set()
+    generation = current_generation(manager_api)
+    if not generation:
+        return []
+    covered: dict[str, dict[str, Any]] = {}
+    stale: dict[str, dict[str, Any]] = {}
+    for row in review_rows(db, 24 * 365, None, manager_api):
+        loop_key = review_loop_key(row)
+        if not loop_key:
+            continue
+        state = review_generation_status(row, generation)
+        if state["state"] == "current":
+            covered.setdefault(loop_key, row)
+        elif state["state"] == "stale":
+            stale.setdefault(loop_key, row)
+    loops = {row["loop_key"]: row for row in manager_loop_rows(manager_api)}
+    candidates: list[dict[str, Any]] = []
+    for loop_key, row in loops.items():
+        if loop_key in excluded or loop_key in covered:
+            continue
+        previous = stale.get(loop_key)
+        loop = loops[loop_key]
+        candidates.append({
+            "loopKey": loop_key,
+            "path": loop["path_text"],
+            "routeSymbols": json.loads(loop["path_symbols_json"]),
+            "routeAddresses": json.loads(loop["path_addresses_json"]),
+            "previousGeneration": (review_generation_status(previous, generation)
+                                    if previous is not None else None),
+        })
+    return candidates[:limit]
+
+
+def stale_generation_loop_keys(
+    db: Path,
+    manager_api: str | None = None,
+) -> set[str]:
+    """Return the live loops whose review belongs to an older generation.
+
+    The set is the work list of the generation repair.  It is also the
+    exclusion list of the ordinary fill: a loop whose review has to be
+    measured again is measured by the repair that knows **why** it has to
+    be measured, so the ordinary fill does not ask for it a second time in
+    the same cycle and collide with the repair on the runtime's busy
+    answer.
+    """
+    generation = current_generation(manager_api)
+    if not generation:
+        return set()
+    covered: set[str] = set()
+    stale: set[str] = set()
+    for row in review_rows(db, 24 * 365, None, manager_api):
+        loop_key = review_loop_key(row)
+        if not loop_key:
+            continue
+        state = review_generation_status(row, generation)["state"]
+        if state == "current":
+            covered.add(loop_key)
+        elif state == "stale":
+            stale.add(loop_key)
+    live = {str(row.get("loop_key") or "")
+            for row in manager_loop_rows(manager_api)
+            if str(row.get("loop_key") or "")}
+    return {key for key in live - covered}
+
+
+def remeasure_stale_generation_reviews(
+    db: Path,
+    runtime_api: str,
+    apply: bool,
+    limit: int,
+    manager_api: str | None = None,
+    excluded_loop_keys: set[str] | None = None,
+) -> dict[str, Any]:
+    """Measure again every live loop whose review is of an older generation.
+
+    The review of such a loop describes a route as it was priced against a
+    structure that has been rebuilt since.  The loop is live, so the route
+    is still traded, and the route therefore needs a measurement of the
+    **current** structure before it may be called unprofitable.
+
+    The measurement is a fresh live review, so it travels through the
+    review path and never through the broadcast path.
+    """
+    candidates = stale_generation_review_candidates(
+        db, limit, excluded_loop_keys, manager_api)
+    results: list[dict[str, Any]] = []
+    evidence_payloads: list[dict[str, Any]] = []
+    triggered = _trigger_live_reviews(db, runtime_api, candidates, apply, manager_api)
+    collected = collect_completed_reviews(db, candidates) if triggered else {}
+    for candidate, response in triggered:
+        if response.get("completedReview") is None:
+            response["completedReview"] = collected.get(
+                str(candidate.get("loopKey") or "").strip())
+        evidence = live_review_evidence(response, candidate)
+        if evidence:
+            evidence_payloads.append(evidence)
+        results.append({**candidate, "liveReviewRequest": response,
+                        "evidenceCaptured": bool(evidence)})
+    materialization = None
+    if manager_api and evidence_payloads:
+        materialization = materialize_reviews(db, manager_api, evidence_payloads, apply)
+    return {"mode": "remeasure-stale-generation", "generatedAt": now(),
+            "apply": apply, "dryRun": not apply,
+            "policy": "a live loop whose review was measured against an older "
+                      "generation is measured again against the current one",
             "candidateCount": len(candidates), "results": results,
             "evidenceCount": len(evidence_payloads),
             "materialization": materialization}
@@ -7009,7 +7699,8 @@ def pool_depth_replacement_report(db: Path) -> dict[str, Any]:
 def save(prefix: str, report: dict[str, Any]) -> Path:
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     path = REPORT_DIR / f"{prefix}_chain{CHAIN_ID}_{stamp()}.json"
-    path.write_text(json.dumps(report, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+    path.write_text(json.dumps(report, ensure_ascii=False, indent=2, default=str),
+                    encoding="utf-8", newline="\n")
     return path
 
 
@@ -7096,7 +7787,7 @@ def supervise(
 
     def append_event(event: dict[str, Any]) -> None:
         event.setdefault("timestamp", now())
-        with journal_path.open("a", encoding="utf-8") as handle:
+        with journal_path.open("a", encoding="utf-8", newline="\n") as handle:
             handle.write(json.dumps(event, ensure_ascii=False, default=str) + "\n")
 
     try:
@@ -7204,13 +7895,22 @@ def supervise(
                     )
                     outcomes.append({"action": "converge_reviews",
                                      "result": missing_pnl_result})
+                    # A loop whose review belongs to an older generation
+                    # is measured by the generation repair, which knows
+                    # **why** it has to be measured again.  Asking for it
+                    # here as well would spend a second runtime request
+                    # on the same loop and collide with the repair on the
+                    # runtime's busy answer.
+                    fill_exclusions = (requested_review_loops
+                                       | stale_generation_loop_keys(db, manager_api))
                     fill_result = fill_missing_reviews(
-                        db, runtime_api, apply, candidate_limit, requested_review_loops,
+                        db, runtime_api, apply, candidate_limit, fill_exclusions,
                         manager_api=manager_api)
                     if fill_result["candidateCount"] == 0 and requested_review_loops:
                         requested_review_loops.clear()
                         fill_result = fill_missing_reviews(
-                            db, runtime_api, apply, candidate_limit, requested_review_loops,
+                            db, runtime_api, apply, candidate_limit,
+                            requested_review_loops | stale_generation_loop_keys(db, manager_api),
                             manager_api=manager_api)
                     requested_review_loops.update(
                         str(item["loopKey"])
@@ -7247,6 +7947,28 @@ def supervise(
                     )
                     outcomes.append({"action": "rereview_historical_positive_candidates",
                                      "result": rereview_result})
+                    # The tick-amount repair.  A route whose expected profit
+                    # is not positive is only a fact about the sizes that
+                    # were searched, so a route that never searched an
+                    # executable size is measured again before it is called
+                    # unprofitable.  The measurement travels through the
+                    # review path, never through the broadcast path.
+                    if "repair_tick_amount" in actions:
+                        tick_result = remeasure_unsearched_tick_amount(
+                            db, runtime_api, apply, candidate_limit,
+                            manager_api=manager_api)
+                        outcomes.append({"action": "remeasure_unsearched_tick_amount",
+                                         "result": tick_result})
+                    # The generation repair.  A live loop whose review was
+                    # measured against an older structure is measured again
+                    # against the current one, so the route is judged by a
+                    # measurement of the pools that are live now.
+                    if "repair_stale_generation_reviews" in actions:
+                        generation_result = remeasure_stale_generation_reviews(
+                            db, runtime_api, apply, candidate_limit,
+                            manager_api=manager_api)
+                        outcomes.append({"action": "remeasure_stale_generation_reviews",
+                                         "result": generation_result})
                     # GAP-A: the broadcast repair used to be dead code --
                     # `repair_broadcast_failures` was fully implemented but
                     # never called from this loop. It now runs, but only
@@ -7365,7 +8087,7 @@ def watch(db: Path, hours: int, interval: int, max_samples: int | None,
             "reviewPnl": report["layers"]["reviews"]["legacy"]["stats"],
             "broadcast": report["layers"]["broadcast"], "closedLoops": report["layers"]["closedLoops"],
             "stability": stability}
-        with path.open("a", encoding="utf-8") as handle:
+        with path.open("a", encoding="utf-8", newline="\n") as handle:
             handle.write(json.dumps(snapshot, ensure_ascii=False, default=str) + "\n")
         stats = snapshot["reviewPnl"]
         print(f"[{snapshot['timestamp']}] sample={sample} sum={stats['sum']} positive={stats['positive']} "

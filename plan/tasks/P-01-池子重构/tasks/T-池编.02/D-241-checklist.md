@@ -54,3 +54,41 @@
 - [ ] **E1** **不伪造**：本任务**不填任何盈亏数值**、不填 0、不放宽任何门禁、不删任何历史复核行。恢复作用域只让那 19 条路由**重新可定价**，它们**是否真的有盈亏**由链上事实决定，**不预判**。
 - [ ] **E2** **不代为关闭**：广播缺口仍是**市场条件**问题（正利润是灰尘级），本任务**不代任何其它任务关闭**；本框**不代为关闭**。
 - [ ] **E3** **撤回旧结论**：上一轮登记的「目录外复核不可复价 → 退役语义」**前提已被推翻**（A1／A2）⇒ 该任务的收口口径**必须改写**，不得按「退役」结案。
+
+## G. 第二轮：全负期望下的 tick 交易量比对 ＋ 复核代次（**2026-11-28**）
+
+### G1. 用户口径与读数（**只读**）
+
+- [x] **G1.1** **问题落地**：「预期盈利全部为负数时，一并检测最佳交易量（tick 计算值）是否大于初始交易量（单 tick 计算值）」⇒ 新增 `tick_amount_comparison()` 与 `tickAmount` 区块（`compared` / `nonPositive` / `bestAboveSingleTickStart` / `bestNotAboveSingleTickStart` / `unknown` / `executableSizeUnsearched` / `verdicts` / `gaps`）
+- [x] **G1.2** **读数（当前代次 29 条）**：预期盈利为负 **29 / 29**；**最佳交易量 > 单 tick 初始交易量 = 0 / 29** ⇒ **答案是否**；**≤ = 29 / 29**（`bestAmountRaw` 全为实测零 `0x0`，`initialAmountRaw` 全为正）
+- [x] **G1.3** **可执行域**：阶梯上行可达 ＝ `min(2 × initial, 单tick上限)`；**缺口 > 1 raw 单位 = 0 / 29** ⇒ `executableSizeUnsearched = 0`、结论 `best_not_above_start_executable_domain_covered` **29**
+- [x] **G1.4** **跨 tick 域不可执行**：深度上限 > 单 tick 上限 **21 / 36**（**2.4× – 30×**），但 Review Manager 的单 tick 门（`review_manager/src/lib.rs:3028`）以 `final_input_exceeds_single_tick_capacity` 拒绝 ⇒ **不列为缺口**
+- [x] **G1.5** **四态结论**：大于／不大于且已覆盖／不大于且有未搜尺寸（**缺口**）／读不到（**不猜**）
+- [x] **G1.6** **在产首周期读数**（自愈器新代码重启后的第一个生产周期）：`compared = 33`、`nonPositive = 33`、**`bestAboveSingleTickStart = 0`**、`executableSizeUnsearched = 0`、结论 `best_not_above_start_executable_domain_covered` **33** ⇒ **用户问题的在产答案仍然是「否」**
+
+### G2. ★ 复核代次缺陷（**本轮真正的收口**）
+
+- [x] **G2.1** **取证**：在产闭环 **36** 条中，**7** 条复核的代次是 **陈旧**的（`closedLoopVersion 54` vs 当前 **72**、`poolScopeChecksum sha256:9987e6cc…` vs 当前 `sha256:9ec36f1a…`、`candidateEdgeVersion 11` vs **17**、`observationVersion 14` vs **20**），`reviewed_at` ＝ **2026-11-26 19:28:49 – 19:29:53**（**收窄作用域时期**）
+- [x] **G2.2** **缺陷点 ①**：复核层的「当前闭环」判定**只按 loop key 匹配** ⇒ 陈旧代次复核被算成在产复核（`matchedMissingPnl = 0`、`bestAmountMissing = 0` ⇒ **误报绿**）
+- [x] **G2.3** **缺陷点 ②**：`reviewCycleStartedAt = null` 时**默认判 current** ⇒ 7 条陈旧代次闭环的 `notCurrentLoops = []`
+- [x] **G2.4** **缺陷点 ③**：`stored_review_evidence()` **不带 `closedLoopGeneration`** ⇒ Review Manager 按「没写就用当前代次」归档 ⇒ **旧测量被重贴当前代次的标签**（**洗代次**）
+- [x] **G2.5** **修复 ①**：新增 `current_generation()` / `review_generation_status()`（`current` / `stale` / `unknown` 三态 ＋ 不匹配字段清单）
+- [x] **G2.6** **修复 ②**：`audit_reviews()` 按**代次**分层；`current_rows` 只取当前代次；新增 `generation` 区块与 `missingCurrentMeasurement`
+- [x] **G2.7** **修复 ③**：`review_freshness_by_loop()` 新增 `stale_generation_loops` 参数 ⇒ 陈旧代次闭环判 `measured_in_older_generation`
+- [x] **G2.8** **修复 ④**：`stored_review_evidence()` 复制该行**自己的**代次进 `closedLoopGeneration` ⇒ 回写**不再洗代次**
+- [x] **G2.9** **修复 ⑤**：新动作 `repair_stale_generation_reviews` ⇒ 对**没有当前代次复核**的在产闭环发起**新复核**（**走复核路径，绝不碰广播**）；普通 `fill_missing_reviews` **排除**这些闭环，避免同周期重复请求
+- [x] **G2.10** **修复后读数**：`L4 reviews valid=False`、`staleGeneration = 7`、`loopsWithoutCurrentReview = 7`、`productionState = review_stalled`、原因 `a_closed_loop_does_not_carry_its_current_measurement`、`blockers = [reviews, broadcast]`
+- [x] **G2.11** **在产首周期**（journal `supervisor_20261127T235312Z.jsonl`）：动作 **`repair_stale_generation_reviews` 已触发**（`candidateCount = 3`、`evidenceCount = 0`、`materialization = null` ⇒ **没有任何盈亏被写回**）；代次读数 `staleGeneration 4 → 3`（运行时补测 1 条）；运行时答复 **5 × 409**（忙）＋ **3 × 404**（常驻 worker 未注册）＋ **3 × `timed out`** ⇒ 剩下的 3 条**仍需运行时按当前路由重新注册常驻 worker**（**不代运行时关闭**）
+
+### G3. 回归
+
+- [x] **G3.1** `python -m pytest scripts/tests/test_mainnet_arbitrage_healer.py -q` ⇒ **132 passed / 0 failed**（基线 **126** ＋ 新 **6**：tick 比对 3 条 ＋ 代次 3 条）
+- [x] **G3.2** `python -m pytest flashloan/app_runtime/tests/unit/test_mainnet_arbitrage_healer_repair_chain.py -q` ⇒ **44 passed / 0 failed**
+- [x] **G3.3** `cargo test --offline -p pool-manager` ⇒ **175 passed / 0 failed**（本轮**未改** `M-1` ⇒ 只作基线）
+
+### G4. 诚实边界（**永久留占位**）
+
+- [ ] **G4.1** **不绕过运行时**：7 条陈旧代次闭环需要**按当前路由重新注册常驻 worker**（运行时侧）；healer 侧只**持续重试**并如实记录原因（`CLOSED_LOOP_GROUP_NOT_FOUND` / `CLOSED_LOOP_GROUP_BUSY` / `timed out`）⇒ **不代运行时关闭**
+- [ ] **G4.2** **不放宽任何门禁**：「没有正利润复核 ⇒ 不广播」的口径**未变**；广播 attempts 仍为 **0**（**市场条件**，无正利润复核）
+- [ ] **G4.3** **不伪造**：本轮**未填任何盈亏**、**未填 0**、**未删任何历史复核行**、**未改任何历史代次**
+- [ ] **G4.4** **不预判**：这 7 条路由**重测之后**是否有盈亏由**链上事实**决定，**不预判**

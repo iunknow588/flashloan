@@ -2860,6 +2860,242 @@ class MainnetArbitrageHealerCascadeTests(unittest.TestCase):
         self.assertFalse(HEALER.scope_mode_narrows(["core"],
                                                    ["core", "stocks"]))
 
+    # ------------------------------------------------------------------
+    # The tick amount against the single-tick start
+    # ------------------------------------------------------------------
+
+    def _tick_review(self, best, initial, probes):
+        """Build a review row that carries a measured amount ladder."""
+        calculation = {
+            "method": "native_rust_review_ladder",
+            "bestAmountRaw": best,
+            "initialAmountRaw": initial,
+            "probeRecords": [{"amountRaw": amount} for amount in probes],
+            "probeCount": len(probes),
+            "bestAmountLadderStatus": "not_profitable_after_costs",
+        }
+        return {
+            "loop_key": "loop-1",
+            "reviewed_at": "2026-11-27T23:10:49Z",
+            "signed_pnl_raw": "-0x1",
+            "signed_pnl_amount": -0.5,
+            "signed_pnl_currency": "ETH",
+            "static_preview_json": json.dumps({
+                "bestAmountCalculation": calculation,
+                "measuredAt": "2026-11-27T23:10:49Z",
+            }),
+        }
+
+    def test_the_tick_amount_is_compared_with_the_single_tick_start(self):
+        """A negative expectation raises the question of the tick amount.
+
+        The kernel measures a route with two searches: the single-tick
+        search starts at the amount the single-tick capacity produces, and
+        the cross-tick search continues from that optimum.  A route whose
+        expected profit is not positive therefore raises a question the two
+        searches alone do not answer: **was the tick-computed best amount
+        ever above the single-tick start?**
+        """
+        bounds = {"singleTickCapacityRaw": "0xc8", "crossTickCapacityRaw": "0x12c"}
+        below = HEALER.tick_amount_comparison(
+            self._tick_review("0x0", "0x64", ["0x64", "0xc8"]), bounds)
+        self.assertFalse(below["bestGreaterThanInitial"],
+                         "a best amount of zero is not above the start")
+        self.assertEqual(below["verdict"],
+                         "best_not_above_start_executable_domain_covered")
+        self.assertFalse(below["gap"],
+                         "the ladder covered the executable domain")
+        self.assertEqual(below["expectedProfit"], -0.5)
+        self.assertTrue(below["crossTickCeilingAboveExecutable"],
+                        "the depth ceiling is above the executable ceiling")
+
+        above = HEALER.tick_amount_comparison(
+            self._tick_review("0x12c", "0x64", ["0x64", "0xc8", "0x12c"]), bounds)
+        self.assertTrue(above["bestGreaterThanInitial"],
+                        "a best amount above the start is the answer the user asked for")
+        self.assertEqual(above["verdict"], "best_above_single_tick_start")
+
+    def test_an_executable_size_that_was_never_searched_is_a_gap(self):
+        """A ladder that stopped below the executable ceiling is a gap.
+
+        The ladder climbs from its start by doubling, so the size above the
+        start it probes is twice that start.  A ceiling that the doubling
+        never reaches leaves an executable size unmeasured, and a route
+        that never searched it may not be called unprofitable.
+        """
+        bounds = {"singleTickCapacityRaw": "0x3e8", "crossTickCapacityRaw": "0x1388"}
+        comparison = HEALER.tick_amount_comparison(
+            self._tick_review("0x0", "0x64", ["0x64"]), bounds)
+        self.assertTrue(comparison["gap"])
+        self.assertEqual(comparison["verdict"],
+                         "best_not_above_start_and_executable_size_unsearched")
+        self.assertEqual(comparison["executableCeilingShortfallRaw"], 1000 - 200)
+
+    def test_an_unknown_executable_ceiling_is_not_a_covered_domain(self):
+        """A ceiling that is not published cannot be said to be covered."""
+        comparison = HEALER.tick_amount_comparison(
+            self._tick_review("0x0", "0x64", ["0x64"]), {})
+        self.assertEqual(comparison["verdict"],
+                         "best_not_above_start_executable_domain_unknown")
+        self.assertFalse(comparison["gap"])
+
+    # ------------------------------------------------------------------
+    # The upstream generation of a review
+    # ------------------------------------------------------------------
+
+    GENERATION = {
+        "closedLoopVersion": 72,
+        "closedLoopChecksum": "sha256:closed",
+        "candidateEdgeVersion": 17,
+        "candidateEdgeChecksum": "sha256:edge",
+        "observationVersion": 20,
+        "observationChecksum": "sha256:observation",
+        "poolScopeChecksum": "sha256:scope",
+    }
+
+    def _generation_row(self, **overrides):
+        row = {
+            "closed_loop_version": 72,
+            "closed_loop_checksum": "sha256:closed",
+            "candidate_edge_version": 17,
+            "candidate_edge_checksum": "sha256:edge",
+            "observation_version": 20,
+            "observation_checksum": "sha256:observation",
+            "pool_scope_checksum": "sha256:scope",
+        }
+        row.update(overrides)
+        return row
+
+    def test_a_review_of_an_older_generation_is_not_the_measurement_of_the_loop(self):
+        """The loop key alone does not make a review the current one.
+
+        The Review Manager stamps every review with the upstream
+        generation it was materialized under.  A review of a loop that
+        still exists but carries an **older** generation describes a route
+        that was measured before the library was rebuilt, so it cannot
+        prove anything about the route now.
+        """
+        current = HEALER.review_generation_status(self._generation_row(),
+                                                   self.GENERATION)
+        self.assertEqual(current["state"], "current")
+
+        stale = HEALER.review_generation_status(
+            self._generation_row(closed_loop_version=54,
+                                 pool_scope_checksum="sha256:old-scope"),
+            self.GENERATION)
+        self.assertEqual(stale["state"], "stale")
+        fields = {item["field"] for item in stale["mismatches"]}
+        self.assertEqual(fields, {"closedLoopVersion", "poolScopeChecksum"})
+
+        unknown = HEALER.review_generation_status({"loop_key": "loop-1"},
+                                                   self.GENERATION)
+        self.assertEqual(unknown["state"], "unknown")
+
+        # A manager that publishes no generation cannot judge a review.
+        self.assertEqual(
+            HEALER.review_generation_status(self._generation_row(), {})["state"],
+            "unknown")
+
+    def test_a_stored_review_keeps_the_generation_it_was_measured_under(self):
+        """A stored review must not be relabelled with the current generation.
+
+        The Review Manager files a review under the generation its evidence
+        names and falls back to the generation it reads when the evidence
+        names none.  A stored review that names no generation was
+        therefore relabelled with whatever generation happened to be
+        current when it was written back, so an old measurement started to
+        look like a fresh one.
+        """
+        published = [{
+            "loopKey": "loop-1",
+            "closedLoopVersion": 54,
+            "closedLoopChecksum": "sha256:old",
+            "candidateEdgeVersion": 11,
+            "candidateEdgeChecksum": "sha256:old-edge",
+            "observationVersion": 14,
+            "observationChecksum": "sha256:old-observation",
+            "poolScopeChecksum": "sha256:old-scope",
+            "reviewedAt": "2026-11-26T19:29:00Z",
+            "runArbitrage": {"ok": False, "executable": True,
+                             "diagnostics": [],
+                             "signedPnl": {"raw": "-0x1", "amount": -0.5,
+                                           "currency": "ETH", "address": "0x0",
+                                           "unit": "raw", "source": "native_rust_ladder"}},
+        }]
+        with mock.patch.object(HEALER.manager_record_reader, "read_reviews",
+                               return_value=published):
+            stored = HEALER.stored_review_evidence(HEALER.DEFAULT_DB,
+                                                   "http://127.0.0.1:8091")
+        self.assertEqual(len(stored), 1)
+        generation = stored[0]["closedLoopGeneration"]
+        self.assertEqual(generation["closedLoopVersion"], 54)
+        self.assertEqual(generation["poolScopeChecksum"] if "poolScopeChecksum" in generation
+                         else generation.get("closedLoopChecksum"), "sha256:old")
+
+    def test_a_live_loop_without_a_current_review_is_not_measured(self):
+        """The review layer is not valid while a live loop is unmeasured.
+
+        A live loop whose only review was measured against an older
+        structure has no measurement of the current structure at all, so
+        the layer cannot be valid and the healer has to measure the loop
+        again.
+        """
+        published = [
+            {"loopKey": "loop-1", "reviewedAt": "2026-11-27T23:10:49Z",
+             "closedLoopVersion": 72, "closedLoopChecksum": "sha256:closed",
+             "candidateEdgeVersion": 17, "candidateEdgeChecksum": "sha256:edge",
+             "observationVersion": 20, "observationChecksum": "sha256:observation",
+             "poolScopeChecksum": "sha256:scope",
+             "signedPnl": {"amount": -0.5, "currency": "ETH"}},
+            {"loopKey": "loop-2", "reviewedAt": "2026-11-26T19:29:00Z",
+             "closedLoopVersion": 54, "closedLoopChecksum": "sha256:old",
+             "candidateEdgeVersion": 11, "candidateEdgeChecksum": "sha256:old-edge",
+             "observationVersion": 14, "observationChecksum": "sha256:old-observation",
+             "poolScopeChecksum": "sha256:old-scope",
+             "signedPnl": {"amount": -0.5, "currency": "ETH"}},
+        ]
+        status = {
+            "closedLoopVersion": 72, "materializedChecksum": "sha256:closed",
+            "candidateEdgeVersion": 17, "candidateEdgeChecksum": "sha256:edge",
+            "observationVersion": 20, "observationChecksum": "sha256:observation",
+            "poolScopeChecksum": "sha256:scope",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "reviews.sqlite3"
+            connection = sqlite3.connect(database)
+            connection.execute("CREATE TABLE manager_v4_reviews (loop_key TEXT)")
+            connection.execute("CREATE TABLE cow_execution_reviews (id INTEGER, "
+                               "network TEXT, chain_id INTEGER, created_at TEXT, "
+                               "payload_json TEXT, selected_profit_raw TEXT, "
+                               "selected_profit_amount TEXT, "
+                               "selected_profit_missing_reason TEXT)")
+            connection.commit()
+            connection.close()
+            with mock.patch.object(HEALER.manager_record_reader, "read_reviews",
+                                   return_value=published), \
+                    mock.patch.object(HEALER, "manager_read_closed_loops",
+                                      return_value={"status": status,
+                                                     "loops": [{"loopKey": "loop-1"},
+                                                               {"loopKey": "loop-2"}]}), \
+                    mock.patch.object(HEALER, "manager_review_schedules",
+                                      return_value={
+                                          "loop-1": {"nextReviewAt": "2026-11-27T23:20:49Z"},
+                                          "loop-2": {"nextReviewAt": "2026-11-27T23:20:49Z"},
+                                      }):
+                report = HEALER.audit_reviews(database, 24,
+                                             "http://127.0.0.1:8091")
+        generation = report["generation"]
+        self.assertTrue(generation["readable"])
+        self.assertEqual(generation["currentGeneration"], 1)
+        self.assertEqual(generation["staleGeneration"], 1)
+        self.assertEqual(generation["loopsWithoutCurrentReview"], 1)
+        self.assertFalse(report["valid"],
+                         "a live loop without a current measurement is a gap")
+        self.assertEqual(report["legacy"]["currentLoopStats"]["missingCurrentMeasurement"], 1)
+        reasons = {item["loopKey"]: item["reason"]
+                   for item in report["legacy"]["currentLoopFreshness"]["notCurrentLoops"]}
+        self.assertEqual(reasons.get("loop-2"), "measured_in_older_generation")
+
 
 if __name__ == "__main__":
     unittest.main()

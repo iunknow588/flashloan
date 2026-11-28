@@ -1,0 +1,255 @@
+{
+  "report": "mainnet_arbitrage_healer_cycle_excerpt",
+  "generatedAt": "2026-11-28T00:06:22Z",
+  "source": "plan/runtime_evidence/diagnostics/mainnet_self_healing_orchestrator/supervisor_20261127T235312Z.jsonl",
+  "note": "the supervisor journal is a runtime log and is ignored by git; this excerpt is the tracked evidence of the cycle",
+  "actions": [
+    "repair_reviews",
+    "repair_stale_generation_reviews",
+    "fill_current_loop_reviews",
+    "rereview_historical_positive_candidates",
+    "observe_automatic_broadcast"
+  ],
+  "blockers": [
+    "reviews",
+    "broadcast"
+  ],
+  "stable": false,
+  "before": {
+    "reviewsValid": false,
+    "generation": {
+      "readable": true,
+      "matched": 36,
+      "currentGeneration": 32,
+      "staleGeneration": 4,
+      "unknownGeneration": 0,
+      "loopsWithoutCurrentReview": 4
+    },
+    "tickAmount": {
+      "compared": 32,
+      "nonPositive": 32,
+      "bestAboveSingleTickStart": 0,
+      "bestNotAboveSingleTickStart": 32,
+      "unknown": 0,
+      "executableSizeUnsearched": 0,
+      "verdicts": {
+        "best_not_above_start_executable_domain_covered": 32
+      }
+    }
+  },
+  "after": {
+    "reviewsValid": false,
+    "generation": {
+      "readable": true,
+      "matched": 36,
+      "currentGeneration": 33,
+      "staleGeneration": 3,
+      "unknownGeneration": 0,
+      "loopsWithoutCurrentReview": 3
+    },
+    "tickAmount": {
+      "compared": 33,
+      "nonPositive": 33,
+      "bestAboveSingleTickStart": 0,
+      "bestNotAboveSingleTickStart": 33,
+      "unknown": 0,
+      "executableSizeUnsearched": 0,
+      "verdicts": {
+        "best_not_above_start_executable_domain_covered": 33
+      }
+    }
+  },
+  "staleGenerationRepair": {
+    "mode": "remeasure-stale-generation",
+    "apply": true,
+    "candidateCount": 3,
+    "evidenceCount": 0,
+    "materialization": null,
+    "results": [
+      {
+        "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0x86923f96303d656e4aa86d9d42d1e57ad2023fdc:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "path": "NVDA -> AMD -> SPY -> NVDA",
+        "evidenceCaptured": false,
+        "previousGenerationState": "stale",
+        "previousGenerationMismatches": [
+          {
+            "field": "closedLoopVersion",
+            "review": 54,
+            "current": 72
+          },
+          {
+            "field": "closedLoopChecksum",
+            "review": "sha256:287155775f878df0d9b3c96968ac35cf4e7445367ca67b103e54d17b03d89793",
+            "current": "sha256:9d0621285edac166306732236696fd29ecb2e0f8a2b205ff2f6a919b648641dc"
+          },
+          {
+            "field": "candidateEdgeVersion",
+            "review": 11,
+            "current": 17
+          },
+          {
+            "field": "candidateEdgeChecksum",
+            "review": "sha256:75d143b61f87a59cbbab2799aaa1b99256833d8afe10a69b1a862fa4dffd729a",
+            "current": "sha256:ab5d1a96ce0328edcd34eb873d1945277d0217a3093799dc3b641b42b7d976ac"
+          },
+          {
+            "field": "observationVersion",
+            "review": 14,
+            "current": 20
+          },
+          {
+            "field": "observationChecksum",
+            "review": "sha256:998bc931888f9e1861b4af0a4d0a12192a42b30a0e6d35ae3196203c7f833734",
+            "current": "sha256:44f547a0e888c414d759e730903b0caaea8eb5b4649be2a4e838d1e5d3a5d063"
+          },
+          {
+            "field": "poolScopeChecksum",
+            "review": "sha256:9987e6ccad5e51154749639a8999ea73a1c11dc69685326b6a0d604f538d7cf0",
+            "current": "sha256:9ec36f1a16a12620a7d211efb70fcd20c53f393e14b6f8e2c308807404ea7b97"
+          }
+        ],
+        "initialReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        }
+      },
+      {
+        "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x0000000000000000000000000000000000000000",
+        "path": "NVDA -> MU -> ETH -> NVDA",
+        "evidenceCaptured": false,
+        "previousGenerationState": "stale",
+        "previousGenerationMismatches": [
+          {
+            "field": "closedLoopVersion",
+            "review": 54,
+            "current": 72
+          },
+          {
+            "field": "closedLoopChecksum",
+            "review": "sha256:287155775f878df0d9b3c96968ac35cf4e7445367ca67b103e54d17b03d89793",
+            "current": "sha256:9d0621285edac166306732236696fd29ecb2e0f8a2b205ff2f6a919b648641dc"
+          },
+          {
+            "field": "candidateEdgeVersion",
+            "review": 11,
+            "current": 17
+          },
+          {
+            "field": "candidateEdgeChecksum",
+            "review": "sha256:75d143b61f87a59cbbab2799aaa1b99256833d8afe10a69b1a862fa4dffd729a",
+            "current": "sha256:ab5d1a96ce0328edcd34eb873d1945277d0217a3093799dc3b641b42b7d976ac"
+          },
+          {
+            "field": "observationVersion",
+            "review": 14,
+            "current": 20
+          },
+          {
+            "field": "observationChecksum",
+            "review": "sha256:998bc931888f9e1861b4af0a4d0a12192a42b30a0e6d35ae3196203c7f833734",
+            "current": "sha256:44f547a0e888c414d759e730903b0caaea8eb5b4649be2a4e838d1e5d3a5d063"
+          },
+          {
+            "field": "poolScopeChecksum",
+            "review": "sha256:9987e6ccad5e51154749639a8999ea73a1c11dc69685326b6a0d604f538d7cf0",
+            "current": "sha256:9ec36f1a16a12620a7d211efb70fcd20c53f393e14b6f8e2c308807404ea7b97"
+          }
+        ],
+        "initialReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        }
+      },
+      {
+        "loopKey": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec:0xff080c8ce2e5feadaca0da81314ae59d232d4afd:0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+        "path": "NVDA -> MU -> SPY -> NVDA",
+        "evidenceCaptured": false,
+        "previousGenerationState": "stale",
+        "previousGenerationMismatches": [
+          {
+            "field": "closedLoopVersion",
+            "review": 54,
+            "current": 72
+          },
+          {
+            "field": "closedLoopChecksum",
+            "review": "sha256:287155775f878df0d9b3c96968ac35cf4e7445367ca67b103e54d17b03d89793",
+            "current": "sha256:9d0621285edac166306732236696fd29ecb2e0f8a2b205ff2f6a919b648641dc"
+          },
+          {
+            "field": "candidateEdgeVersion",
+            "review": 11,
+            "current": 17
+          },
+          {
+            "field": "candidateEdgeChecksum",
+            "review": "sha256:75d143b61f87a59cbbab2799aaa1b99256833d8afe10a69b1a862fa4dffd729a",
+            "current": "sha256:ab5d1a96ce0328edcd34eb873d1945277d0217a3093799dc3b641b42b7d976ac"
+          },
+          {
+            "field": "observationVersion",
+            "review": 14,
+            "current": 20
+          },
+          {
+            "field": "observationChecksum",
+            "review": "sha256:998bc931888f9e1861b4af0a4d0a12192a42b30a0e6d35ae3196203c7f833734",
+            "current": "sha256:44f547a0e888c414d759e730903b0caaea8eb5b4649be2a4e838d1e5d3a5d063"
+          },
+          {
+            "field": "poolScopeChecksum",
+            "review": "sha256:9987e6ccad5e51154749639a8999ea73a1c11dc69685326b6a0d604f538d7cf0",
+            "current": "sha256:9ec36f1a16a12620a7d211efb70fcd20c53f393e14b6f8e2c308807404ea7b97"
+          }
+        ],
+        "initialReview": {
+          "ok": false,
+          "status": null,
+          "body": "timed out"
+        }
+      }
+    ]
+  },
+  "pnlSnapshot": {
+    "tickAmount": {
+      "compared": 33,
+      "nonPositive": 33,
+      "bestAboveSingleTickStart": 0,
+      "bestNotAboveSingleTickStart": 33,
+      "unknown": 0,
+      "executableSizeUnsearched": 0,
+      "verdicts": {
+        "best_not_above_start_executable_domain_covered": 33
+      }
+    },
+    "generation": {
+      "readable": true,
+      "currentGeneration": 33,
+      "staleGeneration": 3,
+      "unknownGeneration": 0,
+      "loopsWithoutCurrentReview": 3
+    },
+    "reviews": {
+      "total": 176,
+      "withValue": 157,
+      "missingValue": 19,
+      "executablePositive": 7,
+      "signedPnlSum": -9.184772714570801
+    }
+  },
+  "runtimeAnswers": {
+    "requests": {
+      "409": 5,
+      "404": 3
+    },
+    "lastAt": "28/Nov/2026 08:07:10",
+    "sinceLocal": "28/Nov/2026 08:06:22"
+  },
+  "honesty": [
+    "no pnl value is invented: the cycle materialized no evidence",
+    "the repair sends review requests only and never touches the broadcast path",
+    "the answers of the runtime are copied as they were: busy, not registered, timed out"
+  ]
+}
