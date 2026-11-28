@@ -257,6 +257,56 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
         self.assertEqual(environment["DEX_ACTIVE_CHAIN_ID"], "4663")
         self.assertEqual(environment["DEX_ACTIVE_NETWORK"], "robinhood")
         self.assertEqual(environment["PORT"], "5007")
+        # The healer converges the **whole** published catalog, so the
+        # runtime must not admit the closed-loop groups in ramps of
+        # sixteen: a loop without a resident worker is never reviewed.
+        self.assertEqual(environment["DEX_CLOSED_LOOP_MAX_NEW_GROUPS_PER_SCAN"], "0")
+
+    def test_closed_loop_group_refresh_retries_a_busy_runtime(self):
+        answers = [
+            {"ok": True, "status": 200,
+             "body": '{"ok": false, "error": "closed_loop_submission_busy"}'},
+            {"ok": True, "status": 200,
+             "body": '{"ok": false, "error": "closed_loop_submission_busy"}'},
+            {"ok": True, "status": 200, "body": '{"ok": true, "queued": true}'},
+        ]
+        calls = []
+
+        def fake_api_post(base, path, body):
+            calls.append((base, path, body))
+            return answers[len(calls) - 1]
+
+        with mock.patch.object(HEALER, "api_post", side_effect=fake_api_post), \
+                mock.patch.object(HEALER.time, "sleep") as sleep:
+            response = HEALER.refresh_closed_loop_group(
+                "http://127.0.0.1:5000", "usdg|nvda|mu")
+
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(response["attempts"], 3)
+        self.assertEqual(response["body"], '{"ok": true, "queued": true}')
+        self.assertIn("usdg%7Cnvda%7Cmu", calls[0][1])
+        # The retry waits between the attempts, and it waits before the
+        # attempt that follows, never after the last one.
+        self.assertEqual(sleep.call_count, 2)
+
+    def test_closed_loop_group_refresh_does_not_retry_a_real_answer(self):
+        answers = [
+            {"ok": True, "status": 200, "body": '{"ok": false, "error": "closed_loop_group_not_found"}'},
+        ]
+        calls = []
+
+        def fake_api_post(base, path, body):
+            calls.append((base, path, body))
+            return answers[0]
+
+        with mock.patch.object(HEALER, "api_post", side_effect=fake_api_post), \
+                mock.patch.object(HEALER.time, "sleep") as sleep:
+            response = HEALER.refresh_closed_loop_group(
+                "http://127.0.0.1:5000", "usdg|nvda|mu")
+
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(response["attempts"], 1)
+        self.assertEqual(sleep.call_count, 0)
 
     def test_healing_actions_stop_at_first_invalid_upstream_layer(self):
         report = {

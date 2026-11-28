@@ -1,0 +1,5 @@
+opportunity console listening on 0.0.0.0:5000
+control panel: http://127.0.0.1:5000
+runtime profile: profile=v4_dex cow_quote=false cow_submit=false liquidation_auto=false bnb_collector=0 cooldown=0.25s max_inflight=2
+ * Serving Flask app 'web.control_panel'
+ * Debug mode: off

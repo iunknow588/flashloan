@@ -1,0 +1,5 @@
+{
+  "ok": false,
+  "error": "timed out",
+  "url": "http://127.0.0.1:5000/api/dex/opportunity-scanner/snapshot?chain_id=4663&protocols=uniswap_v4&summary=1"
+}

@@ -4660,6 +4660,17 @@ def runtime_environment(port: int) -> dict[str, str]:
         "FLASHLOAN_RUNTIME_PROFILE": "v4_dex",
         "DEX_ACTIVE_CHAIN_ID": str(CHAIN_ID),
         "DEX_ACTIVE_NETWORK": NETWORK,
+        # The healer converges the **whole** published catalog, so the
+        # runtime must not admit the closed-loop groups in ramps.  The
+        # runtime's own default is a ramp of sixteen new groups per scan:
+        # a scan that admits only a part of the catalog leaves the rest of
+        # the loops without a resident worker, and a loop without a worker
+        # is never reviewed, so it is never broadcast either.  The zero
+        # override is the documented way to admit every pending group in
+        # one scan; the resident limit still bounds how many groups may hold
+        # a worker at all, and the review concurrency still bounds how many
+        # of them measure at the same time.
+        "DEX_CLOSED_LOOP_MAX_NEW_GROUPS_PER_SCAN": "0",
         "PORT": str(port),
         "PYTHONUNBUFFERED": "1",
     })
@@ -5863,6 +5874,47 @@ def resolve_closed_loop_group_key(runtime_api: str, route_symbols: list[str]) ->
     return resolved or requested
 
 
+#: The runtime refuses a group refresh while its background scan is
+#: submitting the closed-loop groups, and it marks that answer as
+#: **retryable**.  The refusal lasts for the duration of that submission, so
+#: a short bounded retry turns "come back in the next cycle" into "waited
+#: a few seconds".  The number of attempts is small on purpose: the healer
+#: refreshes one group per candidate, so an unbounded wait would stall the
+#: whole cycle on a single busy runtime.
+CLOSED_LOOP_REFRESH_BUSY_ATTEMPTS = 3
+CLOSED_LOOP_REFRESH_BUSY_SLEEP_SECONDS = 10.0
+
+
+def refresh_closed_loop_group(
+    runtime_api: str,
+    group_key: str,
+    attempts: int = CLOSED_LOOP_REFRESH_BUSY_ATTEMPTS,
+    sleep_seconds: float = CLOSED_LOOP_REFRESH_BUSY_SLEEP_SECONDS,
+) -> dict[str, Any]:
+    """Ask the runtime to register and start one closed-loop group.
+
+    The runtime answers ``closed_loop_submission_busy`` while its
+    background scan is submitting the closed-loop groups.  That answer is
+    transient and retryable, so it is retried a bounded number of times;
+    every other answer is returned as it is.
+    """
+    path = (
+        "/api/dex/closed-loop-groups/"
+        + urllib.parse.quote(group_key, safe="")
+        + f"/refresh?chain_id={CHAIN_ID}"
+    )
+    total = max(1, int(attempts))
+    response: dict[str, Any] = {"ok": False, "status": None, "body": "no attempt"}
+    for attempt in range(1, total + 1):
+        response = api_post(runtime_api, path, {"mode": "deep"})
+        response["attempts"] = attempt
+        if not response_contains(response, "closed_loop_submission_busy"):
+            return response
+        if attempt < total:
+            time.sleep(max(0.0, float(sleep_seconds)) * attempt)
+    return response
+
+
 def request_live_review(
     db: Path,
     runtime_api: str,
@@ -5921,12 +5973,7 @@ def request_live_review(
         result["workerRefreshApplied"] = False
         result["finalReview"] = initial
         return _attach_completed_review(db, candidate, result, collect)
-    refresh_path = (
-        "/api/dex/closed-loop-groups/"
-        + urllib.parse.quote(group_key, safe="")
-        + f"/refresh?chain_id={CHAIN_ID}"
-    )
-    refresh = api_post(runtime_api, refresh_path, {"mode": "deep"})
+    refresh = refresh_closed_loop_group(runtime_api, group_key)
     result["workerRefreshApplied"] = True
     result["workerRefresh"] = refresh
     if not response_succeeded(refresh):

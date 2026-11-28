@@ -1,4 +1,4 @@
-﻿"""Closed-loop runtime state machine with index-only queues.
+"""Closed-loop runtime state machine with index-only queues.
 
 The state names align with the route-level UI state machine in
 ``app_runtime/web/static/dex_quotes/route_state_machine.js`` and the terminal
@@ -380,8 +380,17 @@ def _canonical_runtime_market_id(value: Any) -> tuple[str, bool]:
 
 
 def ensure_runtime_state_table(database_url: str) -> None:
-    execute(database_url, V4_CLOSED_LOOP_RUNTIME_STATE_DDL)
-    execute(database_url, V4_CLOSED_LOOP_ERROR_ISOLATION_DDL)
+    """Make sure the runtime state tables exist with their current columns.
+
+    The check is **read first**: the tables are created and the missing
+    columns are added only when the store does not have them yet.  This
+    function is called from the state *reads* as well as from the state
+    writes, and the store has exactly one writer.  A write on every call
+    therefore turned every state read into a write transaction, which both
+    waited for the store's writer (and failed the read outright with
+    ``database is locked`` while another writer held the lock) and added
+    write traffic of its own.
+    """
     existing_columns = {
         str(row.get("name") or "")
         for row in query(
@@ -389,6 +398,15 @@ def ensure_runtime_state_table(database_url: str) -> None:
             f"PRAGMA table_info({V4_CLOSED_LOOP_RUNTIME_STATE_TABLE})",
         )
     }
+    if not existing_columns:
+        execute(database_url, V4_CLOSED_LOOP_RUNTIME_STATE_DDL)
+        existing_columns = {
+            str(row.get("name") or "")
+            for row in query(
+                database_url,
+                f"PRAGMA table_info({V4_CLOSED_LOOP_RUNTIME_STATE_TABLE})",
+            )
+        }
     for name, declaration in {
         "review_cycle_id": "TEXT",
         "claimed_at": "TEXT",
@@ -402,6 +420,13 @@ def ensure_runtime_state_table(database_url: str) -> None:
                 database_url,
                 f"ALTER TABLE {V4_CLOSED_LOOP_RUNTIME_STATE_TABLE} ADD COLUMN {name} {declaration}",
             )
+    isolation_rows = query(
+        database_url,
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (V4_CLOSED_LOOP_ERROR_ISOLATION_TABLE,),
+    )
+    if not isolation_rows:
+        execute(database_url, V4_CLOSED_LOOP_ERROR_ISOLATION_DDL)
 
 
 def _isolation_identity_sql() -> str:
