@@ -2693,6 +2693,124 @@ class MainnetArbitrageHealerTests(unittest.TestCase):
                 True, True, "http://manager")
         self.assertEqual(claimed, ["loop-a"])
 
+    def test_a_claim_of_a_round_that_never_started_is_given_back(self):
+        """A claim that parks a loop has to go back when the round fails.
+
+        The claim parks the loop at the review sentinel until the round
+        lands, and a parked loop is never due again and never claimed
+        again.  When the runtime refuses the review and the worker cannot
+        be registered, the round never starts -- so the claim has to be
+        given back, or the loop is bricked for good.
+        """
+        claim = {"ok": True, "claimed": True,
+                 "reviewCycleStartedAt": "2026-11-28T05:00:00+00:00"}
+        released: list[str] = []
+
+        def fake_post(base, path, body, *args, **kwargs):
+            if path.endswith("/review-cycle"):
+                return {"ok": True, "status": 200, "body": json.dumps({
+                    "ok": True,
+                    "data": {"claimed": False,
+                             "reviewCycleStartedAt": "2026-11-28T05:00:00+00:00",
+                             "nextReviewAt": HEALER.REVIEW_PENDING_SENTINEL_AT}})}
+            if path.endswith("/review-request"):
+                released.append(path)
+                return {"ok": True, "status": 200, "body": '{"ok":true}'}
+            return {"ok": False, "status": 404,
+                    "body": '{"ok":false,"error":"closed_loop_group_not_found"}'}
+
+        with mock.patch.object(HEALER, "begin_review_cycle", return_value=claim), \
+                mock.patch.object(HEALER, "api_post", side_effect=fake_post), \
+                mock.patch.object(HEALER, "resolve_closed_loop_group_key",
+                                  return_value="eth|spy|googl"), \
+                mock.patch.object(HEALER, "refresh_closed_loop_group",
+                                  return_value={"ok": False, "status": 500,
+                                                "body": "no worker"}), \
+                mock.patch.object(HEALER, "collect_completed_review",
+                                  return_value=None):
+            result = HEALER.request_live_review(
+                Path("unused.sqlite3"), "http://runtime",
+                {"loopKey": "loop-a", "routeSymbols": [], "routeAddresses": []},
+                True, True, "http://manager")
+        self.assertTrue(result["claimRelease"]["released"])
+        self.assertEqual(released, ["/v1/closed-loops/review-request"])
+
+    def test_a_claim_of_another_round_is_not_given_back(self):
+        """Only a claim that is ours, or an abandoned one, is released.
+
+        The moment the round started is the token of the claim.  A parked
+        loop whose claim belongs to another round is left alone, so a
+        round that is still running is never disturbed.
+        """
+        claim = {"ok": True, "claimed": True,
+                 "reviewCycleStartedAt": "2026-11-28T05:00:00+00:00"}
+
+        def fake_post(base, path, body, *args, **kwargs):
+            if path.endswith("/review-cycle"):
+                return {"ok": True, "status": 200, "body": json.dumps({
+                    "ok": True,
+                    "data": {"claimed": False,
+                             "reviewCycleStartedAt": "2026-11-28T05:30:00+00:00",
+                             "nextReviewAt": HEALER.REVIEW_PENDING_SENTINEL_AT}})}
+            if path.endswith("/review-request"):
+                raise AssertionError("a claim of another round must not be given back")
+            return {"ok": False, "status": 404,
+                    "body": '{"ok":false,"error":"closed_loop_group_not_found"}'}
+
+        with mock.patch.object(HEALER, "begin_review_cycle", return_value=claim), \
+                mock.patch.object(HEALER, "api_post", side_effect=fake_post), \
+                mock.patch.object(HEALER, "resolve_closed_loop_group_key",
+                                  return_value="eth|spy|googl"), \
+                mock.patch.object(HEALER, "refresh_closed_loop_group",
+                                  return_value={"ok": False, "status": 500,
+                                                "body": "no worker"}), \
+                mock.patch.object(HEALER, "collect_completed_review",
+                                  return_value=None):
+            result = HEALER.request_live_review(
+                Path("unused.sqlite3"), "http://runtime",
+                {"loopKey": "loop-a", "routeSymbols": [], "routeAddresses": []},
+                True, True, "http://manager")
+        self.assertFalse(result["claimRelease"]["released"])
+        self.assertEqual(result["claimRelease"]["reason"],
+                         "the_claim_belongs_to_another_round")
+
+    def test_an_abandoned_claim_is_given_back_by_the_sweep(self):
+        """A claim of a healer that is gone is given back by the sweep.
+
+        The claim parks the loop at the review sentinel, and a parked loop
+        is never due again.  A claim that is older than the stale window
+        cannot land any more, so the loop it parked is given back and can
+        be measured again.
+        """
+        old = (dt.datetime.now(dt.timezone.utc)
+               - dt.timedelta(seconds=HEALER.REVIEW_CLAIM_STALE_SECONDS + 60))
+        parked = [{"loopKey": "loop-old",
+                   "claimStartedAt": old.isoformat()},
+                  {"loopKey": "loop-fresh",
+                   "claimStartedAt": dt.datetime.now(dt.timezone.utc).isoformat()}]
+        released: list[str] = []
+
+        def fake_post(base, path, body, *args, **kwargs):
+            if path.endswith("/review-cycle"):
+                return {"ok": True, "status": 200, "body": json.dumps({
+                    "ok": True,
+                    "data": {"claimed": False,
+                             "reviewCycleStartedAt": old.isoformat(),
+                             "nextReviewAt": HEALER.REVIEW_PENDING_SENTINEL_AT}})}
+            if path.endswith("/review-request"):
+                released.append(str(body.get("loopKey")))
+                return {"ok": True, "status": 200, "body": '{"ok":true}'}
+            raise AssertionError("unexpected call")
+
+        with mock.patch.object(HEALER, "all_rows", return_value=parked), \
+                mock.patch.object(HEALER, "api_post", side_effect=fake_post):
+            report = HEALER.release_abandoned_review_claims(
+                Path("unused.sqlite3"), "http://manager", True)
+        self.assertEqual(released, ["loop-old"])
+        self.assertEqual(report["parked"], 2)
+        self.assertEqual(report["released"], 1)
+        self.assertEqual(report["keptLoops"], ["loop-fresh"])
+
     def test_the_orchestrator_never_reads_the_review_interval(self):
         """The review interval belongs to the helper that schedules a loop.
 

@@ -592,6 +592,19 @@ def due_review_queue(manager_api: str | None,
             "loops": [row for row in loops if isinstance(row, dict)]}
 
 
+# A review claim parks its loop at the review sentinel until the round it
+# started lands, and a parked loop is never due again and never claimed
+# again.  Only the healer takes a claim, so a claim that is older than
+# this window belongs to a healer that is gone, and the loop it parked
+# has to be given back.  The window is far longer than a round of the
+# review takes, so a round that is still running is never mistaken for an
+# abandoned one.
+REVIEW_CLAIM_STALE_SECONDS = 45 * 60
+# The moment a parked loop carries.  It is a moment far in the future, so
+# a loop that waits for it waits for good.
+REVIEW_PENDING_SENTINEL_AT = "2036-06-06T06:06:00+00:00"
+
+
 def begin_review_cycle(manager_api: str | None,
                        loop_key: str,
                        chain_id: int | None = None) -> dict[str, Any]:
@@ -619,6 +632,143 @@ def begin_review_cycle(manager_api: str | None,
             "reviewCycleStartedAt": data.get("reviewCycleStartedAt"),
             "nextReviewAt": data.get("nextReviewAt"),
             "error": payload.get("error")}
+
+
+def read_moment(moment: Any) -> dt.datetime | None:
+    """Read an RFC 3339 moment, with or without a fraction of a second."""
+    text = str(moment or "").strip()
+    if not text:
+        return None
+    try:
+        return dt.datetime.fromisoformat(text)
+    except ValueError:
+        pass
+    match = re.match(
+        r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(\.\d+)?(Z|[+-]\d{2}:?\d{2})?$",
+        text,
+    )
+    if not match:
+        return None
+    try:
+        base = dt.datetime.strptime(match.group(1), "%Y-%m-%dT%H:%M:%S")
+    except ValueError:
+        return None
+    offset = (match.group(3) or "+00:00")
+    if offset == "Z":
+        offset = "+00:00"
+    if len(offset) == 5:
+        offset = offset[:3] + ":" + offset[3:]
+    try:
+        return dt.datetime.fromisoformat(base.isoformat() + offset)
+    except ValueError:
+        return None
+
+
+def review_claim_is_stale(claim_started_at: Any,
+                          stale_seconds: float = REVIEW_CLAIM_STALE_SECONDS) -> bool:
+    """Say whether a review claim is old enough to count as abandoned.
+
+    Only the healer takes a review claim, so a claim that is older than
+    the stale window belongs to a healer that is gone: its round can no
+    longer land, and the loop it parked would stay parked for good.
+    """
+    moment = read_moment(claim_started_at)
+    if moment is None:
+        return False
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=dt.timezone.utc)
+    age = (dt.datetime.now(dt.timezone.utc) - moment).total_seconds()
+    return age >= float(stale_seconds)
+
+
+def release_review_claim(manager_api: str | None,
+                         loop_key: str,
+                         claim: dict[str, Any] | None,
+                         stale_seconds: float = REVIEW_CLAIM_STALE_SECONDS
+                         ) -> dict[str, Any]:
+    """Give a review claim back when the round it started never ran.
+
+    A claim parks the loop at the review sentinel, and a parked loop is
+    never claimed again and never becomes due again: the clock advance
+    skips the sentinel, and a claim refuses a parked loop.  A round that
+    never started therefore bricks the loop for good -- its review stays
+    on an older generation and the broadcast gate never sees a fresh
+    profit from it.
+
+    The moment the round started is the token of the claim.  The dry run
+    of a claim reads that moment back without touching the loop, so a
+    claim that belongs to another round is never given back; only the
+    claim this healer took, or a claim that is older than the stale
+    window, is released.
+    """
+    if not manager_api or not loop_key:
+        return {"ok": False, "released": False, "reason": "manager_api_unavailable"}
+    probe = api_post_transient(manager_api, "/v1/closed-loops/review-cycle",
+                               {"chainId": CHAIN_ID, "loopKey": loop_key,
+                                "dryRun": True})
+    payload = response_payload(probe)
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    parked_since = str(data.get("reviewCycleStartedAt") or "")
+    parked_until = str(data.get("nextReviewAt") or "")
+    if not parked_since or parked_until != REVIEW_PENDING_SENTINEL_AT:
+        return {"ok": True, "released": False, "reason": "loop_is_not_parked"}
+    ours = str((claim or {}).get("reviewCycleStartedAt") or "")
+    stale = review_claim_is_stale(parked_since, stale_seconds)
+    if not ((ours and parked_since == ours) or stale):
+        return {"ok": True, "released": False,
+                "reason": "the_claim_belongs_to_another_round",
+                "parkedSince": parked_since, "stale": stale}
+    release = api_post_transient(manager_api, "/v1/closed-loops/review-request",
+                                 {"chainId": CHAIN_ID, "loopKey": loop_key,
+                                  "dryRun": False, "waitSeconds": 0})
+    return {"ok": bool(release.get("ok")), "released": bool(release.get("ok")),
+            "reason": "claim_released" if release.get("ok")
+            else "the_release_was_refused",
+            "parkedSince": parked_since, "stale": stale,
+            "status": release.get("status")}
+
+
+def release_abandoned_review_claims(db: Path,
+                                     manager_api: str | None,
+                                     apply: bool,
+                                     stale_seconds: float = REVIEW_CLAIM_STALE_SECONDS
+                                     ) -> dict[str, Any]:
+    """Give back the review claims that no round will ever land.
+
+    A claim parks its loop at the review sentinel, and a parked loop is
+    never due again and never claimable again, so a claim whose round
+    never started bricks the loop.  Only the healer takes a claim, so a
+    claim that is older than the stale window belongs to a healer that is
+    gone: its loops are given back, they become due again, and the next
+    round can measure them.
+    """
+    parked = all_rows(
+        db,
+        "SELECT loop_key AS loopKey,"
+        "       review_cycle_started_at AS claimStartedAt"
+        "  FROM manager_v4_closed_loop_runtime_state"
+        " WHERE runtime_status = 'review_pending' AND next_review_at = ?1",
+        (REVIEW_PENDING_SENTINEL_AT,),
+    )
+    released: list[str] = []
+    kept: list[str] = []
+    for row in parked:
+        loop_key = str(row.get("loopKey") or "")
+        if not loop_key:
+            continue
+        if not review_claim_is_stale(row.get("claimStartedAt"), stale_seconds):
+            kept.append(loop_key)
+            continue
+        if not apply:
+            continue
+        result = release_review_claim(manager_api, loop_key, None, stale_seconds)
+        if result.get("released"):
+            released.append(loop_key)
+        else:
+            kept.append(loop_key)
+    return {"ok": True, "parked": len(parked), "released": len(released),
+            "releasedLoops": released, "keptLoops": kept,
+            "staleSeconds": stale_seconds}
 
 
 def table_names(db: Path) -> set[str]:
@@ -5988,6 +6138,12 @@ def request_live_review(
     result["workerRefresh"] = refresh
     if not response_succeeded(refresh):
         result["finalReview"] = initial
+        # The round never started: the runtime has no worker for this
+        # group and the registration of one failed.  The claim this
+        # healer took parks the loop at the review sentinel, and a parked
+        # loop never becomes due again, so the claim is given back.
+        result["claimRelease"] = release_review_claim(
+            manager_api, str(candidate.get("loopKey") or ""), claim)
         return _attach_completed_review(db, candidate, result, collect)
     result["reviewTriggeredByRefresh"] = True
     result["finalReview"] = refresh
@@ -8028,6 +8184,13 @@ def supervise(
                     continue
 
             try:
+                # A claim that no round will ever land parks its loop at
+                # the review sentinel, and a parked loop never becomes due
+                # again.  The claims of a healer that is gone are given
+                # back first, so the loops they parked can be measured in
+                # this round.
+                released_claims = release_abandoned_review_claims(
+                    db, manager_api, apply)
                 # The closed loop runs a **review clock**: the loop starts
                 # the clock when it has been dealt with and the clock runs
                 # until the loop is due again.  Advancing the clocks is
@@ -8042,6 +8205,8 @@ def supervise(
                 before = build_report(db, hours, tools, manager_api)
                 actions = healing_actions(before)
                 outcomes: list[dict[str, Any]] = [
+                    {"action": "release_abandoned_review_claims",
+                     "result": released_claims},
                     {"action": "advance_review_clocks", "result": clock_outcome},
                     {"action": "due_review_loops",
                      "result": {"ok": bool(due_queue.get("ok")),

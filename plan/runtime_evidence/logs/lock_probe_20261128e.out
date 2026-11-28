@@ -1,0 +1,18 @@
+00 locked=True wait=0.631s
+01 locked=True wait=0.633s
+02 locked=True wait=0.633s
+03 locked=True wait=0.615s
+04 locked=True wait=0.632s
+05 locked=True wait=0.614s
+06 locked=True wait=0.635s
+07 locked=True wait=0.63s
+08 locked=True wait=0.617s
+09 locked=True wait=0.647s
+10 locked=True wait=0.62s
+11 locked=True wait=0.645s
+{
+  "samples": 12,
+  "freeSamples": 0,
+  "lockedSamples": 12,
+  "maxWaitSeconds": 0.0
+}
