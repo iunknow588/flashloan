@@ -608,9 +608,9 @@ def begin_review_cycle(manager_api: str | None,
     if not manager_api:
         return {"ok": False, "reason": "manager_api_unavailable", "claimed": False}
     target_chain = int(chain_id if chain_id is not None else CHAIN_ID)
-    response = api_post(manager_api, "/v1/closed-loops/review-cycle",
-                        {"chainId": target_chain, "loopKey": loop_key,
-                         "dryRun": False})
+    response = api_post_transient(manager_api, "/v1/closed-loops/review-cycle",
+                                  {"chainId": target_chain, "loopKey": loop_key,
+                                   "dryRun": False})
     payload = response_payload(response)
     data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
     return {"ok": bool(response.get("ok")),
@@ -5030,7 +5030,7 @@ def repair_scope_policy(manager_api: str, apply: bool,
                                 "dryRun": not apply}
         if token_load_mode:
             body["tokenLoadMode"] = token_load_mode
-        response = api_post(manager_api, "/v1/pools/scopes/rebuild", body)
+        response = api_post_transient(manager_api, "/v1/pools/scopes/rebuild", body)
         results.append({"scopeKey": scope, "tokenLoadMode": token_load_mode,
                         "configuredLibraries": configured,
                         "response": response})
@@ -5071,7 +5071,7 @@ def repair_downstream_cascade(
         body: dict[str, Any] = {"chainId": CHAIN_ID, "dryRun": not apply}
         if scope_key:
             body["scopeKey"] = scope_key
-        response = api_post(manager_api, path, body)
+        response = api_post_transient(manager_api, path, body)
         results.append({"layer": name, "path": path, "response": response})
     return {"tool": "manager-api", "action": "cascade.rebuild",
             "apply": apply, "dryRun": not apply,
@@ -5731,6 +5731,16 @@ def materialize_reviews(
 
     The materialization therefore goes through the manager API, which owns
     the write connection and the idempotency ledger.
+
+    The call is **retried** when the manager answers with a transient
+    failure.  The store keeps the review rows of the current generation in
+    the same file as the big objects, and that file has one writer.  A
+    writer that cannot take the write lock is refused with ``database is
+    locked``, and that refusal says nothing about the review: the review
+    was measured, and it is still measured.  Dropping it would turn a
+    locked store into a missing profit.  The retry carries the same
+    evidence, and the Review Manager replaces the review set of the scope
+    with what it receives, so the retry writes the same generation.
     """
     if not evidence:
         return {"mode": "materialize-reviews", "generatedAt": now(), "apply": apply,
@@ -5788,7 +5798,7 @@ def materialize_reviews(
     body = {"chainId": CHAIN_ID, "dryRun": not apply, "evidence": merged}
     if expected:
         body["expectedUpstream"] = expected
-    response = api_post(manager_api, "/v1/reviews/run", body)
+    response = api_post_transient(manager_api, "/v1/reviews/run", body)
     materialized = count(db, "manager_v4_reviews") if apply else None
     return {"mode": "materialize-reviews", "generatedAt": now(), "apply": apply,
             "dryRun": not apply, "evidenceCount": len(merged),
@@ -7274,7 +7284,7 @@ def repair_broadcast_failures(
             }],
             "dryRun": not apply,
         }
-        response = api_post(manager_api, "/v1/broadcasts/finalize", body)
+        response = api_post_transient(manager_api, "/v1/broadcasts/finalize", body)
         entry["finalizeResponse"] = {
             "ok": response_succeeded(response),
             "statusCode": response.get("status"),
@@ -7496,7 +7506,7 @@ def repair(db: Path, tools: Path, manager_api: str, apply: bool, hours: int) -> 
             "duplicateLoopsCollapsed": duplicate_loops,
             "missingPnl": sum(item["runArbitrage"]["signedPnl"] is None for item in evidence),
             "expectedUpstream": expected_upstream or None,
-            "result": api_post(manager_api, "/v1/reviews/run", body)})
+            "result": api_post_transient(manager_api, "/v1/reviews/run", body)})
     # The broadcast layer is **delegated**, not skipped. The healer never
     # signs, never invents a nonce and never builds a transaction: a
     # broadcast is only ever produced by the real runtime from a real
@@ -7582,7 +7592,7 @@ def repair_resolve_token(db: Path, manager_api: str, apply: bool,
             body["dryRun"] = False
         else:
             body["dryRun"] = True
-        response = api_post(manager_api, "/v1/tokens/resolve", body)
+        response = api_post_transient(manager_api, "/v1/tokens/resolve", body)
         results.append({
             "symbol": target["symbol"],
             "defectKinds": target["defectKinds"],

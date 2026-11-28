@@ -2838,6 +2838,36 @@ class MainnetArbitrageHealerCascadeTests(unittest.TestCase):
                          [HEALER.TRANSIENT_API_BACKOFF_SECONDS,
                           HEALER.TRANSIENT_API_BACKOFF_SECONDS * 2])
 
+    def test_a_review_that_hit_a_locked_store_is_retried_instead_of_dropped(self):
+        """A locked store must not turn a measured review into a missing one.
+
+        The review rows of the current generation live in the same file as
+        the big objects, so a writer that waits for the write lock of that
+        file is refused with ``database is locked``.  The refusal is a
+        property of the store and not of the review, so the review is
+        submitted again instead of being dropped.
+        """
+        answers = [
+            {"ok": False, "status": 503,
+             "body": ('{"ok":false,"error":{"code":"UPSTREAM_UNAVAILABLE",'
+                      '"message":"review storage error: database is locked",'
+                      '"retryable":true,"stage":"review.run"}}')},
+            {"ok": True, "status": 200, "body": '{"ok":true}'},
+        ]
+        evidence = [{"loopKey": "0xaa:0xbb:0xcc", "signedPnl": {"raw": "-0x1"}}]
+        with mock.patch.object(HEALER, "api_post", side_effect=answers) as api_post, \
+                mock.patch.object(HEALER, "review_expected_upstream", return_value={}), \
+                mock.patch.object(HEALER, "merge_with_stored_evidence",
+                                  return_value=(evidence, 0, [])), \
+                mock.patch.object(HEALER, "count", return_value=1), \
+                mock.patch.object(HEALER.time, "sleep"):
+            report = HEALER.materialize_reviews(
+                Path("store.sqlite3"), "http://manager", evidence, True)
+        # The locked store is asked twice, and the second answer is kept.
+        self.assertEqual(api_post.call_count, 2)
+        self.assertTrue(report["response"]["ok"])
+        self.assertEqual(report["response"]["attempts"], 2)
+
     def test_a_refusal_by_the_manager_is_not_retried(self):
         with mock.patch.object(HEALER, "api_post",
                                return_value={"ok": False, "status": 400,

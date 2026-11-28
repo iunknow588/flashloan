@@ -1,0 +1,3 @@
+usage: sql_query_20261128.py [-h] [--database DATABASE] --sql SQL
+                             [--limit LIMIT]
+sql_query_20261128.py: error: unrecognized arguments: (SELECT COUNT(*) FROM v4_exchange_pool_recent_swap_activity) AS swaps, (SELECT COUNT(*) FROM cow_execution_reviews) AS reviews, (SELECT COUNT(*) FROM manager_events) AS events
