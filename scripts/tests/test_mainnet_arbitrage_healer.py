@@ -3254,6 +3254,7 @@ class MainnetArbitrageHealerCascadeTests(unittest.TestCase):
         self.assertEqual(paths, [
             "/v1/directional-pools/rebuild",
             "/v1/candidate-edge-pools/rebuild",
+            "/v1/directional-pools/rebuild",
             "/v1/candidate-exchange-pools/rebuild",
             "/v1/closed-loops/rebuild",
         ])
@@ -3266,9 +3267,37 @@ class MainnetArbitrageHealerCascadeTests(unittest.TestCase):
         self.assertEqual(paths[-1], "/v1/closed-loops/rebuild")
         directional_bodies = [body for path, body in calls
                               if path == "/v1/directional-pools/rebuild"]
-        self.assertEqual(len(directional_bodies), 1)
+        self.assertEqual(len(directional_bodies), 2)
         self.assertEqual(directional_bodies[0].get("scopeKey"), HEALER.SCOPE)
         self.assertFalse(directional_bodies[0]["dryRun"])
+
+    def test_the_cascade_rebuilds_the_direction_layer_of_the_observation_scope(self):
+        # The observation rows belong to the observation scope, and the
+        # view that resolves their optimal pool joins the direction layer
+        # **of that scope**.  A direction layer of the previous scope
+        # leaves the view without an optimal pool, and the closed loop
+        # layer then refuses to publish the whole catalog with
+        # POOL_INVALID -- the way the rebuild failed on 2026-11-28.
+        calls = []
+
+        def fake_post(base, path, body):
+            calls.append((path, dict(body)))
+            return {"ok": True, "status": 200, "body": "{}"}
+
+        with mock.patch.object(HEALER, "api_post", side_effect=fake_post):
+            HEALER.repair_downstream_cascade("http://127.0.0.1:8091", True)
+
+        scopes = [body.get("scopeKey") for path, body in calls
+                  if path == "/v1/directional-pools/rebuild"]
+        self.assertEqual(scopes, [HEALER.SCOPE, HEALER.OBSERVATION_SCOPE])
+        observation_scope = calls[[path for path, _body in calls].index(
+            "/v1/candidate-exchange-pools/rebuild") - 1]
+        self.assertEqual(observation_scope[1].get("scopeKey"),
+                         HEALER.OBSERVATION_SCOPE,
+                         "the observation scope's direction layer must be "
+                         "rebuilt before the observation layer publishes rows")
+        closed_loop = calls[-1]
+        self.assertEqual(closed_loop[0], "/v1/closed-loops/rebuild")
 
 
 if __name__ == "__main__":

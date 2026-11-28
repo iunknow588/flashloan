@@ -1,0 +1,55 @@
+{
+  "managerApi": "http://127.0.0.1:8091",
+  "chainId": 4663,
+  "scopeKey": "core4",
+  "dryRun": false,
+  "order": [
+    "directionalPools",
+    "candidateEdge",
+    "candidateExchange",
+    "closedLoops"
+  ],
+  "results": [
+    {
+      "layer": "directionalPools",
+      "path": "/v1/directional-pools/rebuild",
+      "body": {
+        "chainId": 4663,
+        "dryRun": false,
+        "scopeKey": "core4"
+      },
+      "status": 200,
+      "response": "{\"ok\":true,\"version\":\"manager_dto_v1\",\"generatedAt\":\"2026-11-28T02:59:57.603492700+00:00\",\"chainId\":4663,\"requestId\":\"cascade-6c1df36c27ff40daa1264b1ee9c66cde\",\"data\":{\"network\":\"robinhood\",\"chainId\":4663,\"protocol\":\"uniswap_v4\",\"scopeKey\":\"core4\",\"apply\":true,\"dryRun\":false,\"poolScopeVersion\":1,\"poolScopeChecksum\":\"sha256:9ec36f1a16a12620a7d211efb70fcd20c53f393e14b6f8e2c308807404ea7b97\",\"snapshotChecksum\":\"sha256:c1e1b06132a93e9548d6c4cdedb6b4e030d64290780140b312cde1dabb509928\",\"basePoolCount\":434,\"directionalPoolCount\":232,\"direction0Count\":116,\"direction1Count\":116,\"eligiblePairCount\":48,\"measuredCapacityCount\":104,\"measuredOutputCount\":103,\"excludedPoolCount\":318,\"changedRows\":0,\"directionalPoolVersion\":54,\"materializedChecksum\":\"sha256:73ecd3522c3c7f6007da71eb41a39cc78d7f193b958e200b823c86bbfe334450\",\"consumersNeedRebuild\":false,\"idempotentReplay\":false},\"error\":null}"
+    },
+    {
+      "layer": "candidateEdge",
+      "path": "/v1/candidate-edge-pools/rebuild",
+      "body": {
+        "chainId": 4663,
+        "dryRun": false
+      },
+      "status": 200,
+      "response": "{\"ok\":true,\"version\":\"manager_dto_v1\",\"generatedAt\":\"2026-11-28T02:59:57.816539900+00:00\",\"chainId\":4663,\"requestId\":\"cascade-64cc38f3de2b4af293e0dd100fe90f31\",\"data\":{\"network\":\"robinhood\",\"chainId\":4663,\"protocol\":\"uniswap_v4\",\"scopeKey\":\"core4\",\"apply\":true,\"dryRun\":false,\"poolScopeChecksum\":\"sha256:9ec36f1a16a12620a7d211efb70fcd20c53f393e14b6f8e2c308807404ea7b97\",\"libraryVersions\":{\"core\":1,\"extension\":3,\"stocks\":1,\"test\":1},\"libraryChecksums\":{\"core\":\"sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452\",\"extension\":\"sha256:d492fbe1440810623e500f74e0572949d9151e29ca17d23e242a9a852000bbf1\",\"stocks\":\"sha256:a7752808e288c80f4445b912f7d5883bd23577f6fa53a352d093c6683801cb2e\",\"test\":\"sha256:c345fa3181bf5662f9401d3e766a503e8bf1d7e2b40cec747a31335773efaf5b\"},\"sourcePoolCount\":434,\"eligiblePoolCount\":64,\"abnormalPoolCount\":804,\"anchorTokenCount\":16,\"candidateTokenCount\":16,\"recommendationCount\":128,\"skipReasonCounts\":{},\"changedRows\":1396,\"candidateVersion\":18,\"materializedChecksum\":\"sha256:21b942287e1145f0d4d9751a219d48879e832a153466a7932794a25343d678ba\",\"consumersNeedRebuild\":true,\"idempotentReplay\":false},\"error\":null}"
+    },
+    {
+      "layer": "candidateExchange",
+      "path": "/v1/candidate-exchange-pools/rebuild",
+      "body": {
+        "chainId": 4663,
+        "dryRun": false
+      },
+      "status": 200,
+      "response": "{\"ok\":true,\"version\":\"manager_dto_v1\",\"generatedAt\":\"2026-11-28T02:59:58.200751200+00:00\",\"chainId\":4663,\"requestId\":\"cascade-11d1aad38ab24db58069e601aaa98efc\",\"data\":{\"network\":\"robinhood\",\"chainId\":4663,\"protocol\":\"uniswap_v4\",\"scopeKey\":\"candidate_exchange\",\"apply\":true,\"dryRun\":false,\"candidateEdgeVersion\":18,\"candidateEdgeChecksum\":\"sha256:21b942287e1145f0d4d9751a219d48879e832a153466a7932794a25343d678ba\",\"poolScopeChecksum\":\"sha256:9ec36f1a16a12620a7d211efb70fcd20c53f393e14b6f8e2c308807404ea7b97\",\"libraryVersions\":{\"core\":1,\"stocks\":1},\"libraryChecksums\":{\"core\":\"sha256:cf2d5a753d7d587fc2bf195ba9eac770c495b476e26d76963ff156ff9ee87452\",\"stocks\":\"sha256:a7752808e288c80f4445b912f7d5883bd23577f6fa53a352d093c6683801cb2e\"},\"anchorCount\":16,\"tokenCount\":16,\"directionCount\":278,\"emptyDirectionCount\":134,\"poolCount\":93,\"abnormalDirectionCount\":74,\"abnormalPoolCount\":846,\"changedRows\":2230,\"observationVersion\":21,\"materializedChecksum\":\"sha256:cbe68565e9e98dac79c71db411ba97bb8f3d2c41d952505c3f75ff4459ed5917\",\"consumersNeedRebuild\":true,\"idempotentReplay\":false},\"error\":null}"
+    },
+    {
+      "layer": "closedLoops",
+      "path": "/v1/closed-loops/rebuild",
+      "body": {
+        "chainId": 4663,
+        "dryRun": false
+      },
+      "status": 422,
+      "response": "{\"ok\":false,\"version\":\"manager_dto_v1\",\"generatedAt\":\"2026-11-28T02:59:58.313770900+00:00\",\"chainId\":4663,\"requestId\":\"cascade-b589f87bfdc84f818c1fdffdc99e5491\",\"data\":null,\"error\":{\"code\":\"POOL_INVALID\",\"message\":\"invalid candidate topology: direct YZ direction robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec has no optimal pool\",\"retryable\":false,\"stage\":\"closed_loop.rebuild\",\"details\":{\"chainId\":4663,\"reason\":\"invalid candidate topology: direct YZ direction robinhood:4663:0x5fc5360d0400a0fd4f2af552add042d716f1d168->robinhood:4663:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec has no optimal pool\"}}}"
+    }
+  ]
+}

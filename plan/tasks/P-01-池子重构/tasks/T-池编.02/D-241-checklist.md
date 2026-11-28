@@ -142,10 +142,13 @@
 
 - [x] **I2.1** **重建链顺序修正（`M-8` · `scripts/mainnet_arbitrage_healer.py`）**：`MANAGER_REBUILD_CHAIN` 改为 **方向层 → 候选边层 → 候选交换层 → 闭环层**，并在注释里写明「消费方读生产方的排名，这是硬约束」；新增回归测试锁死顺序（`test_the_cascade_rebuilds_the_direction_layer_before_the_layers_that_read_it`）
 - [x] **I2.2** **候选边层的时序守卫（`M-1` · `candidate_edge_pool_manager`）**：新增 `CandidateEdgeError::DirectionalLayerStale` —— 物化前读方向层状态（`manager_v4_directional_pool_library_state`），若方向层物化时刻**早于**作用域 `last_rebuilt_at` 则**写入前拒绝发布**（把静默丢失变成响亮失败）；**不引入新表/新列/新迁移**；没有方向层状态的库保持原行为
-- [ ] **I2.3** **生产数据修复（待执行）**：顺序修正后的级联一次即可补回 USDG（`directionalPools` → `candidateEdge` → `candidateExchange` → `closedLoops`）；**前置条件**：USDG 两条腿的价格读取时刻为 `2026-11-27T22:03:52Z`（约 12 小时前），**应先刷新作用域的链上价格再走级联**，否则新闭环会带着陈旧价进入复核
-- [ ] **I2.4** **内核复核给出两条净正三角形的真实盈亏**：+1.1214% / +0.2543% 只是**边际速率读数**，必须由内核复核实测后判定 ⇒ **不预判**
-- [ ] **I2.5** **同源第二面：`candidate_exchange` 作用域的方向层仍早于它的作用域**（version 50，生成于 `2026-11-27T15:07:56Z` < 作用域 `22:16:02`），该作用域有 **5 个「有池无排名」**的活跃交易对 ⇒ 本轮未修（该作用域的行不在交易路径上），登记为开放项
+- [x] **I2.3** **生产数据修复（已执行 · `2026-11-28T10:46Z–11:02Z`）**：级联按依赖顺序落库（`directionalPools`(core4) → `candidateEdge` → `directionalPools`(candidate_exchange) → `candidateExchange` → `closedLoops`，全部 HTTP 200，`plan/runtime_evidence/reports/cascade_apply_d245_20261128b.json`）：候选边层 **v17 → v18 / 推荐 104 → 128（+24）**、闭环 **v72 → v73 / 36 → 48 条 / 跳 108 → 144**；**USDG 回到闭环目录（12 条 active）**，两条净正三角形已在目录内；剩余 9 条 USDG 跳过记录变成真实市场事实（`no_reachable_v4_pool` / `no_completing_middle_direction`）⇒ **USDG 缺口已收口**
+- [ ] **I2.4** **内核复核给出两条净正三角形的真实盈亏**：+1.1214% / +0.2543% 只是**边际速率读数**，必须由内核复核实测后判定 ⇒ **不预判**；**现状**：代次 73 已复核 21 条（`missingValue 0` / `positive 0`），**27 条闭环尚无本代次复核**（含全部 12 条 USDG 闭环），自愈器正在逐条实测
+- [x] **I2.5** **同源第二面：`candidate_exchange` 作用域的方向层早于它的作用域**（version 50，生成于 `2026-11-27T15:07:56Z` < 作用域 `22:16:02`）⇒ **本轮已重建（v50 → v51，changedRows 232）**：不重建它，观察视图 `manager_market_observation_yz_pairs` 按 `scope_key` 关联不到有效排名 ⇒ `optimal_pool_id` 取空 ⇒ 闭环层以 `POOL_INVALID` 拒绝发布；该作用域原有的 **5 个「有池无排名」**是否随之归零 ⇒ **待复核**
 - [ ] **I2.6** **4 个只读审计/校验脚本因迁移 018 之后的表结构失配而失败**（`verify_optimal_pool_view_20261125.py`、`verify_task150_pool_set_20261121.py`、`audit_directional_hop_resolution_20261125.py`、`audit_directional_invariants_20261125.py`：`no such column: direction_key / pool_ids_json / base_pool_id`）⇒ 需按当前表结构重写，**不为了通过校验而改表**
+
+- [ ] **I2.7** **★ 写锁占用（新增开放项 · 本轮发现）**：manager 的写接口整片 `503 database is locked`（每层等满 60 s busy timeout 才失败）⇒ 自愈器在运行时忙时**写不进去**；探针读数：旧运行时在跑时 **15/15** 采样全锁，停运行时后 **0/5**，新运行时起来后 **65/90（72%）** ⇒ **持锁者是运行时**（链上测量期间开着写事务）⇒ 需把链上测量移出写事务；本轮靠「停运行时腾锁」落库后立即重启，**根治未做**
+- [x] **I2.8** **重建链扩为 5 层（`M-8` · `scripts/mainnet_arbitrage_healer.py`）**：链条由 4 层扩为 5 层 —— `directionalPools(core4)` → `candidateEdge` → **`directionalPools(candidate_exchange)`** → `candidateExchange` → `closedLoops`；因为观察视图 `manager_market_observation_yz_pairs` 按 `scope_key` 关联**该作用域自己的**方向层，而 `MANAGER_REBUILD_CHAIN` 原先只重建 core4 的方向层 ⇒ 候选交换作用域的方向层一旦陈旧，闭环层就以 `POOL_INVALID` 拒绝发布（2026-11-28 落库时实测到的 422）；链条项改为 `(name, path, scope_key)` 三元组，回归新增 `test_the_cascade_rebuilds_the_direction_layer_of_the_observation_scope` ⇒ **138 passed / 0**（基线 **137** ＋ 新 **1**）；级联工具 `plan/runtime_evidence/tools/apply_cascade_in_dependency_order_20261128.py` 同步改为 5 层
 
 ### I3. 回归
 
@@ -158,4 +161,4 @@
 - [ ] **I4.1** **不伪造**：本轮**未填任何盈亏**、**未填 0**、**未删任何历史复核行**、**未改任何历史代次**
 - [ ] **I4.2** **不放宽任何门禁**：广播 attempts 仍为 **0**（**市场条件**，无正利润复核）；「持续产生链上广播交易」**仍未达成**
 - [ ] **I4.3** **不预判**：新闭环与两条净正三角形是否有盈亏由**链上事实**决定，**不预判**
-- [ ] **I4.4** **不代运行时关闭**：3 条 NVDA 陈旧代次路由仍需运行时**按当前路由重新注册常驻 worker**（404／409／超时属运行时侧）
+- [ ] **I4.4** **不代运行时关闭**：常驻 worker 仍需运行时**按当前路由重新注册** —— 规模已量化：管理器 **48** 条 active 闭环里 **21 条没有常驻 worker**（含**全部 12 条 USDG 闭环**）；根因是运行时的闭环目录从**它自己的表**构建（`v4_closed_loops` **32** 行 / `updated_at 2026-11-27T00:39:52Z`、`dex_candidate_pool_recommendations` **76** 行、`market_observation_yz_pairs` **142** 行，均落后于管理器），而 worker 按「运行时自己发现的路线顺序」注册 ⇒ 新路线无 worker ⇒ `manual-review` 答 **404**；同步口是 `POST /api/dex-pools/candidates/refresh?full=1&dry_run=false`（本轮已发起一次全量同步），**根治**：自愈器在闭环层重建后应再触发一次运行时同步，否则 `consumers_need_rebuild` 永远为 1

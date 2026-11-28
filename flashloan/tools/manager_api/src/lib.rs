@@ -3079,6 +3079,24 @@ fn candidate_failure(error: CandidateEdgeError, chain_id: u64, stage: &str) -> M
                 "actual": actual
             }),
         ),
+        // The direction layer the candidate edge layer publishes was
+        // materialized from an older pool scope.  The direction layer has
+        // to be rebuilt first; publishing the ranking of the older scope
+        // would drop every pair whose pool became active in the newer one.
+        CandidateEdgeError::DirectionalLayerStale {
+            scope_key,
+            scope_rebuilt_at,
+            directional_pool_version,
+            directional_pool_generated_at,
+        } => ManagerError::new(ErrorCode::UpstreamVersionChanged, message, stage).with_details(
+            serde_json::json!({
+                "chainId": chain_id,
+                "scopeKey": scope_key,
+                "scopeRebuiltAt": scope_rebuilt_at,
+                "directionalPoolVersion": directional_pool_version,
+                "directionalPoolGeneratedAt": directional_pool_generated_at
+            }),
+        ),
         CandidateEdgeError::IdempotencyKeyReused {
             idempotency_key,
             existing_request_id,

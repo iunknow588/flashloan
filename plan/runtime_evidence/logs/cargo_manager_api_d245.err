@@ -1,0 +1,33 @@
+   Compiling pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\pool_manager)
+   Compiling candidate-edge-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\candidate_edge_pool_manager)
+   Compiling directional-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\directional_pool_manager)
+   Compiling candidate-exchange-pool-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\candidate_exchange_pool_manager)
+   Compiling closed-loop-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\closed_loop_manager)
+   Compiling review-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\review_manager)
+   Compiling broadcast-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\broadcast_manager)
+   Compiling composite-manager v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\composite_manager)
+   Compiling manager-api v0.1.0 (E:\2026OPC大赛\flashLoan\flashloan\tools\manager_api)
+error[E0004]: non-exhaustive patterns: `CandidateEdgeError::DirectionalLayerStale { .. }` not covered
+    --> manager_api\src\lib.rs:3065:11
+     |
+3065 |     match error {
+     |           ^^^^^ pattern `CandidateEdgeError::DirectionalLayerStale { .. }` not covered
+     |
+note: `CandidateEdgeError` defined here
+    --> candidate_edge_pool_manager\src\lib.rs:58:1
+     |
+  58 | pub enum CandidateEdgeError {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+  85 |     DirectionalLayerStale {
+     |     --------------------- not covered
+     = note: the matched value is of type `CandidateEdgeError`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+     |
+3132 ~         },
+3133 +         CandidateEdgeError::DirectionalLayerStale { .. } => todo!()
+     |
+
+For more information about this error, try `rustc --explain E0004`.
+error: could not compile `manager-api` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

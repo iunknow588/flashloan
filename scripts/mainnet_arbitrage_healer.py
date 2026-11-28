@@ -4920,11 +4920,21 @@ def scope_expected_modes(baseline: dict[str, Any]) -> dict[str, str]:
 #: set as "this market has no candidate" and skips the token, even though
 #: the scope carries a usable pool for it.  That is how USDG lost every
 #: first and third hop on 2026-11-27.
+#:
+#: The chain carries **two** direction layers, because the observation
+#: rows belong to the observation scope and the view that resolves their
+#: optimal pool joins the direction layer **of that scope**.  A direction
+#: layer of the previous scope leaves the view without an optimal pool,
+#: and the closed loop layer then refuses to publish the whole catalog
+#: with ``POOL_INVALID``.  So the observation scope's direction layer is
+#: rebuilt before the closed loop layer asks for its routes.
 MANAGER_REBUILD_CHAIN = (
-    ("directionalPools", "/v1/directional-pools/rebuild"),
-    ("candidateEdge", "/v1/candidate-edge-pools/rebuild"),
-    ("candidateExchange", "/v1/candidate-exchange-pools/rebuild"),
-    ("closedLoops", "/v1/closed-loops/rebuild"),
+    ("directionalPools.core", "/v1/directional-pools/rebuild", SCOPE),
+    ("candidateEdge", "/v1/candidate-edge-pools/rebuild", None),
+    ("directionalPools.observation", "/v1/directional-pools/rebuild",
+     OBSERVATION_SCOPE),
+    ("candidateExchange", "/v1/candidate-exchange-pools/rebuild", None),
+    ("closedLoops", "/v1/closed-loops/rebuild", None),
 )
 
 #: The production scopes of the chain.
@@ -5024,7 +5034,7 @@ def repair_scope_policy(manager_api: str, apply: bool,
 def repair_downstream_cascade(
     manager_api: str,
     apply: bool,
-    chain: tuple[tuple[str, str], ...] = MANAGER_REBUILD_CHAIN,
+    chain: tuple[tuple[str, str, str | None], ...] = MANAGER_REBUILD_CHAIN,
     reason: str = "",
 ) -> dict[str, Any]:
     """Rebuild every layer below the pool scope, in order.
@@ -5036,19 +5046,27 @@ def repair_downstream_cascade(
     all, and they are rebuilt **in order**: every layer reads the
     version and the checksum of the layer above it, so a rebuild that
     skips a layer is rejected as stale.
+
+    The chain rebuilds the direction layer of **two** scopes: the scope
+    the candidate edge layer publishes, and the scope the observation
+    rows belong to.  The view that resolves the optimal pool of an
+    observation row joins the direction layer of that row's own scope,
+    so a direction layer of the previous scope leaves the observation
+    without an optimal pool and the closed loop layer refuses to
+    publish the whole catalog.
     """
     results = []
-    for name, path in chain:
+    for name, path, scope_key in chain:
         body: dict[str, Any] = {"chainId": CHAIN_ID, "dryRun": not apply}
-        if name == "directionalPools":
-            body["scopeKey"] = SCOPE
+        if scope_key:
+            body["scopeKey"] = scope_key
         response = api_post(manager_api, path, body)
         results.append({"layer": name, "path": path, "response": response})
     return {"tool": "manager-api", "action": "cascade.rebuild",
             "apply": apply, "dryRun": not apply,
             "reason": reason or ("every layer below the pool scope is materialized "
                                  "from it, so a scope repair invalidates them all"),
-            "order": [name for name, _path in chain],
+            "order": [name for name, _path, _scope in chain],
             "results": results}
 
 
